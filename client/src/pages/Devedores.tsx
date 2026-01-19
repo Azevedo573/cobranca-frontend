@@ -19,14 +19,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Users, Plus, Eye, ArrowLeft, Search } from "lucide-react";
-import { Link } from "wouter";
+import { Users, Plus, Eye, ArrowLeft, Search, Pencil, Trash2 } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export default function Devedores() {
   const { user, logout } = useAuth();
+  const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [devedorToDelete, setDevedorToDelete] = useState<number | null>(null);
   
   // Admin precisa selecionar um condomínio, síndicos/cobradores usam o próprio
   const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
@@ -40,10 +54,35 @@ export default function Devedores() {
     { enabled: !!condominioId }
   );
 
+  const utils = trpc.useUtils();
+  
+  const deleteMutation = trpc.devedores.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Devedor excluído com sucesso!");
+      utils.devedores.list.invalidate();
+      setDeleteDialogOpen(false);
+      setDevedorToDelete(null);
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir devedor: " + error.message);
+    },
+  });
+
   const filteredDevedores = devedores?.filter(dev =>
     dev.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     dev.unitNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  
+  const handleDeleteClick = (id: number) => {
+    setDevedorToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+  
+  const handleDeleteConfirm = () => {
+    if (devedorToDelete) {
+      deleteMutation.mutate({ id: devedorToDelete });
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
@@ -177,11 +216,34 @@ export default function Devedores() {
                       </TableCell>
                       <TableCell>{getStatusBadge(dev.status)}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/devedores/${dev.id}/detalhes`}>
-                          <Button variant="ghost" size="icon">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link href={`/devedores/${dev.id}/detalhes`}>
+                            <Button variant="ghost" size="icon" title="Ver detalhes">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          {(user?.role === "admin" || user?.role === "sindico") && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Editar"
+                                onClick={() => setLocation(`/devedores/${dev.id}/editar`)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Excluir"
+                                onClick={() => handleDeleteClick(dev.id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -211,6 +273,27 @@ export default function Devedores() {
           </CardContent>
         </Card>
       </main>
+      
+      {/* Diálogo de Confirmação de Exclusão */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este devedor? Esta ação não pode ser desfeita e todos os dados relacionados (cobranças, tentativas, acordos) também serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDevedorToDelete(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

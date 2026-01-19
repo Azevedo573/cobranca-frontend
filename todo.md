@@ -122,3 +122,12 @@
 - [x] Adicionar filtro de condomínio na página de listagem de cobranças
 - [x] Admin seleciona condomínio para visualizar cobranças
 - [x] Síndico/cobrador vê cobranças do próprio condomínio automaticamente
+
+## Nova Funcionalidade - Editar e Excluir Registros
+- [x] Criar mutation de delete de devedor no backend
+- [x] Criar mutation de delete de cobrança no backend
+- [x] Adicionar botão de editar na tabela de devedores
+- [x] Adicionar botão de excluir com diálogo de confirmação na tabela de devedores
+- [x] Adicionar botão de editar na tabela de cobranças
+- [x] Adicionar botão de excluir com diálogo de confirmação na tabela de cobranças
+- [x] Testar fluxo completo de edição e exclusão

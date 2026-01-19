@@ -12,15 +12,29 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { FileText, Plus, Eye, ArrowLeft, Search } from "lucide-react";
-import { Link } from "wouter";
+import { FileText, Plus, Eye, ArrowLeft, Search, Pencil, Trash2 } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 export default function Cobrancas() {
   const { user, logout } = useAuth();
+  const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [cobrancaToDelete, setCobrancaToDelete] = useState<number | null>(null);
   
   // Para admin, usar condomínio selecionado; para síndico/cobrador, usar o próprio
   const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
@@ -39,9 +53,34 @@ export default function Cobrancas() {
     { enabled: condominioId !== null && condominioId !== undefined }
   );
 
+  const utils = trpc.useUtils();
+  
+  const deleteMutation = trpc.cobrancas.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Cobrança excluída com sucesso!");
+      utils.cobrancas.list.invalidate();
+      setDeleteDialogOpen(false);
+      setCobrancaToDelete(null);
+    },
+    onError: (error) => {
+      toast.error("Erro ao excluir cobrança: " + error.message);
+    },
+  });
+
   const getDevedorName = (devedorId: number) => {
     const dev = devedores?.find(d => d.id === devedorId);
     return dev?.name || "Desconhecido";
+  };
+  
+  const handleDeleteClick = (id: number) => {
+    setCobrancaToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+  
+  const handleDeleteConfirm = () => {
+    if (cobrancaToDelete) {
+      deleteMutation.mutate({ id: cobrancaToDelete });
+    }
   };
 
   const filteredCobrancas = cobrancas?.filter(cob => {
@@ -185,11 +224,34 @@ export default function Cobrancas() {
                       </TableCell>
                       <TableCell>{getStatusBadge(cob.status)}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/cobrancas/${cob.id}`}>
-                          <Button variant="ghost" size="icon">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link href={`/cobrancas/${cob.id}`}>
+                            <Button variant="ghost" size="icon" title="Ver detalhes">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          {(user?.role === "admin" || user?.role === "sindico") && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Editar"
+                                onClick={() => setLocation(`/cobrancas/${cob.id}/editar`)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="Excluir"
+                                onClick={() => handleDeleteClick(cob.id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -219,6 +281,27 @@ export default function Cobrancas() {
           </CardContent>
         </Card>
       </main>
+      
+      {/* Diálogo de Confirmação de Exclusão */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta cobrança? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCobrancaToDelete(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

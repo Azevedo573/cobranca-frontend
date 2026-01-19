@@ -167,6 +167,11 @@ export const appRouter = router({
       const { updateCobranca } = await import("./db-cobrancas");
       return await updateCobranca(id, data);
     }),
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      const { deleteCobranca } = await import("./db-cobrancas");
+      await deleteCobranca(input.id);
+      return { success: true };
+    }),
   }),
 
   // Tentativas de Cobrança
