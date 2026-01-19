@@ -46,9 +46,12 @@ export default function UserForm() {
     }
   }, [userData]);
 
+  const utils = trpc.useUtils();
+
   const createMutation = trpc.users.create.useMutation({
     onSuccess: () => {
       toast.success("Usuário cadastrado com sucesso!");
+      utils.users.list.invalidate();
       setLocation("/admin/usuarios");
     },
     onError: (error) => {
@@ -59,6 +62,8 @@ export default function UserForm() {
   const updateMutation = trpc.users.update.useMutation({
     onSuccess: () => {
       toast.success("Usuário atualizado com sucesso!");
+      utils.users.list.invalidate();
+      utils.users.getById.invalidate();
       setLocation("/admin/usuarios");
     },
     onError: (error) => {

@@ -28,9 +28,13 @@ export default function CobrancaForm() {
     { enabled: !!user?.condominioId }
   );
 
+  const utils = trpc.useUtils();
+
   const createMutation = trpc.cobrancas.create.useMutation({
     onSuccess: () => {
       toast.success("Cobrança cadastrada com sucesso!");
+      utils.cobrancas.list.invalidate();
+      utils.cobrancas.getByDevedor.invalidate();
       setLocation("/cobrancas");
     },
     onError: (error) => {

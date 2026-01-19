@@ -35,6 +35,8 @@ export default function CondominioForm() {
     { enabled: !!condominioId }
   );
 
+  const utils = trpc.useUtils();
+
   useEffect(() => {
     if (condominio) {
       setFormData({
@@ -55,6 +57,7 @@ export default function CondominioForm() {
   const createMutation = trpc.condominios.create.useMutation({
     onSuccess: () => {
       toast.success("Condomínio cadastrado com sucesso!");
+      utils.condominios.list.invalidate();
       setLocation("/admin/condominios");
     },
     onError: (error) => {
@@ -65,6 +68,8 @@ export default function CondominioForm() {
   const updateMutation = trpc.condominios.update.useMutation({
     onSuccess: () => {
       toast.success("Condomínio atualizado com sucesso!");
+      utils.condominios.list.invalidate();
+      utils.condominios.getById.invalidate();
       setLocation("/admin/condominios");
     },
     onError: (error) => {

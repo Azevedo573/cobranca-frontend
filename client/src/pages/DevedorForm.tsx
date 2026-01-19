@@ -52,9 +52,12 @@ export default function DevedorForm() {
     }
   }, [devedor, user, isEdit]);
 
+  const utils = trpc.useUtils();
+
   const createMutation = trpc.devedores.create.useMutation({
     onSuccess: () => {
       toast.success("Devedor cadastrado com sucesso!");
+      utils.devedores.list.invalidate();
       setLocation("/devedores");
     },
     onError: (error) => {
@@ -65,6 +68,8 @@ export default function DevedorForm() {
   const updateMutation = trpc.devedores.update.useMutation({
     onSuccess: () => {
       toast.success("Devedor atualizado com sucesso!");
+      utils.devedores.list.invalidate();
+      utils.devedores.getById.invalidate();
       setLocation("/devedores");
     },
     onError: (error) => {

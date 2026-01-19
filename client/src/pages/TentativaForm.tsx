@@ -35,9 +35,12 @@ export default function TentativaForm() {
     { enabled: !!devedorId }
   );
 
+  const utils = trpc.useUtils();
+
   const createMutation = trpc.tentativas.create.useMutation({
     onSuccess: () => {
       toast.success("Tentativa registrada com sucesso!");
+      utils.tentativas.getByDevedor.invalidate();
       navigate(`/devedores/${devedorId}/detalhes`);
     },
     onError: (error) => {

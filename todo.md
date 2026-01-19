@@ -75,3 +75,8 @@
 - [x] Adicionar campos: tipo de contato, data, resultado, observações
 - [x] Integrar rotas no App.tsx
 - [x] Testar fluxo completo de registro de tentativas
+
+## Bug - Devedor não aparece na lista após cadastro
+- [x] Investigar problema no backend ao criar devedor
+- [x] Verificar invalidação de cache do tRPC
+- [x] Corrigir e testar fluxo completo
