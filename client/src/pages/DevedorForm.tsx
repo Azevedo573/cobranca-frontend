@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Save } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -17,6 +18,7 @@ export default function DevedorForm() {
   const devedorId = isEdit ? parseInt(params.id) : null;
 
   const [formData, setFormData] = useState({
+    condominioId: "",
     name: "",
     unitNumber: "",
     email: "",
@@ -29,17 +31,26 @@ export default function DevedorForm() {
     { enabled: !!devedorId }
   );
 
+  const { data: condominios } = trpc.condominios.list.useQuery(
+    undefined,
+    { enabled: user?.role === "admin" }
+  );
+
   useEffect(() => {
     if (devedor) {
       setFormData({
+        condominioId: devedor.condominioId.toString(),
         name: devedor.name || "",
         unitNumber: devedor.unitNumber || "",
         email: devedor.email || "",
         phone: devedor.phone || "",
         totalDue: (devedor.totalDue / 100).toFixed(2),
       });
+    } else if (user?.condominioId && !isEdit) {
+      // Pré-selecionar condomínio do usuário logado
+      setFormData(prev => ({ ...prev, condominioId: user.condominioId!.toString() }));
     }
-  }, [devedor]);
+  }, [devedor, user, isEdit]);
 
   const createMutation = trpc.devedores.create.useMutation({
     onSuccess: () => {
@@ -74,6 +85,11 @@ export default function DevedorForm() {
       return;
     }
 
+    if (!formData.condominioId) {
+      toast.error("Condomínio é obrigatório");
+      return;
+    }
+
     const totalDueInCents = Math.round(parseFloat(formData.totalDue || "0") * 100);
 
     if (isEdit && devedorId) {
@@ -87,7 +103,7 @@ export default function DevedorForm() {
       });
     } else {
       createMutation.mutate({
-        condominioId: user?.condominioId!,
+        condominioId: parseInt(formData.condominioId),
         name: formData.name,
         unitNumber: formData.unitNumber,
         email: formData.email || undefined,
@@ -140,6 +156,30 @@ export default function DevedorForm() {
               <CardDescription>Informações do condômino inadimplente</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Condomínio */}
+              {user?.role === "admin" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="condominioId">Condomínio *</Label>
+                  <Select
+                    value={formData.condominioId}
+                    onValueChange={(value) => setFormData({ ...formData, condominioId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o condomínio" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {condominios?.map((cond) => (
+                        <SelectItem key={cond.id} value={cond.id.toString()}>
+                          {cond.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <input type="hidden" name="condominioId" value={formData.condominioId} />
+              )}
+
               {/* Dados Básicos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">

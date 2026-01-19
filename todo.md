@@ -62,3 +62,8 @@
 - [x] Página de listagem de cobranças
 - [x] Página de formulário de cobrança (criar/editar)
 - [x] Integrar todas as rotas no App.tsx
+
+## Correção - Vincular Devedor ao Condomínio
+- [x] Adicionar campo de seleção de condomínio no formulário de devedor
+- [x] Permitir que admin selecione qualquer condomínio
+- [x] Pré-selecionar condomínio do usuário logado para síndicos/cobradores
