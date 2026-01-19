@@ -7,13 +7,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Save } from "lucide-react";
-import { useState } from "react";
-import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
 
 export default function CobrancaForm() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const [, params] = useRoute("/cobrancas/:id/editar");
+  const isEdit = params?.id !== undefined;
+  const cobrancaId = isEdit ? parseInt(params.id) : null;
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
@@ -31,10 +34,28 @@ export default function CobrancaForm() {
     enabled: user?.role === "admin"
   });
 
+  const { data: cobranca } = trpc.cobrancas.getById.useQuery(
+    { id: cobrancaId! },
+    { enabled: !!cobrancaId }
+  );
+
   const { data: devedores } = trpc.devedores.list.useQuery(
     { condominioId: condominioId ?? 0 },
     { enabled: condominioId !== null && condominioId !== undefined }
   );
+
+  useEffect(() => {
+    if (cobranca) {
+      setFormData({
+        devedorId: cobranca.devedorId.toString(),
+        description: cobranca.description || "",
+        amount: (cobranca.amount / 100).toFixed(2),
+        dueDate: cobranca.dueDate ? new Date(cobranca.dueDate).toISOString().split('T')[0] : "",
+        monthReference: cobranca.monthReference || "",
+      });
+      setSelectedCondominioId(cobranca.condominioId);
+    }
+  }, [cobranca]);
 
   const utils = trpc.useUtils();
 
@@ -47,6 +68,19 @@ export default function CobrancaForm() {
     },
     onError: (error) => {
       toast.error("Erro ao cadastrar: " + error.message);
+    },
+  });
+
+  const updateMutation = trpc.cobrancas.update.useMutation({
+    onSuccess: () => {
+      toast.success("Cobrança atualizada com sucesso!");
+      utils.cobrancas.list.invalidate();
+      utils.cobrancas.getByDevedor.invalidate();
+      utils.cobrancas.getById.invalidate();
+      setLocation("/cobrancas");
+    },
+    onError: (error) => {
+      toast.error("Erro ao atualizar: " + error.message);
     },
   });
 
@@ -66,18 +100,27 @@ export default function CobrancaForm() {
     const amountInCents = Math.round(parseFloat(formData.amount) * 100);
 
     if (!condominioId) {
-      toast.error("Selecione um condom\u00ednio");
+      toast.error("Selecione um condomínio");
       return;
     }
 
-    createMutation.mutate({
-      devedorId: parseInt(formData.devedorId),
-      condominioId: condominioId,
-      description: formData.description || undefined,
-      amount: amountInCents,
-      dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
-      monthReference: formData.monthReference || undefined,
-    });
+    if (isEdit && cobrancaId) {
+      updateMutation.mutate({
+        id: cobrancaId,
+        description: formData.description || undefined,
+        amount: amountInCents,
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
+      });
+    } else {
+      createMutation.mutate({
+        devedorId: parseInt(formData.devedorId),
+        condominioId: condominioId,
+        description: formData.description || undefined,
+        amount: amountInCents,
+        dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
+        monthReference: formData.monthReference || undefined,
+      });
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

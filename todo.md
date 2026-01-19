@@ -136,3 +136,11 @@
 - [x] Verificar logs do servidor para identificar erro
 - [x] Corrigir problema no backend que está causando resposta HTML
 - [x] Testar queries tRPC após correção
+
+## Nova Funcionalidade - Rotas de Edição
+- [x] Adicionar rotas `/devedores/:id/editar` e `/cobrancas/:id/editar` no App.tsx
+- [x] Modificar DevedorForm para detectar parâmetro :id na URL
+- [x] Carregar dados do devedor existente quando em modo edição
+- [x] Modificar CobrancaForm para detectar parâmetro :id na URL
+- [x] Carregar dados da cobrança existente quando em modo edição
+- [x] Testar fluxo completo de edição

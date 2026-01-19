@@ -145,6 +145,10 @@ export const appRouter = router({
       const { getCobrancasByDevedor } = await import("./db-cobrancas");
       return await getCobrancasByDevedor(input.devedorId);
     }),
+    getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+      const { getCobrancaById } = await import("./db-cobrancas");
+      return await getCobrancaById(input.id);
+    }),
     create: condominioAccessProcedure.input(z.object({
       devedorId: z.number(),
       condominioId: z.number(),

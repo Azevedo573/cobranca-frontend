@@ -117,7 +117,10 @@ function Router() {
       <Route path="/devedores/:devedorId/tentativa/nova">
         {() => <ProtectedRoute component={TentativaForm} />}
       </Route>
-      <Route path="/devedores/:id">
+      <Route path="/devedores/novo">
+        {() => <ProtectedRoute component={DevedorForm} />}
+      </Route>
+      <Route path="/devedores/:id/editar">
         {() => <ProtectedRoute component={DevedorForm} />}
       </Route>
 
@@ -125,8 +128,11 @@ function Router() {
       <Route path="/cobrancas">
         {() => <ProtectedRoute component={Cobrancas} />}
       </Route>
-      <Route path="/cobrancas/:id">
-        {() => <ProtectedRoute component={CobrancaForm} />}
+      <Route path="/cobrancas/nova">
+        {() => <ProtectedRoute component={CobrancaForm} allowedRoles={["admin", "sindico"]} />}
+      </Route>
+      <Route path="/cobrancas/:id/editar">
+        {() => <ProtectedRoute component={CobrancaForm} allowedRoles={["admin", "sindico"]} />}
       </Route>
 
       <Route path="/404" component={NotFound} />
