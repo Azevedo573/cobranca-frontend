@@ -50,3 +50,15 @@
 - [ ] Testes de isolamento de dados
 - [ ] Testes de CRUD de entidades
 - [ ] Testes de cálculos de relatórios
+
+## Nova Solicitação - Páginas CRUD Completas
+- [x] Página de listagem de condominios (admin)
+- [x] Página de formulário de condominio (criar/editar)
+- [x] Página de listagem de usuários (admin)
+- [x] Página de formulário de usuário (criar/editar)
+- [x] Página de listagem de devedores
+- [x] Página de formulário de devedor (criar/editar)
+- [ ] Página de detalhes do devedor com histórico
+- [x] Página de listagem de cobranças
+- [x] Página de formulário de cobrança (criar/editar)
+- [x] Integrar todas as rotas no App.tsx

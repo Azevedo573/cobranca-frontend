@@ -112,6 +112,18 @@ export default function AdminDashboard() {
                   Gerenciar Usuários
                 </Button>
               </Link>
+              <Link href="/devedores">
+                <Button className="w-full justify-start" variant="outline">
+                  <Users className="mr-2 h-4 w-4" />
+                  Ver Devedores
+                </Button>
+              </Link>
+              <Link href="/cobrancas">
+                <Button className="w-full justify-start" variant="outline">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Ver Cobranças
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 

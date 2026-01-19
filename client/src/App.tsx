@@ -9,6 +9,14 @@ import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import SindicoDashboard from "./pages/SindicoDashboard";
 import CobradorDashboard from "./pages/CobradorDashboard";
+import Condominios from "./pages/admin/Condominios";
+import CondominioForm from "./pages/admin/CondominioForm";
+import Users from "./pages/admin/Users";
+import UserForm from "./pages/admin/UserForm";
+import Devedores from "./pages/Devedores";
+import DevedorForm from "./pages/DevedorForm";
+import Cobrancas from "./pages/Cobrancas";
+import CobrancaForm from "./pages/CobrancaForm";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -77,6 +85,38 @@ function Router() {
       {/* Rotas do Cobrador */}
       <Route path="/cobrador/dashboard">
         {() => <ProtectedRoute component={CobradorDashboard} allowedRoles={["cobrador"]} />}
+      </Route>
+
+      {/* Rotas de Condomínios (Admin) */}
+      <Route path="/admin/condominios">
+        {() => <ProtectedRoute component={Condominios} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/condominios/:id">
+        {() => <ProtectedRoute component={CondominioForm} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Rotas de Usuários (Admin) */}
+      <Route path="/admin/usuarios">
+        {() => <ProtectedRoute component={Users} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/usuarios/:id">
+        {() => <ProtectedRoute component={UserForm} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Rotas de Devedores */}
+      <Route path="/devedores">
+        {() => <ProtectedRoute component={Devedores} />}
+      </Route>
+      <Route path="/devedores/:id">
+        {() => <ProtectedRoute component={DevedorForm} />}
+      </Route>
+
+      {/* Rotas de Cobranças */}
+      <Route path="/cobrancas">
+        {() => <ProtectedRoute component={Cobrancas} />}
+      </Route>
+      <Route path="/cobrancas/:id">
+        {() => <ProtectedRoute component={CobrancaForm} />}
       </Route>
 
       <Route path="/404" component={NotFound} />

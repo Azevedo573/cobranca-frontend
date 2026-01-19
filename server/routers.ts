@@ -234,6 +234,65 @@ export const appRouter = router({
       return { success: true };
     }),
   }),
+
+  // Usuários (apenas admin)
+  users: router({
+    list: adminProcedure.query(async () => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      const { users } = await import("../drizzle/schema");
+      return await db.select().from(users);
+    }),
+    getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return null;
+      const { users } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const result = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
+      return result[0] || null;
+    }),
+    create: adminProcedure.input(z.object({
+      openId: z.string(),
+      name: z.string(),
+      email: z.string().email(),
+      role: z.enum(["admin", "sindico", "cobrador"]),
+      condominioId: z.number().optional(),
+    })).mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { users } = await import("../drizzle/schema");
+      return await db.insert(users).values(input);
+    }),
+    update: adminProcedure.input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      email: z.string().email().optional(),
+      role: z.enum(["admin", "sindico", "cobrador"]).optional(),
+      condominioId: z.number().optional(),
+      isActive: z.number().optional(),
+    })).mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { users } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(users).set(data).where(eq(users.id, id));
+      return { success: true };
+    }),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { users } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.delete(users).where(eq(users.id, input.id));
+      return { success: true };
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
