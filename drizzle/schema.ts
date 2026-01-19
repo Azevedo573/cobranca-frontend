@@ -34,6 +34,8 @@ export const condominios = mysqlTable("condominios", {
   email: varchar("email", { length: 320 }),
   managerName: varchar("managerName", { length: 255 }),
   managerEmail: varchar("managerEmail", { length: 320 }),
+  username: varchar("username", { length: 100 }),
+  password: varchar("password", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

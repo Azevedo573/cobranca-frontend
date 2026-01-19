@@ -15,6 +15,13 @@
       "when": 1768825551801,
       "tag": "0001_needy_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1768830068419,
+      "tag": "0002_chubby_alice",
+      "breakpoints": true
     }
   ]
 }

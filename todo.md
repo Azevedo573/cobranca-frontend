@@ -101,3 +101,9 @@
 ## Bug - Erro ao criar cobrança (condominioId null)
 - [x] Adicionar condominioId ao payload da mutation de criar cobrança
 - [x] Validar que condominioId está sendo enviado corretamente
+
+## Nova Funcionalidade - Credenciais de Condomínio
+- [x] Adicionar campos username e password na tabela condominios
+- [x] Atualizar formulário de condomínio com campos de usuário e senha
+- [x] Atualizar backend para salvar credenciais do condomínio
+- [x] Testar cadastro e edição de condomínio com credenciais

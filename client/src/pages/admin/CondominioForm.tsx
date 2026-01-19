@@ -28,6 +28,8 @@ export default function CondominioForm() {
     email: "",
     managerName: "",
     managerEmail: "",
+    username: "",
+    password: "",
   });
 
   const { data: condominio } = trpc.condominios.getById.useQuery(
@@ -50,6 +52,8 @@ export default function CondominioForm() {
         email: condominio.email || "",
         managerName: condominio.managerName || "",
         managerEmail: condominio.managerEmail || "",
+        username: condominio.username || "",
+        password: "", // Não preencher senha por segurança
       });
     }
   }, [condominio]);
@@ -255,6 +259,37 @@ export default function CondominioForm() {
                       value={formData.managerEmail}
                       onChange={handleChange}
                       placeholder="sindico@email.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Credenciais de Acesso */}
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Credenciais de Acesso</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Defina usuário e senha para acesso do condomínio ao sistema
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Usuário</Label>
+                    <Input
+                      id="username"
+                      name="username"
+                      value={formData.username}
+                      onChange={handleChange}
+                      placeholder="usuario.condominio"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Senha</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder={isEdit ? "Deixe em branco para manter" : "Digite a senha"}
                     />
                   </div>
                 </div>

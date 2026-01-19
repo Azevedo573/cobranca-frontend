@@ -40,6 +40,8 @@ export const appRouter = router({
       email: z.string().optional(),
       managerName: z.string().optional(),
       managerEmail: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
     })).mutation(async ({ input }) => {
       const { createCondominio } = await import("./db-condominios");
       return await createCondominio(input);
@@ -56,6 +58,8 @@ export const appRouter = router({
       email: z.string().optional(),
       managerName: z.string().optional(),
       managerEmail: z.string().optional(),
+      username: z.string().optional(),
+      password: z.string().optional(),
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
       const { updateCondominio } = await import("./db-condominios");
