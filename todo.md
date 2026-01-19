@@ -80,3 +80,10 @@
 - [x] Investigar problema no backend ao criar devedor
 - [x] Verificar invalidação de cache do tRPC
 - [x] Corrigir e testar fluxo completo
+
+## Bug Crítico - Devedor não está sendo salvo no banco
+- [x] Verificar logs do servidor para erros
+- [x] Verificar procedure devedores.create no backend
+- [x] Verificar função createDevedor no db-devedores.ts
+- [x] Testar cadastro e validar salvamento no banco
+- [x] Adicionar seletor de condomínio para admin visualizar devedores

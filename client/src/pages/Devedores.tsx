@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { Users, Plus, Eye, ArrowLeft, Search } from "lucide-react";
 import { Link } from "wouter";
@@ -19,10 +26,18 @@ import { useState } from "react";
 export default function Devedores() {
   const { user, logout } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
+  
+  // Admin precisa selecionar um condomínio, síndicos/cobradores usam o próprio
+  const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
+  
+  const { data: condominios } = trpc.condominios.list.useQuery(undefined, {
+    enabled: user?.role === "admin"
+  });
   
   const { data: devedores, isLoading } = trpc.devedores.list.useQuery(
-    { condominioId: user?.condominioId! },
-    { enabled: !!user?.condominioId }
+    { condominioId: condominioId! },
+    { enabled: !!condominioId }
   );
 
   const filteredDevedores = devedores?.filter(dev =>
@@ -99,7 +114,24 @@ export default function Devedores() {
                 </Link>
               )}
             </div>
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
+              {user?.role === "admin" && (
+                <Select
+                  value={selectedCondominioId?.toString() || ""}
+                  onValueChange={(value) => setSelectedCondominioId(Number(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um condomínio para visualizar devedores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {condominios?.map((cond) => (
+                      <SelectItem key={cond.id} value={cond.id.toString()}>
+                        {cond.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
