@@ -97,3 +97,7 @@
 ## Bug - Erro de validação no formulário de cobrança
 - [x] Corrigir query de devedores para não executar quando condominioId é null
 - [x] Adicionar validação correta no enabled da query
+
+## Bug - Erro ao criar cobrança (condominioId null)
+- [x] Adicionar condominioId ao payload da mutation de criar cobrança
+- [x] Validar que condominioId está sendo enviado corretamente

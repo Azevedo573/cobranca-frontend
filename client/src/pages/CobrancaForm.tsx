@@ -65,9 +65,14 @@ export default function CobrancaForm() {
 
     const amountInCents = Math.round(parseFloat(formData.amount) * 100);
 
+    if (!condominioId) {
+      toast.error("Selecione um condom\u00ednio");
+      return;
+    }
+
     createMutation.mutate({
       devedorId: parseInt(formData.devedorId),
-      condominioId: user?.condominioId!,
+      condominioId: condominioId,
       description: formData.description || undefined,
       amount: amountInCents,
       dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
