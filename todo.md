@@ -131,3 +131,8 @@
 - [x] Adicionar botão de editar na tabela de cobranças
 - [x] Adicionar botão de excluir com diálogo de confirmação na tabela de cobranças
 - [x] Testar fluxo completo de edição e exclusão
+
+## Bug - Servidor retornando HTML em vez de JSON
+- [x] Verificar logs do servidor para identificar erro
+- [x] Corrigir problema no backend que está causando resposta HTML
+- [x] Testar queries tRPC após correção
