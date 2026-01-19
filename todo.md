@@ -107,3 +107,13 @@
 - [x] Atualizar formulário de condomínio com campos de usuário e senha
 - [x] Atualizar backend para salvar credenciais do condomínio
 - [x] Testar cadastro e edição de condomínio com credenciais
+
+## Nova Funcionalidade - Login Customizado para Condomínios
+- [x] Instalar bcrypt para hash de senhas
+- [x] Implementar hash de senha ao criar/atualizar condomínio
+- [x] Criar endpoint de login customizado (username/password)
+- [x] Gerar token JWT após autenticação bem-sucedida
+- [x] Criar tela de login customizada no frontend
+- [x] Integrar login customizado com gerenciamento de sessão
+- [x] Redirecionar para dashboard correto após login
+- [x] Testar fluxo completo de login customizado

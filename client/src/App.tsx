@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "./_core/hooks/useAuth";
 import Login from "./pages/Login";
+import LoginCondominio from "./pages/LoginCondominio";
 import AdminDashboard from "./pages/AdminDashboard";
 import SindicoDashboard from "./pages/SindicoDashboard";
 import CobradorDashboard from "./pages/CobradorDashboard";
@@ -62,6 +63,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/login-condominio" component={LoginCondominio} />
       
       {/* Rota raiz redireciona baseado no role */}
       <Route path="/">

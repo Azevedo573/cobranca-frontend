@@ -17,6 +17,26 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+    loginCustom: publicProcedure
+      .input(z.object({
+        username: z.string(),
+        password: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { authenticateCondominio } = await import("./auth-custom");
+        const result = await authenticateCondominio(input.username, input.password);
+        
+        if (result.success && result.token) {
+          // Definir cookie com o token
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, result.token, {
+            ...cookieOptions,
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+          });
+        }
+        
+        return result;
+      }),
   }),
 
   // Condominios (apenas admin)
