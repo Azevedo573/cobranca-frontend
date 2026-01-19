@@ -14,6 +14,7 @@ import { toast } from "sonner";
 export default function CobrancaForm() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
+  const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
     devedorId: "",
@@ -23,9 +24,16 @@ export default function CobrancaForm() {
     monthReference: "",
   });
 
+  // Admin precisa selecionar um condomínio, síndicos/cobradores usam o próprio
+  const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
+
+  const { data: condominios } = trpc.condominios.list.useQuery(undefined, {
+    enabled: user?.role === "admin"
+  });
+
   const { data: devedores } = trpc.devedores.list.useQuery(
-    { condominioId: user?.condominioId! },
-    { enabled: !!user?.condominioId }
+    { condominioId: condominioId! },
+    { enabled: !!condominioId }
   );
 
   const utils = trpc.useUtils();
@@ -108,6 +116,32 @@ export default function CobrancaForm() {
               <CardDescription>Informações da cobrança extrajudicial</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Condomínio (apenas para admin) */}
+              {user?.role === "admin" && (
+                <div className="space-y-2">
+                  <Label htmlFor="condominioId">Condomínio *</Label>
+                  <Select
+                    value={selectedCondominioId?.toString() || ""}
+                    onValueChange={(value) => {
+                      setSelectedCondominioId(Number(value));
+                      // Limpar devedor selecionado ao trocar de condomínio
+                      setFormData({ ...formData, devedorId: "" });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o condomínio primeiro" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {condominios?.map((cond) => (
+                        <SelectItem key={cond.id} value={cond.id.toString()}>
+                          {cond.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Devedor */}
               <div className="space-y-2">
                 <Label htmlFor="devedorId">Devedor *</Label>

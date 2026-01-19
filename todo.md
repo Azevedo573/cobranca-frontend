@@ -87,3 +87,9 @@
 - [x] Verificar função createDevedor no db-devedores.ts
 - [x] Testar cadastro e validar salvamento no banco
 - [x] Adicionar seletor de condomínio para admin visualizar devedores
+
+## Bug - Nova Cobrança não mostra devedores
+- [x] Adicionar filtro de condomínio na página de Nova Cobrança
+- [x] Carregar devedores baseado no condomínio selecionado
+- [x] Admin seleciona condomínio primeiro, depois devedor
+- [x] Síndico/cobrador vê devedores do próprio condomínio automaticamente
