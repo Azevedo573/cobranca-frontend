@@ -145,7 +145,7 @@ export default function Devedores() {
                       </TableCell>
                       <TableCell>{getStatusBadge(dev.status)}</TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/devedores/${dev.id}`}>
+                        <Link href={`/devedores/${dev.id}/detalhes`}>
                           <Button variant="ghost" size="icon">
                             <Eye className="h-4 w-4" />
                           </Button>

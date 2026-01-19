@@ -15,6 +15,8 @@ import Users from "./pages/admin/Users";
 import UserForm from "./pages/admin/UserForm";
 import Devedores from "./pages/Devedores";
 import DevedorForm from "./pages/DevedorForm";
+import DevedorDetalhes from "./pages/DevedorDetalhes";
+import TentativaForm from "./pages/TentativaForm";
 import Cobrancas from "./pages/Cobrancas";
 import CobrancaForm from "./pages/CobrancaForm";
 
@@ -106,6 +108,12 @@ function Router() {
       {/* Rotas de Devedores */}
       <Route path="/devedores">
         {() => <ProtectedRoute component={Devedores} />}
+      </Route>
+      <Route path="/devedores/:id/detalhes">
+        {() => <ProtectedRoute component={DevedorDetalhes} />}
+      </Route>
+      <Route path="/devedores/:devedorId/tentativa/nova">
+        {() => <ProtectedRoute component={TentativaForm} />}
       </Route>
       <Route path="/devedores/:id">
         {() => <ProtectedRoute component={DevedorForm} />}

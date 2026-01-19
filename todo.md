@@ -67,3 +67,11 @@
 - [x] Adicionar campo de seleção de condomínio no formulário de devedor
 - [x] Permitir que admin selecione qualquer condomínio
 - [x] Pré-selecionar condomínio do usuário logado para síndicos/cobradores
+
+## Módulo de Tentativas de Cobrança
+- [x] Criar página de detalhes do devedor com informações completas
+- [x] Adicionar listagem de tentativas de cobrança no detalhes do devedor
+- [x] Criar formulário de registro de tentativa de cobrança
+- [x] Adicionar campos: tipo de contato, data, resultado, observações
+- [x] Integrar rotas no App.tsx
+- [x] Testar fluxo completo de registro de tentativas
