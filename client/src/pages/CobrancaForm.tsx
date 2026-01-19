@@ -32,8 +32,8 @@ export default function CobrancaForm() {
   });
 
   const { data: devedores } = trpc.devedores.list.useQuery(
-    { condominioId: condominioId! },
-    { enabled: !!condominioId }
+    { condominioId: condominioId ?? 0 },
+    { enabled: condominioId !== null && condominioId !== undefined }
   );
 
   const utils = trpc.useUtils();

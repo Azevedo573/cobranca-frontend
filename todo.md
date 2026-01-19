@@ -93,3 +93,7 @@
 - [x] Carregar devedores baseado no condomínio selecionado
 - [x] Admin seleciona condomínio primeiro, depois devedor
 - [x] Síndico/cobrador vê devedores do próprio condomínio automaticamente
+
+## Bug - Erro de validação no formulário de cobrança
+- [x] Corrigir query de devedores para não executar quando condominioId é null
+- [x] Adicionar validação correta no enabled da query
