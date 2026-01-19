@@ -117,3 +117,8 @@
 - [x] Integrar login customizado com gerenciamento de sessão
 - [x] Redirecionar para dashboard correto após login
 - [x] Testar fluxo completo de login customizado
+
+## Bug - Cobranças não aparecem na listagem
+- [x] Adicionar filtro de condomínio na página de listagem de cobranças
+- [x] Admin seleciona condomínio para visualizar cobranças
+- [x] Síndico/cobrador vê cobranças do próprio condomínio automaticamente

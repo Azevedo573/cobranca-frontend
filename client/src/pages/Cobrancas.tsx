@@ -20,15 +20,23 @@ import { format } from "date-fns";
 export default function Cobrancas() {
   const { user, logout } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
+  
+  // Para admin, usar condomínio selecionado; para síndico/cobrador, usar o próprio
+  const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
+  
+  const { data: condominios } = trpc.condominios.list.useQuery(undefined, {
+    enabled: user?.role === "admin",
+  });
   
   const { data: cobrancas, isLoading } = trpc.cobrancas.list.useQuery(
-    { condominioId: user?.condominioId! },
-    { enabled: !!user?.condominioId }
+    { condominioId: condominioId ?? 0 },
+    { enabled: condominioId !== null && condominioId !== undefined }
   );
 
   const { data: devedores } = trpc.devedores.list.useQuery(
-    { condominioId: user?.condominioId! },
-    { enabled: !!user?.condominioId }
+    { condominioId: condominioId ?? 0 },
+    { enabled: condominioId !== null && condominioId !== undefined }
   );
 
   const getDevedorName = (devedorId: number) => {
@@ -115,7 +123,24 @@ export default function Cobrancas() {
                 </Link>
               )}
             </div>
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
+              {user?.role === "admin" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Selecione o Condomínio</label>
+                  <select
+                    className="w-full md:w-64 px-3 py-2 border rounded-md"
+                    value={selectedCondominioId || ""}
+                    onChange={(e) => setSelectedCondominioId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">Selecione um condomínio</option>
+                    {condominios?.map((cond) => (
+                      <option key={cond.id} value={cond.id}>
+                        {cond.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
