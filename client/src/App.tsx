@@ -18,6 +18,7 @@ import Devedores from "./pages/Devedores";
 import DevedorForm from "./pages/DevedorForm";
 import DevedorDetalhes from "./pages/DevedorDetalhes";
 import TentativaForm from "./pages/TentativaForm";
+import TentativaRapida from "./pages/TentativaRapida";
 import Cobrancas from "./pages/Cobrancas";
 import CobrancaForm from "./pages/CobrancaForm";
 
@@ -116,6 +117,9 @@ function Router() {
       </Route>
       <Route path="/devedores/:devedorId/tentativa/nova">
         {() => <ProtectedRoute component={TentativaForm} />}
+      </Route>
+      <Route path="/tentativas/nova">
+        {() => <ProtectedRoute component={TentativaRapida} allowedRoles={["cobrador", "sindico"]} />}
       </Route>
       <Route path="/devedores/novo">
         {() => <ProtectedRoute component={DevedorForm} />}

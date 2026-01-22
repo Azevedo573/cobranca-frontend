@@ -144,3 +144,11 @@
 - [x] Modificar CobrancaForm para detectar parâmetro :id na URL
 - [x] Carregar dados da cobrança existente quando em modo edição
 - [x] Testar fluxo completo de edição
+
+## Sistema Funcional de Registro e Visualização de Cobranças
+- [x] Criar dashboard do síndico com lista de tentativas de cobrança recentes
+- [x] Adicionar estatísticas de cobranças no dashboard (total de tentativas, devedores contatados, resultados)
+- [x] Melhorar interface de registro de tentativas para cobradores
+- [x] Criar página simplificada para cobrador registrar tentativas rapidamente
+- [x] Integrar rota /tentativas/nova no App.tsx
+- [x] Testar fluxo completo: cobrador registra → síndico visualiza

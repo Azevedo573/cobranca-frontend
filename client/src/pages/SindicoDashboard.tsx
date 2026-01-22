@@ -1,8 +1,9 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Users, DollarSign, FileText, TrendingUp, AlertCircle } from "lucide-react";
+import { Users, DollarSign, FileText, TrendingUp, AlertCircle, Phone, Clock } from "lucide-react";
 import { Link } from "wouter";
 
 export default function SindicoDashboard() {
@@ -23,10 +24,46 @@ export default function SindicoDashboard() {
     { enabled: !!user?.condominioId }
   );
 
+  const { data: tentativas } = trpc.tentativas.list.useQuery(
+    { condominioId: user?.condominioId! },
+    { enabled: !!user?.condominioId }
+  );
+
   const totalDevedores = devedores?.length || 0;
   const totalEmCobranca = cobrancas?.filter(c => c.status === "em_cobranca").reduce((sum, c) => sum + c.amount, 0) || 0;
   const totalAcordos = acordos?.filter(a => a.status === "ativo").length || 0;
   const devedoresAtivos = devedores?.filter(d => d.status === "ativo").length || 0;
+
+  // Estatísticas de tentativas
+  const tentativasRecentes = tentativas?.slice(0, 10) || [];
+  const totalTentativas = tentativas?.length || 0;
+  const tentativasHoje = tentativas?.filter(t => {
+    const hoje = new Date();
+    const dataTentativa = new Date(t.attemptDate);
+    return dataTentativa.toDateString() === hoje.toDateString();
+  }).length || 0;
+
+  const getContactTypeBadge = (type: string) => {
+    const variants: Record<string, { label: string; className: string }> = {
+      telefone: { label: "Telefone", className: "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20" },
+      email: { label: "E-mail", className: "bg-purple-500/10 text-purple-500 hover:bg-purple-500/20" },
+      whatsapp: { label: "WhatsApp", className: "bg-green-500/10 text-green-500 hover:bg-green-500/20" },
+      pessoal: { label: "Pessoal", className: "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20" },
+    };
+    return variants[type] || { label: type, className: "bg-muted text-muted-foreground" };
+  };
+
+  const getResultBadge = (result: string | null) => {
+    if (!result) return { label: "Pendente", className: "bg-muted text-muted-foreground" };
+    
+    const variants: Record<string, { label: string; className: string }> = {
+      sem_resposta: { label: "Sem Resposta", className: "bg-gray-500/10 text-gray-500" },
+      promessa_pagamento: { label: "Promessa", className: "bg-accent/10 text-accent" },
+      recusa: { label: "Recusa", className: "bg-destructive/10 text-destructive" },
+      outro: { label: "Outro", className: "bg-muted text-muted-foreground" },
+    };
+    return variants[result] || { label: result, className: "bg-muted text-muted-foreground" };
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -81,6 +118,17 @@ export default function SindicoDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tentativas Hoje</CardTitle>
+              <Phone className="h-4 w-4 text-accent" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">{tentativasHoje}</div>
+              <p className="text-xs text-muted-foreground">De {totalTentativas} total</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Acordos Ativos</CardTitle>
               <FileText className="h-4 w-4 text-accent" />
             </CardHeader>
@@ -89,21 +137,91 @@ export default function SindicoDashboard() {
               <p className="text-xs text-muted-foreground">Em andamento</p>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Taxa de Recuperação</CardTitle>
-              <TrendingUp className="h-4 w-4 text-accent" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">-</div>
-              <p className="text-xs text-muted-foreground">Ver relatório completo</p>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Tentativas de Cobrança Recentes */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Phone className="h-5 w-5 text-primary" />
+                Tentativas de Cobrança Recentes
+              </CardTitle>
+              <CardDescription>Histórico de contatos realizados pela equipe de cobrança</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tentativasRecentes && tentativasRecentes.length > 0 ? (
+                <div className="space-y-4">
+                  {tentativasRecentes.map((tentativa) => {
+                    const devedor = devedores?.find(d => d.id === tentativa.devedorId);
+                    const contactBadge = getContactTypeBadge(tentativa.contactType);
+                    const resultBadge = getResultBadge(tentativa.result);
+                    
+                    return (
+                      <div key={tentativa.id} className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                        <div className="flex-shrink-0 mt-1">
+                          <Clock className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div>
+                              <p className="font-medium text-sm">
+                                {devedor?.name || "Devedor não encontrado"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Unidade {devedor?.unitNumber || "N/A"}
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge variant="outline" className={contactBadge.className}>
+                                {contactBadge.label}
+                              </Badge>
+                              <Badge variant="outline" className={resultBadge.className}>
+                                {resultBadge.label}
+                              </Badge>
+                            </div>
+                          </div>
+                          {tentativa.notes && (
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {tentativa.notes}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>
+                              {new Date(tentativa.attemptDate).toLocaleString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            {tentativa.nextAttemptDate && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                Próxima: {new Date(tentativa.nextAttemptDate).toLocaleDateString('pt-BR')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Phone className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Nenhuma tentativa de cobrança registrada</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    As tentativas aparecerão aqui quando a equipe registrar contatos
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions */}
           <Card>
             <CardHeader>
               <CardTitle>Ações Rápidas</CardTitle>
@@ -137,6 +255,7 @@ export default function SindicoDashboard() {
             </CardContent>
           </Card>
 
+          {/* Devedores Recentes */}
           <Card>
             <CardHeader>
               <CardTitle>Devedores Recentes</CardTitle>
