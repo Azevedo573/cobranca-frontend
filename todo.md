@@ -186,3 +186,11 @@
 - [x] Corrigir LoginColaborador para redirecionar ao dashboard do cobrador
 - [x] Garantir que autenticação customizada funcione sem OAuth
 - [x] Testar fluxo: login colaborador → dashboard cobrador
+
+## Correção de Autenticação Customizada do Colaborador
+- [x] Investigar por que useAuth não reconhece sessão customizada
+- [x] Verificar endpoint auth.me no backend
+- [x] Corrigir validação de token customizado no contexto
+- [x] Garantir que dashboard do cobrador aceite sessão customizada
+- [x] Adicionar suporte a authType="colaborador" no verifyCustomToken
+- [x] Testar login colaborador → acesso ao dashboard sem OAuth

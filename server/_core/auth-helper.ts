@@ -14,7 +14,35 @@ export async function verifyCustomToken(token: string | undefined | null): Promi
       algorithms: ["HS256"],
     });
 
-    // Verificar se é um token customizado
+    // Verificar se é um token de colaborador
+    if (payload.authType === "colaborador") {
+      const { userId } = payload as Record<string, unknown>;
+      
+      if (typeof userId !== "number") {
+        console.warn("[Custom Auth] Invalid colaborador token: missing userId");
+        return null;
+      }
+
+      // Buscar usuário colaborador no banco
+      const db = await getDb();
+      if (!db) return null;
+
+      const userResult = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      const user = userResult[0];
+      if (!user || user.isActive !== 1) {
+        console.warn("[Custom Auth] Colaborador user not found or inactive");
+        return null;
+      }
+
+      return user;
+    }
+
+    // Verificar se é um token customizado de condomínio
     if (payload.authType !== "custom") {
       return null;
     }
