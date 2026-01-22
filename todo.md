@@ -180,3 +180,9 @@
 - [x] Atualizar texto de ajuda do campo condomínio
 - [x] Testar cadastro de colaborador sem condomínio
 - [x] Testar cadastro de síndico com validação de condomínio obrigatório
+
+## Correção de Login do Colaborador
+- [x] Investigar redirecionamento para OAuth após login
+- [x] Corrigir LoginColaborador para redirecionar ao dashboard do cobrador
+- [x] Garantir que autenticação customizada funcione sem OAuth
+- [x] Testar fluxo: login colaborador → dashboard cobrador

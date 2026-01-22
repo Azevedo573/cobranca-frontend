@@ -19,8 +19,8 @@ export default function LoginColaborador() {
     onSuccess: (result: any) => {
       if (result.success) {
         toast.success("Login realizado com sucesso!");
-        // Recarregar a página para atualizar o contexto de autenticação
-        window.location.href = "/";
+        // Redirecionar para o dashboard do cobrador
+        window.location.href = "/cobrador/dashboard";
       } else {
         toast.error(result.message || "Credenciais inválidas");
       }
