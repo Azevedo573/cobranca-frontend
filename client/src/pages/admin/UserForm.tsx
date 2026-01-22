@@ -95,9 +95,9 @@ export default function UserForm() {
       return;
     }
 
-    // Validar condomínio para síndicos e cobradores
-    if ((formData.role === "sindico" || formData.role === "cobrador") && !formData.condominioId) {
-      toast.error("Condomínio é obrigatório para Síndicos e Cobradores");
+    // Validar condomínio apenas para síndicos
+    if (formData.role === "sindico" && !formData.condominioId) {
+      toast.error("Condomínio é obrigatório para Síndicos");
       return;
     }
 
@@ -251,7 +251,7 @@ export default function UserForm() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="condominioId">
-                    Condomínio {(formData.role === "sindico" || formData.role === "cobrador") && "*"}
+                    Condomínio {formData.role === "sindico" && "*"}
                   </Label>
                   <Select
                     value={formData.condominioId || "none"}
@@ -261,7 +261,7 @@ export default function UserForm() {
                       <SelectValue placeholder="Selecione o condomínio" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nenhum (Admin)</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {condominios?.map((cond) => (
                         <SelectItem key={cond.id} value={cond.id.toString()}>
                           {cond.name}
@@ -270,7 +270,9 @@ export default function UserForm() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Obrigatório para Síndicos e Cobradores
+                    {formData.role === "sindico" && "Obrigatório para Síndicos. "}
+                    {formData.role === "cobrador" && "Colaboradores podem trabalhar em vários condomínios. "}
+                    {formData.role === "admin" && "Administradores têm acesso a todos os condomínios."}
                   </p>
                 </div>
               </div>

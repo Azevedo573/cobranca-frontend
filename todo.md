@@ -172,3 +172,11 @@
 - [x] Atualizar mutations create e update no backend
 - [x] Testar cadastro de novo usuário colaborador
 - [x] Testar login com usuário recém-cadastrado
+
+## Ajuste de Condomínio para Colaboradores
+- [x] Remover obrigatoriedade de condomínio para colaboradores (podem trabalhar em vários)
+- [x] Manter obrigatoriedade apenas para síndicos
+- [x] Atualizar validação no formulário UserForm
+- [x] Atualizar texto de ajuda do campo condomínio
+- [x] Testar cadastro de colaborador sem condomínio
+- [x] Testar cadastro de síndico com validação de condomínio obrigatório
