@@ -311,33 +311,58 @@ export const appRouter = router({
       return result[0] || null;
     }),
     create: adminProcedure.input(z.object({
-      openId: z.string(),
       name: z.string(),
       email: z.string().email(),
+      password: z.string(),
       role: z.enum(["admin", "sindico", "cobrador"]),
       condominioId: z.number().optional(),
+      isActive: z.number().optional(),
     })).mutation(async ({ input }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
+      
+      // Gerar hash da senha
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.default.hash(input.password, 10);
+      
+      // Gerar openId único baseado no email e timestamp
+      const openId = hashedPassword;
+      
       const { users } = await import("../drizzle/schema");
-      return await db.insert(users).values(input);
+      return await db.insert(users).values({
+        openId,
+        name: input.name,
+        email: input.email,
+        role: input.role,
+        condominioId: input.condominioId,
+        isActive: input.isActive ?? 1,
+      });
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
       name: z.string().optional(),
       email: z.string().email().optional(),
+      password: z.string().optional(),
       role: z.enum(["admin", "sindico", "cobrador"]).optional(),
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
     })).mutation(async ({ input }) => {
-      const { id, ...data } = input;
+      const { id, password, ...data } = input;
+      
+      // Se tem senha, gerar hash
+      let updateData: any = { ...data };
+      if (password) {
+        const bcrypt = await import("bcryptjs");
+        const hashedPassword = await bcrypt.default.hash(password, 10);
+        updateData.openId = hashedPassword;
+      }
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      await db.update(users).set(data).where(eq(users.id, id));
+      await db.update(users).set(updateData).where(eq(users.id, id));
       return { success: true };
     }),
     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {

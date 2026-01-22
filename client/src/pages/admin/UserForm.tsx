@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -16,11 +16,12 @@ export default function UserForm() {
   const [, params] = useRoute("/admin/usuarios/:id");
   const isEdit = params?.id && params.id !== "novo";
   const userId = isEdit ? parseInt(params.id) : null;
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
-    openId: "",
     name: "",
     email: "",
+    password: "",
     role: "cobrador" as "admin" | "sindico" | "cobrador",
     condominioId: "",
     isActive: 1,
@@ -36,9 +37,9 @@ export default function UserForm() {
   useEffect(() => {
     if (userData) {
       setFormData({
-        openId: userData.openId || "",
         name: userData.name || "",
         email: userData.email || "",
+        password: "", // Não carregar senha existente
         role: userData.role,
         condominioId: userData.condominioId?.toString() || "",
         isActive: userData.isActive,
@@ -84,8 +85,19 @@ export default function UserForm() {
       return;
     }
 
-    if (!isEdit && !formData.openId.trim()) {
-      toast.error("OpenID é obrigatório para novos usuários");
+    if (!isEdit && !formData.password.trim()) {
+      toast.error("Senha é obrigatória para novos usuários");
+      return;
+    }
+
+    if (!isEdit && formData.password.length < 6) {
+      toast.error("Senha deve ter no mínimo 6 caracteres");
+      return;
+    }
+
+    // Validar condomínio para síndicos e cobradores
+    if ((formData.role === "sindico" || formData.role === "cobrador") && !formData.condominioId) {
+      toast.error("Condomínio é obrigatório para Síndicos e Cobradores");
       return;
     }
 
@@ -98,9 +110,14 @@ export default function UserForm() {
     };
 
     if (isEdit && userId) {
+      // Se está editando e tem senha, incluir
+      if (formData.password.trim()) {
+        payload.password = formData.password;
+      }
       updateMutation.mutate({ id: userId, ...payload });
     } else {
-      createMutation.mutate({ ...payload, openId: formData.openId });
+      // Criando novo usuário, senha é obrigatória
+      createMutation.mutate({ ...payload, password: formData.password });
     }
   };
 
@@ -144,27 +161,14 @@ export default function UserForm() {
           <Card>
             <CardHeader>
               <CardTitle>Dados do Usuário</CardTitle>
-              <CardDescription>Informações de acesso e permissões</CardDescription>
+              <CardDescription>
+                {isEdit 
+                  ? "Atualize as informações do usuário. Deixe a senha em branco para não alterá-la."
+                  : "Preencha os dados para criar um novo usuário no sistema"
+                }
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* OpenID (apenas criação) */}
-              {!isEdit && (
-                <div className="space-y-2">
-                  <Label htmlFor="openId">OpenID (Manus) *</Label>
-                  <Input
-                    id="openId"
-                    name="openId"
-                    value={formData.openId}
-                    onChange={handleChange}
-                    placeholder="ID único do Manus OAuth"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Identificador único retornado pelo sistema de autenticação Manus
-                  </p>
-                </div>
-              )}
-
               {/* Dados Básicos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -179,7 +183,7 @@ export default function UserForm() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-mail *</Label>
+                  <Label htmlFor="email">E-mail * (usado para login)</Label>
                   <Input
                     id="email"
                     name="email"
@@ -189,7 +193,42 @@ export default function UserForm() {
                     placeholder="usuario@email.com"
                     required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Este email será usado como username no login
+                  </p>
                 </div>
+              </div>
+
+              {/* Senha */}
+              <div className="space-y-2">
+                <Label htmlFor="password">
+                  {isEdit ? "Nova Senha (deixe em branco para não alterar)" : "Senha *"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder={isEdit ? "Digite apenas se quiser alterar" : "Mínimo 6 caracteres"}
+                    required={!isEdit}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {!isEdit && (
+                  <p className="text-xs text-muted-foreground">
+                    Esta senha será usada pelo colaborador para fazer login
+                  </p>
+                )}
               </div>
 
               {/* Perfil e Condomínio */}
@@ -211,16 +250,18 @@ export default function UserForm() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="condominioId">Condomínio</Label>
+                  <Label htmlFor="condominioId">
+                    Condomínio {(formData.role === "sindico" || formData.role === "cobrador") && "*"}
+                  </Label>
                   <Select
-                    value={formData.condominioId}
-                    onValueChange={(value) => setFormData({ ...formData, condominioId: value })}
+                    value={formData.condominioId || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, condominioId: value === "none" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o condomínio" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum (Admin)</SelectItem>
+                      <SelectItem value="none">Nenhum (Admin)</SelectItem>
                       {condominios?.map((cond) => (
                         <SelectItem key={cond.id} value={cond.id.toString()}>
                           {cond.name}
@@ -249,6 +290,9 @@ export default function UserForm() {
                     <SelectItem value="0">Inativo</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Usuários inativos não conseguem fazer login
+                </p>
               </div>
 
               {/* Botões */}

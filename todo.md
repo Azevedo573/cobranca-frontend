@@ -162,3 +162,13 @@
 - [x] Criar query para listar todas as tentativas (admin)
 - [x] Adicionar rota /login-colaborador no App.tsx
 - [x] Testar fluxo: colaborador loga → registra tentativa → aparece nos dashboards
+
+## Correção e Implementação de Cadastro de Usuários
+- [x] Corrigir erro no Select do formulário de usuários (valor vazio não permitido)
+- [x] Implementar validação de campos obrigatórios
+- [x] Adicionar campo de senha no formulário
+- [x] Criar hash bcrypt da senha antes de salvar
+- [x] Remover campo openId do formulário (gerado automaticamente)
+- [x] Atualizar mutations create e update no backend
+- [x] Testar cadastro de novo usuário colaborador
+- [x] Testar login com usuário recém-cadastrado
