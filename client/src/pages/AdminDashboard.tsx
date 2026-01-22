@@ -1,13 +1,39 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Building2, Users, FileText, TrendingUp, Plus } from "lucide-react";
+import { Building2, Users, FileText, TrendingUp, Plus, Phone, Clock } from "lucide-react";
 import { Link } from "wouter";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const { data: condominios, isLoading } = trpc.condominios.list.useQuery();
+  const { data: tentativas } = trpc.tentativas.listAll.useQuery();
+
+  const tentativasRecentes = tentativas?.slice(0, 10) || [];
+
+  const getContactTypeBadge = (type: string) => {
+    const variants: Record<string, { label: string; className: string }> = {
+      telefone: { label: "Telefone", className: "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20" },
+      email: { label: "E-mail", className: "bg-purple-500/10 text-purple-500 hover:bg-purple-500/20" },
+      whatsapp: { label: "WhatsApp", className: "bg-green-500/10 text-green-500 hover:bg-green-500/20" },
+      pessoal: { label: "Pessoal", className: "bg-orange-500/10 text-orange-500 hover:bg-orange-500/20" },
+    };
+    return variants[type] || { label: type, className: "bg-muted text-muted-foreground" };
+  };
+
+  const getResultBadge = (result: string | null) => {
+    if (!result) return { label: "Pendente", className: "bg-muted text-muted-foreground" };
+    
+    const variants: Record<string, { label: string; className: string }> = {
+      sem_resposta: { label: "Sem Resposta", className: "bg-gray-500/10 text-gray-500" },
+      promessa_pagamento: { label: "Promessa", className: "bg-accent/10 text-accent" },
+      recusa: { label: "Recusa", className: "bg-destructive/10 text-destructive" },
+      outro: { label: "Outro", className: "bg-muted text-muted-foreground" },
+    };
+    return variants[result] || { label: result, className: "bg-muted text-muted-foreground" };
+  };
 
   if (isLoading) {
     return (
@@ -60,12 +86,12 @@ export default function AdminDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Usuários Ativos</CardTitle>
-              <Users className="h-4 w-4 text-accent" />
+              <CardTitle className="text-sm font-medium">Tentativas de Cobrança</CardTitle>
+              <Phone className="h-4 w-4 text-accent" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">-</div>
-              <p className="text-xs text-muted-foreground">Síndicos e cobradores</p>
+              <div className="text-2xl font-bold text-primary">{tentativas?.length || 0}</div>
+              <p className="text-xs text-muted-foreground">Total registrado</p>
             </CardContent>
           </Card>
 
@@ -92,8 +118,89 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Tentativas de Cobrança Recentes */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-primary" />
+              Tentativas de Cobrança Recentes (Todos os Condomínios)
+            </CardTitle>
+            <CardDescription>Histórico de contatos realizados pelos colaboradores</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tentativasRecentes && tentativasRecentes.length > 0 ? (
+              <div className="space-y-4">
+                {tentativasRecentes.map((tentativa) => {
+                  const condominio = condominios?.find(c => c.id === tentativa.condominioId);
+                  const contactBadge = getContactTypeBadge(tentativa.contactType);
+                  const resultBadge = getResultBadge(tentativa.result);
+                  const colaborador = tentativa.userName || "Colaborador";
+                  
+                  return (
+                    <div key={tentativa.id} className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
+                      <div className="flex-shrink-0 mt-1">
+                        <Clock className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div>
+                            <p className="font-medium text-sm">
+                              {condominio?.name || "Condomínio não encontrado"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Devedor ID: {tentativa.devedorId}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant="outline" className={contactBadge.className}>
+                              {contactBadge.label}
+                            </Badge>
+                            <Badge variant="outline" className={resultBadge.className}>
+                              {resultBadge.label}
+                            </Badge>
+                          </div>
+                        </div>
+                        {tentativa.notes && (
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {tentativa.notes}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span className="font-medium text-accent">
+                            👤 {colaborador}
+                          </span>
+                          <span>
+                            {new Date(tentativa.attemptDate).toLocaleString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {tentativa.nextAttemptDate && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Próxima: {new Date(tentativa.nextAttemptDate).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Phone className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">Nenhuma tentativa de cobrança registrada</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions and Condominios */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Ações Rápidas</CardTitle>

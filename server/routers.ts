@@ -37,6 +37,26 @@ export const appRouter = router({
         
         return result;
       }),
+    loginColaborador: publicProcedure
+      .input(z.object({
+        username: z.string(),
+        password: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { authenticateColaborador } = await import("./auth-colaborador");
+        const result = await authenticateColaborador(input.username, input.password);
+        
+        if (result.success && result.token) {
+          // Definir cookie com o token
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, result.token, {
+            ...cookieOptions,
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+          });
+        }
+        
+        return result;
+      }),
   }),
 
   // Condominios (apenas admin)
@@ -184,6 +204,10 @@ export const appRouter = router({
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getTentativasByCondominio } = await import("./db-acordos");
       return await getTentativasByCondominio(condominioId);
+    }),
+    listAll: adminProcedure.query(async () => {
+      const { getAllTentativas } = await import("./db-acordos");
+      return await getAllTentativas();
     }),
     getByDevedor: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
       const { getTentativasByDevedor } = await import("./db-acordos");

@@ -157,6 +157,7 @@ export default function SindicoDashboard() {
                     const devedor = devedores?.find(d => d.id === tentativa.devedorId);
                     const contactBadge = getContactTypeBadge(tentativa.contactType);
                     const resultBadge = getResultBadge(tentativa.result);
+                    const colaborador = tentativa.userName || "Colaborador";
                     
                     return (
                       <div key={tentativa.id} className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
@@ -188,6 +189,9 @@ export default function SindicoDashboard() {
                             </p>
                           )}
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span className="font-medium text-primary">
+                              👤 {colaborador}
+                            </span>
                             <span>
                               {new Date(tentativa.attemptDate).toLocaleString('pt-BR', {
                                 day: '2-digit',

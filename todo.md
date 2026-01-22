@@ -152,3 +152,13 @@
 - [x] Criar página simplificada para cobrador registrar tentativas rapidamente
 - [x] Integrar rota /tentativas/nova no App.tsx
 - [x] Testar fluxo completo: cobrador registra → síndico visualiza
+
+## Login e Registro de Colaboradores
+- [x] Criar tela de login específica para colaboradores (/login-colaborador)
+- [x] Implementar autenticação de colaboradores com username/password
+- [x] Adicionar campo userId nas tentativas para identificar colaborador responsável (já existia)
+- [x] Atualizar dashboard do síndico para mostrar nome do colaborador
+- [x] Atualizar dashboard do admin para mostrar tentativas de todos os condomínios
+- [x] Criar query para listar todas as tentativas (admin)
+- [x] Adicionar rota /login-colaborador no App.tsx
+- [x] Testar fluxo: colaborador loga → registra tentativa → aparece nos dashboards

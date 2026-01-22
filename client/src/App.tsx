@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { useAuth } from "./_core/hooks/useAuth";
 import Login from "./pages/Login";
 import LoginCondominio from "./pages/LoginCondominio";
+import LoginColaborador from "./pages/LoginColaborador";
 import AdminDashboard from "./pages/AdminDashboard";
 import SindicoDashboard from "./pages/SindicoDashboard";
 import CobradorDashboard from "./pages/CobradorDashboard";
@@ -65,6 +66,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/login-condominio" component={LoginCondominio} />
+      <Route path="/login-colaborador" component={LoginColaborador} />
       
       {/* Rota raiz redireciona baseado no role */}
       <Route path="/">

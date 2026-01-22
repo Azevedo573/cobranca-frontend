@@ -1,12 +1,61 @@
 import { and, eq } from "drizzle-orm";
-import { acordos, parcelasAcordo, tentativasCobranca, InsertAcordo, InsertParcelaAcordo, InsertTentativaCobranca } from "../drizzle/schema";
+import { acordos, parcelasAcordo, tentativasCobranca, users, InsertAcordo, InsertParcelaAcordo, InsertTentativaCobranca } from "../drizzle/schema";
 import { getDb } from "./db";
 
 // Tentativas de Cobrança
 export async function getTentativasByCondominio(condominioId: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(tentativasCobranca).where(eq(tentativasCobranca.condominioId, condominioId));
+  
+  // Buscar tentativas com informações do usuário (colaborador)
+  const result = await db
+    .select({
+      id: tentativasCobranca.id,
+      cobrancaId: tentativasCobranca.cobrancaId,
+      devedorId: tentativasCobranca.devedorId,
+      condominioId: tentativasCobranca.condominioId,
+      userId: tentativasCobranca.userId,
+      contactType: tentativasCobranca.contactType,
+      notes: tentativasCobranca.notes,
+      result: tentativasCobranca.result,
+      attemptDate: tentativasCobranca.attemptDate,
+      nextAttemptDate: tentativasCobranca.nextAttemptDate,
+      createdAt: tentativasCobranca.createdAt,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(tentativasCobranca)
+    .leftJoin(users, eq(tentativasCobranca.userId, users.id))
+    .where(eq(tentativasCobranca.condominioId, condominioId));
+  
+  return result;
+}
+
+export async function getAllTentativas() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Buscar todas as tentativas com informações do usuário (para admin)
+  const result = await db
+    .select({
+      id: tentativasCobranca.id,
+      cobrancaId: tentativasCobranca.cobrancaId,
+      devedorId: tentativasCobranca.devedorId,
+      condominioId: tentativasCobranca.condominioId,
+      userId: tentativasCobranca.userId,
+      contactType: tentativasCobranca.contactType,
+      notes: tentativasCobranca.notes,
+      result: tentativasCobranca.result,
+      attemptDate: tentativasCobranca.attemptDate,
+      nextAttemptDate: tentativasCobranca.nextAttemptDate,
+      createdAt: tentativasCobranca.createdAt,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(tentativasCobranca)
+    .leftJoin(users, eq(tentativasCobranca.userId, users.id));
+  
+  return result;
 }
 
 export async function getTentativasByDevedor(devedorId: number) {
