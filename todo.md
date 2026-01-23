@@ -194,3 +194,17 @@
 - [x] Garantir que dashboard do cobrador aceite sessão customizada
 - [x] Adicionar suporte a authType="colaborador" no verifyCustomToken
 - [x] Testar login colaborador → acesso ao dashboard sem OAuth
+
+## Relatório de Produtividade por Colaborador
+- [x] Criar query no backend para estatísticas gerais por colaborador
+- [x] Criar query para distribuição de tentativas por condomínio
+- [x] Criar query para ranking de performance
+- [x] Adicionar router de relatórios no backend
+- [x] Criar página de relatório em /admin/relatorios/produtividade
+- [x] Adicionar tabela com estatísticas por colaborador
+- [x] Adicionar gráfico de barras para visualização
+- [x] Implementar filtros por período (hoje, semana, mês, customizado)
+- [x] Implementar filtro por condomínio
+- [x] Adicionar rota no App.tsx
+- [x] Adicionar link no menu do admin
+- [x] Testar relatório com dados reais

@@ -375,6 +375,29 @@ export const appRouter = router({
       return { success: true };
     }),
   }),
+
+  // Relatórios (apenas admin)
+  relatorios: router({
+    produtividade: adminProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().optional(),
+    })).query(async ({ input }) => {
+      const { getProdutividadeColaboradores } = await import("./db-relatorios");
+      const dataInicio = input.dataInicio ? new Date(input.dataInicio) : undefined;
+      const dataFim = input.dataFim ? new Date(input.dataFim) : undefined;
+      return await getProdutividadeColaboradores(dataInicio, dataFim, input.condominioId);
+    }),
+    distribuicao: adminProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+    })).query(async ({ input }) => {
+      const { getDistribuicaoPorCondominio } = await import("./db-relatorios");
+      const dataInicio = input.dataInicio ? new Date(input.dataInicio) : undefined;
+      const dataFim = input.dataFim ? new Date(input.dataFim) : undefined;
+      return await getDistribuicaoPorCondominio(dataInicio, dataFim);
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

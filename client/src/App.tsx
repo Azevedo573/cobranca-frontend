@@ -22,6 +22,7 @@ import TentativaForm from "./pages/TentativaForm";
 import TentativaRapida from "./pages/TentativaRapida";
 import Cobrancas from "./pages/Cobrancas";
 import CobrancaForm from "./pages/CobrancaForm";
+import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -108,6 +109,11 @@ function Router() {
       </Route>
       <Route path="/admin/usuarios/:id">
         {() => <ProtectedRoute component={UserForm} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Rotas de Relatórios (Admin) */}
+      <Route path="/admin/relatorios/produtividade">
+        {() => <ProtectedRoute component={RelatorioProdutividade} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas de Devedores */}

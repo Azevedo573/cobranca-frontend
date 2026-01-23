@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Building2, Users, FileText, TrendingUp, Plus, Phone, Clock } from "lucide-react";
+import { Building2, Users, FileText, TrendingUp, Plus, Phone, Clock, BarChart3 } from "lucide-react";
 import { Link } from "wouter";
 
 export default function AdminDashboard() {
@@ -217,6 +217,12 @@ export default function AdminDashboard() {
                 <Button className="w-full justify-start" variant="outline">
                   <Users className="mr-2 h-4 w-4" />
                   Gerenciar Usuários
+                </Button>
+              </Link>
+              <Link href="/admin/relatorios/produtividade">
+                <Button className="w-full justify-start" variant="outline">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Relatório de Produtividade
                 </Button>
               </Link>
               <Link href="/devedores">
