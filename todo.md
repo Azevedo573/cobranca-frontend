@@ -229,3 +229,9 @@
 - [x] Atualizar lista de cobranças (CobrancasList) com valores calculados
 - [x] Atualizar dashboard do síndico com totais calculados
 - [x] Testar cálculos com diferentes cenários de atraso
+
+## Correção de Página de Detalhes da Cobrança
+- [x] Verificar se existe componente CobrancaDetalhes.tsx
+- [x] Criar página de detalhes da cobrança se não existir
+- [x] Registrar rota /cobrancas/:id no App.tsx
+- [x] Testar navegação do botão "Ver detalhes"

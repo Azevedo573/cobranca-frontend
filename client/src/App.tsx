@@ -22,6 +22,7 @@ import TentativaForm from "./pages/TentativaForm";
 import TentativaRapida from "./pages/TentativaRapida";
 import Cobrancas from "./pages/Cobrancas";
 import CobrancaForm from "./pages/CobrancaForm";
+import CobrancaDetalhes from "./pages/CobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
@@ -145,6 +146,9 @@ function Router() {
       </Route>
       <Route path="/cobrancas/:id/editar">
         {() => <ProtectedRoute component={CobrancaForm} allowedRoles={["admin", "sindico"]} />}
+      </Route>
+      <Route path="/cobrancas/:id">
+        {() => <ProtectedRoute component={CobrancaDetalhes} allowedRoles={["admin", "sindico", "cobrador"]} />}
       </Route>
 
       <Route path="/404" component={NotFound} />
