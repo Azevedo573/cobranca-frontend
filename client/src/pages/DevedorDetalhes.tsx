@@ -15,6 +15,9 @@ import { trpc } from "@/lib/trpc";
 import { ArrowLeft, User, Phone, Mail, Home, DollarSign, FileText, Plus, Calendar } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
+import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
+import BreakdownValorComponent from "@/components/BreakdownValor";
+import { useMemo } from "react";
 
 export default function DevedorDetalhes() {
   const { user, logout } = useAuth();
@@ -35,6 +38,33 @@ export default function DevedorDetalhes() {
     { devedorId: devedorId! },
     { enabled: !!devedorId }
   );
+
+  const { data: condominio } = trpc.condominios.getById.useQuery(
+    { id: devedor?.condominioId! },
+    { enabled: !!devedor?.condominioId }
+  );
+
+  const taxas: TaxasCondominio | null = useMemo(() => {
+    if (!condominio) return null;
+    return {
+      taxaJurosMensal: Number(condominio.taxaJurosMensal || "1.00"),
+      taxaMulta: Number(condominio.taxaMulta || "2.00"),
+      taxaHonorarios: Number(condominio.taxaHonorarios || "10.00"),
+    };
+  }, [condominio]);
+
+  const breakdownTotal = useMemo(() => {
+    if (!cobrancas || !taxas) return null;
+    const cobrancasAtivas = cobrancas.filter((c: any) => c.status !== "pago");
+    if (cobrancasAtivas.length === 0) return null;
+    return calcularTotalMultiplasCobrancas(
+      cobrancasAtivas.map((c: any) => ({
+        amount: c.amount / 100,
+        dueDate: new Date(c.dueDate),
+      })),
+      taxas
+    );
+  }, [cobrancas, taxas]);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
@@ -196,6 +226,11 @@ export default function DevedorDetalhes() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Breakdown de Valores */}
+            {breakdownTotal && (
+              <BreakdownValorComponent breakdown={breakdownTotal} showDetails={true} />
+            )}
           </div>
 
           {/* Histórico e Ações */}
@@ -222,27 +257,38 @@ export default function DevedorDetalhes() {
                       <TableRow>
                         <TableHead>Descrição</TableHead>
                         <TableHead>Vencimento</TableHead>
-                        <TableHead>Valor</TableHead>
+                        <TableHead>Valor Original</TableHead>
+                        <TableHead>Valor Atualizado</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {cobrancas.map((cob: any) => (
-                        <TableRow key={cob.id}>
-                          <TableCell>{cob.description || "-"}</TableCell>
-                          <TableCell>
-                            {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={cob.status === "pago" ? "outline" : "default"}>
-                              {cob.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {cobrancas.map((cob: any) => {
+                        const breakdown = taxas && cob.status !== "pago" ? calcularValorDevido(
+                          cob.amount / 100,
+                          new Date(cob.dueDate),
+                          taxas
+                        ) : null;
+                        return (
+                          <TableRow key={cob.id}>
+                            <TableCell>{cob.description || "-"}</TableCell>
+                            <TableCell>
+                              {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
+                            </TableCell>
+                            <TableCell className="font-semibold">
+                              R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="font-bold text-primary">
+                              {breakdown ? formatarMoeda(breakdown.valorTotal) : "R$ " + (cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={cob.status === "pago" ? "outline" : "default"}>
+                                {cob.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 ) : (

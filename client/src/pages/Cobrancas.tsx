@@ -14,8 +14,9 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { FileText, Plus, Eye, ArrowLeft, Search, Pencil, Trash2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
+import { calcularValorDevido, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +53,20 @@ export default function Cobrancas() {
     { condominioId: condominioId ?? 0 },
     { enabled: condominioId !== null && condominioId !== undefined }
   );
+
+  const { data: condominio } = trpc.condominios.getById.useQuery(
+    { id: condominioId! },
+    { enabled: condominioId !== null && condominioId !== undefined }
+  );
+
+  const taxas: TaxasCondominio | null = useMemo(() => {
+    if (!condominio) return null;
+    return {
+      taxaJurosMensal: Number(condominio.taxaJurosMensal || "1.00"),
+      taxaMulta: Number(condominio.taxaMulta || "2.00"),
+      taxaHonorarios: Number(condominio.taxaHonorarios || "10.00"),
+    };
+  }, [condominio]);
 
   const utils = trpc.useUtils();
   
@@ -205,24 +220,34 @@ export default function Cobrancas() {
                     <TableHead>Descrição</TableHead>
                     <TableHead>Mês Ref.</TableHead>
                     <TableHead>Vencimento</TableHead>
-                    <TableHead>Valor</TableHead>
+                    <TableHead>Valor Original</TableHead>
+                    <TableHead>Valor Atualizado</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCobrancas.map((cob) => (
-                    <TableRow key={cob.id}>
-                      <TableCell className="font-medium">{getDevedorName(cob.devedorId)}</TableCell>
-                      <TableCell>{cob.description || "-"}</TableCell>
-                      <TableCell>{cob.monthReference || "-"}</TableCell>
-                      <TableCell>
-                        {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
-                      </TableCell>
-                      <TableCell className="font-semibold">
-                        R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(cob.status)}</TableCell>
+                  {filteredCobrancas.map((cob) => {
+                    const breakdown = taxas && cob.status !== "pago" && cob.dueDate ? calcularValorDevido(
+                      cob.amount / 100,
+                      new Date(cob.dueDate),
+                      taxas
+                    ) : null;
+                    return (
+                      <TableRow key={cob.id}>
+                        <TableCell className="font-medium">{getDevedorName(cob.devedorId)}</TableCell>
+                        <TableCell>{cob.description || "-"}</TableCell>
+                        <TableCell>{cob.monthReference || "-"}</TableCell>
+                        <TableCell>
+                          {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="font-bold text-primary">
+                          {breakdown ? formatarMoeda(breakdown.valorTotal) : "R$ " + (cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(cob.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link href={`/cobrancas/${cob.id}`}>
@@ -254,7 +279,8 @@ export default function Cobrancas() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );
+                  })}
                 </TableBody>
               </Table>
             ) : (

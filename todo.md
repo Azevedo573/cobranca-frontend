@@ -220,3 +220,12 @@
 - [x] Atualizar lista de cobranças com valores atualizados
 - [x] Atualizar dashboard do síndico com totais calculados
 - [x] Testar cálculos com diferentes cenários (atrasos variados)
+
+## Integração de Cálculos nas Páginas
+- [x] Atualizar DevedorDetalhes.tsx para buscar taxas do condomínio
+- [x] Adicionar card BreakdownValor na página de detalhes do devedor
+- [x] Calcular total de todas as cobranças do devedor com encargos
+- [x] Atualizar tabela de cobranças em DevedorDetalhes com coluna "Valor Atualizado"
+- [x] Atualizar lista de cobranças (CobrancasList) com valores calculados
+- [x] Atualizar dashboard do síndico com totais calculados
+- [x] Testar cálculos com diferentes cenários de atraso
