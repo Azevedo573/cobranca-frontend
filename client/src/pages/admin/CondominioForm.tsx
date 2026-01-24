@@ -30,6 +30,9 @@ export default function CondominioForm() {
     managerEmail: "",
     username: "",
     password: "",
+    taxaJurosMensal: "1.00",
+    taxaMulta: "2.00",
+    taxaHonorarios: "10.00",
   });
 
   const { data: condominio } = trpc.condominios.getById.useQuery(
@@ -54,6 +57,9 @@ export default function CondominioForm() {
         managerEmail: condominio.managerEmail || "",
         username: condominio.username || "",
         password: "", // Não preencher senha por segurança
+        taxaJurosMensal: condominio.taxaJurosMensal || "1.00",
+        taxaMulta: condominio.taxaMulta || "2.00",
+        taxaHonorarios: condominio.taxaHonorarios || "10.00",
       });
     }
   }, [condominio]);
@@ -291,6 +297,58 @@ export default function CondominioForm() {
                       onChange={handleChange}
                       placeholder={isEdit ? "Deixe em branco para manter" : "Digite a senha"}
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Taxas e Encargos */}
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4">Taxas e Encargos</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Configure os percentuais aplicados no cálculo de valores devidos
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="taxaJurosMensal">Taxa de Juros Mensal (%)</Label>
+                    <Input
+                      id="taxaJurosMensal"
+                      name="taxaJurosMensal"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.taxaJurosMensal}
+                      onChange={handleChange}
+                      placeholder="1.00"
+                    />
+                    <p className="text-xs text-muted-foreground">Aplicado por mês de atraso</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="taxaMulta">Taxa de Multa (%)</Label>
+                    <Input
+                      id="taxaMulta"
+                      name="taxaMulta"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.taxaMulta}
+                      onChange={handleChange}
+                      placeholder="2.00"
+                    />
+                    <p className="text-xs text-muted-foreground">Aplicado uma vez após vencimento</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="taxaHonorarios">Taxa de Honorários (%)</Label>
+                    <Input
+                      id="taxaHonorarios"
+                      name="taxaHonorarios"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.taxaHonorarios}
+                      onChange={handleChange}
+                      placeholder="10.00"
+                    />
+                    <p className="text-xs text-muted-foreground">Aplicado sobre valor original</p>
                   </div>
                 </div>
               </div>

@@ -82,6 +82,9 @@ export const appRouter = router({
       managerEmail: z.string().optional(),
       username: z.string().optional(),
       password: z.string().optional(),
+      taxaJurosMensal: z.string().optional(),
+      taxaMulta: z.string().optional(),
+      taxaHonorarios: z.string().optional(),
     })).mutation(async ({ input }) => {
       const { createCondominio } = await import("./db-condominios");
       return await createCondominio(input);
@@ -90,6 +93,9 @@ export const appRouter = router({
       id: z.number(),
       name: z.string().optional(),
       cnpj: z.string().optional(),
+      taxaJurosMensal: z.string().optional(),
+      taxaMulta: z.string().optional(),
+      taxaHonorarios: z.string().optional(),
       address: z.string().optional(),
       city: z.string().optional(),
       state: z.string().optional(),

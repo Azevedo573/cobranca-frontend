@@ -208,3 +208,15 @@
 - [x] Adicionar rota no App.tsx
 - [x] Adicionar link no menu do admin
 - [x] Testar relatório com dados reais
+
+## Sistema de Cálculo Automático de Valores Devidos
+- [x] Adicionar campos no schema de condomínios: taxaJurosMensal, taxaMulta, taxaHonorarios
+- [x] Executar db:push para aplicar mudanças no banco
+- [x] Atualizar formulário de condomínio para incluir configuração de taxas
+- [x] Atualizar schema do tRPC para aceitar taxas no create/update
+- [x] Criar função calcularValorDevido(valorOriginal, dataVencimento, condominio)
+- [x] Criar componente BreakdownValor para mostrar detalhamento
+- [x] Atualizar página de detalhes do devedor com valores calculados
+- [x] Atualizar lista de cobranças com valores atualizados
+- [x] Atualizar dashboard do síndico com totais calculados
+- [x] Testar cálculos com diferentes cenários (atrasos variados)

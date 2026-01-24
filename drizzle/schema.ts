@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -36,6 +36,9 @@ export const condominios = mysqlTable("condominios", {
   managerEmail: varchar("managerEmail", { length: 320 }),
   username: varchar("username", { length: 100 }),
   password: varchar("password", { length: 255 }),
+  taxaJurosMensal: decimal("taxaJurosMensal", { precision: 5, scale: 2 }).default("1.00"),
+  taxaMulta: decimal("taxaMulta", { precision: 5, scale: 2 }).default("2.00"),
+  taxaHonorarios: decimal("taxaHonorarios", { precision: 5, scale: 2 }).default("10.00"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
