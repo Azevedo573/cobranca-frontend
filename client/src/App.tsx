@@ -24,6 +24,7 @@ import Cobrancas from "./pages/Cobrancas";
 import CobrancaForm from "./pages/CobrancaForm";
 import CobrancaDetalhes from "./pages/CobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
+import CasosPrioritarios from "./pages/CasosPrioritarios";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -115,6 +116,11 @@ function Router() {
       {/* Rotas de Relatórios (Admin) */}
       <Route path="/admin/relatorios/produtividade">
         {() => <ProtectedRoute component={RelatorioProdutividade} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Rota de Casos Prioritários */}
+      <Route path="/casos-prioritarios">
+        {() => <ProtectedRoute component={CasosPrioritarios} />}
       </Route>
 
       {/* Rotas de Devedores */}

@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { BadgePrioridade } from "@/components/BadgePrioridade";
 
 export default function Devedores() {
   const { user, logout } = useAuth();
@@ -196,8 +197,9 @@ export default function Devedores() {
                     <TableHead>Unidade</TableHead>
                     <TableHead>Contato</TableHead>
                     <TableHead>Valor Devido</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                <TableHead>Prioridade</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -213,6 +215,9 @@ export default function Devedores() {
                       </TableCell>
                       <TableCell className="font-semibold text-destructive">
                         R$ {(dev.totalDue / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>
+                        {dev.prioridade && <BadgePrioridade prioridade={dev.prioridade} />}
                       </TableCell>
                       <TableCell>{getStatusBadge(dev.status)}</TableCell>
                       <TableCell className="text-right">

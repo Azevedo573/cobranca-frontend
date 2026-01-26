@@ -235,3 +235,72 @@
 - [x] Criar página de detalhes da cobrança se não existir
 - [x] Registrar rota /cobrancas/:id no App.tsx
 - [x] Testar navegação do botão "Ver detalhes"
+
+## 🎯 Transformação em Sistema Profissional de Cobranças
+
+### 1. Sistema de Priorização e Scoring
+- [x] Criar algoritmo de scoring de devedores (valor devido, tempo de atraso, histórico)
+- [x] Adicionar campo "prioridade" (alta/média/baixa) calculado automaticamente
+- [x] Implementar ordenação inteligente nas listagens por prioridade
+- [x] Adicionar badges visuais de prioridade nas tabelas
+- [x] Criar dashboard de "Casos Prioritários" para cobradores
+- [x] Adicionar campos score e prioridade no schema
+- [x] Criar funções de cálculo de score no backend
+- [x] Adicionar endpoints tRPC para scoring
+- [x] Criar componente BadgePrioridade
+- [x] Criar página CasosPrioritarios
+- [x] Adicionar rota /casos-prioritarios no App.tsx
+- [x] Adicionar badges de prioridade na listagem de devedores
+- [x] Integrar sistema de priorização completo
+
+### 2. Módulo Completo de Acordos e Parcelamentos
+- [ ] Criar tabela "acordos" no banco (devedorId, valorTotal, numParcelas, valorParcela, dataInicio)
+- [ ] Criar tabela "parcelas" (acordoId, numeroParcela, valorParcela, dataVencimento, dataPagamento, status)
+- [ ] Criar página de negociação de acordo com simulador de parcelas
+- [ ] Implementar geração automática de parcelas mensais
+- [ ] Criar página de acompanhamento de acordos ativos
+- [ ] Adicionar controle de pagamento de parcelas individuais
+- [ ] Implementar alertas de parcelas vencendo/vencidas
+- [ ] Adicionar relatório de taxa de cumprimento de acordos
+
+### 3. Dashboard Unificado do Devedor (Visão 360°)
+- [ ] Criar timeline unificada com todas as interações (cobranças, tentativas, acordos)
+- [ ] Adicionar gráfico de evolução da dívida ao longo do tempo
+- [ ] Mostrar histórico completo de pagamentos e promessas
+- [ ] Adicionar seção de "Próximas Ações Recomendadas"
+- [ ] Implementar score de risco de inadimplência
+- [ ] Adicionar notas e observações do colaborador
+
+### 4. Automações e Alertas Inteligentes
+- [ ] Criar sistema de alertas automáticos (parcelas vencendo, promessas não cumpridas)
+- [ ] Implementar notificações push para colaboradores
+- [ ] Adicionar regras de escalonamento automático (X dias sem resposta → aumentar prioridade)
+- [ ] Criar sugestões automáticas de ações baseadas em histórico
+- [ ] Implementar lembretes de follow-up para cobradores
+
+### 5. KPIs e Métricas Estratégicas
+- [ ] Dashboard executivo com KPIs principais:
+  * Taxa de recuperação mensal
+  * Tempo médio de recuperação
+  * Valor médio recuperado por colaborador
+  * Taxa de conversão de tentativas em acordos
+  * Aging de dívidas (0-30, 31-60, 61-90, 90+ dias)
+- [ ] Gráfico de funil de cobrança (pendente → em cobrança → acordo → pago)
+- [ ] Comparativo mensal de performance
+- [ ] Ranking de condomínios por inadimplência
+- [ ] Projeção de recuperação baseada em histórico
+
+### 6. Melhorias de UX e Integração
+- [ ] Adicionar busca global (buscar devedor, cobrança, acordo em qualquer lugar)
+- [ ] Implementar atalhos de teclado para ações rápidas
+- [ ] Criar widget de "Ações Rápidas" em todos os dashboards
+- [ ] Adicionar exportação de dados (Excel, PDF) em todas as listagens
+- [ ] Implementar filtros avançados salvos por usuário
+- [ ] Adicionar modo escuro para uso prolongado
+
+### 7. Comunicação e Templates
+- [ ] Criar biblioteca de templates de mensagens (WhatsApp, Email, SMS)
+- [ ] Implementar envio em massa de notificações
+- [ ] Adicionar histórico de comunicações enviadas
+- [ ] Criar templates personalizáveis por condomínio
+- [ ] Implementar variáveis dinâmicas nos templates (nome, valor, vencimento)

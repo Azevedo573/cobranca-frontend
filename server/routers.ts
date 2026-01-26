@@ -404,6 +404,24 @@ export const appRouter = router({
       return await getDistribuicaoPorCondominio(dataInicio, dataFim);
     }),
   }),
+  scoring: router({
+    atualizarScore: protectedProcedure.input(z.object({
+      devedorId: z.number(),
+    })).mutation(async ({ input }) => {
+      const { atualizarScoreDevedor } = await import("./db-scoring");
+      return await atualizarScoreDevedor(input.devedorId);
+    }),
+    atualizarTodos: adminProcedure.mutation(async () => {
+      const { atualizarScoreTodosDevedores } = await import("./db-scoring");
+      return await atualizarScoreTodosDevedores();
+    }),
+    listarPorPrioridade: protectedProcedure.input(z.object({
+      condominioId: z.number().optional(),
+    })).query(async ({ input }) => {
+      const { buscarDevedoresPorPrioridade } = await import("./db-scoring");
+      return await buscarDevedoresPorPrioridade(input.condominioId);
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

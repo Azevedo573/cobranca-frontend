@@ -52,6 +52,9 @@ export const devedores = mysqlTable("devedores", {
   phone: varchar("phone", { length: 20 }),
   totalDue: int("totalDue").default(0).notNull(),
   status: mysqlEnum("status", ["ativo", "pago", "acordo"]).default("ativo").notNull(),
+  prioridade: mysqlEnum("prioridade", ["alta", "media", "baixa"]).default("media"),
+  score: int("score").default(0),
+  ultimaAtualizacaoScore: timestamp("ultimaAtualizacaoScore"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
