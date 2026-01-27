@@ -315,3 +315,8 @@
 - [x] Adicionar campo passwordHash no schema users
 - [x] Executar db:push para aplicar mudanças
 - [x] Testar fluxo completo de login
+
+## Configurar Senha para Admin Existente
+- [x] Gerar hash bcrypt da senha "123456"
+- [x] Atualizar campo passwordHash do usuário admin no banco
+- [x] Testar login com a senha configurada
