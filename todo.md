@@ -254,8 +254,15 @@
 - [x] Integrar sistema de priorização completo
 
 ### 2. Módulo Completo de Acordos e Parcelamentos
-- [ ] Criar tabela "acordos" no banco (devedorId, valorTotal, numParcelas, valorParcela, dataInicio)
-- [ ] Criar tabela "parcelas" (acordoId, numeroParcela, valorParcela, dataVencimento, dataPagamento, status)
+- [x] Criar tabela "acordos" no banco (devedorId, valorTotal, numParcelas, valorParcela, dataInicio)
+- [x] Criar tabela "parcelas" (acordoId, numeroParcela, valorParcela, dataVencimento, dataPagamento, status)
+- [x] Criar funções de cálculo de acordos (entrada + parcelas com juros)
+- [x] Criar backend tRPC para acordos (create, list, getById)
+- [x] Implementar componente SimuladorAcordo na página de detalhes da cobrança
+- [x] Adicionar formulário de simulação (entrada, número de parcelas, taxa de juros)
+- [x] Exibir tabela com plano de pagamento calculado
+- [x] Implementar botão "Criar Acordo" para formalizar
+- [x] Adicionar opção de gerar PDF/texto do acordo para compartilhar
 - [ ] Criar página de negociação de acordo com simulador de parcelas
 - [ ] Implementar geração automática de parcelas mensais
 - [ ] Criar página de acompanhamento de acordos ativos

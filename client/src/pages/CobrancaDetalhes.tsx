@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { useMemo } from "react";
 import { calcularValorDevido, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import BreakdownValorComponent from "@/components/BreakdownValor";
+import { SimuladorAcordo } from "@/components/SimuladorAcordo";
 
 export default function CobrancaDetalhes() {
   const { user, logout } = useAuth();
@@ -186,6 +187,21 @@ export default function CobrancaDetalhes() {
             {/* Breakdown de Valores */}
             {breakdown && (
               <BreakdownValorComponent breakdown={breakdown} showDetails={true} />
+            )}
+
+            {/* Simulador de Acordo */}
+            {cobranca.status !== "pago" && breakdown && devedor && condominio && taxas && (
+              <SimuladorAcordo
+                valorTotal={breakdown.valorTotal}
+                devedorId={devedor.id}
+                devedorNome={devedor.name}
+                condominioId={condominio.id}
+                condominioNome={condominio.name}
+                taxaJurosMensal={taxas.taxaJurosMensal}
+                onAcordoCriado={() => {
+                  window.location.reload();
+                }}
+              />
             )}
           </div>
 

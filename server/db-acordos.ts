@@ -113,6 +113,14 @@ export async function createParcela(data: InsertParcelaAcordo) {
   return result;
 }
 
+export async function createParcelas(parcelas: InsertParcelaAcordo[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (parcelas.length === 0) return [];
+  const result = await db.insert(parcelasAcordo).values(parcelas);
+  return result;
+}
+
 export async function updateParcela(id: number, data: Partial<InsertParcelaAcordo>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

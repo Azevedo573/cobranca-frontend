@@ -273,32 +273,34 @@ export const appRouter = router({
       firstPaymentDate: z.date(),
       paymentFrequency: z.enum(["mensal", "semanal", "quinzenal"]).default("mensal"),
       notes: z.string().optional(),
+      parcelas: z.array(z.object({
+        installmentNumber: z.number(),
+        amount: z.number(),
+        dueDate: z.date(),
+      })),
     })).mutation(async ({ input }) => {
-      const { createAcordo, createParcela } = await import("./db-acordos");
-      const acordoResult = await createAcordo(input);
+      const { createAcordo, createParcelas } = await import("./db-acordos");
+      const acordoResult = await createAcordo({
+        devedorId: input.devedorId,
+        condominioId: input.condominioId,
+        totalAmount: input.totalAmount,
+        agreedAmount: input.agreedAmount,
+        installments: input.installments,
+        firstPaymentDate: input.firstPaymentDate,
+        paymentFrequency: input.paymentFrequency,
+        notes: input.notes,
+      });
       const acordoId = Number((acordoResult as any).insertId || 0);
       
-      // Criar parcelas automaticamente
-      const valorParcela = Math.round(input.agreedAmount / input.installments);
-      let dataAtual = new Date(input.firstPaymentDate);
+      // Criar todas as parcelas de uma vez
+      const parcelasData = input.parcelas.map(p => ({
+        acordoId,
+        installmentNumber: p.installmentNumber,
+        amount: p.amount,
+        dueDate: p.dueDate,
+      }));
       
-      for (let i = 1; i <= input.installments; i++) {
-        await createParcela({
-          acordoId,
-          installmentNumber: i,
-          amount: valorParcela,
-          dueDate: new Date(dataAtual),
-        });
-        
-        // Calcular próxima data
-        if (input.paymentFrequency === "semanal") {
-          dataAtual.setDate(dataAtual.getDate() + 7);
-        } else if (input.paymentFrequency === "quinzenal") {
-          dataAtual.setDate(dataAtual.getDate() + 15);
-        } else {
-          dataAtual.setMonth(dataAtual.getMonth() + 1);
-        }
-      }
+      await createParcelas(parcelasData);
       
       return { success: true, acordoId };
     }),
