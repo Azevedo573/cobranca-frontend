@@ -14,6 +14,34 @@ export async function verifyCustomToken(token: string | undefined | null): Promi
       algorithms: ["HS256"],
     });
 
+    // Verificar se é um token de admin
+    if (payload.authType === "admin") {
+      const { userId } = payload as Record<string, unknown>;
+      
+      if (typeof userId !== "number") {
+        console.warn("[Custom Auth] Invalid admin token: missing userId");
+        return null;
+      }
+
+      // Buscar usuário admin no banco
+      const db = await getDb();
+      if (!db) return null;
+
+      const userResult = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      const user = userResult[0];
+      if (!user || user.isActive !== 1 || user.role !== "admin") {
+        console.warn("[Custom Auth] Admin user not found, inactive, or not admin");
+        return null;
+      }
+
+      return user;
+    }
+
     // Verificar se é um token de colaborador
     if (payload.authType === "colaborador") {
       const { userId } = payload as Record<string, unknown>;

@@ -304,3 +304,14 @@
 - [ ] Adicionar histórico de comunicações enviadas
 - [ ] Criar templates personalizáveis por condomínio
 - [ ] Implementar variáveis dinâmicas nos templates (nome, valor, vencimento)
+
+## Login Customizado para Administrador
+- [x] Criar página /login-admin com formulário de email e senha
+- [x] Adicionar endpoint de autenticação admin no backend
+- [x] Implementar validação de credenciais e geração de token JWT
+- [x] Redirecionar para /admin/dashboard após login bem-sucedido
+- [x] Atualizar verifyCustomToken para reconhecer tokens de admin
+- [x] Adicionar rota no App.tsx
+- [x] Adicionar campo passwordHash no schema users
+- [x] Executar db:push para aplicar mudanças
+- [x] Testar fluxo completo de login
