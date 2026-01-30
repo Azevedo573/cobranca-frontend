@@ -239,7 +239,7 @@ export default function TentativasCobranca() {
                         id="devedor"
                         className="w-full px-3 py-2 border rounded-md mt-1"
                         value={formData.devedorId}
-                        onChange={(e) => setFormData({ ...formData, devedorId: e.target.value })}
+                        onChange={(e) => setFormData({ ...formData, devedorId: e.target.value, cobrancaId: "" })}
                         required
                       >
                         <option value="">Selecione um devedor</option>
@@ -260,7 +260,7 @@ export default function TentativasCobranca() {
                         required
                       >
                         <option value="">Selecione uma cobrança</option>
-                        {cobrancas?.map((cob) => (
+                        {cobrancas?.filter(cob => !formData.devedorId || cob.devedorId === Number(formData.devedorId)).map((cob) => (
                           <option key={cob.id} value={cob.id}>
                             {cob.description || `Ref: ${cob.monthReference}`} - R$ {cob.amount.toFixed(2)}
                           </option>

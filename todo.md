@@ -392,3 +392,8 @@
 - [x] Fazer botão "Nova Tentativa" expandir o formulário inline
 - [x] Remover navegação para página separada
 - [x] Adicionar scroll automático para o formulário quando expandido
+
+## Filtrar Processos por Devedor no Formulário de Tentativa
+- [x] Implementar filtro dinâmico de processos baseado no devedor selecionado
+- [x] Limpar seleção de processo quando devedor mudar
+- [x] Exibir mensagem quando devedor não tiver processos (placeholder do select)
