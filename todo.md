@@ -380,3 +380,10 @@
 - [x] Adicionar estatísticas (total de tentativas, taxa de sucesso)
 - [x] Adicionar rota /tentativas no App.tsx
 - [x] Adicionar link na Sidebar
+
+## Formulário Inline de Tentativa na Página de Tentativas
+- [x] Adicionar formulário expansível/colapsável no topo da página
+- [x] Implementar campos: devedor, cobrança, tipo de contato, resultado, observações
+- [x] Adicionar validação de campos obrigatórios
+- [x] Implementar mutation para criar tentativa
+- [x] Atualizar lista automaticamente após criar tentativa

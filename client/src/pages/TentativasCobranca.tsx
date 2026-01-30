@@ -12,16 +12,26 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Phone, Plus, Search, ArrowLeft } from "lucide-react";
+import { Phone, Plus, Search, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { format } from "date-fns";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function TentativasCobranca() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
+    devedorId: "",
+    cobrancaId: "",
+    contactType: "telefone" as "telefone" | "email" | "pessoal" | "whatsapp",
+    result: "" as "sem_resposta" | "promessa_pagamento" | "recusa" | "outro" | "",
+    notes: "",
+  });
   
   // Para admin, usar condomínio selecionado; para síndico/cobrador, usar o próprio
   const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
@@ -39,6 +49,52 @@ export default function TentativasCobranca() {
     { condominioId: condominioId ?? 0 },
     { enabled: condominioId !== null && condominioId !== undefined }
   );
+
+  const { data: devedores } = trpc.devedores.list.useQuery(
+    { condominioId: condominioId ?? 0 },
+    { enabled: condominioId !== null && condominioId !== undefined }
+  );
+
+  const { data: cobrancas } = trpc.cobrancas.list.useQuery(
+    { condominioId: condominioId ?? 0 },
+    { enabled: condominioId !== null && condominioId !== undefined }
+  );
+
+  const utils = trpc.useUtils();
+  const createTentativa = trpc.tentativas.create.useMutation({
+    onSuccess: () => {
+      utils.tentativas.list.invalidate();
+      utils.tentativas.getEstatisticas.invalidate();
+      setFormData({
+        devedorId: "",
+        cobrancaId: "",
+        contactType: "telefone",
+        result: "",
+        notes: "",
+      });
+      setShowForm(false);
+      alert("Tentativa registrada com sucesso!");
+    },
+    onError: (error) => {
+      alert(`Erro ao registrar tentativa: ${error.message}`);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.devedorId || !formData.cobrancaId || !condominioId) {
+      alert("Preencha todos os campos obrigatórios");
+      return;
+    }
+    createTentativa.mutate({
+      devedorId: Number(formData.devedorId),
+      cobrancaId: Number(formData.cobrancaId),
+      condominioId,
+      contactType: formData.contactType,
+      result: formData.result || undefined,
+      notes: formData.notes || undefined,
+    });
+  };
 
   const filteredTentativas = tentativas?.filter(tent => {
     const devedorName = tent.devedorName || "";
@@ -149,6 +205,130 @@ export default function TentativasCobranca() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Formulário Inline */}
+        {condominioId && (
+          <Card className="mb-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Registro Rápido
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowForm(!showForm)}
+                >
+                  {showForm ? (
+                    <><ChevronUp className="h-4 w-4 mr-2" /> Ocultar</>
+                  ) : (
+                    <><ChevronDown className="h-4 w-4 mr-2" /> Expandir</>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {showForm && (
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="devedor">Devedor *</Label>
+                      <select
+                        id="devedor"
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        value={formData.devedorId}
+                        onChange={(e) => setFormData({ ...formData, devedorId: e.target.value })}
+                        required
+                      >
+                        <option value="">Selecione um devedor</option>
+                        {devedores?.map((dev) => (
+                          <option key={dev.id} value={dev.id}>
+                            {dev.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="cobranca">Cobrança/Processo *</Label>
+                      <select
+                        id="cobranca"
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        value={formData.cobrancaId}
+                        onChange={(e) => setFormData({ ...formData, cobrancaId: e.target.value })}
+                        required
+                      >
+                        <option value="">Selecione uma cobrança</option>
+                        {cobrancas?.map((cob) => (
+                          <option key={cob.id} value={cob.id}>
+                            {cob.description || `Ref: ${cob.monthReference}`} - R$ {cob.amount.toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="contactType">Tipo de Contato *</Label>
+                      <select
+                        id="contactType"
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        value={formData.contactType}
+                        onChange={(e) => setFormData({ ...formData, contactType: e.target.value as any })}
+                        required
+                      >
+                        <option value="telefone">Telefone</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">E-mail</option>
+                        <option value="pessoal">Presencial</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="result">Resultado</Label>
+                      <select
+                        id="result"
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        value={formData.result}
+                        onChange={(e) => setFormData({ ...formData, result: e.target.value as any })}
+                      >
+                        <option value="">Selecione um resultado</option>
+                        <option value="sem_resposta">Sem Resposta</option>
+                        <option value="promessa_pagamento">Promessa de Pagamento</option>
+                        <option value="recusa">Recusa</option>
+                        <option value="outro">Outro</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="notes">Observações</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Descreva o que foi conversado, próximos passos, etc..."
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      rows={3}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowForm(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                      disabled={createTentativa.isPending}
+                    >
+                      {createTentativa.isPending ? "Salvando..." : "Registrar Tentativa"}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            )}
+          </Card>
         )}
 
         <Card>
