@@ -81,9 +81,15 @@ const menuItems: MenuItem[] = [
     roles: ["admin", "sindico", "cobrador"],
   },
   {
-    label: "Cobranças",
-    href: "/cobrancas",
+    label: "Processos de Cobrança",
+    href: "/processos",
     icon: FileText,
+    roles: ["admin", "sindico", "cobrador"],
+  },
+  {
+    label: "Tentativas de Cobrança",
+    href: "/tentativas",
+    icon: Phone,
     roles: ["admin", "sindico", "cobrador"],
   },
   {

@@ -22,13 +22,14 @@ import DevedorForm from "./pages/DevedorForm";
 import DevedorDetalhes from "./pages/DevedorDetalhes";
 import TentativaForm from "./pages/TentativaForm";
 import TentativaRapida from "./pages/TentativaRapida";
-import Cobrancas from "./pages/Cobrancas";
-import CobrancaForm from "./pages/CobrancaForm";
-import CobrancaDetalhes from "./pages/CobrancaDetalhes";
+import ProcessosCobranca from "./pages/ProcessosCobranca";
+import ProcessoCobrancaForm from "./pages/ProcessoCobrancaForm";
+import ProcessoCobrancaDetalhes from "./pages/ProcessoCobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import CasosPrioritarios from "./pages/CasosPrioritarios";
 import Acordos from "./pages/Acordos";
 import AcordoDetalhes from "./pages/AcordoDetalhes";
+import TentativasCobranca from "./pages/TentativasCobranca";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -148,18 +149,15 @@ function Router() {
         {() => <ProtectedRoute component={DevedorForm} />}
       </Route>
 
-      {/* Rotas de Cobranças */}
-      <Route path="/cobrancas">
-        {() => <ProtectedRoute component={Cobrancas} />}
+      {/* Rotas de Processos de Cobrança */}
+      <Route path="/processos">
+        {() => <ProtectedRoute component={ProcessosCobranca} allowedRoles={["admin", "sindico", "cobrador"]} />}
       </Route>
-      <Route path="/cobrancas/nova">
-        {() => <ProtectedRoute component={CobrancaForm} allowedRoles={["admin", "sindico"]} />}
+      <Route path="/processos/novo">
+        {() => <ProtectedRoute component={ProcessoCobrancaForm} allowedRoles={["admin", "sindico"]} />}
       </Route>
-      <Route path="/cobrancas/:id/editar">
-        {() => <ProtectedRoute component={CobrancaForm} allowedRoles={["admin", "sindico"]} />}
-      </Route>
-      <Route path="/cobrancas/:id">
-        {() => <ProtectedRoute component={CobrancaDetalhes} allowedRoles={["admin", "sindico", "cobrador"]} />}
+      <Route path="/processos/:id">
+        {() => <ProtectedRoute component={ProcessoCobrancaDetalhes} allowedRoles={["admin", "sindico", "cobrador"]} />}
       </Route>
 
       {/* Rotas de Acordos */}
@@ -168,6 +166,11 @@ function Router() {
       </Route>
       <Route path="/acordos/:id">
         {() => <ProtectedRoute component={AcordoDetalhes} />}
+      </Route>
+
+      {/* Rotas de Tentativas */}
+      <Route path="/tentativas">
+        {() => <ProtectedRoute component={TentativasCobranca} allowedRoles={["admin", "sindico", "cobrador"]} />}
       </Route>
 
       <Route path="/404" component={NotFound} />

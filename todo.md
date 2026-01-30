@@ -361,3 +361,22 @@
 - [x] Implementar mutation para atualizar status da parcela
 - [x] Mostrar progresso visual do acordo (parcelas pagas/total)
 - [x] Adicionar rota /acordos/:id no App.tsx
+
+## Renomear Cobranças para Processos de Cobrança
+- [x] Renomear componente Cobrancas.tsx para ProcessosCobranca.tsx
+- [x] Renomear CobrancaForm.tsx para ProcessoCobrancaForm.tsx
+- [x] Renomear CobrancaDetalhes.tsx para ProcessoCobrancaDetalhes.tsx
+- [x] Atualizar rotas no App.tsx
+- [x] Atualizar links na Sidebar
+- [x] Atualizar títulos e textos nas páginas
+
+## Nova Página de Tentativas de Cobrança
+- [x] Criar tabela tentativasCobranca no schema (já existe)
+- [x] Criar funções de banco em db-tentativas.ts
+- [x] Criar router tRPC para tentativas (já existe, atualizado)
+- [x] Criar página TentativasCobranca.tsx com listagem
+- [x] Adicionar formulário de nova tentativa (usa página existente /tentativas/nova)
+- [x] Implementar filtros (devedor, cobrador, data, resultado)
+- [x] Adicionar estatísticas (total de tentativas, taxa de sucesso)
+- [x] Adicionar rota /tentativas no App.tsx
+- [x] Adicionar link na Sidebar

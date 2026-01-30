@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
-export default function Cobrancas() {
+export default function ProcessosCobranca() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
@@ -72,13 +72,13 @@ export default function Cobrancas() {
   
   const deleteMutation = trpc.cobrancas.delete.useMutation({
     onSuccess: () => {
-      toast.success("Cobrança excluída com sucesso!");
+      toast.success("Processo excluído com sucesso!");
       utils.cobrancas.list.invalidate();
       setDeleteDialogOpen(false);
       setCobrancaToDelete(null);
     },
     onError: (error) => {
-      toast.error("Erro ao excluir cobrança: " + error.message);
+      toast.error("Erro ao excluir processo: " + error.message);
     },
   });
 
@@ -137,8 +137,8 @@ export default function Cobrancas() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-primary">Cobranças</h1>
-                <p className="text-sm text-muted-foreground">Gestão de cobranças extrajudiciais</p>
+                <h1 className="text-2xl font-bold text-primary">Processos de Cobrança</h1>
+                <p className="text-sm text-muted-foreground">Gestão de processos judiciais e extrajudiciais</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -162,17 +162,17 @@ export default function Cobrancas() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Lista de Cobranças
+                  Lista de Processos
                 </CardTitle>
                 <CardDescription>
-                  Total: {filteredCobrancas?.length || 0} cobrança(s)
+                  Total: {filteredCobrancas?.length || 0} processo(s)
                 </CardDescription>
               </div>
               {(user?.role === "admin" || user?.role === "sindico") && (
-                <Link href="/cobrancas/nova">
+                <Link href="/processos/novo">
                   <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                     <Plus className="mr-2 h-4 w-4" />
-                    Nova Cobrança
+                    Novo Processo
                   </Button>
                 </Link>
               )}
@@ -250,7 +250,7 @@ export default function Cobrancas() {
                         <TableCell>{getStatusBadge(cob.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Link href={`/cobrancas/${cob.id}`}>
+                          <Link href={`/processos/${cob.id}`}>
                             <Button variant="ghost" size="icon" title="Ver detalhes">
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -261,7 +261,7 @@ export default function Cobrancas() {
                                 variant="ghost"
                                 size="icon"
                                 title="Editar"
-                                onClick={() => setLocation(`/cobrancas/${cob.id}/editar`)}
+                                onClick={() => setLocation(`/processos/${cob.id}/editar`)}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
@@ -287,18 +287,18 @@ export default function Cobrancas() {
               <div className="text-center py-12">
                 <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">
-                  {searchTerm ? "Nenhuma cobrança encontrada" : "Nenhuma cobrança cadastrada"}
+                  {searchTerm ? "Nenhum processo encontrado" : "Nenhum processo cadastrado"}
                 </h3>
                 <p className="text-muted-foreground mb-4">
                   {searchTerm
                     ? "Tente buscar com outros termos"
-                    : "Comece cadastrando as cobranças dos devedores"}
+                    : "Comece cadastrando os processos dos devedores"}
                 </p>
                 {!searchTerm && (user?.role === "admin" || user?.role === "sindico") && (
-                  <Link href="/cobrancas/nova">
+                  <Link href="/processos/novo">
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                       <Plus className="mr-2 h-4 w-4" />
-                      Cadastrar Primeira Cobrança
+                      Cadastrar Primeiro Processo
                     </Button>
                   </Link>
                 )}
@@ -314,7 +314,7 @@ export default function Cobrancas() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir esta cobrança? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir este processo? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
