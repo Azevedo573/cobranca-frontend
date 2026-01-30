@@ -327,3 +327,15 @@
 - [x] Gerar hash bcrypt da senha "123456"
 - [x] Atualizar campo passwordHash do usuário admin no banco
 - [x] Testar login com a senha configurada
+
+## Sidebar de Navegação com Controle de Acesso
+- [x] Analisar estrutura atual de rotas e páginas existentes
+- [x] Definir itens de menu por nível de acesso (admin, cobrador, visualizador)
+- [x] Criar componente Sidebar.tsx com navegação lateral
+- [x] Implementar lógica de controle de acesso baseado em user.role
+- [x] Adicionar ícones e organização visual dos itens de menu
+- [x] Integrar sidebar no layout principal (App.tsx)
+- [x] Adicionar indicador visual de página ativa
+- [x] Implementar responsividade (colapsar em mobile)
+- [x] Testar navegação com diferentes níveis de acesso
+- [x] Ajustar espaçamento e layout das páginas com sidebar
