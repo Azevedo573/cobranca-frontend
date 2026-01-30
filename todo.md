@@ -339,3 +339,6 @@
 - [x] Implementar responsividade (colapsar em mobile)
 - [x] Testar navegação com diferentes níveis de acesso
 - [x] Ajustar espaçamento e layout das páginas com sidebar
+
+## Correção de Erro HTML na Sidebar
+- [x] Corrigir âncoras aninhadas (<a> dentro de <a>) na Sidebar.tsx

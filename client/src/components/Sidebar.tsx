@@ -150,21 +150,20 @@ export default function Sidebar() {
 
             return (
               <li key={item.href}>
-                <Link href={item.href}>
-                  <a
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
-                      "hover:bg-accent hover:text-accent-foreground",
-                      isActive && "bg-primary text-primary-foreground hover:bg-primary/90",
-                      collapsed && "justify-center"
-                    )}
-                    title={collapsed ? item.label : undefined}
-                  >
-                    <Icon className={cn("h-5 w-5 flex-shrink-0")} />
-                    {!collapsed && (
-                      <span className="text-sm font-medium">{item.label}</span>
-                    )}
-                  </a>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                    "hover:bg-accent hover:text-accent-foreground",
+                    isActive && "bg-primary text-primary-foreground hover:bg-primary/90",
+                    collapsed && "justify-center"
+                  )}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <Icon className={cn("h-5 w-5 flex-shrink-0")} />
+                  {!collapsed && (
+                    <span className="text-sm font-medium">{item.label}</span>
+                  )}
                 </Link>
               </li>
             );
