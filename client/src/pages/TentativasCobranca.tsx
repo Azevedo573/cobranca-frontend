@@ -209,7 +209,7 @@ export default function TentativasCobranca() {
 
         {/* Formulário Inline */}
         {condominioId && (
-          <Card className="mb-6">
+          <Card className="mb-6" id="registro-rapido">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
@@ -343,12 +343,22 @@ export default function TentativasCobranca() {
                   Total: {filteredTentativas?.length || 0} tentativa(s)
                 </CardDescription>
               </div>
-              <Link href="/tentativas/nova">
-                <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Tentativa
-                </Button>
-              </Link>
+              <Button 
+                className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                onClick={() => {
+                  if (!condominioId) {
+                    alert("Selecione um condomínio primeiro");
+                    return;
+                  }
+                  setShowForm(true);
+                  setTimeout(() => {
+                    document.getElementById('registro-rapido')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 100);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Tentativa
+              </Button>
             </div>
             <div className="mt-4 space-y-4">
               {user?.role === "admin" && (

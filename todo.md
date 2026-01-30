@@ -387,3 +387,8 @@
 - [x] Adicionar validação de campos obrigatórios
 - [x] Implementar mutation para criar tentativa
 - [x] Atualizar lista automaticamente após criar tentativa
+
+## Atualizar Botão Nova Tentativa
+- [x] Fazer botão "Nova Tentativa" expandir o formulário inline
+- [x] Remover navegação para página separada
+- [x] Adicionar scroll automático para o formulário quando expandido
