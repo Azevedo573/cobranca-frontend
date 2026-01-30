@@ -351,3 +351,13 @@
 - [x] Implementar visualização de detalhes do acordo
 - [x] Mostrar progresso de pagamento das parcelas
 - [x] Adicionar rota /acordos no App.tsx
+
+## Página de Detalhes do Acordo
+- [x] Criar página AcordoDetalhes.tsx
+- [x] Buscar dados do acordo e parcelas via tRPC
+- [x] Exibir informações completas do acordo (devedor, valores, datas)
+- [x] Criar tabela de parcelas com todas as informações
+- [x] Adicionar botão para marcar parcela como paga
+- [x] Implementar mutation para atualizar status da parcela
+- [x] Mostrar progresso visual do acordo (parcelas pagas/total)
+- [x] Adicionar rota /acordos/:id no App.tsx

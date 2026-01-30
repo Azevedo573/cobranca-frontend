@@ -28,6 +28,7 @@ import CobrancaDetalhes from "./pages/CobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import CasosPrioritarios from "./pages/CasosPrioritarios";
 import Acordos from "./pages/Acordos";
+import AcordoDetalhes from "./pages/AcordoDetalhes";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -164,6 +165,9 @@ function Router() {
       {/* Rotas de Acordos */}
       <Route path="/acordos">
         {() => <ProtectedRoute component={Acordos} />}
+      </Route>
+      <Route path="/acordos/:id">
+        {() => <ProtectedRoute component={AcordoDetalhes} />}
       </Route>
 
       <Route path="/404" component={NotFound} />

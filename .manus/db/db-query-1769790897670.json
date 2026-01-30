@@ -1,0 +1,9 @@
+{
+  "query": "\nINSERT INTO parcelasAcordo (acordoId, installmentNumber, amount, dueDate, status) VALUES\n(1, 1, 70091, '2026-02-27', 'pendente'),\n(1, 2, 70091, '2026-03-27', 'pendente'),\n(1, 3, 70091, '2026-04-27', 'pendente'),\n(1, 4, 70091, '2026-05-27', 'pendente'),\n(1, 5, 70091, '2026-06-27', 'pendente'),\n(1, 6, 70091, '2026-07-27', 'pendente'),\n(1, 7, 70091, '2026-08-27', 'pendente'),\n(1, 8, 70091, '2026-09-27', 'pendente'),\n(1, 9, 70091, '2026-10-27', 'pendente'),\n(1, 10, 70091, '2026-11-27', 'pendente');\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute \nINSERT INTO parcelasAcordo (acordoId, installmentNumber, amount, dueDate, status) VALUES\n(1, 1, 70091, '2026-02-27', 'pendente'),\n(1, 2, 70091, '2026-03-27', 'pendente'),\n(1, 3, 70091, '2026-04-27', 'pendente'),\n(1, 4, 70091, '2026-05-27', 'pendente'),\n(1, 5, 70091, '2026-06-27', 'pendente'),\n(1, 6, 70091, '2026-07-27', 'pendente'),\n(1, 7, 70091, '2026-08-27', 'pendente'),\n(1, 8, 70091, '2026-09-27', 'pendente'),\n(1, 9, 70091, '2026-10-27', 'pendente'),\n(1, 10, 70091, '2026-11-27', 'pendente');\n",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 63
+}
