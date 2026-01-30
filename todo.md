@@ -342,3 +342,12 @@
 
 ## Correção de Erro HTML na Sidebar
 - [x] Corrigir âncoras aninhadas (<a> dentro de <a>) na Sidebar.tsx
+
+## Página de Acordos
+- [x] Criar query tRPC acordos.list com filtros
+- [x] Criar query tRPC acordos.getById com parcelas
+- [x] Criar página Acordos.tsx com listagem
+- [x] Adicionar filtros por status, devedor e condomínio
+- [x] Implementar visualização de detalhes do acordo
+- [x] Mostrar progresso de pagamento das parcelas
+- [x] Adicionar rota /acordos no App.tsx

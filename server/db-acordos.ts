@@ -75,7 +75,30 @@ export async function createTentativa(data: InsertTentativaCobranca) {
 export async function getAcordosByCondominio(condominioId: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(acordos).where(eq(acordos.condominioId, condominioId));
+  
+  const { devedores } = await import("../drizzle/schema");
+  
+  const result = await db
+    .select({
+      id: acordos.id,
+      devedorId: acordos.devedorId,
+      condominioId: acordos.condominioId,
+      totalAmount: acordos.totalAmount,
+      agreedAmount: acordos.agreedAmount,
+      installments: acordos.installments,
+      firstPaymentDate: acordos.firstPaymentDate,
+      paymentFrequency: acordos.paymentFrequency,
+      status: acordos.status,
+      notes: acordos.notes,
+      createdAt: acordos.createdAt,
+      updatedAt: acordos.updatedAt,
+      devedorName: devedores.name,
+    })
+    .from(acordos)
+    .leftJoin(devedores, eq(acordos.devedorId, devedores.id))
+    .where(eq(acordos.condominioId, condominioId));
+  
+  return result;
 }
 
 export async function getAcordoById(id: number) {

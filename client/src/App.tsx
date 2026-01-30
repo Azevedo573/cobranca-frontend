@@ -27,6 +27,7 @@ import CobrancaForm from "./pages/CobrancaForm";
 import CobrancaDetalhes from "./pages/CobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import CasosPrioritarios from "./pages/CasosPrioritarios";
+import Acordos from "./pages/Acordos";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -158,6 +159,11 @@ function Router() {
       </Route>
       <Route path="/cobrancas/:id">
         {() => <ProtectedRoute component={CobrancaDetalhes} allowedRoles={["admin", "sindico", "cobrador"]} />}
+      </Route>
+
+      {/* Rotas de Acordos */}
+      <Route path="/acordos">
+        {() => <ProtectedRoute component={Acordos} />}
       </Route>
 
       <Route path="/404" component={NotFound} />
