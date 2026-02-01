@@ -62,9 +62,18 @@ export default function TentativasCobranca() {
 
   const utils = trpc.useUtils();
   const createTentativa = trpc.tentativas.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       utils.tentativas.list.invalidate();
       utils.tentativas.getEstatisticas.invalidate();
+      
+      alert("Tentativa registrada com sucesso!");
+      
+      // Se resultado for "deseja_acordo", redirecionar para detalhes do processo
+      if ((variables.result as string) === "deseja_acordo" && variables.cobrancaId) {
+        setLocation(`/processos/${variables.cobrancaId}`);
+        return;
+      }
+      
       setFormData({
         devedorId: "",
         cobrancaId: "",
@@ -73,7 +82,6 @@ export default function TentativasCobranca() {
         notes: "",
       });
       setShowForm(false);
-      alert("Tentativa registrada com sucesso!");
     },
     onError: (error) => {
       alert(`Erro ao registrar tentativa: ${error.message}`);
@@ -293,6 +301,7 @@ export default function TentativasCobranca() {
                         <option value="">Selecione um resultado</option>
                         <option value="sem_resposta">Sem Resposta</option>
                         <option value="promessa_pagamento">Promessa de Pagamento</option>
+                        <option value="deseja_acordo">Deseja Realizar Acordo</option>
                         <option value="recusa">Recusa</option>
                         <option value="outro">Outro</option>
                       </select>

@@ -81,7 +81,7 @@ export const tentativasCobranca = mysqlTable("tentativasCobranca", {
   userId: int("userId").notNull(),
   contactType: mysqlEnum("contactType", ["telefone", "email", "pessoal", "whatsapp"]).notNull(),
   notes: text("notes"),
-  result: mysqlEnum("result", ["sem_resposta", "promessa_pagamento", "recusa", "outro"]),
+  result: mysqlEnum("result", ["sem_resposta", "promessa_pagamento", "deseja_acordo", "recusa", "outro"]),
   attemptDate: timestamp("attemptDate").defaultNow().notNull(),
   nextAttemptDate: timestamp("nextAttemptDate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

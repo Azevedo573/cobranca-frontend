@@ -1,0 +1,1 @@
+ALTER TABLE `tentativasCobranca` MODIFY COLUMN `result` enum('sem_resposta','promessa_pagamento','deseja_acordo','recusa','outro');

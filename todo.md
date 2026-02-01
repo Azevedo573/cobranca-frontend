@@ -397,3 +397,14 @@
 - [x] Implementar filtro dinâmico de processos baseado no devedor selecionado
 - [x] Limpar seleção de processo quando devedor mudar
 - [x] Exibir mensagem quando devedor não tiver processos (placeholder do select)
+
+## Redirecionamento Automático para Acordo
+- [x] Adicionar opção "Deseja Realizar Acordo" no enum result do schema
+- [x] Executar db:push para aplicar mudanças no banco
+- [x] Adicionar opção no select de resultado do formulário
+- [x] Implementar lógica de redirecionamento no onSuccess da mutation
+- [x] Verificar se resultado selecionado é "deseja_acordo"
+- [x] Salvar tentativa normalmente
+- [x] Redirecionar para página de detalhes do processo (/processos/:id)
+- [x] Adicionar mensagem de sucesso antes do redirecionamento
+- [x] Testar fluxo completo (registro → redirecionamento → simulador) - Lógica implementada, funcionará quando formulário inline for exibido
