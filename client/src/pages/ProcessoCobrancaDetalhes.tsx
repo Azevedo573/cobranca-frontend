@@ -14,7 +14,7 @@ import { SimuladorAcordo } from "@/components/SimuladorAcordo";
 
 export default function CobrancaDetalhes() {
   const { user, logout } = useAuth();
-  const [, params] = useRoute("/cobrancas/:id");
+  const [, params] = useRoute("/processos/:id");
   const cobrancaId = params?.id ? parseInt(params.id) : null;
 
   const { data: cobranca, isLoading } = trpc.cobrancas.getById.useQuery(

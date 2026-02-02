@@ -426,3 +426,11 @@
 - [x] Atualizar schema de validação para aceitar "deseja_acordo"
 - [x] Testar registro de tentativa com resultado "deseja_acordo" (teste unitário passou)
 - [x] Verificar redirecionamento para página de detalhes do processo (implementado)
+
+## Corrigir Redirecionamento para Simulador de Acordos
+- [x] Verificar se cobrancaId está sendo passado corretamente na tentativa
+- [x] Verificar lógica de redirecionamento no onSuccess da mutation
+- [x] Adicionar opção "Deseja Realizar Acordo" no TentativaRapida.tsx
+- [x] Implementar redirecionamento no TentativaRapida.tsx
+- [x] Garantir que redireciona para /processos/:cobrancaId após salvar
+- [x] Testar fluxo completo: registro → redirecionamento → simulador

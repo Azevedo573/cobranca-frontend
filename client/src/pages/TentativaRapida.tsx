@@ -40,9 +40,16 @@ export default function TentativaRapida() {
   const utils = trpc.useUtils();
 
   const createMutation = trpc.tentativas.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success("Tentativa registrada com sucesso!");
       utils.tentativas.list.invalidate();
+      
+      // Se resultado for "deseja_acordo", redirecionar para detalhes do processo
+      if ((variables.result as string) === "deseja_acordo" && variables.cobrancaId) {
+        navigate(`/processos/${variables.cobrancaId}`);
+        return;
+      }
+      
       // Limpar formulário
       setSelectedDevedor(null);
       setSearchTerm("");
@@ -86,7 +93,7 @@ export default function TentativaRapida() {
       devedorId: selectedDevedor.id,
       condominioId: user?.condominioId!,
       contactType: formData.contactType as "telefone" | "email" | "pessoal" | "whatsapp",
-      result: formData.result as "sem_resposta" | "promessa_pagamento" | "recusa" | "outro",
+      result: formData.result as "sem_resposta" | "promessa_pagamento" | "recusa" | "outro" | "deseja_acordo",
       notes: formData.notes || undefined,
     });
   };
@@ -273,6 +280,7 @@ export default function TentativaRapida() {
                         <SelectItem value="sem_resposta">❌ Sem Resposta</SelectItem>
                         <SelectItem value="promessa_pagamento">✅ Promessa de Pagamento</SelectItem>
                         <SelectItem value="recusa">🚫 Recusa</SelectItem>
+                        <SelectItem value="deseja_acordo">🤝 Deseja Realizar Acordo</SelectItem>
                         <SelectItem value="outro">📝 Outro</SelectItem>
                       </SelectContent>
                     </Select>
