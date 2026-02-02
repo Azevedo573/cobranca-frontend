@@ -192,7 +192,7 @@ export default function CobrancaDetalhes() {
             {/* Simulador de Acordo */}
             {cobranca.status !== "pago" && breakdown && devedor && condominio && taxas && (
               <SimuladorAcordo
-                valorTotal={breakdown.valorTotal}
+                valorTotal={Math.round(breakdown.valorTotal * 100)}
                 devedorId={devedor.id}
                 devedorNome={devedor.name}
                 condominioId={condominio.id}
