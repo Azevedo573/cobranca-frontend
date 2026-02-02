@@ -45,7 +45,12 @@ export function SimuladorAcordo({
 
   const [valorEntrada, setValorEntrada] = useState(0);
   const [numeroParcelas, setNumeroParcelas] = useState(6);
+  const [percentualDesconto, setPercentualDesconto] = useState(0);
   const [copiado, setCopiado] = useState(false);
+
+  // Buscar desconto máximo do condomínio
+  const { data: condominio } = trpc.condominios.getById.useQuery({ id: condominioId });
+  const descontoMaximo = parseFloat(condominio?.descontoMaximo || "0");
 
   const createAcordoMutation = trpc.acordos.create.useMutation({
     onSuccess: () => {
@@ -59,14 +64,17 @@ export function SimuladorAcordo({
 
   // Calcula o plano de acordo com os parâmetros atuais
   const planoAcordo: PlanoAcordo = useMemo(() => {
+    // Aplicar desconto ao valor total
+    const valorComDesconto = Math.round(valorTotal * (1 - percentualDesconto / 100));
+    
     return calcularPlanoAcordo({
-      valorTotal,
+      valorTotal: valorComDesconto,
       valorEntrada,
       numeroParcelas,
       taxaJurosMensal,
       dataInicio: new Date(),
     });
-  }, [valorTotal, valorEntrada, numeroParcelas, taxaJurosMensal]);
+  }, [valorTotal, valorEntrada, numeroParcelas, taxaJurosMensal, percentualDesconto]);
 
   const handleCopiarTexto = () => {
     const texto = gerarTextoAcordo(planoAcordo, devedorNome, condominioNome);
@@ -136,6 +144,32 @@ export function SimuladorAcordo({
             Quantidade de parcelas mensais
           </p>
         </div>
+
+        {/* Percentual de Desconto */}
+        <div>
+          <Label htmlFor="percentualDesconto">Desconto (%)</Label>
+          <Input
+            id="percentualDesconto"
+            type="number"
+            min="0"
+            max={descontoMaximo}
+            step="0.01"
+            value={percentualDesconto}
+            onChange={(e) => {
+              const valor = parseFloat(e.target.value || "0");
+              if (valor > descontoMaximo) {
+                alert(`Desconto máximo permitido: ${descontoMaximo}%`);
+                setPercentualDesconto(descontoMaximo);
+              } else {
+                setPercentualDesconto(valor);
+              }
+            }}
+            className="mt-1"
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            Máximo: {descontoMaximo}% (configurado no condomínio)
+          </p>
+        </div>
       </div>
 
       {/* Resumo do Acordo */}
@@ -146,6 +180,14 @@ export function SimuladorAcordo({
               <p className="text-xs text-muted-foreground">Valor Original</p>
               <p className="text-lg font-semibold">{formatarMoedaAcordo(valorTotal)}</p>
             </div>
+            {percentualDesconto > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground">Desconto Aplicado</p>
+                <p className="text-lg font-semibold text-orange-600">
+                  {percentualDesconto.toFixed(2)}% (-{formatarMoedaAcordo(Math.round(valorTotal * percentualDesconto / 100))})
+                </p>
+              </div>
+            )}
             {valorEntrada > 0 && (
               <div>
                 <p className="text-xs text-muted-foreground">Entrada</p>
@@ -161,7 +203,7 @@ export function SimuladorAcordo({
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Valor Total</p>
+              <p className="text-xs text-muted-foreground">Valor Final</p>
               <p className="text-lg font-semibold text-primary">
                 {formatarMoedaAcordo(planoAcordo.valorTotal)}
               </p>

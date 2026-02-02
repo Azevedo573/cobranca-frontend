@@ -33,6 +33,7 @@ export default function CondominioForm() {
     taxaJurosMensal: "1.00",
     taxaMulta: "2.00",
     taxaHonorarios: "10.00",
+    descontoMaximo: "0.00",
   });
 
   const { data: condominio } = trpc.condominios.getById.useQuery(
@@ -60,6 +61,7 @@ export default function CondominioForm() {
         taxaJurosMensal: condominio.taxaJurosMensal || "1.00",
         taxaMulta: condominio.taxaMulta || "2.00",
         taxaHonorarios: condominio.taxaHonorarios || "10.00",
+        descontoMaximo: condominio.descontoMaximo || "0.00",
       });
     }
   }, [condominio]);
@@ -349,6 +351,23 @@ export default function CondominioForm() {
                       placeholder="10.00"
                     />
                     <p className="text-xs text-muted-foreground">Aplicado sobre valor original</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="descontoMaximo">Desconto Máximo Permitido (%)</Label>
+                    <Input
+                      id="descontoMaximo"
+                      name="descontoMaximo"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={formData.descontoMaximo}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-muted-foreground">Limite de desconto para acordos de cobrança</p>
                   </div>
                 </div>
               </div>

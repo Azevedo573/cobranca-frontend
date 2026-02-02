@@ -408,3 +408,16 @@
 - [x] Redirecionar para página de detalhes do processo (/processos/:id)
 - [x] Adicionar mensagem de sucesso antes do redirecionamento
 - [x] Testar fluxo completo (registro → redirecionamento → simulador) - Lógica implementada, funcionará quando formulário inline for exibido
+
+## Campo Desconto Máximo no Cadastro de Condomínio
+- [x] Adicionar campo descontoMaximo (decimal) no schema da tabela condominios
+- [x] Executar db:push para aplicar mudança no banco
+- [x] Atualizar formulário de cadastro de condomínio para incluir campo desconto máximo
+- [x] Atualizar formulário de edição de condomínio (mesmo componente)
+- [x] Modificar SimuladorAcordo para buscar desconto máximo do condomínio
+- [x] Adicionar campo de desconto (%) no simulador
+- [x] Calcular valor final aplicando desconto ao valor acordado
+- [x] Validar que desconto não ultrapasse o máximo configurado
+- [x] Exibir mensagem de erro se desconto exceder o limite
+- [x] Atualizar tabela de parcelas para refletir valor com desconto (automático via cálculo)
+- [x] Testar fluxo completo (cadastro de condomínio → simulação de acordo com desconto)

@@ -1,0 +1,1 @@
+ALTER TABLE `condominios` ADD `descontoMaximo` decimal(5,2) DEFAULT '0.00';

@@ -40,6 +40,7 @@ export const condominios = mysqlTable("condominios", {
   taxaJurosMensal: decimal("taxaJurosMensal", { precision: 5, scale: 2 }).default("1.00"),
   taxaMulta: decimal("taxaMulta", { precision: 5, scale: 2 }).default("2.00"),
   taxaHonorarios: decimal("taxaHonorarios", { precision: 5, scale: 2 }).default("10.00"),
+  descontoMaximo: decimal("descontoMaximo", { precision: 5, scale: 2 }).default("0.00"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
