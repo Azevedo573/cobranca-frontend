@@ -421,3 +421,8 @@
 - [x] Exibir mensagem de erro se desconto exceder o limite
 - [x] Atualizar tabela de parcelas para refletir valor com desconto (automático via cálculo)
 - [x] Testar fluxo completo (cadastro de condomínio → simulação de acordo com desconto)
+## Corrigir Validação de "deseja_acordo" no Backend
+- [x] Verificar validação do campo result no router tRPC de tentativas
+- [x] Atualizar schema de validação para aceitar "deseja_acordo"
+- [x] Testar registro de tentativa com resultado "deseja_acordo" (teste unitário passou)
+- [x] Verificar redirecionamento para página de detalhes do processo (implementado)

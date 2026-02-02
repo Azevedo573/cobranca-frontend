@@ -245,7 +245,7 @@ export const appRouter = router({
       condominioId: z.number(),
       contactType: z.enum(["telefone", "email", "pessoal", "whatsapp"]),
       notes: z.string().optional(),
-      result: z.enum(["sem_resposta", "promessa_pagamento", "recusa", "outro"]).optional(),
+      result: z.enum(["sem_resposta", "promessa_pagamento", "recusa", "outro", "deseja_acordo"]).optional(),
       nextAttemptDate: z.date().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { createTentativa } = await import("./db-tentativas");
