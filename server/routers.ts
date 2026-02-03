@@ -105,6 +105,7 @@ export const appRouter = router({
       taxaJurosMensal: z.string().optional(),
       taxaMulta: z.string().optional(),
       taxaHonorarios: z.string().optional(),
+      descontoMaximo: z.string().optional(),
     })).mutation(async ({ input }) => {
       const { createCondominio } = await import("./db-condominios");
       return await createCondominio(input);
@@ -116,6 +117,7 @@ export const appRouter = router({
       taxaJurosMensal: z.string().optional(),
       taxaMulta: z.string().optional(),
       taxaHonorarios: z.string().optional(),
+      descontoMaximo: z.string().optional(),
       address: z.string().optional(),
       city: z.string().optional(),
       state: z.string().optional(),

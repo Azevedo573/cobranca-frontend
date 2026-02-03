@@ -441,3 +441,11 @@
 - [x] Verificar se valorDevido está sendo passado corretamente
 - [x] Testar simulador com valores reais (R$ 11.300,00 deve calcular parcelas corretas)
 - [x] Validar que todos os cálculos (entrada, parcelas, valor final) estão corretos
+
+## Bug - Campo Desconto Máximo não Salva no Condomínio
+- [x] Investigar formulário de condomínio (CondominioForm.tsx)
+- [x] Verificar se campo descontoMaximo está no estado do formulário
+- [x] Verificar se valor está sendo enviado na mutation de create/update
+- [x] Verificar se backend está recebendo e salvando o campo
+- [x] Testar salvamento de desconto máximo (ex: 10%)
+- [x] Validar que valor persiste após salvar e recarregar página
