@@ -49,6 +49,7 @@ export async function simularParcelas(params: {
  * Cria acordo e gera parcelas automaticamente
  */
 export async function criarAcordoComParcelas(params: {
+  cobrancaId: number;
   devedorId: number;
   condominioId: number;
   valorTotal: number;
@@ -62,6 +63,7 @@ export async function criarAcordoComParcelas(params: {
   if (!db) throw new Error("Database not available");
 
   const {
+    cobrancaId,
     devedorId,
     condominioId,
     valorTotal,
@@ -74,6 +76,7 @@ export async function criarAcordoComParcelas(params: {
 
   // Criar acordo
   const acordoData: InsertAcordo = {
+    cobrancaId,
     devedorId,
     condominioId,
     totalAmount: valorTotal,

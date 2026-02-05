@@ -69,7 +69,7 @@ export const cobrancas = mysqlTable("cobrancas", {
   amount: int("amount").notNull(),
   dueDate: timestamp("dueDate"),
   monthReference: varchar("monthReference", { length: 20 }),
-  status: mysqlEnum("status", ["pendente", "em_cobranca", "pago", "acordo"]).default("pendente").notNull(),
+  status: mysqlEnum("status", ["pendente", "em_cobranca", "pago", "acordo", "em_acordo", "acordo_atrasado"]).default("pendente").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -90,8 +90,10 @@ export const tentativasCobranca = mysqlTable("tentativasCobranca", {
 
 export const acordos = mysqlTable("acordos", {
   id: int("id").autoincrement().primaryKey(),
+  cobrancaId: int("cobrancaId").notNull(),
   devedorId: int("devedorId").notNull(),
   condominioId: int("condominioId").notNull(),
+  valorPago: int("valorPago").default(0).notNull(),
   totalAmount: int("totalAmount").notNull(),
   agreedAmount: int("agreedAmount").notNull(),
   installments: int("installments").notNull(),

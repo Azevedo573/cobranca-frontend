@@ -24,6 +24,7 @@ import { trpc } from "@/lib/trpc";
 
 
 interface SimuladorAcordoProps {
+  cobrancaId: number;
   valorTotal: number; // Valor em centavos
   devedorId: number;
   devedorNome: string;
@@ -34,6 +35,7 @@ interface SimuladorAcordoProps {
 }
 
 export function SimuladorAcordo({
+  cobrancaId,
   valorTotal,
   devedorId,
   devedorNome,
@@ -86,6 +88,7 @@ export function SimuladorAcordo({
 
   const handleCriarAcordo = () => {
     createAcordoMutation.mutate({
+      cobrancaId,
       devedorId,
       condominioId,
       totalAmount: valorTotal,

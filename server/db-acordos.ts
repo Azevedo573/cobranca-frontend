@@ -81,6 +81,7 @@ export async function getAcordosByCondominio(condominioId: number) {
   const result = await db
     .select({
       id: acordos.id,
+      cobrancaId: acordos.cobrancaId,
       devedorId: acordos.devedorId,
       condominioId: acordos.condominioId,
       totalAmount: acordos.totalAmount,

@@ -271,7 +271,22 @@ export const appRouter = router({
       const { getAcordoById } = await import("./db-acordos");
       return await getAcordoById(input.id);
     }),
+    getByCobrancaId: protectedProcedure.input(z.object({ cobrancaId: z.number() })).query(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const { acordos } = await import("../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return null;
+      const result = await db.select().from(acordos).where(
+        and(
+          eq(acordos.cobrancaId, input.cobrancaId),
+          eq(acordos.status, "ativo")
+        )
+      ).limit(1);
+      return result[0] || null;
+    }),
     create: condominioAccessProcedure.input(z.object({
+      cobrancaId: z.number(),
       devedorId: z.number(),
       condominioId: z.number(),
       totalAmount: z.number(),
@@ -288,6 +303,7 @@ export const appRouter = router({
     })).mutation(async ({ input }) => {
       const { createAcordo, createParcelas } = await import("./db-acordos");
       const acordoResult = await createAcordo({
+        cobrancaId: input.cobrancaId,
         devedorId: input.devedorId,
         condominioId: input.condominioId,
         totalAmount: input.totalAmount,
@@ -309,6 +325,10 @@ export const appRouter = router({
       
       await createParcelas(parcelasData);
       
+      // Atualizar status da cobrança para 'em_acordo'
+      const { updateCobranca } = await import("./db-cobrancas");
+      await updateCobranca(input.cobrancaId, { status: "em_acordo" });
+      
       return { success: true, acordoId };
     }),
     getParcelas: protectedProcedure.input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
@@ -320,10 +340,12 @@ export const appRouter = router({
       paymentDate: z.date().optional(),
       status: z.enum(["pendente", "pago", "atrasado"]).optional(),
     })).mutation(async ({ input }) => {
-      const { id, ...data } = input;
       const { updateParcela } = await import("./db-acordos");
-      await updateParcela(id, data);
-      return { success: true };
+      return await updateParcela(input.id, input);
+    }),
+    verificarAtrasos: adminProcedure.mutation(async () => {
+      const { verificarParcelasAtrasadas } = await import("./verificar-atrasos");
+      return await verificarParcelasAtrasadas();
     }),
   }),
 

@@ -449,3 +449,31 @@
 - [x] Verificar se backend está recebendo e salvando o campo
 - [x] Testar salvamento de desconto máximo (ex: 10%)
 - [x] Validar que valor persiste após salvar e recarregar página
+
+## Feature - Sistema Completo de Gestão de Acordos
+### 1. Schema e Backend
+- [x] Adicionar status 'em_acordo' e 'acordo_atrasado' ao enum de cobrancas
+- [x] Adicionar campo cobrancaId na tabela acordos
+- [x] Adicionar campo valorPago na tabela acordos
+- [x] Atualizar mutation de criar acordo para mudar status da cobrança
+- [x] Adicionar cobrancaId nos selects de acordos
+
+### 2. Interface e Controle
+- [x] Desabilitar simulador quando status = 'em_acordo' ou 'acordo_atrasado'
+- [x] Criar componente ControleParcelas para gerenciar parcelas
+- [x] Implementar baixa de parcelas com atualização de status
+- [x] Mostrar progresso do acordo (parcelas pagas/total)
+- [x] Calcular e exibir saldo devedor
+
+### 3. Detecção de Atraso e Renegociação
+- [x] Implementar verificação de parcelas atrasadas > 10 dias
+- [x] Mudar status para 'acordo_atrasado' quando detectar atraso
+- [x] Habilitar simulador novamente para renegociação
+- [x] Considerar valor já pago no novo acordo
+- [x] Atualizar valor da dívida com novos juros
+
+### 4. Testes
+- [x] Testar criação de acordo e mudança de status
+- [x] Testar baixa de parcelas
+- [x] Testar detecção de atraso
+- [x] Testar renegociação após atraso

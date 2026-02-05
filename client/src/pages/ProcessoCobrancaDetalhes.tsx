@@ -11,6 +11,7 @@ import { useMemo } from "react";
 import { calcularValorDevido, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import BreakdownValorComponent from "@/components/BreakdownValor";
 import { SimuladorAcordo } from "@/components/SimuladorAcordo";
+import { ControleParcelas } from "@/components/ControleParcelas";
 
 export default function CobrancaDetalhes() {
   const { user, logout } = useAuth();
@@ -190,8 +191,9 @@ export default function CobrancaDetalhes() {
             )}
 
             {/* Simulador de Acordo */}
-            {cobranca.status !== "pago" && breakdown && devedor && condominio && taxas && (
+            {cobranca.status !== "pago" && cobranca.status !== "em_acordo" && breakdown && devedor && condominio && taxas && (
               <SimuladorAcordo
+                cobrancaId={cobranca.id}
                 valorTotal={Math.round(breakdown.valorTotal * 100)}
                 devedorId={devedor.id}
                 devedorNome={devedor.name}
@@ -202,6 +204,54 @@ export default function CobrancaDetalhes() {
                   window.location.reload();
                 }}
               />
+            )}
+            
+            {/* Mensagem e Controle de Parcelas quando acordo está ativo */}
+            {cobranca.status === "em_acordo" && (
+              <>
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-700">
+                      <FileText className="h-5 w-5" />
+                      Acordo Ativo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-blue-600">
+                      Este processo possui um acordo ativo. O simulador está desabilitado enquanto o acordo estiver em andamento.
+                      Utilize a seção abaixo para gerenciar as parcelas do acordo.
+                    </p>
+                  </CardContent>
+                </Card>
+                
+                <ControleParcelas cobrancaId={cobranca.id} />
+              </>
+            )}
+            
+            {/* Acordo Atrasado - Permite Renegociação */}
+            {cobranca.status === "acordo_atrasado" && (
+              <>
+                <Card className="border-orange-200 bg-orange-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-orange-700">
+                      <FileText className="h-5 w-5" />
+                      Acordo Atrasado - Renegociação Disponível
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <p className="text-sm text-orange-600">
+                      Este acordo possui parcelas atrasadas há mais de 10 dias. Você pode renegociar o acordo considerando:
+                    </p>
+                    <ul className="text-sm text-orange-600 list-disc list-inside space-y-1">
+                      <li>Valor já pago pelo devedor será considerado</li>
+                      <li>Novo cálculo com juros atualizados sobre o saldo devedor</li>
+                      <li>Novas condições de parcelamento</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+                
+                <ControleParcelas cobrancaId={cobranca.id} />
+              </>
             )}
           </div>
 
