@@ -477,3 +477,9 @@
 - [x] Testar baixa de parcelas
 - [x] Testar detecção de atraso
 - [x] Testar renegociação após atraso
+
+## Bug - Parcelas do Acordo Não Aparecem no ControleParcelas
+- [ ] Verificar se parcelas estão sendo criadas no banco ao criar acordo
+- [ ] Verificar query getParcelas no backend
+- [ ] Corrigir criação de parcelas se necessário
+- [ ] Testar exibição de parcelas no ControleParcelas

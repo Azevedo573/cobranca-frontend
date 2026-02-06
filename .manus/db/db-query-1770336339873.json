@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, cobrancaId, totalAmount, agreedAmount, installments, firstPaymentDate \nFROM acordos \nWHERE cobrancaId = 30001 \nLIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, cobrancaId, totalAmount, agreedAmount, installments, firstPaymentDate \nFROM acordos \nWHERE cobrancaId = 30001 \nLIMIT 1;",
+  "rows": [
+    {
+      "id": "90001",
+      "cobrancaId": "30001",
+      "totalAmount": "1130000",
+      "agreedAmount": "1169878",
+      "installments": "6",
+      "firstPaymentDate": "2026-03-04 00:11:49"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcobrancaId\ttotalAmount\tagreedAmount\tinstallments\tfirstPaymentDate\n90001\t30001\t1130000\t1169878\t6\t2026-03-04 00:11:49\n",
+  "stderr": "",
+  "execution_time_ms": 357
+}

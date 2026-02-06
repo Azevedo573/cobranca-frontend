@@ -1,0 +1,110 @@
+{
+  "query": "SELECT * FROM parcelasAcordo LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT * FROM parcelasAcordo LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "acordoId": "0",
+      "installmentNumber": "1",
+      "amount": "30091",
+      "dueDate": "2026-02-27 16:26:34",
+      "paymentDate": "2026-01-30 00:00:00",
+      "status": "pago",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "2",
+      "acordoId": "0",
+      "installmentNumber": "2",
+      "amount": "30091",
+      "dueDate": "2026-03-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "3",
+      "acordoId": "0",
+      "installmentNumber": "3",
+      "amount": "30091",
+      "dueDate": "2026-04-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "4",
+      "acordoId": "0",
+      "installmentNumber": "4",
+      "amount": "30091",
+      "dueDate": "2026-05-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "5",
+      "acordoId": "0",
+      "installmentNumber": "5",
+      "amount": "30091",
+      "dueDate": "2026-06-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "6",
+      "acordoId": "0",
+      "installmentNumber": "6",
+      "amount": "30091",
+      "dueDate": "2026-07-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "7",
+      "acordoId": "0",
+      "installmentNumber": "7",
+      "amount": "30091",
+      "dueDate": "2026-08-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "8",
+      "acordoId": "0",
+      "installmentNumber": "8",
+      "amount": "30091",
+      "dueDate": "2026-09-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "9",
+      "acordoId": "0",
+      "installmentNumber": "9",
+      "amount": "30091",
+      "dueDate": "2026-10-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    },
+    {
+      "id": "10",
+      "acordoId": "0",
+      "installmentNumber": "10",
+      "amount": "30091",
+      "dueDate": "2026-11-27 16:26:34",
+      "paymentDate": "NULL",
+      "status": "pendente",
+      "createdAt": "2026-01-27 16:26:36"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tacordoId\tinstallmentNumber\tamount\tdueDate\tpaymentDate\tstatus\tcreatedAt\n1\t0\t1\t30091\t2026-02-27 16:26:34\t2026-01-30 00:00:00\tpago\t2026-01-27 16:26:36\n2\t0\t2\t30091\t2026-03-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n3\t0\t3\t30091\t2026-04-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n4\t0\t4\t30091\t2026-05-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n5\t0\t5\t30091\t2026-06-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n6\t0\t6\t30091\t2026-07-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n7\t0\t7\t30091\t2026-08-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n8\t0\t8\t30091\t2026-09-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n9\t0\t9\t30091\t2026-10-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n10\t0\t10\t30091\t2026-11-27 16:26:34\tNULL\tpendente\t2026-01-27 16:26:36\n",
+  "stderr": "",
+  "execution_time_ms": 352
+}
