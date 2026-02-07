@@ -26,6 +26,7 @@ import ProcessosCobranca from "./pages/ProcessosCobranca";
 import ProcessoCobrancaForm from "./pages/ProcessoCobrancaForm";
 import ProcessoCobrancaDetalhes from "./pages/ProcessoCobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
+import ImportarDevedores from "./pages/admin/ImportarDevedores";
 import CasosPrioritarios from "./pages/CasosPrioritarios";
 import Acordos from "./pages/Acordos";
 import AcordoDetalhes from "./pages/AcordoDetalhes";
@@ -109,6 +110,9 @@ function Router() {
       </Route>
       <Route path="/admin/condominios/:id">
         {() => <ProtectedRoute component={CondominioForm} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/importar-devedores">
+        {() => <ProtectedRoute component={ImportarDevedores} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas de Usuários (Admin) */}

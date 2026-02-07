@@ -49,6 +49,7 @@ export const devedores = mysqlTable("devedores", {
   id: int("id").autoincrement().primaryKey(),
   condominioId: int("condominioId").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
+  cpfCnpj: varchar("cpfCnpj", { length: 18 }),
   unitNumber: varchar("unitNumber", { length: 50 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),

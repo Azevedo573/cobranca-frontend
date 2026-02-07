@@ -483,3 +483,15 @@
 - [ ] Verificar query getParcelas no backend
 - [ ] Corrigir criação de parcelas se necessário
 - [ ] Testar exibição de parcelas no ControleParcelas
+
+## Feature - Importação de Devedores via Excel
+- [x] Criar template Excel padronizado para download
+- [x] Implementar endpoint para gerar template Excel
+- [x] Implementar endpoint para upload e processamento de planilha
+- [x] Validar dados da planilha (campos obrigatórios, formatos)
+- [x] Criar interface de upload de planilha
+- [x] Mostrar prévia dos dados antes de importar
+- [x] Exibir erros de validação de forma clara
+- [x] Implementar importação em lote (devedores + cobranças)
+- [x] Adicionar feedback de progresso durante importação
+- [x] Testar importação com planilha de exemplo

@@ -473,6 +473,100 @@ export const appRouter = router({
       return await buscarDevedoresPorPrioridade(input.condominioId);
     }),
   }),
+  
+  // Importação de devedores via Excel
+  importacao: router({
+    downloadTemplate: adminProcedure.mutation(async () => {
+      const { gerarTemplateExcel } = await import("./excel-import");
+      const buffer = gerarTemplateExcel();
+      return { 
+        success: true, 
+        base64: buffer.toString("base64"),
+        filename: "template_devedores.xlsx"
+      };
+    }),
+    
+    processarPlanilha: adminProcedure.input(z.object({
+      base64: z.string(),
+      condominioId: z.number(),
+    })).mutation(async ({ input }) => {
+      const { processarPlanilha } = await import("./excel-import");
+      const buffer = Buffer.from(input.base64, "base64");
+      const resultado = processarPlanilha(buffer);
+      return resultado;
+    }),
+    
+    importarDevedores: adminProcedure.input(z.object({
+      condominioId: z.number(),
+      dados: z.array(z.object({
+        nomeCompleto: z.string(),
+        cpfCnpj: z.string(),
+        email: z.string().optional(),
+        telefone: z.string().optional(),
+        unidade: z.string(),
+        bloco: z.string().optional(),
+        descricaoCobranca: z.string().optional(),
+        mesReferencia: z.string().optional(),
+        dataVencimento: z.string(),
+        valorOriginal: z.number(),
+      })),
+    })).mutation(async ({ input }) => {
+      const { createDevedor } = await import("./db-devedores");
+      const { createCobranca } = await import("./db-cobrancas");
+      const { converterData } = await import("./excel-import");
+      
+      const resultados = {
+        devedoresCriados: 0,
+        devedoresAtualizados: 0,
+        cobrancasCriadas: 0,
+        erros: [] as string[],
+      };
+      
+      for (const dado of input.dados) {
+        try {
+          // Verificar se devedor já existe
+          const { getDevedorByCpfCnpj, getDevedorById } = await import("./db-devedores");
+          let devedor = await getDevedorByCpfCnpj(dado.cpfCnpj, input.condominioId);
+          
+          if (!devedor) {
+            // Criar novo devedor
+            const devedorResult = await createDevedor({
+              condominioId: input.condominioId,
+              name: dado.nomeCompleto,
+              cpfCnpj: dado.cpfCnpj,
+              email: dado.email,
+              phone: dado.telefone,
+              unitNumber: dado.unidade,
+            });
+            const devedorId = Number((devedorResult as any).insertId || 0);
+            devedor = await getDevedorById(devedorId);
+            resultados.devedoresCriados++;
+          } else {
+            resultados.devedoresAtualizados++;
+          }
+          
+          // Criar cobrança
+          if (devedor) {
+            const dataVencimento = converterData(dado.dataVencimento);
+            await createCobranca({
+              condominioId: input.condominioId,
+              devedorId: devedor.id,
+              description: dado.descricaoCobranca,
+              monthReference: dado.mesReferencia,
+              dueDate: dataVencimento,
+              amount: Math.round(dado.valorOriginal * 100), // Converter para centavos
+              status: "pendente",
+            });
+          }
+          resultados.cobrancasCriadas++;
+        } catch (error: any) {
+          resultados.erros.push(`Erro ao processar ${dado.nomeCompleto}: ${error.message}`);
+        }
+      }
+      
+      return resultados;
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

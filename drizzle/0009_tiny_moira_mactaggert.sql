@@ -1,0 +1,1 @@
+ALTER TABLE `devedores` ADD `cpfCnpj` varchar(18);

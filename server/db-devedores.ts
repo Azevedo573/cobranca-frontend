@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { devedores, InsertDevedor } from "../drizzle/schema";
 import { getDb } from "./db";
 
@@ -33,4 +33,16 @@ export async function deleteDevedor(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(devedores).where(eq(devedores.id, id));
+}
+
+export async function getDevedorByCpfCnpj(cpfCnpj: string, condominioId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(devedores).where(
+    and(
+      eq(devedores.cpfCnpj, cpfCnpj),
+      eq(devedores.condominioId, condominioId)
+    )
+  ).limit(1);
+  return result[0] || null;
 }
