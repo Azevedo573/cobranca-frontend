@@ -13,6 +13,7 @@ import {
   HandshakeIcon,
   ChevronLeft,
   ChevronRight,
+  Upload,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -36,6 +37,12 @@ const menuItems: MenuItem[] = [
     label: "Condomínios",
     href: "/admin/condominios",
     icon: Building2,
+    roles: ["admin"],
+  },
+  {
+    label: "Importar Devedores",
+    href: "/admin/importar-devedores",
+    icon: Upload,
     roles: ["admin"],
   },
   {

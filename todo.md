@@ -495,3 +495,9 @@
 - [x] Implementar importação em lote (devedores + cobranças)
 - [x] Adicionar feedback de progresso durante importação
 - [x] Testar importação com planilha de exemplo
+
+## UX - Adicionar Link de Importação no Menu Lateral
+- [x] Identificar componente de menu lateral (DashboardLayout ou similar)
+- [x] Adicionar link "Importar Devedores" após "Condomínios"
+- [x] Adicionar ícone apropriado (Upload ou FileSpreadsheet)
+- [x] Testar navegação para /admin/importar-devedores
