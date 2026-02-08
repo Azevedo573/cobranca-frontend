@@ -200,6 +200,7 @@ export const appRouter = router({
     create: condominioAccessProcedure.input(z.object({
       devedorId: z.number(),
       condominioId: z.number(),
+      tipoCobranca: z.enum(["condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
       description: z.string().optional(),
       amount: z.number(),
       dueDate: z.date().optional(),

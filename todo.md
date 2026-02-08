@@ -501,3 +501,26 @@
 - [x] Adicionar link "Importar Devedores" após "Condomínios"
 - [x] Adicionar ícone apropriado (Upload ou FileSpreadsheet)
 - [x] Testar navegação para /admin/importar-devedores
+
+## Feature - Sistema de Múltiplas Cobranças por Devedor
+### 1. Categorização de Cobranças
+- [x] Adicionar campo tipoCobranca no schema (enum: condominio, salao_jogos, churrasqueira, cota_extra, multa, outros)
+- [x] Adicionar campo descricao na tabela cobranças para detalhar a cobrança (já existe)
+- [x] Atualizar formulário de criação de cobrança com seleção de tipo
+- [ ] Atualizar importação Excel para incluir tipo de cobra### 2. Visualização Consolidada por Devedor
+- [x] Criar página de detalhes do devedor com todas as cobranças
+- [x] Mostrar valor total devido (soma de todas as cobranças ativas)
+- [x] Agrupar cobranças por tipo com subtotais
+- [x] Adicionar indicadores visuais (badges coloridos por tipo)
+- [x] Permitir navegação para detalhes de cada cobrança 3. Gestão Inteligente de Acordos Múltiplos
+- [ ] Permitir selecionar múltiplas cobranças para incluir em um acordo
+- [ ] Adaptar simulador para calcular valor total de múltiplas cobranças
+- [ ] Criar tabela de relacionamento acordo_cobrancas (many-to-many)
+- [ ] Atualizar status de todas as cobranças incluídas no acordo
+- [ ] Mostrar quais cobranças estão incluídas no acordo ativo
+
+### 4. Relatórios e Análises
+- [ ] Adicionar filtro por tipo de cobrança na lista de processos
+- [ ] Criar relatório de inadimplência por tipo de cobrança
+- [ ] Identificar devedores com múltiplas cobranças em aberto
+- [ ] Dashboard com distribuição de valores por tipo de cobrança

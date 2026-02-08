@@ -1,0 +1,1 @@
+ALTER TABLE `cobrancas` ADD `tipoCobranca` enum('condominio','salao_jogos','churrasqueira','cota_extra','multa','outros') DEFAULT 'condominio' NOT NULL;

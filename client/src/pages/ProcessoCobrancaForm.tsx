@@ -21,6 +21,7 @@ export default function CobrancaForm() {
 
   const [formData, setFormData] = useState({
     devedorId: "",
+    tipoCobranca: "condominio" as "condominio" | "salao_jogos" | "churrasqueira" | "cota_extra" | "multa" | "outros",
     description: "",
     amount: "",
     dueDate: "",
@@ -48,6 +49,7 @@ export default function CobrancaForm() {
     if (cobranca) {
       setFormData({
         devedorId: cobranca.devedorId.toString(),
+        tipoCobranca: (cobranca.tipoCobranca as any) || "condominio",
         description: cobranca.description || "",
         amount: (cobranca.amount / 100).toFixed(2),
         dueDate: cobranca.dueDate ? new Date(cobranca.dueDate).toISOString().split('T')[0] : "",
@@ -115,6 +117,7 @@ export default function CobrancaForm() {
       createMutation.mutate({
         devedorId: parseInt(formData.devedorId),
         condominioId: condominioId,
+        tipoCobranca: formData.tipoCobranca,
         description: formData.description || undefined,
         amount: amountInCents,
         dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
@@ -206,6 +209,27 @@ export default function CobrancaForm() {
                         {dev.name} - Unidade {dev.unitNumber}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tipo de Cobrança */}
+              <div className="space-y-2">
+                <Label htmlFor="tipoCobranca">Tipo de Cobrança *</Label>
+                <Select
+                  value={formData.tipoCobranca}
+                  onValueChange={(value: any) => setFormData({ ...formData, tipoCobranca: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="condominio">Condomínio</SelectItem>
+                    <SelectItem value="salao_jogos">Salão de Jogos</SelectItem>
+                    <SelectItem value="churrasqueira">Churrasqueira</SelectItem>
+                    <SelectItem value="cota_extra">Cota Extra</SelectItem>
+                    <SelectItem value="multa">Multa</SelectItem>
+                    <SelectItem value="outros">Outros</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

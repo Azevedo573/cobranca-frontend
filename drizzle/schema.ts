@@ -66,6 +66,7 @@ export const cobrancas = mysqlTable("cobrancas", {
   id: int("id").autoincrement().primaryKey(),
   devedorId: int("devedorId").notNull(),
   condominioId: int("condominioId").notNull(),
+  tipoCobranca: mysqlEnum("tipoCobranca", ["condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).default("condominio").notNull(),
   description: text("description"),
   amount: int("amount").notNull(),
   dueDate: timestamp("dueDate"),

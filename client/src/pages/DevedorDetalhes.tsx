@@ -235,14 +235,99 @@ export default function DevedorDetalhes() {
 
           {/* Histórico e Ações */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Cobranças */}
+            {/* Resumo por Tipo de Cobrança */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Cobranças por Tipo
+                </CardTitle>
+                <CardDescription>
+                  Visualização consolidada das cobranças agrupadas por categoria
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {cobrancas && cobrancas.length > 0 ? (
+                  <div className="space-y-4">
+                    {(() => {
+                      // Agrupar cobranças por tipo
+                      const cobrancasPorTipo = (cobrancas || []).reduce((acc: any, cob: any) => {
+                        const tipo = cob.tipoCobranca || "condominio";
+                        if (!acc[tipo]) {
+                          acc[tipo] = [];
+                        }
+                        acc[tipo].push(cob);
+                        return acc;
+                      }, {});
+
+                      const tipoLabels: Record<string, string> = {
+                        condominio: "Condomínio",
+                        salao_jogos: "Salão de Jogos",
+                        churrasqueira: "Churrasqueira",
+                        cota_extra: "Cota Extra",
+                        multa: "Multa",
+                        outros: "Outros",
+                      };
+
+                      return Object.entries(cobrancasPorTipo).map(([tipo, cobrancasTipo]: [string, any]) => {
+                        const valorTotal = cobrancasTipo.reduce((sum: number, c: any) => sum + c.amount, 0);
+                        const ativas = cobrancasTipo.filter((c: any) => c.status !== "pago").length;
+                        
+                        return (
+                          <div key={tipo} className="border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <Badge className="mb-2">{tipoLabels[tipo] || tipo}</Badge>
+                                <p className="text-sm text-muted-foreground">
+                                  {cobrancasTipo.length} cobrança(s) • {ativas} ativa(s)
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-muted-foreground">Valor Total</p>
+                                <p className="text-xl font-bold">
+                                  R$ {(valorTotal / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {cobrancasTipo.map((cob: any) => (
+                                <div key={cob.id} className="flex items-center justify-between text-sm p-2 bg-accent/10 rounded">
+                                  <div className="flex-1">
+                                    <p className="font-medium">{cob.description || "-"}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Venc: {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant={cob.status === "pago" ? "outline" : "default"} className="text-xs">
+                                      {cob.status}
+                                    </Badge>
+                                    <span className="font-semibold">
+                                      R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">Nenhuma cobrança registrada</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Cobranças - Tabela Detalhada */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5" />
-                      Cobranças
+                      Todas as Cobranças
                     </CardTitle>
                     <CardDescription>
                       Total: {cobrancas?.length || 0} cobrança(s)
