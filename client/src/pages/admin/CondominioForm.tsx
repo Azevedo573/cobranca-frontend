@@ -33,6 +33,7 @@ export default function CondominioForm() {
     taxaJurosMensal: "1.00",
     taxaMulta: "2.00",
     taxaHonorarios: "10.00",
+    correcaoMonetaria: "0.00",
     descontoMaximo: "0.00",
   });
 
@@ -61,6 +62,7 @@ export default function CondominioForm() {
         taxaJurosMensal: condominio.taxaJurosMensal || "1.00",
         taxaMulta: condominio.taxaMulta || "2.00",
         taxaHonorarios: condominio.taxaHonorarios || "10.00",
+        correcaoMonetaria: condominio.correcaoMonetaria || "0.00",
         descontoMaximo: condominio.descontoMaximo || "0.00",
       });
     }
@@ -351,6 +353,20 @@ export default function CondominioForm() {
                       placeholder="10.00"
                     />
                     <p className="text-xs text-muted-foreground">Aplicado sobre valor original</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="correcaoMonetaria">Correção Monetária Mensal (%)</Label>
+                    <Input
+                      id="correcaoMonetaria"
+                      name="correcaoMonetaria"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.correcaoMonetaria}
+                      onChange={handleChange}
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-muted-foreground">Aplicado por mês de atraso</p>
                   </div>
                 </div>
                 <div className="mt-4">

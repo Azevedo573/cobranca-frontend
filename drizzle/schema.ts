@@ -41,6 +41,7 @@ export const condominios = mysqlTable("condominios", {
   taxaMulta: decimal("taxaMulta", { precision: 5, scale: 2 }).default("2.00"),
   taxaHonorarios: decimal("taxaHonorarios", { precision: 5, scale: 2 }).default("10.00"),
   descontoMaximo: decimal("descontoMaximo", { precision: 5, scale: 2 }).default("0.00"),
+  correcaoMonetaria: decimal("correcaoMonetaria", { precision: 5, scale: 2 }).default("0.00"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -69,6 +70,7 @@ export const cobrancas = mysqlTable("cobrancas", {
   tipoCobranca: mysqlEnum("tipoCobranca", ["condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).default("condominio").notNull(),
   description: text("description"),
   amount: int("amount").notNull(),
+  custasJudiciais: int("custasJudiciais").default(0).notNull(),
   dueDate: timestamp("dueDate"),
   monthReference: varchar("monthReference", { length: 20 }),
   status: mysqlEnum("status", ["pendente", "em_cobranca", "pago", "acordo", "em_acordo", "acordo_atrasado"]).default("pendente").notNull(),

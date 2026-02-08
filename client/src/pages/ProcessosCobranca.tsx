@@ -65,6 +65,7 @@ export default function ProcessosCobranca() {
       taxaJurosMensal: Number(condominio.taxaJurosMensal || "1.00"),
       taxaMulta: Number(condominio.taxaMulta || "2.00"),
       taxaHonorarios: Number(condominio.taxaHonorarios || "10.00"),
+      correcaoMonetaria: Number(condominio.correcaoMonetaria || "0.00"),
     };
   }, [condominio]);
 

@@ -24,6 +24,7 @@ export default function CobrancaForm() {
     tipoCobranca: "condominio" as "condominio" | "salao_jogos" | "churrasqueira" | "cota_extra" | "multa" | "outros",
     description: "",
     amount: "",
+    custasJudiciais: "",
     dueDate: "",
     monthReference: "",
   });
@@ -52,6 +53,7 @@ export default function CobrancaForm() {
         tipoCobranca: (cobranca.tipoCobranca as any) || "condominio",
         description: cobranca.description || "",
         amount: (cobranca.amount / 100).toFixed(2),
+        custasJudiciais: cobranca.custasJudiciais ? (cobranca.custasJudiciais / 100).toFixed(2) : "",
         dueDate: cobranca.dueDate ? new Date(cobranca.dueDate).toISOString().split('T')[0] : "",
         monthReference: cobranca.monthReference || "",
       });
@@ -114,12 +116,14 @@ export default function CobrancaForm() {
         dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
       });
     } else {
+      const custasJudiciaisInCents = formData.custasJudiciais ? Math.round(parseFloat(formData.custasJudiciais) * 100) : 0;
       createMutation.mutate({
         devedorId: parseInt(formData.devedorId),
         condominioId: condominioId,
         tipoCobranca: formData.tipoCobranca,
         description: formData.description || undefined,
         amount: amountInCents,
+        custasJudiciais: custasJudiciaisInCents,
         dueDate: formData.dueDate ? new Date(formData.dueDate) : undefined,
         monthReference: formData.monthReference || undefined,
       });
@@ -273,6 +277,22 @@ export default function CobrancaForm() {
                     placeholder="Ex: 01/2024"
                   />
                 </div>
+              </div>
+
+              {/* Custas Judiciais */}
+              <div className="space-y-2">
+                <Label htmlFor="custasJudiciais">Custas Judiciais (R$)</Label>
+                <Input
+                  id="custasJudiciais"
+                  name="custasJudiciais"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.custasJudiciais}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                />
+                <p className="text-xs text-muted-foreground">Custas processuais e despesas judiciais (opcional)</p>
               </div>
 
               {/* Data de Vencimento */}

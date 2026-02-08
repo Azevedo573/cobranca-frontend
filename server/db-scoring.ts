@@ -48,7 +48,9 @@ export async function atualizarScoreDevedor(devedorId: number) {
           taxaJurosMensal: Number(condominio.taxaJurosMensal || 0),
           taxaMulta: Number(condominio.taxaMulta || 0),
           taxaHonorarios: Number(condominio.taxaHonorarios || 0),
-        }
+          correcaoMonetaria: Number(condominio.correcaoMonetaria || 0),
+        },
+        cobranca.custasJudiciais || 0
       );
       valorTotalDevido += resultado.valorTotal;
 

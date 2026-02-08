@@ -203,6 +203,7 @@ export const appRouter = router({
       tipoCobranca: z.enum(["condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
       description: z.string().optional(),
       amount: z.number(),
+      custasJudiciais: z.number().optional(),
       dueDate: z.date().optional(),
       monthReference: z.string().optional(),
     })).mutation(async ({ input }) => {

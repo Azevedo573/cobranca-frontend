@@ -7,6 +7,7 @@ export interface TaxasCondominio {
   taxaJurosMensal: number; // Percentual de juros por mês (ex: 1.0 = 1%)
   taxaMulta: number; // Percentual de multa (ex: 2.0 = 2%)
   taxaHonorarios: number; // Percentual de honorários (ex: 10.0 = 10%)
+  correcaoMonetaria: number; // Percentual de correção monetária ao mês (ex: 0.5 = 0.5%)
 }
 
 export interface BreakdownValor {
@@ -14,6 +15,8 @@ export interface BreakdownValor {
   juros: number;
   multa: number;
   honorarios: number;
+  custasJudiciais: number;
+  correcaoMonetaria: number;
   valorTotal: number;
   mesesAtraso: number;
 }
@@ -46,12 +49,13 @@ export function calcularMesesAtraso(dataVencimento: Date): number {
 }
 
 /**
- * Calcula o valor total devido incluindo juros, multa e honorários
+ * Calcula o valor total devido incluindo juros, multa, honorários, custas judiciais e correção monetária
  */
 export function calcularValorDevido(
   valorOriginal: number,
   dataVencimento: Date,
-  taxas: TaxasCondominio
+  taxas: TaxasCondominio,
+  custasJudiciais: number = 0
 ): BreakdownValor {
   const mesesAtraso = calcularMesesAtraso(dataVencimento);
   
@@ -61,17 +65,22 @@ export function calcularValorDevido(
   // Calcula multa (percentual fixo, aplicado apenas se houver atraso)
   const multa = mesesAtraso > 0 ? (valorOriginal * (taxas.taxaMulta / 100)) : 0;
   
-  // Calcula honorários (percentual sobre valor original)
-  const honorarios = valorOriginal * (taxas.taxaHonorarios / 100);
+  // Calcula honorários (percentual sobre valor original, aplicado apenas se houver atraso)
+  const honorarios = mesesAtraso > 0 ? (valorOriginal * (taxas.taxaHonorarios / 100)) : 0;
+  
+  // Calcula correção monetária (percentual mensal * meses de atraso sobre valor original)
+  const correcaoMonetaria = (valorOriginal * (taxas.correcaoMonetaria / 100)) * mesesAtraso;
   
   // Valor total
-  const valorTotal = valorOriginal + juros + multa + honorarios;
+  const valorTotal = valorOriginal + juros + multa + honorarios + custasJudiciais + correcaoMonetaria;
   
   return {
     valorOriginal,
     juros,
     multa,
     honorarios,
+    custasJudiciais,
+    correcaoMonetaria,
     valorTotal,
     mesesAtraso,
   };
@@ -91,7 +100,7 @@ export function formatarMoeda(valor: number): string {
  * Calcula o total devido de múltiplas cobranças
  */
 export function calcularTotalMultiplasCobrancas(
-  cobrancas: Array<{ amount: number; dueDate: Date }>,
+  cobrancas: Array<{ amount: number; dueDate: Date; custasJudiciais?: number }>,
   taxas: TaxasCondominio
 ): BreakdownValor {
   const resultado: BreakdownValor = {
@@ -99,16 +108,20 @@ export function calcularTotalMultiplasCobrancas(
     juros: 0,
     multa: 0,
     honorarios: 0,
+    custasJudiciais: 0,
+    correcaoMonetaria: 0,
     valorTotal: 0,
     mesesAtraso: 0,
   };
   
   for (const cobranca of cobrancas) {
-    const breakdown = calcularValorDevido(cobranca.amount, cobranca.dueDate, taxas);
+    const breakdown = calcularValorDevido(cobranca.amount, cobranca.dueDate, taxas, cobranca.custasJudiciais || 0);
     resultado.valorOriginal += breakdown.valorOriginal;
     resultado.juros += breakdown.juros;
     resultado.multa += breakdown.multa;
     resultado.honorarios += breakdown.honorarios;
+    resultado.custasJudiciais += breakdown.custasJudiciais;
+    resultado.correcaoMonetaria += breakdown.correcaoMonetaria;
     resultado.valorTotal += breakdown.valorTotal;
     resultado.mesesAtraso = Math.max(resultado.mesesAtraso, breakdown.mesesAtraso);
   }

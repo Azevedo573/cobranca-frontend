@@ -536,3 +536,28 @@
 - [x] Ajustar permissões para permitir cobradores acessarem suas próprias tentativas
 - [x] Filtrar tentativas por condominioId do cobrador (já existe no código)
 - [x] Testar acesso com usuário role="cobrador" (aguardando confirmação do usuário)
+
+## Feature - Custas Judiciais e Correção Monetária
+- [x] Adicionar campo custasJudiciais na tabela cobrancas (valor em centavos)
+- [x] Adicionar campo correcaoMonetaria na tabela condominios (% ao mês)
+- [ ] Atualizar função calcularValorDevido para incluir custas e correção
+- [ ] Adicionar custas judiciais no formulário de cobrança
+- [ ] Adicionar correção monetária no formulário de condomínio
+- [ ] Exibir detalhamento completo com todas as parcelas do cálculo
+- [ ] Atualizar importação Excel para incluir custas judiciais
+- [ ] Testar cálculos com diferentes cenários
+
+## Implementação de Custas Judiciais e Correção Monetária
+- [x] Adicionar campos custasJudiciais e correcaoMonetaria no schema de cobrancas
+- [x] Adicionar campo correcaoMonetaria no schema de condominios
+- [x] Executar db:push para aplicar mudanças no banco
+- [x] Atualizar função calcularValorDevido() para incluir custas e correção
+- [x] Atualizar formulário de condomínio com campo de correção monetária
+- [x] Atualizar formulário de cobrança com campo de custas judiciais
+- [x] Atualizar componente BreakdownValor para exibir custas e correção
+- [x] Atualizar todas as páginas que usam TaxasCondominio (DevedorDetalhes, ProcessoCobrancaDetalhes, ProcessosCobranca)
+- [x] Atualizar db-scoring.ts para incluir novos campos nos cálculos
+- [x] Criar testes unitários para validar cálculos com custas e correção
+- [x] Testar interface de cadastro de condomínio com correção monetária
+- [x] Testar interface de cadastro de cobrança com custas judiciais
+- [x] Validar cálculos em diferentes cenários
