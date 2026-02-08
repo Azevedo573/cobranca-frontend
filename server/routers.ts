@@ -229,7 +229,7 @@ export const appRouter = router({
 
   // Tentativas de Cobrança
   tentativas: router({
-    list: condominioAccessProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
+    list: protectedProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getTentativasByCondominio } = await import("./db-tentativas");
       return await getTentativasByCondominio(condominioId);
@@ -242,7 +242,7 @@ export const appRouter = router({
       const { getTentativasByDevedor } = await import("./db-tentativas");
       return await getTentativasByDevedor(input.devedorId);
     }),
-    create: condominioAccessProcedure.input(z.object({
+    create: protectedProcedure.input(z.object({
       cobrancaId: z.number(),
       devedorId: z.number(),
       condominioId: z.number(),
@@ -254,7 +254,7 @@ export const appRouter = router({
       const { createTentativa } = await import("./db-tentativas");
       return await createTentativa({ ...input, userId: ctx.user.id });
     }),
-    getEstatisticas: condominioAccessProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
+    getEstatisticas: protectedProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getEstatisticasTentativas } = await import("./db-tentativas");
       return await getEstatisticasTentativas(condominioId);
