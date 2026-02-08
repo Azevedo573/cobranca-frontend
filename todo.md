@@ -524,3 +524,9 @@
 - [ ] Criar relatório de inadimplência por tipo de cobrança
 - [ ] Identificar devedores com múltiplas cobranças em aberto
 - [ ] Dashboard com distribuição de valores por tipo de cobrança
+
+## UX - Limitar Tentativas de Contato no Dashboard
+- [x] Identificar componente do dashboard que exibe tentativas de contato
+- [x] Limitar query ou slice para mostrar apenas as 4 mais recentes
+- [ ] Adicionar indicador visual mostrando que há mais tentativas (se houver)
+- [x] Testar no dashboard admin

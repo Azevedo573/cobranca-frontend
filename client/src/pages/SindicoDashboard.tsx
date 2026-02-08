@@ -153,7 +153,7 @@ export default function SindicoDashboard() {
             <CardContent>
               {tentativasRecentes && tentativasRecentes.length > 0 ? (
                 <div className="space-y-4">
-                  {tentativasRecentes.map((tentativa) => {
+                  {tentativasRecentes.slice(0, 4).map((tentativa) => {
                     const devedor = devedores?.find(d => d.id === tentativa.devedorId);
                     const contactBadge = getContactTypeBadge(tentativa.contactType);
                     const resultBadge = getResultBadge(tentativa.result);
