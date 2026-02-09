@@ -273,22 +273,38 @@ export const appRouter = router({
       const { getAcordoById } = await import("./db-acordos");
       return await getAcordoById(input.id);
     }),
-    getByCobrancaId: protectedProcedure.input(z.object({ cobrancaId: z.number() })).query(async ({ input }) => {
+    getByCobranca: protectedProcedure.input(z.object({ cobrancaId: z.number() })).query(async ({ input }) => {
       const { getDb } = await import("./db");
-      const { acordos } = await import("../drizzle/schema");
-      const { eq, and } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) return null;
-      const result = await db.select().from(acordos).where(
-        and(
-          eq(acordos.cobrancaId, input.cobrancaId),
-          eq(acordos.status, "ativo")
-        )
-      ).limit(1);
+      const { acordos, acordoCobrancas } = await import("../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const result = await db.select({
+        id: acordos.id,
+        devedorId: acordos.devedorId,
+        condominioId: acordos.condominioId,
+        valorPago: acordos.valorPago,
+        totalAmount: acordos.totalAmount,
+        agreedAmount: acordos.agreedAmount,
+        installments: acordos.installments,
+        firstPaymentDate: acordos.firstPaymentDate,
+        paymentFrequency: acordos.paymentFrequency,
+        status: acordos.status,
+        notes: acordos.notes,
+        createdAt: acordos.createdAt,
+        updatedAt: acordos.updatedAt,
+      }).from(acordos)
+        .innerJoin(acordoCobrancas, eq(acordos.id, acordoCobrancas.acordoId))
+        .where(
+          and(
+            eq(acordoCobrancas.cobrancaId, input.cobrancaId),
+            eq(acordos.status, "ativo")
+          )
+        ).limit(1);
       return result[0] || null;
     }),
     create: condominioAccessProcedure.input(z.object({
-      cobrancaId: z.number(),
+      cobrancaIds: z.array(z.number()),
       devedorId: z.number(),
       condominioId: z.number(),
       totalAmount: z.number(),
@@ -303,9 +319,8 @@ export const appRouter = router({
         dueDate: z.date(),
       })),
     })).mutation(async ({ input }) => {
-      const { createAcordo, createParcelas } = await import("./db-acordos");
+      const { createAcordo, createParcelas, createAcordoCobrancas } = await import("./db-acordos");
       const acordoResult = await createAcordo({
-        cobrancaId: input.cobrancaId,
         devedorId: input.devedorId,
         condominioId: input.condominioId,
         totalAmount: input.totalAmount,
@@ -327,9 +342,14 @@ export const appRouter = router({
       
       await createParcelas(parcelasData);
       
-      // Atualizar status da cobrança para 'em_acordo'
+      // Criar relacionamentos entre acordo e cobranças
+      await createAcordoCobrancas(acordoId, input.cobrancaIds);
+      
+      // Atualizar status de todas as cobranças para 'em_acordo'
       const { updateCobranca } = await import("./db-cobrancas");
-      await updateCobranca(input.cobrancaId, { status: "em_acordo" });
+      for (const cobrancaId of input.cobrancaIds) {
+        await updateCobranca(cobrancaId, { status: "em_acordo" });
+      }
       
       return { success: true, acordoId };
     }),

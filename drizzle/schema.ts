@@ -94,7 +94,6 @@ export const tentativasCobranca = mysqlTable("tentativasCobranca", {
 
 export const acordos = mysqlTable("acordos", {
   id: int("id").autoincrement().primaryKey(),
-  cobrancaId: int("cobrancaId").notNull(),
   devedorId: int("devedorId").notNull(),
   condominioId: int("condominioId").notNull(),
   valorPago: int("valorPago").default(0).notNull(),
@@ -107,6 +106,14 @@ export const acordos = mysqlTable("acordos", {
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const acordoCobrancas = mysqlTable("acordoCobrancas", {
+  id: int("id").autoincrement().primaryKey(),
+  acordoId: int("acordoId").notNull(),
+  cobrancaId: int("cobrancaId").notNull(),
+  valorOriginal: int("valorOriginal").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export const parcelasAcordo = mysqlTable("parcelasAcordo", {
@@ -130,5 +137,7 @@ export type TentativaCobranca = typeof tentativasCobranca.$inferSelect;
 export type InsertTentativaCobranca = typeof tentativasCobranca.$inferInsert;
 export type Acordo = typeof acordos.$inferSelect;
 export type InsertAcordo = typeof acordos.$inferInsert;
+export type AcordoCobranca = typeof acordoCobrancas.$inferSelect;
+export type InsertAcordoCobranca = typeof acordoCobrancas.$inferInsert;
 export type ParcelaAcordo = typeof parcelasAcordo.$inferSelect;
 export type InsertParcelaAcordo = typeof parcelasAcordo.$inferInsert;

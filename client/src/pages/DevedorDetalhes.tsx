@@ -17,6 +17,7 @@ import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import BreakdownValorComponent from "@/components/BreakdownValor";
+import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
 import { useMemo } from "react";
 
 export default function DevedorDetalhes() {
@@ -382,6 +383,21 @@ export default function DevedorDetalhes() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Simulador de Acordo Consolidado */}
+            {condominio && cobrancas && cobrancas.length > 0 && (
+              <SimuladorAcordoMultiplo
+                cobrancas={cobrancas}
+                devedorId={devedor.id}
+                devedorNome={devedor.name}
+                condominioId={devedor.condominioId}
+                condominioNome={condominio.name}
+                taxaJurosMensal={Number(condominio.taxaJurosMensal || "1.00")}
+                onAcordoCriado={() => {
+                  window.location.reload();
+                }}
+              />
+            )}
 
             {/* Tentativas de Cobrança */}
             <Card>

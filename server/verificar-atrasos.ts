@@ -52,19 +52,21 @@ export async function verificarParcelasAtrasadas() {
     // Buscar acordos afetados
     const acordosAfetadosArray = Array.from(new Set(parcelasAtrasadas.map((p) => p.acordoId)));
 
-    // Para cada acordo afetado, atualizar status da cobrança para "acordo_atrasado"
+    // Para cada acordo afetado, atualizar status das cobranças para "acordo_atrasado"
+    const { acordoCobrancas } = await import("../drizzle/schema");
     for (const acordoId of acordosAfetadosArray) {
-      const acordo = await db
-        .select({ cobrancaId: acordos.cobrancaId })
-        .from(acordos)
-        .where(eq(acordos.id, acordoId))
-        .limit(1);
+      // Buscar todas as cobranças vinculadas a este acordo
+      const cobrancasVinculadas = await db
+        .select({ cobrancaId: acordoCobrancas.cobrancaId })
+        .from(acordoCobrancas)
+        .where(eq(acordoCobrancas.acordoId, acordoId));
 
-      if (acordo[0]) {
+      // Atualizar status de todas as cobranças vinculadas
+      for (const vinculo of cobrancasVinculadas) {
         await db
           .update(cobrancas)
           .set({ status: "acordo_atrasado" })
-          .where(eq(cobrancas.id, acordo[0].cobrancaId));
+          .where(eq(cobrancas.id, vinculo.cobrancaId));
       }
     }
 
@@ -95,12 +97,14 @@ export async function verificarAtrasoCobranca(cobrancaId: number) {
     const dezDiasAtras = new Date(hoje);
     dezDiasAtras.setDate(hoje.getDate() - 10);
 
-    // Buscar acordo ativo para esta cobrança
+    // Buscar acordo ativo para esta cobrança usando tabela de relacionamento
+    const { acordoCobrancas } = await import("../drizzle/schema");
     const acordo = await db
       .select({ id: acordos.id })
       .from(acordos)
+      .innerJoin(acordoCobrancas, eq(acordos.id, acordoCobrancas.acordoId))
       .where(
-        and(eq(acordos.cobrancaId, cobrancaId), eq(acordos.status, "ativo"))
+        and(eq(acordoCobrancas.cobrancaId, cobrancaId), eq(acordos.status, "ativo"))
       )
       .limit(1);
 

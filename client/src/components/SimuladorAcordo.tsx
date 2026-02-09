@@ -88,7 +88,7 @@ export function SimuladorAcordo({
 
   const handleCriarAcordo = () => {
     createAcordoMutation.mutate({
-      cobrancaId,
+      cobrancaIds: [cobrancaId], // Agora aceita array, mas mantém compatibilidade com uso atual
       devedorId,
       condominioId,
       totalAmount: valorTotal,

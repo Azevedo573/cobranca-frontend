@@ -561,3 +561,28 @@
 - [x] Testar interface de cadastro de condomínio com correção monetária
 - [x] Testar interface de cadastro de cobrança com custas judiciais
 - [x] Validar cálculos em diferentes cenários
+
+## Adaptação do Simulador de Acordos para Múltiplas Cobranças
+
+### Backend
+- [x] Analisar schema atual da tabela acordos
+- [x] Criar tabela de relacionamento acordo_cobrancas (many-to-many)
+- [x] Atualizar routers.ts para aceitar array de cobrançaIds
+- [x] Atualizar db-acordos.ts para criar relacionamentos
+- [x] Modificar cálculos para somar valores de múltiplas cobranças
+
+### Frontend
+- [x] Analisar componente AcordoSimulador atual
+- [x] Adicionar seleção de múltiplas cobranças (checkboxes)
+- [x] Exibir resumo consolidado das cobranças selecionadas
+- [x] Atualizar cálculo de desconto máximo baseado em todas as cobranças
+- [x] Mostrar breakdown detalhado por cobrança no acordo
+- [x] Criar componente SimuladorAcordoMultiplo
+- [x] Integrar simulador na página de detalhes do devedor
+
+### Testes
+- [x] Criar testes unitários para acordos com múltiplas cobranças
+- [x] Testar interface de seleção de cobranças
+- [x] Validar cálculos consolidados
+- [x] Testar criação de acordo com múltiplas cobranças na interface
+- [x] Validar atualização de status das cobranças

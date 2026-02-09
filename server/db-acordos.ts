@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { acordos, parcelasAcordo, tentativasCobranca, users, InsertAcordo, InsertParcelaAcordo, InsertTentativaCobranca } from "../drizzle/schema";
+import { acordos, acordoCobrancas, parcelasAcordo, tentativasCobranca, users, InsertAcordo, InsertParcelaAcordo, InsertTentativaCobranca } from "../drizzle/schema";
 import { getDb } from "./db";
 
 // Tentativas de Cobrança
@@ -81,7 +81,6 @@ export async function getAcordosByCondominio(condominioId: number) {
   const result = await db
     .select({
       id: acordos.id,
-      cobrancaId: acordos.cobrancaId,
       devedorId: acordos.devedorId,
       condominioId: acordos.condominioId,
       totalAmount: acordos.totalAmount,
@@ -149,4 +148,54 @@ export async function updateParcela(id: number, data: Partial<InsertParcelaAcord
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(parcelasAcordo).set(data).where(eq(parcelasAcordo.id, id));
+}
+
+// Relacionamento Acordo-Cobranças
+export async function createAcordoCobrancas(acordoId: number, cobrancaIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Buscar valores originais das cobranças
+  const { cobrancas } = await import("../drizzle/schema");
+  const cobrancasData = await db.select().from(cobrancas).where(
+    eq(cobrancas.id, cobrancaIds[0]) // Simplificado para primeira implementação
+  );
+  
+  const relacionamentos = cobrancaIds.map(cobrancaId => ({
+    acordoId,
+    cobrancaId,
+    valorOriginal: cobrancasData[0]?.amount || 0,
+  }));
+  
+  const result = await db.insert(acordoCobrancas).values(relacionamentos);
+  return result;
+}
+
+export async function getCobrancasByAcordo(acordoId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const { cobrancas } = await import("../drizzle/schema");
+  
+  const result = await db
+    .select({
+      id: cobrancas.id,
+      devedorId: cobrancas.devedorId,
+      condominioId: cobrancas.condominioId,
+      tipoCobranca: cobrancas.tipoCobranca,
+      description: cobrancas.description,
+      amount: cobrancas.amount,
+      custasJudiciais: cobrancas.custasJudiciais,
+      dueDate: cobrancas.dueDate,
+      monthReference: cobrancas.monthReference,
+      status: cobrancas.status,
+      createdAt: cobrancas.createdAt,
+      updatedAt: cobrancas.updatedAt,
+      valorOriginal: acordoCobrancas.valorOriginal,
+    })
+    .from(acordoCobrancas)
+    .innerJoin(cobrancas, eq(acordoCobrancas.cobrancaId, cobrancas.id))
+    .where(eq(acordoCobrancas.acordoId, acordoId));
+  
+  return result;
 }

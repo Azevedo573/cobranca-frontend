@@ -21,7 +21,7 @@ export function ControleParcelas({ cobrancaId }: ControleParcelasProps) {
   const utils = trpc.useUtils();
 
   // Buscar acordo ativo para esta cobrança
-  const { data: acordoAtivo } = trpc.acordos.getByCobrancaId.useQuery({
+  const { data: acordoAtivo } = trpc.acordos.getByCobranca.useQuery({
     cobrancaId,
   });
 
