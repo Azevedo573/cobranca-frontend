@@ -2,7 +2,6 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -12,16 +11,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, DollarSign, FileText, Plus, Calendar } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
-import BreakdownValorComponent from "@/components/BreakdownValor";
 import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
+import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas";
+import { GraficoDistribuicaoCobrancas } from "@/components/GraficoDistribuicaoCobrancas";
+import { TimelineTentativas } from "@/components/TimelineTentativas";
+import { IndicadorRiscoDevedor } from "@/components/IndicadorRiscoDevedor";
 import { useMemo } from "react";
 
 export default function DevedorDetalhes() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [, params] = useRoute("/devedores/:id/detalhes");
   const devedorId = params?.id ? parseInt(params.id) : null;
 
@@ -30,12 +32,12 @@ export default function DevedorDetalhes() {
     { enabled: !!devedorId }
   );
 
-  const { data: tentativas } = trpc.tentativas.getByDevedor.useQuery(
+  const { data: tentativas = [] } = trpc.tentativas.getByDevedor.useQuery(
     { devedorId: devedorId! },
     { enabled: !!devedorId }
   );
 
-  const { data: cobrancas } = trpc.cobrancas.getByDevedor.useQuery(
+  const { data: cobrancas = [] } = trpc.cobrancas.getByDevedor.useQuery(
     { devedorId: devedorId! },
     { enabled: !!devedorId }
   );
@@ -55,18 +57,75 @@ export default function DevedorDetalhes() {
     };
   }, [condominio]);
 
-  const breakdownTotal = useMemo(() => {
+  // Métricas do dashboard
+  const metricas = useMemo(() => {
     if (!cobrancas || !taxas) return null;
+
     const cobrancasAtivas = cobrancas.filter((c: any) => c.status !== "pago");
-    if (cobrancasAtivas.length === 0) return null;
-    return calcularTotalMultiplasCobrancas(
-      cobrancasAtivas.map((c: any) => ({
-        amount: c.amount / 100,
-        dueDate: new Date(c.dueDate),
-      })),
-      taxas
-    );
-  }, [cobrancas, taxas]);
+    const cobrancasPendentes = cobrancas.filter((c: any) => c.status === "pendente");
+    const cobrancasEmAcordo = cobrancas.filter((c: any) => c.status === "em_acordo");
+    const cobrancasPagas = cobrancas.filter((c: any) => c.status === "pago");
+
+    const valorOriginal = cobrancasAtivas.reduce((sum: number, c: any) => sum + c.amount, 0);
+    
+    let valorTotalDevido = 0;
+    if (cobrancasAtivas.length > 0) {
+      const breakdown = calcularTotalMultiplasCobrancas(
+        cobrancasAtivas.map((c: any) => ({
+          amount: c.amount / 100,
+          dueDate: new Date(c.dueDate),
+        })),
+        taxas
+      );
+      valorTotalDevido = breakdown.valorTotal * 100;
+    }
+
+    const taxaRecuperacao = cobrancas.length > 0 
+      ? (cobrancasPagas.length / cobrancas.length) * 100 
+      : 0;
+
+    const agora = new Date();
+    const tentativasUltimos30Dias = tentativas.filter((t: any) => {
+      const dataTentativa = new Date(t.attemptDate);
+      const diffDias = (agora.getTime() - dataTentativa.getTime()) / (1000 * 60 * 60 * 24);
+      return diffDias <= 30;
+    }).length;
+
+    let diasDesdeUltimaTentativa: number | null = null;
+    if (tentativas.length > 0) {
+      const ultimaTentativa = new Date(tentativas[0].attemptDate);
+      diasDesdeUltimaTentativa = Math.floor((agora.getTime() - ultimaTentativa.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    // Calcular dias de atraso (maior atraso entre todas as cobranças)
+    let diasAtraso = 0;
+    cobrancasAtivas.forEach((c: any) => {
+      const vencimento = new Date(c.dueDate);
+      const diff = Math.floor((agora.getTime() - vencimento.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff > diasAtraso) diasAtraso = diff;
+    });
+
+    // Tentativas sem sucesso
+    const tentativasSemSucesso = tentativas.filter((t: any) => 
+      t.result === "sem_resposta" || t.result === "recusa" || t.result === "recusado"
+    ).length;
+
+    return {
+      valorTotalDevido,
+      valorOriginal,
+      numeroCobrancas: cobrancas.length,
+      cobrancasPendentes: cobrancasPendentes.length,
+      cobrancasEmAcordo: cobrancasEmAcordo.length,
+      cobrancasPagas: cobrancasPagas.length,
+      tentativasTotal: tentativas.length,
+      tentativasUltimos30Dias,
+      diasDesdeUltimaTentativa,
+      taxaRecuperacao,
+      diasAtraso,
+      tentativasSemSucesso,
+      temAcordoAtivo: cobrancasEmAcordo.length > 0,
+    };
+  }, [cobrancas, tentativas, taxas]);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline"; label: string }> = {
@@ -76,36 +135,6 @@ export default function DevedorDetalhes() {
     };
     const config = variants[status] || { variant: "outline" as const, label: status };
     return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const getTipoContatoBadge = (tipo: string) => {
-    const icons: Record<string, React.ReactNode> = {
-      telefone: <Phone className="h-3 w-3" />,
-      email: <Mail className="h-3 w-3" />,
-      whatsapp: <Phone className="h-3 w-3" />,
-      pessoal: <User className="h-3 w-3" />,
-    };
-    return (
-      <Badge variant="outline" className="gap-1">
-        {icons[tipo]}
-        {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
-      </Badge>
-    );
-  };
-
-  const getResultadoBadge = (resultado: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive"> = {
-      sucesso: "default",
-      sem_resposta: "secondary",
-      recusado: "destructive",
-    };
-    return <Badge variant={variants[resultado] || "outline"}>{resultado.replace("_", " ")}</Badge>;
-  };
-
-  const getDashboardUrl = () => {
-    if (user?.role === "admin") return "/admin/dashboard";
-    if (user?.role === "sindico") return "/sindico/dashboard";
-    return "/cobrador/dashboard";
   };
 
   if (isLoading) {
@@ -135,8 +164,8 @@ export default function DevedorDetalhes() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-4">
+      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+        <div className="container px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link href="/devedores">
@@ -145,28 +174,40 @@ export default function DevedorDetalhes() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-primary">Detalhes do Devedor</h1>
-                <p className="text-sm text-muted-foreground">{devedor.name}</p>
+                <h1 className="text-2xl font-bold text-primary">Dashboard do Devedor</h1>
+                <p className="text-sm text-muted-foreground">{devedor.name} • Unidade {devedor.unitNumber}</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium">{user?.name}</p>
-                <p className="text-xs text-muted-foreground">{user?.role}</p>
-              </div>
-              <Button variant="outline" onClick={() => logout()}>
-                Sair
-              </Button>
+            <div className="flex items-center gap-2">
+              <Link href={`/devedores/${devedor.id}/tentativa/nova`}>
+                <Button variant="outline" size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Tentativa
+                </Button>
+              </Link>
+              <Link href={`/devedores/${devedor.id}/editar`}>
+                <Button size="sm">
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      <main className="container px-4 py-8">
+        {/* Seção 1: Métricas Principais */}
+        {metricas && (
+          <div className="mb-6">
+            <DashboardDevedorMetricas {...metricas} />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Informações do Devedor */}
+          {/* Coluna Esquerda: Informações e Indicadores */}
           <div className="lg:col-span-1 space-y-6">
+            {/* Informações Pessoais */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -179,166 +220,64 @@ export default function DevedorDetalhes() {
                   <p className="text-sm text-muted-foreground">Nome</p>
                   <p className="font-medium">{devedor.name}</p>
                 </div>
-                <Separator />
                 <div>
                   <p className="text-sm text-muted-foreground">Unidade</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <Home className="h-4 w-4" />
-                    {devedor.unitNumber}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Home className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{devedor.unitNumber}</span>
+                  </div>
                 </div>
-                <Separator />
                 <div>
                   <p className="text-sm text-muted-foreground">Telefone</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    {devedor.phone || "-"}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{devedor.phone}</span>
+                  </div>
                 </div>
-                <Separator />
                 <div>
                   <p className="text-sm text-muted-foreground">E-mail</p>
-                  <p className="font-medium flex items-center gap-2 text-sm break-all">
-                    <Mail className="h-4 w-4 flex-shrink-0" />
-                    {devedor.email || "-"}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm break-all">{devedor.email}</span>
+                  </div>
                 </div>
-                <Separator />
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
                   <div className="mt-1">{getStatusBadge(devedor.status)}</div>
                 </div>
-                <Separator />
-                <div>
-                  <p className="text-sm text-muted-foreground">Valor Devido</p>
-                  <p className="text-2xl font-bold text-destructive flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    R$ {(devedor.totalDue / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-                {(user?.role === "admin" || user?.role === "sindico") && (
-                  <>
-                    <Separator />
-                    <Link href={`/devedores/${devedor.id}`}>
-                      <Button className="w-full" variant="outline">
-                        Editar Devedor
-                      </Button>
-                    </Link>
-                  </>
-                )}
               </CardContent>
             </Card>
 
-            {/* Breakdown de Valores */}
-            {breakdownTotal && (
-              <BreakdownValorComponent breakdown={breakdownTotal} showDetails={true} />
+            {/* Indicador de Risco */}
+            {metricas && (
+              <IndicadorRiscoDevedor
+                valorDevido={metricas.valorTotalDevido}
+                diasAtraso={metricas.diasAtraso}
+                tentativasSemSucesso={metricas.tentativasSemSucesso}
+                taxaRecuperacao={metricas.taxaRecuperacao}
+                temAcordoAtivo={metricas.temAcordoAtivo}
+              />
+            )}
+
+            {/* Distribuição de Cobranças */}
+            {cobrancas.length > 0 && (
+              <GraficoDistribuicaoCobrancas cobrancas={cobrancas} />
             )}
           </div>
 
-          {/* Histórico e Ações */}
+          {/* Coluna Direita: Timeline e Ações */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Resumo por Tipo de Cobrança */}
+            {/* Timeline de Tentativas */}
+            <TimelineTentativas tentativas={tentativas} limite={8} />
+
+            {/* Tabela de Cobranças */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Cobranças por Tipo
-                </CardTitle>
-                <CardDescription>
-                  Visualização consolidada das cobranças agrupadas por categoria
-                </CardDescription>
+                <CardTitle>Todas as Cobranças</CardTitle>
+                <CardDescription>Total: {cobrancas.length} cobrança(s)</CardDescription>
               </CardHeader>
               <CardContent>
-                {cobrancas && cobrancas.length > 0 ? (
-                  <div className="space-y-4">
-                    {(() => {
-                      // Agrupar cobranças por tipo
-                      const cobrancasPorTipo = (cobrancas || []).reduce((acc: any, cob: any) => {
-                        const tipo = cob.tipoCobranca || "condominio";
-                        if (!acc[tipo]) {
-                          acc[tipo] = [];
-                        }
-                        acc[tipo].push(cob);
-                        return acc;
-                      }, {});
-
-                      const tipoLabels: Record<string, string> = {
-                        condominio: "Condomínio",
-                        salao_jogos: "Salão de Jogos",
-                        churrasqueira: "Churrasqueira",
-                        cota_extra: "Cota Extra",
-                        multa: "Multa",
-                        outros: "Outros",
-                      };
-
-                      return Object.entries(cobrancasPorTipo).map(([tipo, cobrancasTipo]: [string, any]) => {
-                        const valorTotal = cobrancasTipo.reduce((sum: number, c: any) => sum + c.amount, 0);
-                        const ativas = cobrancasTipo.filter((c: any) => c.status !== "pago").length;
-                        
-                        return (
-                          <div key={tipo} className="border rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <Badge className="mb-2">{tipoLabels[tipo] || tipo}</Badge>
-                                <p className="text-sm text-muted-foreground">
-                                  {cobrancasTipo.length} cobrança(s) • {ativas} ativa(s)
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm text-muted-foreground">Valor Total</p>
-                                <p className="text-xl font-bold">
-                                  R$ {(valorTotal / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              {cobrancasTipo.map((cob: any) => (
-                                <div key={cob.id} className="flex items-center justify-between text-sm p-2 bg-accent/10 rounded">
-                                  <div className="flex-1">
-                                    <p className="font-medium">{cob.description || "-"}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Venc: {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant={cob.status === "pago" ? "outline" : "default"} className="text-xs">
-                                      {cob.status}
-                                    </Badge>
-                                    <span className="font-semibold">
-                                      R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">Nenhuma cobrança registrada</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Cobranças - Tabela Detalhada */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Todas as Cobranças
-                    </CardTitle>
-                    <CardDescription>
-                      Total: {cobrancas?.length || 0} cobrança(s)
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {cobrancas && cobrancas.length > 0 ? (
+                {cobrancas.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -351,25 +290,17 @@ export default function DevedorDetalhes() {
                     </TableHeader>
                     <TableBody>
                       {cobrancas.map((cob: any) => {
-                        const breakdown = taxas && cob.status !== "pago" ? calcularValorDevido(
-                          cob.amount / 100,
-                          new Date(cob.dueDate),
-                          taxas
-                        ) : null;
+                        const valorAtualizado = taxas
+                          ? calcularValorDevido(cob.amount / 100, new Date(cob.dueDate), taxas).valorTotal
+                          : cob.amount / 100;
                         return (
                           <TableRow key={cob.id}>
-                            <TableCell>{cob.description || "-"}</TableCell>
+                            <TableCell className="font-medium">{cob.description || "-"}</TableCell>
+                            <TableCell>{format(new Date(cob.dueDate), "dd/MM/yyyy")}</TableCell>
+                            <TableCell>{formatarMoeda(cob.amount / 100)}</TableCell>
+                            <TableCell className="font-semibold">{formatarMoeda(valorAtualizado)}</TableCell>
                             <TableCell>
-                              {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
-                            </TableCell>
-                            <TableCell className="font-semibold">
-                              R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </TableCell>
-                            <TableCell className="font-bold text-primary">
-                              {breakdown ? formatarMoeda(breakdown.valorTotal) : "R$ " + (cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={cob.status === "pago" ? "outline" : "default"}>
+                              <Badge variant={cob.status === "pago" ? "outline" : "default"} className="text-xs">
                                 {cob.status}
                               </Badge>
                             </TableCell>
@@ -379,13 +310,15 @@ export default function DevedorDetalhes() {
                     </TableBody>
                   </Table>
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">Nenhuma cobrança registrada</p>
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhuma cobrança cadastrada
+                  </div>
                 )}
               </CardContent>
             </Card>
 
             {/* Simulador de Acordo Consolidado */}
-            {condominio && cobrancas && cobrancas.length > 0 && (
+            {condominio && cobrancas.length > 0 && (
               <SimuladorAcordoMultiplo
                 cobrancas={cobrancas}
                 devedorId={devedor.id}
@@ -398,62 +331,6 @@ export default function DevedorDetalhes() {
                 }}
               />
             )}
-
-            {/* Tentativas de Cobrança */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Calendar className="h-5 w-5" />
-                      Histórico de Tentativas
-                    </CardTitle>
-                    <CardDescription>
-                      Total: {tentativas?.length || 0} tentativa(s)
-                    </CardDescription>
-                  </div>
-                  <Link href={`/devedores/${devedor.id}/tentativa/nova`}>
-                    <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Nova Tentativa
-                    </Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {tentativas && tentativas.length > 0 ? (
-                  <div className="space-y-4">
-                    {tentativas.map((tent: any) => (
-                      <div key={tent.id} className="border rounded-lg p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {getTipoContatoBadge(tent.contactType)}
-                            {getResultadoBadge(tent.result)}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(tent.attemptDate), "dd/MM/yyyy HH:mm")}
-                          </p>
-                        </div>
-                        {tent.notes && (
-                          <p className="text-sm text-muted-foreground">{tent.notes}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground mb-4">Nenhuma tentativa registrada</p>
-                    <Link href={`/devedores/${devedor.id}/tentativa/nova`}>
-                      <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Registrar Primeira Tentativa
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
       </main>

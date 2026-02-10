@@ -586,3 +586,36 @@
 - [x] Validar cálculos consolidados
 - [x] Testar criação de acordo com múltiplas cobranças na interface
 - [x] Validar atualização de status das cobranças
+
+## Dashboard Unificado do Devedor (Visão 360°)
+
+### Planejamento
+- [x] Analisar página atual de detalhes do devedor
+- [x] Definir componentes visuais (cards de métricas, gráficos, timeline)
+- [x] Planejar layout responsivo e organização de informações
+- [x] Definir métricas e KPIs a serem exibidos
+
+### Componentes Visuais
+- [x] Criar cards de métricas principais (valor total devido, taxa de recuperação, etc.)
+- [x] Implementar gráfico de distribuição (substitui evolução temporal)
+- [x] Criar timeline visual do histórico de tentativas
+- [x] Implementar gráfico de distribuição de cobranças por tipo
+- [x] Criar indicadores visuais de status e prioridade (indicador de risco)
+
+### Integração de Dados
+- [x] Consolidar dados de cobranças, acordos e tentativas
+- [x] Calcular métricas agregadas (total devido, parcelas pagas, etc.)
+- [x] Implementar queries otimizadas para carregar dados do dashboard
+- [x] Criar sistema de cache para melhorar performance (useMemo)
+
+### Interface
+- [x] Reorganizar página de detalhes do devedor com novo layout
+- [x] Adicionar filtros e controles de visualização (seleção de cobranças)
+- [x] Implementar responsividade para mobile (grid responsivo)
+- [x] Adicionar ações rápidas (criar acordo, registrar tentativa, etc.)
+
+### Testes
+- [x] Testar carregamento de dados com diferentes cenários
+- [x] Validar cálculos de métricas
+- [x] Testar responsividade em diferentes tamanhos de tela
+- [x] Validar performance com grande volume de dados
