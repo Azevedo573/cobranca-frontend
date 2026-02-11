@@ -619,3 +619,43 @@
 - [x] Validar cálculos de métricas
 - [x] Testar responsividade em diferentes tamanhos de tela
 - [x] Validar performance com grande volume de dados
+
+## Sistema de Permissões (Admin/Síndico/Colaborador)
+
+### Backend - Middleware e Validações
+- [x] Criar middleware de autorização por papel (role-based access control)
+- [x] Implementar filtro automático de dados por papel no contexto tRPC
+- [x] Adicionar validações de permissão em rotas sensíveis (configurações, taxas)
+- [x] Criar procedure `adminProcedure` para rotas exclusivas de admin
+- [x] Criar procedure `condominioAccessProcedure` para filtro de condomínio
+- [x] Implementar filtro de condomínio para síndicos (ver apenas seu condomínio)
+
+### Backend - Gestão de Usuários
+- [x] Criar router de usuários com CRUD completo
+- [x] Endpoint para listar usuários (admin vê todos)
+- [x] Endpoint para criar usuário com papel e vínculo a condomínio
+- [x] Endpoint para atualizar papel e status de usuário
+- [x] Endpoint para desativar/ativar usuário
+- [x] Validar que síndico só pode ser vinculado a um condomínio
+
+### Frontend - Interface de Gestão de Usuários
+- [x] Criar página de listagem de usuários (/admin/usuarios)
+- [x] Formulário de cadastro de usuário com seleção de papel
+- [x] Campo de seleção de condomínio (obrigatório para síndico)
+- [x] Botão de ativar/desativar usuário
+- [x] Filtros por papel e status
+- [x] Indicador visual de papel (badge colorido)
+
+### Frontend - Controle de UI por Papel
+- [x] Ocultar menu "Condomínios" para colaboradores (via roles no Sidebar)
+- [x] Ocultar menu "Usuários" para colaboradores e síndicos (via roles no Sidebar)
+- [x] Ocultar botões de editar taxas/configurações para colaboradores (via roles no Sidebar)
+- [x] Filtro de condomínio implementado no backend (síndico vê apenas o seu)
+- [x] Adicionar indicador de papel no sidebar (badge colorido)
+
+### Testes e Validação
+- [ ] Testar login como Admin (acesso total)
+- [ ] Testar login como Síndico (ver apenas seu condomínio)
+- [ ] Testar login como Colaborador (sem acesso a configurações)
+- [ ] Validar que colaborador não consegue acessar rotas de admin via URL direta
+- [ ] Validar que síndico não vê dados de outros condomínios

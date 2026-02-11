@@ -195,7 +195,20 @@ export default function Sidebar() {
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded-full font-medium",
+                    user.role === "admin" && "bg-red-500/10 text-red-500",
+                    user.role === "sindico" && "bg-blue-500/10 text-blue-500",
+                    user.role === "cobrador" && "bg-green-500/10 text-green-500"
+                  )}
+                >
+                  {user.role === "admin" && "Administrador"}
+                  {user.role === "sindico" && "Síndico"}
+                  {user.role === "cobrador" && "Colaborador"}
+                </span>
+              </div>
             </div>
           )}
         </div>
