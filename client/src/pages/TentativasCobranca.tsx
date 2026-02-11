@@ -169,12 +169,7 @@ export default function TentativasCobranca() {
                   Total: {filteredTentativas?.length || 0} tentativa(s)
                 </CardDescription>
               </div>
-              <Link href="/tentativas/nova">
-                <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Tentativa
-                </Button>
-              </Link>
+
             </div>
             <div className="mt-4 space-y-4">
               {user?.role === "admin" && (

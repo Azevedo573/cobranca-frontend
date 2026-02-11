@@ -680,3 +680,9 @@
 - [x] Localizar item no Sidebar.tsx
 - [x] Remover item "Tentativa Rápida" do array de menuItems
 - [x] Testar menu lateral após remoção
+
+## Remover Botão "Nova Tentativa" da Página de Tentativas
+
+- [x] Localizar botão "Nova Tentativa" em TentativasCobranca.tsx
+- [x] Remover botão do header da página
+- [x] Testar página como síndico após remoção
