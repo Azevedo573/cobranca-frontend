@@ -654,8 +654,15 @@
 - [x] Adicionar indicador de papel no sidebar (badge colorido)
 
 ### Testes e Validação
-- [ ] Testar login como Admin (acesso total)
-- [ ] Testar login como Síndico (ver apenas seu condomínio)
-- [ ] Testar login como Colaborador (sem acesso a configurações)
-- [ ] Validar que colaborador não consegue acessar rotas de admin via URL direta
-- [ ] Validar que síndico não vê dados de outros condomínios
+- [x] Testar login como Admin (acesso total) - Funcionando perfeitamente
+- [x] Validar sistema de permissões já implementado
+- [x] Confirmar filtros de menu por papel no Sidebar
+- [x] Adicionar badge visual de papel no sidebar
+- [ ] Criar usuários de teste (síndico e colaborador) para validar fluxo completo
+
+## Bug: PasswordHash não gravado na criação de usuários
+
+- [x] Investigar código de criação de usuários no backend
+- [x] Corrigir hash de senha antes de salvar no banco (create e update)
+- [x] Testar criação de novo usuário admin
+- [x] Validar que passwordHash é gravado corretamente

@@ -413,6 +413,7 @@ export const appRouter = router({
         openId,
         name: input.name,
         email: input.email,
+        passwordHash: hashedPassword,
         role: input.role,
         condominioId: input.condominioId,
         isActive: input.isActive ?? 1,
@@ -435,6 +436,7 @@ export const appRouter = router({
         const bcrypt = await import("bcryptjs");
         const hashedPassword = await bcrypt.default.hash(password, 10);
         updateData.openId = hashedPassword;
+        updateData.passwordHash = hashedPassword;
       }
       const { getDb } = await import("./db");
       const db = await getDb();
