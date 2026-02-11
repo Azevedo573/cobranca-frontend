@@ -666,3 +666,11 @@
 - [x] Corrigir hash de senha antes de salvar no banco (create e update)
 - [x] Testar criação de novo usuário admin
 - [x] Validar que passwordHash é gravado corretamente
+
+## Remover Botão "Registro Rápido" da Página de Tentativas de Cobrança
+
+- [x] Localizar botão "Registro Rápido" na página de tentativas
+- [x] Remover botão e funcionalidade de registro rápido
+- [x] Limpar estados e variáveis não utilizadas
+- [x] Alterar botão Nova Tentativa para redirecionar para página de criação
+- [x] Testar página de tentativas após remoção
