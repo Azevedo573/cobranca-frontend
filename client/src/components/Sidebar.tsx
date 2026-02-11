@@ -99,12 +99,7 @@ const menuItems: MenuItem[] = [
     icon: Phone,
     roles: ["admin", "sindico", "cobrador"],
   },
-  {
-    label: "Tentativa Rápida",
-    href: "/tentativas/nova",
-    icon: Phone,
-    roles: ["sindico", "cobrador"],
-  },
+
   {
     label: "Acordos",
     href: "/acordos",

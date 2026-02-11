@@ -674,3 +674,9 @@
 - [x] Limpar estados e variáveis não utilizadas
 - [x] Alterar botão Nova Tentativa para redirecionar para página de criação
 - [x] Testar página de tentativas após remoção
+
+## Remover Item "Tentativa Rápida" do Menu Lateral
+
+- [x] Localizar item no Sidebar.tsx
+- [x] Remover item "Tentativa Rápida" do array de menuItems
+- [x] Testar menu lateral após remoção
