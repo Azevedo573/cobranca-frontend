@@ -367,6 +367,65 @@ export const appRouter = router({
       const { updateParcela } = await import("./db-acordos");
       return await updateParcela(input.id, input);
     }),
+    darBaixaParcela: protectedProcedure.input(z.object({
+      parcelaId: z.number(),
+      dataPagamento: z.date().optional(),
+    })).mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new Error("Database connection failed");
+      
+      const { parcelasAcordo, acordos } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      // Buscar parcela
+      const parcela = await db.select().from(parcelasAcordo).where(eq(parcelasAcordo.id, input.parcelaId)).limit(1);
+      if (!parcela || parcela.length === 0) {
+        throw new Error("Parcela não encontrada");
+      }
+      
+      // Validar que não foi paga
+      if (parcela[0].status === "pago") {
+        throw new Error("Parcela já foi paga anteriormente");
+      }
+      
+      // Atualizar parcela como paga
+      const dataPagamento = input.dataPagamento || new Date();
+      await db.update(parcelasAcordo)
+        .set({ 
+          status: "pago", 
+          paymentDate: dataPagamento 
+        })
+        .where(eq(parcelasAcordo.id, input.parcelaId));
+      
+      // Buscar todas as parcelas do acordo
+      const todasParcelas = await db.select().from(parcelasAcordo)
+        .where(eq(parcelasAcordo.acordoId, parcela[0].acordoId));
+      
+      // Calcular valor pago total
+      const valorPagoTotal = todasParcelas
+        .filter(p => p.status === "pago" || p.id === input.parcelaId)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      
+      // Verificar se todas as parcelas foram pagas
+      const todasPagas = todasParcelas.every(p => 
+        p.status === "pago" || p.id === input.parcelaId
+      );
+      
+      // Atualizar acordo
+      await db.update(acordos)
+        .set({ 
+          valorPago: valorPagoTotal,
+          status: todasPagas ? "pago" : "ativo"
+        })
+        .where(eq(acordos.id, parcela[0].acordoId));
+      
+      return { 
+        success: true, 
+        valorPagoTotal,
+        statusAcordo: todasPagas ? "pago" : "ativo"
+      };
+    }),
     verificarAtrasos: adminProcedure.mutation(async () => {
       const { verificarParcelasAtrasadas } = await import("./verificar-atrasos");
       return await verificarParcelasAtrasadas();

@@ -31,11 +31,12 @@ export function ControleParcelas({ cobrancaId }: ControleParcelasProps) {
     { enabled: !!acordoAtivo }
   );
 
-  const darBaixaMutation = trpc.acordos.updateParcela.useMutation({
-    onSuccess: () => {
-      toast.success("Baixa registrada com sucesso!");
+  const darBaixaMutation = trpc.acordos.darBaixaParcela.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Baixa registrada! Valor pago total: ${formatarMoeda(data.valorPagoTotal)}`);
       utils.acordos.getParcelas.invalidate();
       utils.acordos.getById.invalidate();
+      utils.acordos.getByCobranca.invalidate();
     },
     onError: (error) => {
       toast.error("Erro ao dar baixa: " + error.message);
@@ -45,9 +46,8 @@ export function ControleParcelas({ cobrancaId }: ControleParcelasProps) {
   const handleDarBaixa = (parcelaId: number) => {
     if (confirm("Confirma o pagamento desta parcela?")) {
       darBaixaMutation.mutate({
-        id: parcelaId,
-        paymentDate: new Date(),
-        status: "pago",
+        parcelaId,
+        dataPagamento: new Date(),
       });
     }
   };

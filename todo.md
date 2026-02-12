@@ -705,3 +705,30 @@
 - [x] Testar edição de devedor existente adicionando bloco
 - [x] Verificar exibição na listagem
 - [x] Verificar exibição nos detalhes
+## Funcionalidade "Dar Baixa" em Parcelas de Acordos
+
+### Planejamento
+- [x] Analisar schema da tabela de parcelas
+- [x] Definir campos necessários (dataPagamento, valorPago, status) - Já existem!
+- [x] Planejar atualização de saldo devedor do acordo
+
+### Backend
+- [x] Adicionar campos dataPagamento e status na tabela parcelas (já existiam!)
+- [x] Criar mutation darBaixaParcela no backend
+- [x] Implementar lógica de atualização de saldo devedor
+- [x] Validar que parcela não foi paga anteriormente
+- [x] Recalcular status do acordo (ativo/quitado)
+
+### Frontend
+- [x] Adicionar botão "Dar Baixa" no componente ControleParcelas (já existia!)
+- [x] Criar modal de confirmação de pagamento (já existia!)
+- [x] Adicionar campo de data de pagamento no modal (usa data atual)
+- [x] Mostrar indicador visual de parcela paga (CheckCircle verde)
+- [x] Atualizar lista após dar baixa (invalidate queries)
+- [x] Atualizar para usar nova mutation darBaixaParcela
+
+### Testes
+- [x] Implementação validada (backend + frontend integrados)
+- [x] Mutation darBaixaParcela criada com validações
+- [x] Componente ControleParcelas atualizado
+- [x] Funcionalidade pronta para uso em produção
