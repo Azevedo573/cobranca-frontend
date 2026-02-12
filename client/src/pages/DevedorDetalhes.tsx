@@ -175,7 +175,7 @@ export default function DevedorDetalhes() {
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-primary">Dashboard do Devedor</h1>
-                <p className="text-sm text-muted-foreground">{devedor.name} • Unidade {devedor.unitNumber}</p>
+                <p className="text-sm text-muted-foreground">{devedor.name} • Unidade {devedor.unitNumber}{devedor.bloco ? ` - Bloco ${devedor.bloco}` : ""}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -224,7 +224,7 @@ export default function DevedorDetalhes() {
                   <p className="text-sm text-muted-foreground">Unidade</p>
                   <div className="flex items-center gap-2 mt-1">
                     <Home className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{devedor.unitNumber}</span>
+                    <span className="font-medium">{devedor.unitNumber}{devedor.bloco ? ` - Bloco ${devedor.bloco}` : ""}</span>
                   </div>
                 </div>
                 <div>

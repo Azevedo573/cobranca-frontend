@@ -92,6 +92,13 @@
       "when": 1770646755678,
       "tag": "0012_ordinary_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1770854497725,
+      "tag": "0013_smart_scarecrow",
+      "breakpoints": true
     }
   ]
 }

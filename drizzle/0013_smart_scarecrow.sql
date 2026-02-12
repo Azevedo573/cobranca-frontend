@@ -1,0 +1,1 @@
+ALTER TABLE `devedores` ADD `bloco` varchar(50);

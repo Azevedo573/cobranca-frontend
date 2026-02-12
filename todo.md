@@ -686,3 +686,22 @@
 - [x] Localizar botão "Nova Tentativa" em TentativasCobranca.tsx
 - [x] Remover botão do header da página
 - [x] Testar página como síndico após remoção
+
+## Adicionar Campo "Bloco" no Cadastro de Devedores
+
+### Backend
+- [x] Adicionar campo `bloco` na tabela `devedores` no schema
+- [x] Executar migração do banco de dados
+- [x] Atualizar routers.ts para incluir bloco no create/update
+
+### Frontend
+- [x] Adicionar campo "Bloco" no formulário de cadastro/edição
+- [x] Atualizar listagem de devedores para exibir bloco
+- [x] Atualizar página de detalhes do devedor para exibir bloco
+- [x] Adicionar bloco na importação de devedores
+
+### Testes
+- [x] Testar cadastro de devedor com bloco
+- [x] Testar edição de devedor existente adicionando bloco
+- [x] Verificar exibição na listagem
+- [x] Verificar exibição nos detalhes

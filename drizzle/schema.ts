@@ -52,6 +52,7 @@ export const devedores = mysqlTable("devedores", {
   name: varchar("name", { length: 255 }).notNull(),
   cpfCnpj: varchar("cpfCnpj", { length: 18 }),
   unitNumber: varchar("unitNumber", { length: 50 }).notNull(),
+  bloco: varchar("bloco", { length: 50 }),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
   totalDue: int("totalDue").default(0).notNull(),

@@ -155,6 +155,7 @@ export const appRouter = router({
       condominioId: z.number(),
       name: z.string(),
       unitNumber: z.string(),
+      bloco: z.string().optional(),
       email: z.string().optional(),
       phone: z.string().optional(),
       totalDue: z.number().default(0),
@@ -166,6 +167,7 @@ export const appRouter = router({
       id: z.number(),
       name: z.string().optional(),
       unitNumber: z.string().optional(),
+      bloco: z.string().optional(),
       email: z.string().optional(),
       phone: z.string().optional(),
       totalDue: z.number().optional(),
@@ -561,6 +563,7 @@ export const appRouter = router({
               email: dado.email,
               phone: dado.telefone,
               unitNumber: dado.unidade,
+              bloco: dado.bloco,
             });
             const devedorId = Number((devedorResult as any).insertId || 0);
             devedor = await getDevedorById(devedorId);

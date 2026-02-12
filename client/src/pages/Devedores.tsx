@@ -195,6 +195,7 @@ export default function Devedores() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Unidade</TableHead>
+                    <TableHead>Bloco</TableHead>
                     <TableHead>Contato</TableHead>
                     <TableHead>Valor Devido</TableHead>
                 <TableHead>Prioridade</TableHead>
@@ -207,6 +208,7 @@ export default function Devedores() {
                     <TableRow key={dev.id}>
                       <TableCell className="font-medium">{dev.name}</TableCell>
                       <TableCell>{dev.unitNumber}</TableCell>
+                      <TableCell>{dev.bloco || "-"}</TableCell>
                       <TableCell>
                         <div className="text-sm">
                           {dev.phone && <div>{dev.phone}</div>}

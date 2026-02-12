@@ -299,6 +299,7 @@ export default function ImportarDevedores() {
                     <TableHead>Nome</TableHead>
                     <TableHead>CPF/CNPJ</TableHead>
                     <TableHead>Unidade</TableHead>
+                    <TableHead>Bloco</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Telefone</TableHead>
                     <TableHead>Vencimento</TableHead>
@@ -311,6 +312,7 @@ export default function ImportarDevedores() {
                       <TableCell className="font-medium">{dado.nomeCompleto}</TableCell>
                       <TableCell>{dado.cpfCnpj}</TableCell>
                       <TableCell>{dado.unidade}</TableCell>
+                      <TableCell>{dado.bloco || "-"}</TableCell>
                       <TableCell>{dado.email || "-"}</TableCell>
                       <TableCell>{dado.telefone || "-"}</TableCell>
                       <TableCell>{dado.dataVencimento}</TableCell>

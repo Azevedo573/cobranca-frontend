@@ -21,6 +21,7 @@ export default function DevedorForm() {
     condominioId: "",
     name: "",
     unitNumber: "",
+    bloco: "",
     email: "",
     phone: "",
     totalDue: "",
@@ -42,6 +43,7 @@ export default function DevedorForm() {
         condominioId: devedor.condominioId.toString(),
         name: devedor.name || "",
         unitNumber: devedor.unitNumber || "",
+        bloco: devedor.bloco || "",
         email: devedor.email || "",
         phone: devedor.phone || "",
         totalDue: (devedor.totalDue / 100).toFixed(2),
@@ -102,6 +104,7 @@ export default function DevedorForm() {
         id: devedorId,
         name: formData.name,
         unitNumber: formData.unitNumber,
+        bloco: formData.bloco || undefined,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         totalDue: totalDueInCents,
@@ -111,6 +114,7 @@ export default function DevedorForm() {
         condominioId: parseInt(formData.condominioId),
         name: formData.name,
         unitNumber: formData.unitNumber,
+        bloco: formData.bloco || undefined,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         totalDue: totalDueInCents,
@@ -186,7 +190,7 @@ export default function DevedorForm() {
               )}
 
               {/* Dados Básicos */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome Completo *</Label>
                   <Input
@@ -205,8 +209,18 @@ export default function DevedorForm() {
                     name="unitNumber"
                     value={formData.unitNumber}
                     onChange={handleChange}
-                    placeholder="Ex: 101, Bloco A"
+                    placeholder="Ex: 101"
                     required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bloco">Bloco</Label>
+                  <Input
+                    id="bloco"
+                    name="bloco"
+                    value={formData.bloco}
+                    onChange={handleChange}
+                    placeholder="Ex: A, B, C"
                   />
                 </div>
               </div>
