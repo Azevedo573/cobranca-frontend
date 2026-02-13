@@ -732,3 +732,47 @@
 - [x] Mutation darBaixaParcela criada com validações
 - [x] Componente ControleParcelas atualizado
 - [x] Funcionalidade pronta para uso em produção
+
+## Funcionalidade "Vencimentos Próximos" (Sprint 3)
+
+### Backend
+- [x] Criar query para buscar parcelas vencendo em X dias
+- [ ] Criar query para buscar cobranças sem acordo vencendo
+- [x] Adicionar filtros por período (7, 15, 30 dias)
+- [x] Adicionar filtro por condomínio (automático por papel)
+- [x] Retornar dados completos (devedor, acordo, valor, data)
+
+### Frontend - Página de Vencimentos
+- [ ] Criar página /vencimentos
+- [ ] Adicionar item no menu lateral (Sidebar)
+- [ ] Criar cards de resumo (vencendo hoje, esta semana, este mês)
+- [ ] Implementar filtros por período
+- [ ] Criar tabela de parcelas vencendo
+- [ ] Adicionar botão "Copiar mensagem WhatsApp"
+- [ ] Criar template de mensagem personalizável
+
+### Sistema de Alertas Internos
+- [ ] Criar tabela de alertas no banco
+- [ ] Implementar lógica de geração de alertas
+- [ ] Alerta: Promessa de pagamento não cumprida
+- [ ] Alerta: Acordo com parcela atrasada
+- [ ] Alerta: Devedor sem tentativa há X dias
+- [ ] Badge de notificação no menu
+- [ ] Página de alertas centralizados
+- [ ] Botão para marcar alerta como resolvido
+
+### Testes
+- [ ] Testar filtros de período
+- [ ] Testar cópia de mensagem WhatsApp
+- [ ] Validar alertas sendo gerados corretamente
+- [ ] Testar como diferentes papéis (admin, síndico, colaborador)
+
+## Funcionalidade - Vencimentos Próximos
+- [x] Criar query getVencimentosProximos no backend (filtros: 7, 15, 30 dias)
+- [x] Criar página VencimentosProximos.tsx com filtros e listagem
+- [x] Adicionar rota /vencimentos no App.tsx
+- [x] Adicionar item "Vencimentos Próximos" no menu Sidebar
+- [x] Implementar botão "Copiar mensagem WhatsApp" para cobrança proativa
+- [x] Adicionar cards de resumo (vencendo hoje, próximos 7 dias, total)
+- [x] Implementar filtro por condomínio (apenas admin)
+- [x] Mostrar indicador de urgência (dias restantes)

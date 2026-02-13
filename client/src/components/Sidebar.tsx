@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Upload,
+  Calendar,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -104,6 +105,12 @@ const menuItems: MenuItem[] = [
     label: "Acordos",
     href: "/acordos",
     icon: HandshakeIcon,
+    roles: ["admin", "sindico", "cobrador"],
+  },
+  {
+    label: "Vencimentos Próximos",
+    href: "/vencimentos",
+    icon: Calendar,
     roles: ["admin", "sindico", "cobrador"],
   },
 ];

@@ -31,6 +31,7 @@ import CasosPrioritarios from "./pages/CasosPrioritarios";
 import Acordos from "./pages/Acordos";
 import AcordoDetalhes from "./pages/AcordoDetalhes";
 import TentativasCobranca from "./pages/TentativasCobranca";
+import Vencimentos from "./pages/Vencimentos";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -170,6 +171,11 @@ function Router() {
       </Route>
       <Route path="/acordos/:id">
         {() => <ProtectedRoute component={AcordoDetalhes} />}
+      </Route>
+      
+      {/* Rotas de Vencimentos */}
+      <Route path="/vencimentos">
+        {() => <ProtectedRoute component={Vencimentos} />}
       </Route>
 
       {/* Rotas de Tentativas */}

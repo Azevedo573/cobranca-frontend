@@ -430,6 +430,58 @@ export const appRouter = router({
       const { verificarParcelasAtrasadas } = await import("./verificar-atrasos");
       return await verificarParcelasAtrasadas();
     }),
+    getVencimentosProximos: condominioAccessProcedure.input(z.object({
+      condominioId: z.number().optional(),
+      dias: z.number().default(7), // próximos 7, 15 ou 30 dias
+    })).query(async ({ input, ctx }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      
+      const { parcelasAcordo, acordos, devedores } = await import("../drizzle/schema");
+      const { eq, and, gte, lte, sql } = await import("drizzle-orm");
+      
+      // Calcular data limite (hoje + X dias)
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const dataLimite = new Date(hoje);
+      dataLimite.setDate(dataLimite.getDate() + input.dias);
+      
+      // Filtrar por condomínio baseado no papel do usuário
+      const condominioId = ctx.user.role === "admin" 
+        ? input.condominioId 
+        : ctx.user.condominioId;
+      
+      const conditions = [
+        eq(parcelasAcordo.status, "pendente"),
+        gte(parcelasAcordo.dueDate, hoje),
+        lte(parcelasAcordo.dueDate, dataLimite),
+      ];
+      
+      if (condominioId) {
+        conditions.push(eq(acordos.condominioId, condominioId));
+      }
+      
+      const parcelas = await db.select({
+        parcelaId: parcelasAcordo.id,
+        acordoId: acordos.id,
+        devedorId: devedores.id,
+        devedorNome: devedores.name,
+        devedorUnidade: devedores.unitNumber,
+        devedorBloco: devedores.bloco,
+        parcelaNumero: parcelasAcordo.installmentNumber,
+        parcelaValor: parcelasAcordo.amount,
+        dataVencimento: parcelasAcordo.dueDate,
+        condominioId: acordos.condominioId,
+      })
+      .from(parcelasAcordo)
+      .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+      .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+      .where(and(...conditions))
+      .orderBy(parcelasAcordo.dueDate);
+      
+      return parcelas;
+    }),
   }),
 
   // Usuários (apenas admin)
