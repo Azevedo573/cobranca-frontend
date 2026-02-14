@@ -3,6 +3,7 @@ import { trpc } from "../lib/trpc";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Calendar, DollarSign, User, Home, Copy, Check } from "lucide-react";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function Vencimentos() {
@@ -112,6 +113,18 @@ Qualquer dúvida, estamos à disposição!`;
             <h1 className="text-3xl font-bold text-gray-900">Vencimentos Próximos</h1>
             <p className="text-gray-600 mt-1">Acompanhe parcelas de acordos vencendo</p>
           </div>
+          <ExportExcelButton
+            onClick={async () => {
+              const utils = trpc.useUtils();
+              const result = await utils.client.exportacao.vencimentos.mutate({
+                dias: filtroDias,
+                condominioId: selectedCondominio,
+              });
+              return result;
+            }}
+            label="Exportar Excel"
+            size="sm"
+          />
         </div>
 
         {/* Filtros */}

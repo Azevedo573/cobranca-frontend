@@ -1,9 +1,11 @@
-import { COOKIE_NAME } from "@shared/const";
+import { COOKIE_NAME } from "../shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { adminProcedure, condominioAccessProcedure } from "./middleware";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { getDb } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -703,6 +705,173 @@ export const appRouter = router({
       }
       
       return resultados;
+    }),
+  }),
+  
+  // Exportação de relatórios para Excel
+  exportacao: router({
+    devedores: protectedProcedure.input(z.object({
+      condominioId: z.number().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { exportDevedores } = await import("./excel-export");
+      const { getDevedoresByCondominio } = await import("./db-devedores");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const { condominios } = await import("../drizzle/schema");
+      
+      const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId;
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
+      
+      const devedores = await getDevedoresByCondominio(condominioId);
+      const allCondominios = await db.select().from(condominios);
+      
+      const buffer = await exportDevedores(devedores, allCondominios);
+      return {
+        success: true,
+        base64: buffer.toString("base64"),
+        filename: `devedores_${new Date().toISOString().split('T')[0]}.xlsx`
+      };
+    }),
+    
+    cobrancas: protectedProcedure.input(z.object({
+      condominioId: z.number().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { exportCobrancas } = await import("./excel-export");
+      const { getCobrancasByCondominio } = await import("./db-cobrancas");
+      const { getDevedoresByCondominio } = await import("./db-devedores");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const { condominios } = await import("../drizzle/schema");
+      
+      const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId;
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
+      
+      const cobrancas = await getCobrancasByCondominio(condominioId);
+      const devedores = await getDevedoresByCondominio(condominioId);
+      const allCondominios = await db.select().from(condominios);
+      
+      const buffer = await exportCobrancas(cobrancas, devedores, allCondominios);
+      return {
+        success: true,
+        base64: buffer.toString("base64"),
+        filename: `cobrancas_${new Date().toISOString().split('T')[0]}.xlsx`
+      };
+    }),
+    
+    acordos: protectedProcedure.input(z.object({
+      condominioId: z.number().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { exportAcordos } = await import("./excel-export");
+      const { getAcordosByCondominio } = await import("./db-acordos");
+      const { getDevedoresByCondominio } = await import("./db-devedores");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const { condominios } = await import("../drizzle/schema");
+      
+      const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId;
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
+      
+      const acordos = await getAcordosByCondominio(condominioId);
+      const devedores = await getDevedoresByCondominio(condominioId);
+      const allCondominios = await db.select().from(condominios);
+      
+      const buffer = await exportAcordos(acordos, devedores, allCondominios);
+      return {
+        success: true,
+        base64: buffer.toString("base64"),
+        filename: `acordos_${new Date().toISOString().split('T')[0]}.xlsx`
+      };
+    }),
+    
+    tentativas: protectedProcedure.input(z.object({
+      condominioId: z.number().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { exportTentativas } = await import("./excel-export");
+      const { getTentativasByCondominio } = await import("./db-tentativas");
+      const { getDevedorById } = await import("./db-devedores");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const { users } = await import("../drizzle/schema");
+      
+      const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId;
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
+      
+      const tentativas = await getTentativasByCondominio(condominioId);
+      const usuarios = await db.select().from(users);
+      
+      // Buscar devedores das tentativas
+      const devedoresMap = new Map();
+      for (const tentativa of tentativas) {
+        if (!devedoresMap.has(tentativa.devedorId)) {
+          const devedor = await getDevedorById(tentativa.devedorId);
+          if (devedor) devedoresMap.set(tentativa.devedorId, devedor);
+        }
+      }
+      const devedores = Array.from(devedoresMap.values());
+      
+      const buffer = await exportTentativas(tentativas, devedores, usuarios);
+      return {
+        success: true,
+        base64: buffer.toString("base64"),
+        filename: `tentativas_${new Date().toISOString().split('T')[0]}.xlsx`
+      };
+    }),
+    
+    vencimentos: protectedProcedure.input(z.object({
+      dias: z.number(),
+      condominioId: z.number().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const { exportVencimentos } = await import("./excel-export");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
+      const { eq, and, gte, lte } = await import("drizzle-orm");
+      
+      const hoje = new Date();
+      const dataLimite = new Date();
+      dataLimite.setDate(hoje.getDate() + input.dias);
+      
+      const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId;
+      
+      const conditions = [
+        eq(parcelasAcordo.status, "pendente"),
+        gte(parcelasAcordo.dueDate, hoje),
+        lte(parcelasAcordo.dueDate, dataLimite),
+      ];
+      
+      if (condominioId) {
+        conditions.push(eq(devedores.condominioId, condominioId));
+      }
+      
+      const parcelas = await db.select({
+        id: parcelasAcordo.id,
+        numeroParcela: parcelasAcordo.installmentNumber,
+        valorParcela: parcelasAcordo.amount,
+        dataVencimento: parcelasAcordo.dueDate,
+        status: parcelasAcordo.status,
+        acordoId: acordos.id,
+        devedorNome: devedores.name,
+        devedorTelefone: devedores.phone,
+        condominioNome: condominios.name,
+      })
+      .from(parcelasAcordo)
+      .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+      .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+      .innerJoin(condominios, eq(devedores.condominioId, condominios.id))
+      .where(and(...conditions))
+      .orderBy(parcelasAcordo.dueDate);
+      
+      const buffer = await exportVencimentos(parcelas, input.dias);
+      return {
+        success: true,
+        base64: buffer.toString("base64"),
+        filename: `vencimentos_${input.dias}dias_${new Date().toISOString().split('T')[0]}.xlsx`
+      };
     }),
   }),
 });

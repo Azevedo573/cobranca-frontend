@@ -776,3 +776,20 @@
 - [x] Adicionar cards de resumo (vencendo hoje, próximos 7 dias, total)
 - [x] Implementar filtro por condomínio (apenas admin)
 - [x] Mostrar indicador de urgência (dias restantes)
+
+## Funcionalidade - Exportação Excel de Relatórios
+- [x] Instalar biblioteca exceljs
+- [x] Criar helper de exportação Excel no backend
+- [x] Criar endpoint para exportar lista de devedores
+- [x] Criar endpoint para exportar cobranças ativas
+- [x] Criar endpoint para exportar acordos
+- [x] Criar endpoint para exportar tentativas de cobrança
+- [x] Criar endpoint para exportar vencimentos próximos
+- [x] Adicionar botão "Exportar Excel" na página de devedores
+- [ ] Adicionar botão "Exportar Excel" na página de cobranças
+- [x] Adicionar botão "Exportar Excel" na página de acordos
+- [ ] Adicionar botão "Exportar Excel" na página de tentativas
+- [x] Adicionar botão "Exportar Excel" na página de vencimentos
+- [x] Implementar formatação profissional (cabeçalhos, totais, fórmulas)
+- [x] Criar testes unitários para exportação
+- [x] Testar download de arquivos Excel no navegador

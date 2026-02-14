@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { HandshakeIcon, Search, Eye, Calendar, DollarSign, User, Building2 } from "lucide-react";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 
 export default function Acordos() {
   const { user } = useAuth();
@@ -87,13 +88,26 @@ export default function Acordos() {
               Gestão de acordos e parcelamentos
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {user?.name}
-            </span>
-            <Badge variant="outline" className="capitalize">
-              {user?.role}
-            </Badge>
+          <div className="flex items-center gap-3">
+            <ExportExcelButton
+              onClick={async () => {
+                const utils = trpc.useUtils();
+                const result = await utils.client.exportacao.acordos.mutate({
+                  condominioId: condominioId || undefined,
+                });
+                return result;
+              }}
+              label="Exportar Excel"
+              size="sm"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {user?.name}
+              </span>
+              <Badge variant="outline" className="capitalize">
+                {user?.role}
+              </Badge>
+            </div>
           </div>
         </div>
 
