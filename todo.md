@@ -793,3 +793,23 @@
 - [x] Implementar formatação profissional (cabeçalhos, totais, fórmulas)
 - [x] Criar testes unitários para exportação
 - [x] Testar download de arquivos Excel no navegador
+
+## Funcionalidade - Integração com API do Banco Central para Correção Monetária
+- [ ] Pesquisar API do Banco Central (BCB) para obter índices de correção monetária (IPCA, INPC, IGP-M)
+- [ ] Criar helper no backend para consumir API do BCB
+- [ ] Implementar cache de índices para evitar requisições excessivas
+- [ ] Criar endpoint tRPC para buscar índices por período
+- [ ] Atualizar função calcularValorDevido para usar índices reais da API
+- [ ] Adicionar opção no cadastro de condomínio para escolher índice de correção (IPCA, INPC, IGP-M)
+- [ ] Criar página de configuração de índices no painel admin
+- [ ] Implementar atualização automática de índices (job diário ou semanal)
+- [ ] Adicionar histórico de índices aplicados nas cobranças
+- [ ] Criar testes unitários para integração com API do BCB
+- [ ] Documentar endpoints e fluxo de atualização de índices
+
+## Bug - Campo de telefone no cadastro de condomínios
+- [x] Investigar erro no insert de condomínios (campo phone recebendo valor muito longo)
+- [x] Adicionar validação de tamanho máximo no campo de telefone
+- [ ] Implementar máscara/formatação automática de telefone no frontend
+- [x] Limitar entrada de caracteres no campo de telefone (maxLength=15)
+- [x] Testar cadastro de condomínio com telefone válido

@@ -228,9 +228,11 @@ export default function CondominioForm() {
                   <Input
                     id="phone"
                     name="phone"
+                    type="tel"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="(00) 0000-0000"
+                    placeholder="(00) 00000-0000"
+                    maxLength={15}
                   />
                 </div>
                 <div className="space-y-2">
