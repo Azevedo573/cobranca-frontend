@@ -813,3 +813,20 @@
 - [ ] Implementar máscara/formatação automática de telefone no frontend
 - [x] Limitar entrada de caracteres no campo de telefone (maxLength=15)
 - [x] Testar cadastro de condomínio com telefone válido
+
+## Reestruturação UX - Centralizar Tudo na Tela do Devedor
+- [x] Criar nova página de detalhes do devedor (DevedorDetalhes.tsx) - Já existe!
+- [x] Seção 1: Cabeçalho com dados do devedor e resumo financeiro
+- [x] Seção 2: Lista de cobranças do devedor com ações rápidas
+- [ ] Seção 3: Botão "Nova Cobrança" que abre modal com devedor pré-selecionado
+- [x] Seção 4: Histórico de tentativas de cobrança do devedor
+- [x] Seção 5: Botão "Registrar Tentativa" com devedor pré-selecionado
+- [x] Seção 6: Lista de acordos do devedor (ativos e histórico)
+- [x] Seção 7: Botão "Novo Acordo" com cálculo automático do total devido - Simulador já existe
+- [x] Adicionar rota /devedores/:id para página de detalhes
+- [x] Modificar lista de devedores para linkar para página de detalhes
+- [x] Remover "Processos de Cobrança" do menu lateral
+- [x] Criar endpoints tRPC para buscar dados consolidados do devedor
+- [x] Adicionar botão "Nova Cobrança" na página de detalhes do devedor
+- [x] Adicionar atalhos rápidos para ações comuns (Nova Cobrança, Nova Tentativa, Editar)
+- [x] Testar fluxo completo: cadastrar devedor → adicionar cobranças → registrar tentativas → criar acordo

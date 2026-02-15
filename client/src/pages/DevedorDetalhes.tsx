@@ -179,6 +179,12 @@ export default function DevedorDetalhes() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Link href={`/processos-cobranca/novo?devedorId=${devedor.id}`}>
+                <Button variant="outline" size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Cobrança
+                </Button>
+              </Link>
               <Link href={`/devedores/${devedor.id}/tentativa/nova`}>
                 <Button variant="outline" size="sm">
                   <Plus className="mr-2 h-4 w-4" />

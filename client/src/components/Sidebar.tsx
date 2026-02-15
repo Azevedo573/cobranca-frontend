@@ -88,12 +88,7 @@ const menuItems: MenuItem[] = [
     icon: UserCircle,
     roles: ["admin", "sindico", "cobrador"],
   },
-  {
-    label: "Processos de Cobrança",
-    href: "/processos",
-    icon: FileText,
-    roles: ["admin", "sindico", "cobrador"],
-  },
+
   {
     label: "Tentativas de Cobrança",
     href: "/tentativas",
