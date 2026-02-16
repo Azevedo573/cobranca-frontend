@@ -830,3 +830,14 @@
 - [x] Adicionar botão "Nova Cobrança" na página de detalhes do devedor
 - [x] Adicionar atalhos rápidos para ações comuns (Nova Cobrança, Nova Tentativa, Editar)
 - [x] Testar fluxo completo: cadastrar devedor → adicionar cobranças → registrar tentativas → criar acordo
+
+## Funcionalidade - Modal Inline de Nova Dívida
+- [x] Criar componente NovaDividaModal.tsx
+- [x] Formulário com campos: tipo de cobrança, mês referência, valor, data vencimento, descrição
+- [x] Integrar modal na página DevedorDetalhes.tsx
+- [x] Substituir link "Nova Cobrança" por botão que abre modal (agora "Nova Dívida")
+- [x] Implementar lógica de criação de cobrança via tRPC
+- [x] Atualizar lista de cobranças automaticamente após criação (invalidate)
+- [x] Adicionar validações de campos obrigatórios
+- [x] Testar criação de dívida via modal
+- [x] Verificar se lista atualiza sem reload da página
