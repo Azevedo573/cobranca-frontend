@@ -841,3 +841,14 @@
 - [x] Adicionar validações de campos obrigatórios
 - [x] Testar criação de dívida via modal
 - [x] Verificar se lista atualiza sem reload da página
+
+## Funcionalidade - Modal Inline de Nova Tentativa
+- [x] Criar componente NovaTentativaModal.tsx
+- [x] Formulário com campos: cobrança (select), tipo de contato, resultado, observações, próxima tentativa
+- [x] Integrar modal na página DevedorDetalhes.tsx
+- [x] Substituir link "Nova Tentativa" por botão que abre modal
+- [x] Implementar lógica de criação de tentativa via tRPC
+- [x] Atualizar timeline de tentativas automaticamente após criação (invalidate)
+- [x] Adicionar validações de campos obrigatórios
+- [x] Testar criação de tentativa via modal
+- [x] Verificar se timeline atualiza sem reload da página
