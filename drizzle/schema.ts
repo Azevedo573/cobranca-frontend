@@ -121,7 +121,7 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   id: int("id").autoincrement().primaryKey(),
   acordoId: int("acordoId").notNull(),
   installmentNumber: int("installmentNumber").notNull(),
-  amount: int("amount").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   dueDate: timestamp("dueDate").notNull(),
   paymentDate: timestamp("paymentDate"),
   status: mysqlEnum("status", ["pendente", "pago", "atrasado"]).default("pendente").notNull(),

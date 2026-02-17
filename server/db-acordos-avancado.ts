@@ -112,7 +112,7 @@ export async function criarAcordoComParcelas(params: {
     parcelas.push({
       acordoId,
       installmentNumber: i + 1,
-      amount: valorParcela,
+      amount: (valorParcela / 100).toFixed(2),
       dueDate: dataVencimento,
       status: "pendente",
     });

@@ -336,23 +336,26 @@ export const appRouter = router({
       const acordoResult = await createAcordo({
         devedorId: input.devedorId,
         condominioId: input.condominioId,
-        totalAmount: input.totalAmount.toString(),
-        agreedAmount: input.agreedAmount.toString(),
+        totalAmount: typeof input.totalAmount === 'string' ? input.totalAmount : (input.totalAmount / 100).toFixed(2),
+        agreedAmount: typeof input.agreedAmount === 'string' ? input.agreedAmount : (input.agreedAmount / 100).toFixed(2),
         installments: input.installments,
         firstPaymentDate: input.firstPaymentDate,
         paymentFrequency: input.paymentFrequency,
         notes: input.notes,
       });
-      const acordoId = Number((acordoResult as any).insertId || 0);
+      const acordoId = acordoResult.insertId;
+      console.log('[DEBUG] Acordo criado com ID:', acordoId);
       
       // Criar todas as parcelas de uma vez
       const parcelasData = input.parcelas.map(p => ({
         acordoId,
         installmentNumber: p.installmentNumber,
-        amount: p.amount,
-        dueDate: p.dueDate,
+        amount: (p.amount / 100).toFixed(2),
+        dueDate: new Date(p.dueDate),
+        status: 'pendente' as const,
       }));
       
+      console.log('[DEBUG] Parcelas a serem criadas:', JSON.stringify(parcelasData, null, 2));
       await createParcelas(parcelasData);
       
       // Criar relacionamentos entre acordo e cobranças

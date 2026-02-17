@@ -112,7 +112,12 @@ export async function createAcordo(data: InsertAcordo) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(acordos).values(data);
-  return result;
+  // Buscar o ID do acordo recém-criado
+  const insertId = (result as any)[0]?.insertId || (result as any).insertId;
+  if (!insertId) {
+    throw new Error("Failed to get inserted acordo ID");
+  }
+  return { insertId };
 }
 
 export async function updateAcordo(id: number, data: Partial<InsertAcordo>) {
@@ -140,8 +145,15 @@ export async function createParcelas(parcelas: InsertParcelaAcordo[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (parcelas.length === 0) return [];
-  const result = await db.insert(parcelasAcordo).values(parcelas);
-  return result;
+  
+  // Inserir uma parcela por vez para evitar problemas com Drizzle ORM
+  const results = [];
+  for (const parcela of parcelas) {
+    const result = await db.insert(parcelasAcordo).values(parcela);
+    results.push(result);
+  }
+  
+  return results;
 }
 
 export async function updateParcela(id: number, data: Partial<InsertParcelaAcordo>) {
