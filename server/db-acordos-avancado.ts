@@ -78,8 +78,8 @@ export async function criarAcordoComParcelas(params: {
   const acordoData: InsertAcordo = {
     devedorId,
     condominioId,
-    totalAmount: valorTotal,
-    agreedAmount: valorAcordado,
+    totalAmount: valorTotal.toString(),
+    agreedAmount: valorAcordado.toString(),
     installments: numParcelas,
     firstPaymentDate: dataInicio,
     paymentFrequency: frequencia,

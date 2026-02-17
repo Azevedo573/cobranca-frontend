@@ -852,3 +852,11 @@
 - [x] Adicionar validações de campos obrigatórios
 - [x] Testar criação de tentativa via modal
 - [x] Verificar se timeline atualiza sem reload da página
+
+## Bug - Erro na criação de acordos
+- [x] Investigar erro no insert de acordos (tipos de dados incorretos)
+- [x] Verificar schema da tabela acordos no drizzle/schema.ts
+- [x] Corrigir tipos de totalAmount e agreedAmount para decimal no schema
+- [x] Alterar colunas no banco de dados via SQL
+- [x] Ajustar endpoint para converter valores para string
+- [ ] Erro persiste - precisa investigação mais profunda (campo valorPago ou outro problema)

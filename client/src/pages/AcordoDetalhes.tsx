@@ -54,11 +54,12 @@ export default function AcordoDetalhes() {
     },
   });
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | string) => {
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(value / 100);
+    }).format(numValue / 100);
   };
 
   const formatDate = (date: string | Date | null) => {
@@ -102,7 +103,8 @@ export default function AcordoDetalhes() {
   const totalParcelas = parcelas?.length || 0;
   const progressoPorcentagem = totalParcelas > 0 ? (parcelasPagas / totalParcelas) * 100 : 0;
   const valorPago = parcelas?.filter((p) => p.status === "pago").reduce((acc, p) => acc + p.amount, 0) || 0;
-  const valorRestante = (acordo?.agreedAmount || 0) - valorPago;
+  const agreedAmountNum = typeof acordo?.agreedAmount === 'string' ? parseFloat(acordo.agreedAmount) : (acordo?.agreedAmount || 0);
+  const valorRestante = agreedAmountNum - valorPago;
 
   if (loadingAcordo || loadingParcelas) {
     return (

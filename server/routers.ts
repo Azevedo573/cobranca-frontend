@@ -311,8 +311,8 @@ export const appRouter = router({
       cobrancaIds: z.array(z.number()),
       devedorId: z.number(),
       condominioId: z.number(),
-      totalAmount: z.number(),
-      agreedAmount: z.number(),
+      totalAmount: z.union([z.number(), z.string()]),
+      agreedAmount: z.union([z.number(), z.string()]),
       installments: z.number(),
       firstPaymentDate: z.date(),
       paymentFrequency: z.enum(["mensal", "semanal", "quinzenal"]).default("mensal"),
@@ -324,11 +324,20 @@ export const appRouter = router({
       })),
     })).mutation(async ({ input }) => {
       const { createAcordo, createParcelas, createAcordoCobrancas } = await import("./db-acordos");
+      
+      // Debug: log dos valores recebidos
+      console.log('[DEBUG] Criando acordo com valores:', {
+        totalAmount: input.totalAmount,
+        totalAmountString: input.totalAmount.toString(),
+        agreedAmount: input.agreedAmount,
+        agreedAmountString: input.agreedAmount.toString(),
+      });
+      
       const acordoResult = await createAcordo({
         devedorId: input.devedorId,
         condominioId: input.condominioId,
-        totalAmount: input.totalAmount,
-        agreedAmount: input.agreedAmount,
+        totalAmount: input.totalAmount.toString(),
+        agreedAmount: input.agreedAmount.toString(),
         installments: input.installments,
         firstPaymentDate: input.firstPaymentDate,
         paymentFrequency: input.paymentFrequency,
@@ -417,7 +426,7 @@ export const appRouter = router({
       // Atualizar acordo
       await db.update(acordos)
         .set({ 
-          valorPago: valorPagoTotal,
+          valorPago: valorPagoTotal.toString(),
           status: todasPagas ? "pago" : "ativo"
         })
         .where(eq(acordos.id, parcela[0].acordoId));

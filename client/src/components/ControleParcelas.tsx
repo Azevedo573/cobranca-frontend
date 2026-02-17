@@ -65,11 +65,12 @@ export function ControleParcelas({ cobrancaId }: ControleParcelasProps) {
     );
   }
 
-  const formatarMoeda = (valor: number) => {
+  const formatarMoeda = (valor: number | string) => {
+    const numValue = typeof valor === 'string' ? parseFloat(valor) : valor;
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(valor / 100);
+    }).format(numValue / 100);
   };
 
   const formatarData = (data: Date) => {
@@ -97,7 +98,8 @@ export function ControleParcelas({ cobrancaId }: ControleParcelasProps) {
   const valorPago = parcelas
     ?.filter((p) => p.status === "pago")
     .reduce((sum, p) => sum + p.amount, 0) || 0;
-  const saldoDevedor = (acordoAtivo.agreedAmount || 0) - valorPago;
+  const agreedAmountNum = typeof acordoAtivo.agreedAmount === 'string' ? parseFloat(acordoAtivo.agreedAmount) : (acordoAtivo.agreedAmount || 0);
+  const saldoDevedor = agreedAmountNum - valorPago;
   const progresso = totalParcelas > 0 ? (parcelasPagas / totalParcelas) * 100 : 0;
 
   return (
