@@ -68,18 +68,18 @@ export default function DevedorDetalhes() {
     const cobrancasEmAcordo = cobrancas.filter((c: any) => c.status === "em_acordo");
     const cobrancasPagas = cobrancas.filter((c: any) => c.status === "pago");
 
-    const valorOriginal = cobrancasAtivas.reduce((sum: number, c: any) => sum + c.amount, 0);
+    const valorOriginal = cobrancasAtivas.reduce((sum: number, c: any) => sum + (c.amount / 100), 0);
     
     let valorTotalDevido = 0;
     if (cobrancasAtivas.length > 0) {
       const breakdown = calcularTotalMultiplasCobrancas(
         cobrancasAtivas.map((c: any) => ({
-          amount: c.amount / 100,
+          amount: c.amount / 100,  // Converter centavos para reais
           dueDate: new Date(c.dueDate),
         })),
         taxas
       );
-      valorTotalDevido = breakdown.valorTotal * 100;
+      valorTotalDevido = breakdown.valorTotal;  // Já está em reais
     }
 
     const taxaRecuperacao = cobrancas.length > 0 
@@ -267,7 +267,7 @@ export default function DevedorDetalhes() {
 
             {/* Distribuição de Cobranças */}
             {cobrancas.length > 0 && (
-              <GraficoDistribuicaoCobrancas cobrancas={cobrancas} />
+              <GraficoDistribuicaoCobrancas cobrancas={cobrancas} taxas={taxas} />
             )}
           </div>
 

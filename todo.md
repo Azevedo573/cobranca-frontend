@@ -867,3 +867,10 @@
 - [x] Adicionar rota /acordos/acompanhamento no App.tsx
 - [x] Adicionar link no menu lateral
 - [x] Testar fluxo completo de acompanhamento e pagamento de parcelas
+
+## Bug - Valores Totais Incorretos no Simulador e Indicadores
+- [x] Investigar cálculo de valor total devido no simulador de acordo consolidado
+- [x] Verificar se encargos (juros, multa, honorários) estão sendo somados corretamente
+- [x] Corrigir indicador "Valor Devido" na página de detalhes do devedor
+- [x] Corrigir gráfico "Distribuição de Cobranças" para mostrar valores com encargos
+- [x] Testar cálculos com dados reais e validar totais

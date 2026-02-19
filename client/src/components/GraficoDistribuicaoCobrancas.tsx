@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatarMoeda } from "../../../shared/calculos";
+import { formatarMoeda, calcularValorDevido, type TaxasCondominio } from "../../../shared/calculos";
 import { useMemo } from "react";
 
 interface CobrancaPorTipo {
@@ -11,9 +11,10 @@ interface CobrancaPorTipo {
 
 interface GraficoDistribuicaoCobrancasProps {
   cobrancas: any[];
+  taxas?: TaxasCondominio | null;
 }
 
-export function GraficoDistribuicaoCobrancas({ cobrancas }: GraficoDistribuicaoCobrancasProps) {
+export function GraficoDistribuicaoCobrancas({ cobrancas, taxas }: GraficoDistribuicaoCobrancasProps) {
   const distribuicao = useMemo(() => {
     const coresPorTipo: Record<string, string> = {
       condominio: "#3b82f6", // blue-500
@@ -42,12 +43,20 @@ export function GraficoDistribuicaoCobrancas({ cobrancas }: GraficoDistribuicaoC
         };
       }
       acc[tipo].quantidade++;
-      acc[tipo].valorTotal += cob.amount / 100;
+      
+      // Calcular valor atualizado se taxas estiverem disponíveis
+      let valorAtualizado = cob.amount / 100;  // Converter centavos para reais
+      if (taxas && cob.status !== "pago") {
+        const breakdown = calcularValorDevido(cob.amount / 100, new Date(cob.dueDate), taxas);
+        valorAtualizado = breakdown.valorTotal;
+      }
+      
+      acc[tipo].valorTotal += valorAtualizado;
       return acc;
     }, {});
 
     return Object.values(grupos);
-  }, [cobrancas]);
+  }, [cobrancas, taxas]);
 
   const valorTotal = distribuicao.reduce((sum, item) => sum + item.valorTotal, 0);
 

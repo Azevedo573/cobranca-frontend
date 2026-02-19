@@ -60,7 +60,7 @@ export function IndicadorRiscoDevedor({
     {
       icone: <DollarSign className="h-4 w-4" />,
       titulo: "Valor Devido",
-      valor: `R$ ${(valorDevido / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      valor: `R$ ${valorDevido.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       alerta: valorDevido > 20000,
     },
     {
