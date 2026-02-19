@@ -29,6 +29,7 @@ import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import ImportarDevedores from "./pages/admin/ImportarDevedores";
 import CasosPrioritarios from "./pages/CasosPrioritarios";
 import Acordos from "./pages/Acordos";
+import AcordosAcompanhamento from "./pages/AcordosAcompanhamento";
 import AcordoDetalhes from "./pages/AcordoDetalhes";
 import TentativasCobranca from "./pages/TentativasCobranca";
 import Vencimentos from "./pages/Vencimentos";
@@ -168,6 +169,9 @@ function Router() {
       {/* Rotas de Acordos */}
       <Route path="/acordos">
         {() => <ProtectedRoute component={Acordos} />}
+      </Route>
+      <Route path="/acordos/acompanhamento">
+        {() => <ProtectedRoute component={AcordosAcompanhamento} />}
       </Route>
       <Route path="/acordos/:id">
         {() => <ProtectedRoute component={AcordoDetalhes} />}

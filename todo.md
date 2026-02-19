@@ -850,3 +850,20 @@
 - [ ] Verificar se parcelas são criadas corretamente no banco
 - [ ] Verificar se relacionamento acordoCobrancas é criado
 - [ ] Marcar bug como resolvido no todo.md
+
+## Funcionalidade - Página de Acompanhamento de Acordos
+- [x] Criar endpoint tRPC para listar todos os acordos (com filtros por status, condomínio, devedor) - Já existe!
+- [x] Criar endpoint para atualizar status de parcela (marcar como paga) - darBaixaParcela já existe!
+- [x] Criar endpoint para buscar parcelas vencendo nos próximos 7 dias - getVencimentosProximos já existe!
+- [x] Criar endpoint para buscar parcelas vencidas - getParcelasVencidas criado!
+- [x] Criar página AcordosAcompanhamento.tsx
+- [x] Adicionar filtros (status: todos/ativos/concluídos/cancelados, condomínio)
+- [x] Criar tabela de acordos com informações principais (devedor, valor total, parcelas pagas/total, status)
+- [x] Implementar modal de detalhes do acordo com lista de parcelas
+- [x] Adicionar botão "Dar Baixa" em cada parcela
+- [x] Implementar atualização ao marcar parcela como paga (refetch)
+- [x] Adicionar seção de alertas no topo da página (parcelas vencendo hoje, vencidas)
+- [x] Criar badges visuais de status (ativo, concluído, em atraso)
+- [x] Adicionar rota /acordos/acompanhamento no App.tsx
+- [x] Adicionar link no menu lateral
+- [x] Testar fluxo completo de acompanhamento e pagamento de parcelas

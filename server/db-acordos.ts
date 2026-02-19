@@ -83,6 +83,7 @@ export async function getAcordosByCondominio(condominioId: number) {
       id: acordos.id,
       devedorId: acordos.devedorId,
       condominioId: acordos.condominioId,
+      valorPago: acordos.valorPago,
       totalAmount: acordos.totalAmount,
       agreedAmount: acordos.agreedAmount,
       installments: acordos.installments,
@@ -93,6 +94,8 @@ export async function getAcordosByCondominio(condominioId: number) {
       createdAt: acordos.createdAt,
       updatedAt: acordos.updatedAt,
       devedorName: devedores.name,
+      devedorUnidade: devedores.unitNumber,
+      devedorBloco: devedores.bloco,
     })
     .from(acordos)
     .leftJoin(devedores, eq(acordos.devedorId, devedores.id))

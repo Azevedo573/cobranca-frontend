@@ -103,6 +103,12 @@ const menuItems: MenuItem[] = [
     roles: ["admin", "sindico", "cobrador"],
   },
   {
+    label: "Acompanhamento de Acordos",
+    href: "/acordos/acompanhamento",
+    icon: HandshakeIcon,
+    roles: ["admin", "sindico", "cobrador"],
+  },
+  {
     label: "Vencimentos Próximos",
     href: "/vencimentos",
     icon: Calendar,

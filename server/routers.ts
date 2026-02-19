@@ -485,6 +485,52 @@ export const appRouter = router({
       
       return parcelas;
     }),
+    getParcelasVencidas: condominioAccessProcedure.input(z.object({
+      condominioId: z.number().optional(),
+    })).query(async ({ input, ctx }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      
+      const { parcelasAcordo, acordos, devedores } = await import("../drizzle/schema");
+      const { eq, and, lt } = await import("drizzle-orm");
+      
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      
+      const condominioId = ctx.user.role === "admin" 
+        ? input.condominioId 
+        : ctx.user.condominioId;
+      
+      const conditions = [
+        eq(parcelasAcordo.status, "pendente"),
+        lt(parcelasAcordo.dueDate, hoje),
+      ];
+      
+      if (condominioId) {
+        conditions.push(eq(acordos.condominioId, condominioId));
+      }
+      
+      const parcelas = await db.select({
+        parcelaId: parcelasAcordo.id,
+        acordoId: acordos.id,
+        devedorId: devedores.id,
+        devedorNome: devedores.name,
+        devedorUnidade: devedores.unitNumber,
+        devedorBloco: devedores.bloco,
+        parcelaNumero: parcelasAcordo.installmentNumber,
+        parcelaValor: parcelasAcordo.amount,
+        dataVencimento: parcelasAcordo.dueDate,
+        condominioId: acordos.condominioId,
+      })
+      .from(parcelasAcordo)
+      .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+      .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+      .where(and(...conditions))
+      .orderBy(parcelasAcordo.dueDate);
+      
+      return parcelas;
+    }),
   }),
 
   // Usuários (apenas admin)
