@@ -311,8 +311,8 @@ export const appRouter = router({
       cobrancaIds: z.array(z.number()),
       devedorId: z.number(),
       condominioId: z.number(),
-      totalAmount: z.union([z.number(), z.string()]),
-      agreedAmount: z.union([z.number(), z.string()]),
+      totalAmount: z.number(),
+      agreedAmount: z.number(),
       installments: z.number(),
       firstPaymentDate: z.date(),
       paymentFrequency: z.enum(["mensal", "semanal", "quinzenal"]).default("mensal"),
@@ -324,38 +324,27 @@ export const appRouter = router({
       })),
     })).mutation(async ({ input }) => {
       const { createAcordo, createParcelas, createAcordoCobrancas } = await import("./db-acordos");
-      
-      // Debug: log dos valores recebidos
-      console.log('[DEBUG] Criando acordo com valores:', {
-        totalAmount: input.totalAmount,
-        totalAmountString: input.totalAmount.toString(),
-        agreedAmount: input.agreedAmount,
-        agreedAmountString: input.agreedAmount.toString(),
-      });
-      
       const acordoResult = await createAcordo({
         devedorId: input.devedorId,
         condominioId: input.condominioId,
-        totalAmount: typeof input.totalAmount === 'string' ? input.totalAmount : (input.totalAmount / 100).toFixed(2),
-        agreedAmount: typeof input.agreedAmount === 'string' ? input.agreedAmount : (input.agreedAmount / 100).toFixed(2),
+        totalAmount: input.totalAmount,
+        agreedAmount: input.agreedAmount,
         installments: input.installments,
         firstPaymentDate: input.firstPaymentDate,
         paymentFrequency: input.paymentFrequency,
         notes: input.notes,
       });
-      const acordoId = acordoResult.insertId;
-      console.log('[DEBUG] Acordo criado com ID:', acordoId);
+      const acordoId = Number((acordoResult as any).insertId || 0);
       
       // Criar todas as parcelas de uma vez
       const parcelasData = input.parcelas.map(p => ({
         acordoId,
         installmentNumber: p.installmentNumber,
-        amount: (p.amount / 100).toFixed(2),
-        dueDate: new Date(p.dueDate),
+        amount: p.amount,
+        dueDate: p.dueDate,
         status: 'pendente' as const,
       }));
       
-      console.log('[DEBUG] Parcelas a serem criadas:', JSON.stringify(parcelasData, null, 2));
       await createParcelas(parcelasData);
       
       // Criar relacionamentos entre acordo e cobranças
@@ -429,7 +418,7 @@ export const appRouter = router({
       // Atualizar acordo
       await db.update(acordos)
         .set({ 
-          valorPago: valorPagoTotal.toString(),
+          valorPago: valorPagoTotal,
           status: todasPagas ? "pago" : "ativo"
         })
         .where(eq(acordos.id, parcela[0].acordoId));

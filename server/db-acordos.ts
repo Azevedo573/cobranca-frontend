@@ -112,12 +112,7 @@ export async function createAcordo(data: InsertAcordo) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(acordos).values(data);
-  // Buscar o ID do acordo recém-criado
-  const insertId = (result as any)[0]?.insertId || (result as any).insertId;
-  if (!insertId) {
-    throw new Error("Failed to get inserted acordo ID");
-  }
-  return { insertId };
+  return result;
 }
 
 export async function updateAcordo(id: number, data: Partial<InsertAcordo>) {
@@ -146,14 +141,34 @@ export async function createParcelas(parcelas: InsertParcelaAcordo[]) {
   if (!db) throw new Error("Database not available");
   if (parcelas.length === 0) return [];
   
-  // Inserir uma parcela por vez para evitar problemas com Drizzle ORM
-  const results = [];
-  for (const parcela of parcelas) {
-    const result = await db.insert(parcelasAcordo).values(parcela);
-    results.push(result);
-  }
+  // Usar SQL raw para evitar problema do Drizzle ORM
+  // Formatar datas corretamente para MySQL
+  const formatDate = (date: any): string => {
+    if (date instanceof Date) {
+      return date.toISOString().slice(0, 19).replace('T', ' ');
+    }
+    if (typeof date === 'string') {
+      // Se já é string, tentar converter para Date e formatar
+      const d = new Date(date);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().slice(0, 19).replace('T', ' ');
+      }
+    }
+    // Fallback: usar data atual
+    return new Date().toISOString().slice(0, 19).replace('T', ' ');
+  };
   
-  return results;
+  const values = parcelas.map(p => 
+    `(${p.acordoId}, ${p.installmentNumber}, '${p.amount}', '${formatDate(p.dueDate)}', '${p.status}')`
+  ).join(', ');
+  
+  const sql = `
+    INSERT INTO parcelasAcordo (acordoId, installmentNumber, amount, dueDate, status)
+    VALUES ${values}
+  `;
+  
+  await db.execute(sql);
+  return { success: true };
 }
 
 export async function updateParcela(id: number, data: Partial<InsertParcelaAcordo>) {

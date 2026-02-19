@@ -1,1 +1,0 @@
-ALTER TABLE `parcelasAcordo` MODIFY COLUMN `amount` decimal(10,2) NOT NULL;

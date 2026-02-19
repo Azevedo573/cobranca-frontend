@@ -52,12 +52,11 @@ export default function Acordos() {
     );
   };
 
-  const formatCurrency = (value: number | string) => {
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(numValue / 100);
+    }).format(value / 100);
   };
 
   const formatDate = (date: string | Date) => {

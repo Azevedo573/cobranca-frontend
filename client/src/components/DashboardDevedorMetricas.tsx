@@ -82,7 +82,7 @@ export function DashboardDevedorMetricas({
       />
 
       <CardMetrica
-        titulo="Dívidas Ativas"
+        titulo="Cobranças Ativas"
         valor={`${cobrancasPendentes + cobrancasEmAcordo}/${numeroCobrancas}`}
         subtitulo={`${cobrancasPendentes} pendentes, ${cobrancasEmAcordo} em acordo`}
         icone={<AlertCircle className="h-4 w-4" />}
