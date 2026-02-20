@@ -290,21 +290,36 @@ export default function DevedorDetalhes() {
                         <TableHead>Descrição</TableHead>
                         <TableHead>Vencimento</TableHead>
                         <TableHead>Valor Original</TableHead>
+                        <TableHead>Juros</TableHead>
+                        <TableHead>Multa</TableHead>
+                        <TableHead>Honorários</TableHead>
+                        <TableHead>Correção</TableHead>
                         <TableHead>Valor Atualizado</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {cobrancas.map((cob: any) => {
-                        const valorAtualizado = taxas
-                          ? calcularValorDevido(cob.amount / 100, new Date(cob.dueDate), taxas).valorTotal
-                          : cob.amount / 100;
+                        const breakdown = taxas
+                          ? calcularValorDevido(cob.amount / 100, new Date(cob.dueDate), taxas)
+                          : {
+                              valorOriginal: cob.amount / 100,
+                              juros: 0,
+                              multa: 0,
+                              honorarios: 0,
+                              correcaoMonetaria: 0,
+                              valorTotal: cob.amount / 100,
+                            };
                         return (
                           <TableRow key={cob.id}>
                             <TableCell className="font-medium">{cob.description || "-"}</TableCell>
                             <TableCell>{format(new Date(cob.dueDate), "dd/MM/yyyy")}</TableCell>
-                            <TableCell>{formatarMoeda(cob.amount / 100)}</TableCell>
-                            <TableCell className="font-semibold">{formatarMoeda(valorAtualizado)}</TableCell>
+                            <TableCell>{formatarMoeda(breakdown.valorOriginal)}</TableCell>
+                            <TableCell className="text-orange-600">{formatarMoeda(breakdown.juros)}</TableCell>
+                            <TableCell className="text-red-600">{formatarMoeda(breakdown.multa)}</TableCell>
+                            <TableCell className="text-purple-600">{formatarMoeda(breakdown.honorarios)}</TableCell>
+                            <TableCell className="text-blue-600">{formatarMoeda(breakdown.correcaoMonetaria)}</TableCell>
+                            <TableCell className="font-semibold">{formatarMoeda(breakdown.valorTotal)}</TableCell>
                             <TableCell>
                               <Badge variant={cob.status === "pago" ? "outline" : "default"} className="text-xs">
                                 {cob.status}

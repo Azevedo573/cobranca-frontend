@@ -874,3 +874,10 @@
 - [x] Corrigir indicador "Valor Devido" na página de detalhes do devedor
 - [x] Corrigir gráfico "Distribuição de Cobranças" para mostrar valores com encargos
 - [x] Testar cálculos com dados reais e validar totais
+
+## Melhoria - Detalhamento de Encargos na Tabela de Cobranças
+- [x] Adicionar colunas na tabela "Todas as Cobranças": Juros, Multa, Honorários, Correção Monetária
+- [x] Calcular breakdown de cada cobrança individualmente
+- [x] Exibir valores formatados em cada coluna
+- [x] Manter coluna "Valor Atualizado" como total
+- [x] Testar com cobranças de diferentes idades e valores
