@@ -881,3 +881,10 @@
 - [x] Exibir valores formatados em cada coluna
 - [x] Manter coluna "Valor Atualizado" como total
 - [x] Testar com cobranças de diferentes idades e valores
+
+## Melhoria - Valor Devido Real na Listagem de Devedores
+- [x] Modificar query de listagem de devedores para incluir cobranças
+- [x] Calcular valor total devido (soma de todas cobranças com encargos) para cada devedor
+- [x] Atualizar frontend para exibir valor calculado ao invés de valor fixo
+- [x] Garantir que cálculo considera taxas do condomínio
+- [x] Testar com devedores com múltiplas cobranças
