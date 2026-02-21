@@ -123,7 +123,7 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   installmentNumber: int("installmentNumber").notNull(),
   amount: int("amount").notNull(),
   dueDate: timestamp("dueDate").notNull(),
-  paymentDate: timestamp("paymentDate"),
+  paymentDate: timestamp("paymentdate"),  // Nome lowercase para compatibilidade com banco
   status: mysqlEnum("status", ["pendente", "pago", "atrasado"]).default("pendente").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

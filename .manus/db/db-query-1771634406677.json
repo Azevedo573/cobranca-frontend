@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, devedorId, status, installments, agreedAmount / 100 as valor_reais, createdAt \nFROM acordos \nWHERE devedorId = 120001 \nORDER BY createdAt DESC \nLIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, devedorId, status, installments, agreedAmount / 100 as valor_reais, createdAt \nFROM acordos \nWHERE devedorId = 120001 \nORDER BY createdAt DESC \nLIMIT 5;",
+  "rows": [
+    {
+      "id": "120001",
+      "devedorId": "120001",
+      "status": "ativo",
+      "installments": "6",
+      "valor_reais": "517.650000",
+      "createdAt": "2026-02-21 00:38:08"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdevedorId\tstatus\tinstallments\tvalor_reais\tcreatedAt\n120001\t120001\tativo\t6\t517.650000\t2026-02-21 00:38:08\n",
+  "stderr": "",
+  "execution_time_ms": 361
+}

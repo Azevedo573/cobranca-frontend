@@ -229,3 +229,64 @@ export async function getCobrancasByAcordo(acordoId: number) {
   
   return result;
 }
+
+// Buscar acordos ativos do devedor com informações de parcelas restantes
+export async function getAcordosAtivosComParcelas(devedorId: number) {
+  try {
+    const db = await getDb();
+    if (!db) return [];
+    
+    // Buscar acordos ativos do devedor
+    const acordosAtivos = await db.select().from(acordos).where(
+      and(
+        eq(acordos.devedorId, devedorId),
+        eq(acordos.status, "ativo")
+      )
+    );
+    
+    // Se não houver acordos ativos, retornar array vazio
+    if (!acordosAtivos || acordosAtivos.length === 0) {
+      return [];
+    }
+    
+    // Para cada acordo, buscar parcelas pendentes
+    const acordosComParcelas = await Promise.all(
+      acordosAtivos.map(async (acordo) => {
+        try {
+          const parcelas = await db.select().from(parcelasAcordo).where(
+            eq(parcelasAcordo.acordoId, acordo.id)
+          );
+          
+          const parcelasPendentes = parcelas.filter(p => p.status === "pendente" || p.status === "atrasado");
+          const valorRestante = parcelasPendentes.reduce((sum, p) => sum + p.amount, 0);
+          const valorParcela = parcelasPendentes.length > 0 ? parcelasPendentes[0].amount : 0;
+          
+          return {
+            ...acordo,
+            totalParcelas: parcelas.length,
+            parcelasPendentes: parcelasPendentes.length,
+            parcelasPagas: parcelas.filter(p => p.status === "pago").length,
+            valorRestante, // em centavos
+            valorParcela, // em centavos
+          };
+        } catch (error) {
+          console.error(`Erro ao buscar parcelas do acordo ${acordo.id}:`, error);
+          // Retornar acordo sem parcelas em caso de erro
+          return {
+            ...acordo,
+            totalParcelas: 0,
+            parcelasPendentes: 0,
+            parcelasPagas: 0,
+            valorRestante: 0,
+            valorParcela: 0,
+          };
+        }
+      })
+    );
+    
+    return acordosComParcelas;
+  } catch (error) {
+    console.error('Erro ao buscar acordos ativos:', error);
+    return [];
+  }
+}

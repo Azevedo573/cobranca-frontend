@@ -1,0 +1,25 @@
+{
+  "query": "SELECT * FROM acordos WHERE id = 90001 LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT * FROM acordos WHERE id = 90001 LIMIT 1;",
+  "rows": [
+    {
+      "id": "90001",
+      "devedorId": "150001",
+      "condominioId": "90001",
+      "valorPago": "0.00",
+      "totalAmount": "30000.00",
+      "agreedAmount": "31059.00",
+      "installments": "6",
+      "firstPaymentDate": "2026-03-20 00:29:39",
+      "paymentFrequency": "mensal",
+      "status": "ativo",
+      "notes": "Acordo consolidado de 1 cobrança(s). Entrada: R$ 0,00 + 6x de R$ 51,76",
+      "createdAt": "2026-02-20 00:29:53",
+      "updatedAt": "2026-02-20 00:29:53"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdevedorId\tcondominioId\tvalorPago\ttotalAmount\tagreedAmount\tinstallments\tfirstPaymentDate\tpaymentFrequency\tstatus\tnotes\tcreatedAt\tupdatedAt\n90001\t150001\t90001\t0.00\t30000.00\t31059.00\t6\t2026-03-20 00:29:39\tmensal\tativo\tAcordo consolidado de 1 cobrança(s). Entrada: R$ 0,00 + 6x de R$ 51,76\t2026-02-20 00:29:53\t2026-02-20 00:29:53\n",
+  "stderr": "",
+  "execution_time_ms": 355
+}

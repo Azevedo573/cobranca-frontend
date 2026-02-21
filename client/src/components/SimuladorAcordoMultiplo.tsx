@@ -58,10 +58,17 @@ export function SimuladorAcordoMultiplo({
   const [numeroParcelas, setNumeroParcelas] = useState(6);
   const [percentualDesconto, setPercentualDesconto] = useState(0);
   const [copiado, setCopiado] = useState(false);
+  const [consolidarAcordo, setConsolidarAcordo] = useState(false);
+  const [opcaoConsolidacao, setOpcaoConsolidacao] = useState<'somar' | 'diluir'>('diluir');
 
   // Buscar desconto máximo do condomínio
   const { data: condominio } = trpc.condominios.getById.useQuery({ id: condominioId });
   const descontoMaximo = parseFloat(condominio?.descontoMaximo || "0");
+  
+  // Buscar acordos ativos do devedor
+  const { data: acordosAtivos, error: acordosError, isLoading: acordosLoading } = trpc.acordos.getAtivosComParcelas.useQuery({ devedorId });
+  const temAcordoAtivo = !acordosError && !acordosLoading && acordosAtivos && acordosAtivos.length > 0;
+  const acordoAtivo = temAcordoAtivo ? acordosAtivos[0] : null;
 
   const createAcordoMutation = trpc.acordos.create.useMutation({
     onSuccess: () => {
@@ -101,7 +108,12 @@ export function SimuladorAcordoMultiplo({
     }
 
     // Aplicar desconto ao valor total
-    const valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
+    let valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
+    
+    // Se consolidar com acordo ativo
+    if (consolidarAcordo && acordoAtivo) {
+      valorComDesconto += acordoAtivo.valorRestante;
+    }
 
     return calcularPlanoAcordo({
       valorTotal: valorComDesconto,
@@ -110,7 +122,48 @@ export function SimuladorAcordoMultiplo({
       taxaJurosMensal,
       dataInicio: new Date(),
     });
-  }, [valorTotalSelecionado, valorEntrada, numeroParcelas, taxaJurosMensal, percentualDesconto]);
+  }, [valorTotalSelecionado, valorEntrada, numeroParcelas, taxaJurosMensal, percentualDesconto, consolidarAcordo, acordoAtivo]);
+  
+  // Calcular opção 1: Somar parcelas (manter valor da parcela)
+  const planoOpcao1 = useMemo(() => {
+    if (!consolidarAcordo || !acordoAtivo || valorTotalSelecionado === 0) return null;
+    
+    const valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
+    const valorParcelaAtual = acordoAtivo.valorParcela;
+    const parcelasRestantes = acordoAtivo.parcelasPendentes;
+    const parcelasNovas = Math.ceil(valorComDesconto / valorParcelaAtual);
+    const totalParcelas = parcelasRestantes + parcelasNovas;
+    
+    return calcularPlanoAcordo({
+      valorTotal: acordoAtivo.valorRestante + valorComDesconto,
+      valorEntrada,
+      numeroParcelas: totalParcelas,
+      taxaJurosMensal,
+      dataInicio: new Date(),
+    });
+  }, [consolidarAcordo, acordoAtivo, valorTotalSelecionado, percentualDesconto, valorEntrada, taxaJurosMensal]);
+  
+  // Calcular opção 2: Diluir no novo prazo (parcela maior)
+  const planoOpcao2 = useMemo(() => {
+    if (!consolidarAcordo || !acordoAtivo || valorTotalSelecionado === 0) return null;
+    
+    const valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
+    const valorTotal = acordoAtivo.valorRestante + valorComDesconto;
+    
+    return calcularPlanoAcordo({
+      valorTotal,
+      valorEntrada,
+      numeroParcelas, // Usa o número de parcelas escolhido pelo usuário
+      taxaJurosMensal,
+      dataInicio: new Date(),
+    });
+  }, [consolidarAcordo, acordoAtivo, valorTotalSelecionado, percentualDesconto, valorEntrada, numeroParcelas, taxaJurosMensal]);
+  
+  // Plano final a ser usado
+  const planoFinal = useMemo(() => {
+    if (!consolidarAcordo || !acordoAtivo) return planoAcordo;
+    return opcaoConsolidacao === 'somar' ? planoOpcao1 : planoOpcao2;
+  }, [consolidarAcordo, acordoAtivo, planoAcordo, planoOpcao1, planoOpcao2, opcaoConsolidacao]);
 
   const handleToggleCobranca = (cobrancaId: number) => {
     const novaSelecao = new Set(cobrancasSelecionadas);
@@ -143,18 +196,32 @@ export function SimuladorAcordoMultiplo({
       toast.error("Selecione pelo menos uma cobrança");
       return;
     }
+    
+    if (!planoFinal) {
+      toast.error("Erro ao calcular plano de acordo");
+      return;
+    }
+    
+    let notes = `Acordo consolidado de ${cobrancasSelecionadas.size} cobrança(s).`;
+    
+    if (consolidarAcordo && acordoAtivo) {
+      notes += ` Consolidação: ${opcaoConsolidacao === 'somar' ? 'Somar parcelas' : 'Diluir no novo prazo'}.`;
+      notes += ` Acordo anterior cancelado (${acordoAtivo.parcelasPendentes} parcelas restantes de ${formatarMoedaAcordo(acordoAtivo.valorParcela)}).`;
+    }
+    
+    notes += ` Entrada: ${formatarMoedaAcordo(valorEntrada)} + ${planoFinal.numeroParcelas}x de ${formatarMoedaAcordo(planoFinal.valorParcela)}`;
 
     createAcordoMutation.mutate({
       cobrancaIds: Array.from(cobrancasSelecionadas),
       devedorId,
       condominioId,
       totalAmount: valorTotalSelecionado,
-      agreedAmount: planoAcordo.valorTotal,
-      installments: numeroParcelas,
-      firstPaymentDate: planoAcordo.parcelas[0]?.dataVencimento || new Date(),
+      agreedAmount: planoFinal.valorTotal,
+      installments: planoFinal.numeroParcelas,
+      firstPaymentDate: planoFinal.parcelas[0]?.dataVencimento || new Date(),
       paymentFrequency: "mensal",
-      notes: `Acordo consolidado de ${cobrancasSelecionadas.size} cobrança(s). Entrada: ${formatarMoedaAcordo(valorEntrada)} + ${numeroParcelas}x de ${formatarMoedaAcordo(planoAcordo.valorParcela)}`,
-      parcelas: planoAcordo.parcelas.map((p) => ({
+      notes,
+      parcelas: planoFinal.parcelas.map((p) => ({
         installmentNumber: p.numeroParcela,
         amount: p.valor,
         dueDate: p.dataVencimento,
@@ -197,6 +264,32 @@ export function SimuladorAcordoMultiplo({
         <h3 className="text-lg font-semibold">Simulador de Acordo Consolidado</h3>
       </div>
 
+      {/* Alerta de Acordo Ativo */}
+      {temAcordoAtivo && acordoAtivo && (
+        <Alert className="mb-6 border-orange-500 bg-orange-50">
+          <Info className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-orange-900">
+            <div className="font-semibold mb-2">
+              ⚠️ Este devedor possui acordo ativo
+            </div>
+            <div className="text-sm space-y-1">
+              <p>• {acordoAtivo.parcelasPendentes} parcelas restantes de {formatarMoedaAcordo(acordoAtivo.valorParcela)}</p>
+              <p>• Valor restante: {formatarMoedaAcordo(acordoAtivo.valorRestante)}</p>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <Checkbox 
+                id="consolidar"
+                checked={consolidarAcordo}
+                onCheckedChange={(checked) => setConsolidarAcordo(checked as boolean)}
+              />
+              <label htmlFor="consolidar" className="text-sm font-medium cursor-pointer">
+                Consolidar com acordo existente
+              </label>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Seleção de Cobranças */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -315,6 +408,72 @@ export function SimuladorAcordoMultiplo({
               </p>
             </div>
           </div>
+          
+          {/* Opções de Consolidação */}
+          {consolidarAcordo && acordoAtivo && planoOpcao1 && planoOpcao2 && (
+            <div className="mb-6 p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-purple-50">
+              <Label className="text-base font-semibold mb-3 block">Escolha a Opção de Consolidação</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Opção 1: Somar Parcelas */}
+                <div 
+                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    opcaoConsolidacao === 'somar' 
+                      ? 'border-primary bg-white shadow-md' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setOpcaoConsolidacao('somar')}
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    <input 
+                      type="radio" 
+                      checked={opcaoConsolidacao === 'somar'}
+                      onChange={() => setOpcaoConsolidacao('somar')}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm mb-1">📈 Opção 1: Somar Parcelas</div>
+                      <div className="text-xs text-muted-foreground mb-2">Manter valor da parcela, aumentar quantidade</div>
+                      <div className="space-y-1 text-sm">
+                        <div><strong>{planoOpcao1.numeroParcelas}x</strong> de <strong className="text-primary">{formatarMoedaAcordo(planoOpcao1.valorParcela)}</strong></div>
+                        <div className="text-xs text-muted-foreground">
+                          ({acordoAtivo.parcelasPendentes} antigas + {planoOpcao1.numeroParcelas - acordoAtivo.parcelasPendentes} novas)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Opção 2: Diluir */}
+                <div 
+                  className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                    opcaoConsolidacao === 'diluir' 
+                      ? 'border-primary bg-white shadow-md' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setOpcaoConsolidacao('diluir')}
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    <input 
+                      type="radio" 
+                      checked={opcaoConsolidacao === 'diluir'}
+                      onChange={() => setOpcaoConsolidacao('diluir')}
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm mb-1">💰 Opção 2: Diluir no Novo Prazo</div>
+                      <div className="text-xs text-muted-foreground mb-2">Parcela maior, prazo escolhido</div>
+                      <div className="space-y-1 text-sm">
+                        <div><strong>{planoOpcao2.numeroParcelas}x</strong> de <strong className="text-primary">{formatarMoedaAcordo(planoOpcao2.valorParcela)}</strong></div>
+                        <div className="text-xs text-muted-foreground">
+                          (Total consolidado em {numeroParcelas} parcelas)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Resumo do Acordo */}
           <Alert className="mb-6 bg-primary/5 border-primary/20">
@@ -344,13 +503,13 @@ export function SimuladorAcordoMultiplo({
                 <div>
                   <p className="text-xs text-muted-foreground">Valor da Parcela</p>
                   <p className="text-lg font-semibold text-blue-600">
-                    {formatarMoedaAcordo(planoAcordo.valorParcela)}
+                    {formatarMoedaAcordo(planoFinal?.valorParcela || 0)}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Valor Final</p>
                   <p className="text-lg font-semibold text-primary">
-                    {formatarMoedaAcordo(planoAcordo.valorTotal)}
+                    {formatarMoedaAcordo(planoFinal?.valorTotal || 0)}
                   </p>
                 </div>
               </div>
@@ -358,7 +517,7 @@ export function SimuladorAcordoMultiplo({
           </Alert>
 
           {/* Tabela de Parcelas */}
-          {planoAcordo.parcelas.length > 0 && (
+          {planoFinal && planoFinal.parcelas.length > 0 && (
             <div className="mb-6">
               <h4 className="text-sm font-semibold mb-3">Plano de Pagamento</h4>
               <div className="border rounded-lg overflow-hidden max-h-[300px] overflow-y-auto">
@@ -380,7 +539,7 @@ export function SimuladorAcordoMultiplo({
                         <TableCell className="text-muted-foreground">Imediato</TableCell>
                       </TableRow>
                     )}
-                    {planoAcordo.parcelas.map((parcela) => (
+                    {planoFinal.parcelas.map((parcela) => (
                       <TableRow key={parcela.numeroParcela}>
                         <TableCell className="font-medium">
                           {parcela.numeroParcela}/{numeroParcelas}

@@ -307,6 +307,11 @@ export const appRouter = router({
         ).limit(1);
       return result[0] || null;
     }),
+    // Buscar acordos ativos com parcelas restantes para consolidação
+    getAtivosComParcelas: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+      const { getAcordosAtivosComParcelas } = await import("./db-acordos");
+      return await getAcordosAtivosComParcelas(input.devedorId);
+    }),
     create: condominioAccessProcedure.input(z.object({
       cobrancaIds: z.array(z.number()),
       devedorId: z.number(),
@@ -323,7 +328,17 @@ export const appRouter = router({
         dueDate: z.date(),
       })),
     })).mutation(async ({ input }) => {
-      const { createAcordo, createParcelas, createAcordoCobrancas } = await import("./db-acordos");
+      const { createAcordo, createParcelas, createAcordoCobrancas, getAcordosAtivosComParcelas, updateAcordo } = await import("./db-acordos");
+      
+      // Verificar se há acordos ativos e cancelar (se for consolidação)
+      const acordosAtivos = await getAcordosAtivosComParcelas(input.devedorId);
+      if (acordosAtivos.length > 0 && input.notes?.includes('Consolidação:')) {
+        // Cancelar todos os acordos ativos
+        for (const acordo of acordosAtivos) {
+          await updateAcordo(acordo.id, { status: 'cancelado' });
+        }
+      }
+      
       const acordoResult = await createAcordo({
         devedorId: input.devedorId,
         condominioId: input.condominioId,
