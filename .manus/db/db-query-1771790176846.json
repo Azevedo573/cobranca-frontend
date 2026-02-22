@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO parcelasAcordo (acordoId, installmentNumber, amount, dueDate, status) VALUES\n(90001, 1, 50000, '2026-01-10', 'pago'),\n(90001, 2, 50000, '2026-02-10', 'pago'),\n(90001, 3, 50000, '2026-03-10', 'pendente'),\n(90001, 4, 50000, '2026-04-10', 'pendente'),\n(90001, 5, 50000, '2026-05-10', 'pendente');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute INSERT INTO parcelasAcordo (acordoId, installmentNumber, amount, dueDate, status) VALUES\n(90001, 1, 50000, '2026-01-10', 'pago'),\n(90001, 2, 50000, '2026-02-10', 'pago'),\n(90001, 3, 50000, '2026-03-10', 'pendente'),\n(90001, 4, 50000, '2026-04-10', 'pendente'),\n(90001, 5, 50000, '2026-05-10', 'pendente');",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 377
+}

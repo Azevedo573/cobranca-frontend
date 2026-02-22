@@ -1,0 +1,19 @@
+{
+  "query": "SELECT id, acordoId, installmentNumber, amount, dueDate, status, createdAt FROM parcelasAcordo LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, acordoId, installmentNumber, amount, dueDate, status, createdAt FROM parcelasAcordo LIMIT 1;",
+  "rows": [
+    {
+      "id": "60001",
+      "acordoId": "0",
+      "installmentNumber": "1",
+      "amount": "25882.00",
+      "dueDate": "2026-03-19 23:13:23",
+      "status": "pendente",
+      "createdAt": "2026-02-19 23:13:34"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tacordoId\tinstallmentNumber\tamount\tdueDate\tstatus\tcreatedAt\n60001\t0\t1\t25882.00\t2026-03-19 23:13:23\tpendente\t2026-02-19 23:13:34\n",
+  "stderr": "",
+  "execution_time_ms": 361
+}

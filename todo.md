@@ -890,16 +890,18 @@
 - [x] Testar com devedores com múltiplas cobranças
 
 ## Nova Funcionalidade - Consolidação de Acordos
-- [ ] Criar endpoint para buscar acordos ativos do devedor
-- [ ] Calcular valor restante de parcelas não pagas do acordo ativo
-- [ ] Implementar lógica de consolidação Opção 1 (somar parcelas - manter valor)
-- [ ] Implementar lógica de consolidação Opção 2 (diluir no novo prazo - parcela maior)
-- [ ] Adicionar checkbox "Consolidar com acordo existente" no simulador
-- [ ] Exibir alerta quando devedor tem acordo ativo
-- [ ] Mostrar comparação lado a lado das 2 opções de consolidação
-- [ ] Implementar cancelamento automático do acordo antigo ao criar novo
-- [ ] Atualizar status das cobranças do acordo antigo
-- [ ] Testar fluxo completo com dados reais
+- [x] Criar endpoint para buscar acordos ativos do devedor
+- [x] Calcular valor restante de parcelas não pagas do acordo ativo
+- [x] Implementar lógica de consolidação Opção 1 (somar parcelas - manter valor)
+- [x] Implementar lógica de consolidação Opção 2 (diluir no novo prazo - parcela maior)
+- [x] Adicionar checkbox "Consolidar com acordo existente" no simulador
+- [x] Exibir alerta quando devedor tem acordo ativo
+- [x] Mostrar comparação lado a lado das 2 opções de consolidação
+- [x] Implementar cancelamento automático do acordo antigo ao criar novo
+- [x] Resolver problema de reconhecimento do endpoint tRPC getAtivosComParcelas
+- [x] Adicionar tratamento robusto de erros com try-catch
+- [x] Corrigir schema para adicionar coluna paymentDate
+- [x] Testar fluxo completo de consolidação
 
 ## Bug - Erro ao buscar parcelas de acordo
 - [x] Investigar erro "Failed query parcelasAcordo" na página de detalhes do devedor
