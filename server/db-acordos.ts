@@ -290,3 +290,49 @@ export async function getAcordosAtivosComParcelas(devedorId: number) {
     return [];
   }
 }
+
+
+// Buscar histórico de consolidações de um acordo (recursivo)
+export async function getHistoricoConsolidacoes(acordoId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const historico: any[] = [];
+  let currentId: number | null = acordoId;
+  
+  // Buscar recursivamente até encontrar o acordo original (sem acordoOrigemId)
+  while (currentId) {
+    const acordoResult: any = await db
+      .select()
+      .from(acordos)
+      .where(eq(acordos.id, currentId))
+      .limit(1);
+    
+    if (acordoResult.length === 0) break;
+    
+    const acordoData: any = acordoResult[0];
+    
+    // Buscar parcelas do acordo
+    let parcelas: any[] = [];
+    try {
+      parcelas = await db
+        .select()
+        .from(parcelasAcordo)
+        .where(eq(parcelasAcordo.acordoId, currentId));
+    } catch (error) {
+      console.error(`Erro ao buscar parcelas do acordo ${currentId}:`, error);
+      parcelas = [];
+    }
+    
+    historico.push({
+      ...acordoData,
+      parcelas: parcelas.length,
+      parcelasPagas: parcelas.filter(p => p.status === 'paga').length,
+    });
+    
+    // Ir para o acordo origem
+    currentId = acordoData.acordoOrigemId;
+  }
+  
+  return historico;
+}

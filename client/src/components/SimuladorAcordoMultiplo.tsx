@@ -215,6 +215,7 @@ export function SimuladorAcordoMultiplo({
       cobrancaIds: Array.from(cobrancasSelecionadas),
       devedorId,
       condominioId,
+      acordoOrigemId: consolidarAcordo && acordoAtivo ? acordoAtivo.id : undefined,
       totalAmount: valorTotalSelecionado,
       agreedAmount: planoFinal.valorTotal,
       installments: planoFinal.numeroParcelas,

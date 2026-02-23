@@ -25,6 +25,7 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
+import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
 
 export default function AcordoDetalhes() {
   const { user } = useAuth();
@@ -348,6 +349,9 @@ export default function AcordoDetalhes() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Histórico de Consolidações */}
+        <HistoricoConsolidacoes acordoId={acordoId} />
       </div>
     </div>
   );

@@ -97,6 +97,7 @@ export const acordos = mysqlTable("acordos", {
   id: int("id").autoincrement().primaryKey(),
   devedorId: int("devedorId").notNull(),
   condominioId: int("condominioId").notNull(),
+  acordoOrigemId: int("acordoOrigemId"), // ID do acordo anterior que foi consolidado
   valorPago: int("valorPago").default(0).notNull(),
   totalAmount: int("totalAmount").notNull(),
   agreedAmount: int("agreedAmount").notNull(),

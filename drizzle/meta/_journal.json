@@ -99,6 +99,13 @@
       "when": 1770854497725,
       "tag": "0013_smart_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1771887566502,
+      "tag": "0014_chemical_arclight",
+      "breakpoints": true
     }
   ]
 }

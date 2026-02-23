@@ -312,10 +312,16 @@ export const appRouter = router({
       const { getAcordosAtivosComParcelas } = await import("./db-acordos");
       return await getAcordosAtivosComParcelas(input.devedorId);
     }),
+    // Buscar histórico de consolidações de um acordo
+    getHistorico: protectedProcedure.input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
+      const { getHistoricoConsolidacoes } = await import("./db-acordos");
+      return await getHistoricoConsolidacoes(input.acordoId);
+    }),
     create: condominioAccessProcedure.input(z.object({
       cobrancaIds: z.array(z.number()),
       devedorId: z.number(),
       condominioId: z.number(),
+      acordoOrigemId: z.number().optional(), // ID do acordo anterior (para consolidação)
       totalAmount: z.number(),
       agreedAmount: z.number(),
       installments: z.number(),
@@ -342,6 +348,7 @@ export const appRouter = router({
       const acordoResult = await createAcordo({
         devedorId: input.devedorId,
         condominioId: input.condominioId,
+        acordoOrigemId: input.acordoOrigemId,
         totalAmount: input.totalAmount,
         agreedAmount: input.agreedAmount,
         installments: input.installments,

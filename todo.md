@@ -908,3 +908,15 @@
 - [x] Verificar se tabela parcelasAcordo existe e tem dados
 - [x] Adicionar tratamento de erro para acordos sem parcelas
 - [x] Testar correção com diferentes cenários
+
+## Nova Funcionalidade - Histórico de Consolidações
+- [x] Adicionar campo acordoOrigemId (int, nullable) na tabela acordos
+- [x] Executar db:push para aplicar mudança no banco
+- [x] Atualizar mutation de criar acordo para aceitar acordoOrigemId
+- [x] Modificar lógica de consolidação para passar ID do acordo antigo
+- [x] Criar endpoint backend para buscar histórico de consolidações (recursivo)
+- [x] Criar componente HistoricoConsolidacoes.tsx
+- [x] Adicionar seção de histórico na página de detalhes do acordo
+- [x] Exibir timeline visual com acordos anteriores
+- [x] Mostrar informações: data, valor, parcelas, motivo da consolidação
+- [x] Implementação completa de rastreamento de consolidações
