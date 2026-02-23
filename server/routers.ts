@@ -317,6 +317,15 @@ export const appRouter = router({
       const { getHistoricoConsolidacoes } = await import("./db-acordos");
       return await getHistoricoConsolidacoes(input.acordoId);
     }),
+    // Buscar todos os acordos de um devedor
+    listByDevedor: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) return [];
+      const { acordos } = await import("../drizzle/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      return await db.select().from(acordos).where(eq(acordos.devedorId, input.devedorId)).orderBy(desc(acordos.createdAt));
+    }),
     create: condominioAccessProcedure.input(z.object({
       cobrancaIds: z.array(z.number()),
       devedorId: z.number(),

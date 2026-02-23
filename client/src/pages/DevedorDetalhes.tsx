@@ -20,6 +20,7 @@ import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas"
 import { GraficoDistribuicaoCobrancas } from "@/components/GraficoDistribuicaoCobrancas";
 import { TimelineTentativas } from "@/components/TimelineTentativas";
 import { IndicadorRiscoDevedor } from "@/components/IndicadorRiscoDevedor";
+import { AcordosDevedor } from "@/components/AcordosDevedor";
 import { useMemo, useState } from "react";
 import { NovaDividaModal } from "@/components/NovaDividaModal";
 
@@ -337,6 +338,9 @@ export default function DevedorDetalhes() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Acordos do Devedor */}
+            <AcordosDevedor devedorId={devedor.id} />
 
             {/* Simulador de Acordo Consolidado */}
             {condominio && cobrancas.length > 0 && (

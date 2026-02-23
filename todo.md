@@ -920,3 +920,12 @@
 - [x] Exibir timeline visual com acordos anteriores
 - [x] Mostrar informações: data, valor, parcelas, motivo da consolidação
 - [x] Implementação completa de rastreamento de consolidações
+
+## Melhoria - Seção de Acordos no Dashboard do Devedor
+- [x] Criar componente AcordosDevedor.tsx para listar acordos
+- [x] Criar endpoint backend listByDevedor
+- [x] Buscar todos os acordos do devedor (ativos, cancelados, concluídos)
+- [x] Exibir cards de acordos com informações principais (valor, parcelas, status)
+- [x] Adicionar botão "Ver Detalhes" para navegar ao acordo específico
+- [x] Adicionar seção na página DevedorDetalhes
+- [x] Testar visualização com diferentes status de acordos
