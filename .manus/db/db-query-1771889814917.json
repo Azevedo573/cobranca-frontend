@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM acordos LIKE 'acordoOrigemId';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SHOW COLUMNS FROM acordos LIKE 'acordoOrigemId';",
+  "rows": [
+    {
+      "Field": "acordoOrigemId",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nacordoOrigemId\tint(11)\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 351
+}

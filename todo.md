@@ -929,3 +929,18 @@
 - [x] Adicionar botão "Ver Detalhes" para navegar ao acordo específico
 - [x] Adicionar seção na página DevedorDetalhes
 - [x] Testar visualização com diferentes status de acordos
+
+## Bug - Consolidação de Acordos Não Cancela Acordos Antigos
+- [ ] Investigar por que acordos antigos não estão sendo cancelados ao criar consolidado
+- [ ] Verificar lógica de detecção de consolidação no backend
+- [ ] Corrigir condição de cancelamento automático
+- [ ] Testar criação de acordo consolidado
+- [ ] Validar que acordos antigos ficam com status "cancelado"
+
+## Bug - Consolidação de Acordos Não Cancela Acordos Antigos
+- [x] Investigar por que acordos antigos não estão sendo cancelados
+- [x] Verificar se função getAcordosAtivosComParcelas está funcionando
+- [x] Corrigir problema de nome de coluna acordoOrigemId no banco
+- [x] Alterar coluna para NOT NULL DEFAULT 0
+- [x] Limpar acordos duplicados existentes no banco
+- [x] Testar cancelamento automático ao criar acordo consolidado

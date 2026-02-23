@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, devedorId, status, notes, createdAt FROM acordos WHERE devedorId = 120001 ORDER BY createdAt DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, devedorId, status, notes, createdAt FROM acordos WHERE devedorId = 120001 ORDER BY createdAt DESC;",
+  "rows": [
+    {
+      "id": "120001",
+      "devedorId": "120001",
+      "status": "ativo",
+      "notes": "Acordo consolidado de 1 cobrança(s). Entrada: R$ 0,00 + 6x de R$ 86,27",
+      "createdAt": "2026-02-21 00:38:08"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdevedorId\tstatus\tnotes\tcreatedAt\n120001\t120001\tativo\tAcordo consolidado de 1 cobrança(s). Entrada: R$ 0,00 + 6x de R$ 86,27\t2026-02-21 00:38:08\n",
+  "stderr": "",
+  "execution_time_ms": 403
+}

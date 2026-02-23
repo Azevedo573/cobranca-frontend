@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE acordos a1 SET status = 'cancelado' WHERE status = 'ativo' AND id < (SELECT MAX(id) FROM (SELECT id, devedorId FROM acordos) a2 WHERE a2.devedorId = a1.devedorId);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute UPDATE acordos a1 SET status = 'cancelado' WHERE status = 'ativo' AND id < (SELECT MAX(id) FROM (SELECT id, devedorId FROM acordos) a2 WHERE a2.devedorId = a1.devedorId);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 364
+}
