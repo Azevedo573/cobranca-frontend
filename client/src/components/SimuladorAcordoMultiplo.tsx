@@ -211,12 +211,18 @@ export function SimuladorAcordoMultiplo({
     
     notes += ` Entrada: ${formatarMoedaAcordo(valorEntrada)} + ${planoFinal.numeroParcelas}x de ${formatarMoedaAcordo(planoFinal.valorParcela)}`;
 
+    // Calcular totalAmount correto (incluindo valor do acordo anterior se consolidar)
+    let totalAmountFinal = valorTotalSelecionado;
+    if (consolidarAcordo && acordoAtivo) {
+      totalAmountFinal += acordoAtivo.valorRestante;
+    }
+
     createAcordoMutation.mutate({
       cobrancaIds: Array.from(cobrancasSelecionadas),
       devedorId,
       condominioId,
       acordoOrigemId: consolidarAcordo && acordoAtivo ? acordoAtivo.id : undefined,
-      totalAmount: valorTotalSelecionado,
+      totalAmount: totalAmountFinal,
       agreedAmount: planoFinal.valorTotal,
       installments: planoFinal.numeroParcelas,
       firstPaymentDate: planoFinal.parcelas[0]?.dataVencimento || new Date(),

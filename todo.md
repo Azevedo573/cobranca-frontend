@@ -944,3 +944,8 @@
 - [x] Alterar coluna para NOT NULL DEFAULT 0
 - [x] Limpar acordos duplicados existentes no banco
 - [x] Testar cancelamento automático ao criar acordo consolidado
+
+## Bug - Valor do Acordo Consolidado Não Inclui Acordo Anterior
+- [x] Investigar por que totalAmount não inclui valor do acordo anterior
+- [x] Corrigir cálculo de totalAmountFinal no SimuladorAcordoMultiplo
+- [x] Garantir que totalAmount = novas cobranças + valor restante do acordo anterior
