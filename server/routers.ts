@@ -108,6 +108,9 @@ export const appRouter = router({
       taxaMulta: z.string().optional(),
       taxaHonorarios: z.string().optional(),
       descontoMaximo: z.string().optional(),
+      correcaoMonetaria: z.string().optional(),
+      indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).optional(),
+      aplicarCorrecaoAuto: z.boolean().optional(),
     })).mutation(async ({ input }) => {
       const { createCondominio } = await import("./db-condominios");
       return await createCondominio(input);
@@ -120,6 +123,9 @@ export const appRouter = router({
       taxaMulta: z.string().optional(),
       taxaHonorarios: z.string().optional(),
       descontoMaximo: z.string().optional(),
+      correcaoMonetaria: z.string().optional(),
+      indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).optional(),
+      aplicarCorrecaoAuto: z.boolean().optional(),
       address: z.string().optional(),
       city: z.string().optional(),
       state: z.string().optional(),

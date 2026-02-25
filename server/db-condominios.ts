@@ -16,7 +16,7 @@ export async function getCondominioById(id: number) {
   return result[0] || null;
 }
 
-export async function createCondominio(data: InsertCondominio) {
+export async function createCondominio(data: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -25,11 +25,16 @@ export async function createCondominio(data: InsertCondominio) {
     data.password = await bcrypt.hash(data.password, 10);
   }
   
+  // Converter boolean para number (0/1) para aplicarCorrecaoAuto
+  if (typeof data.aplicarCorrecaoAuto === 'boolean') {
+    data.aplicarCorrecaoAuto = data.aplicarCorrecaoAuto ? 1 : 0;
+  }
+  
   const result = await db.insert(condominios).values(data);
   return result;
 }
 
-export async function updateCondominio(id: number, data: Partial<InsertCondominio>) {
+export async function updateCondominio(id: number, data: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -39,6 +44,11 @@ export async function updateCondominio(id: number, data: Partial<InsertCondomini
   } else if (data.password === "") {
     // Remove password do objeto para não atualizar
     delete data.password;
+  }
+  
+  // Converter boolean para number (0/1) para aplicarCorrecaoAuto
+  if (typeof data.aplicarCorrecaoAuto === 'boolean') {
+    data.aplicarCorrecaoAuto = data.aplicarCorrecaoAuto ? 1 : 0;
   }
   
   await db.update(condominios).set(data).where(eq(condominios.id, id));

@@ -995,3 +995,19 @@
 - [ ] Atualizar SimuladorAcordoMultiplo para usar endpoint de cálculo (opcional - frontend já funciona)
 - [ ] Testar cálculos com correção BCB ativa
 - [ ] Testar fallback para percentual fixo quando BCB desativado
+
+## UI de Configuração de Correção Monetária
+- [ ] Adicionar seletor de índice BCB no formulário de condomínio (IPCA, IGP-M, INPC, IGP-DI, NENHUM)
+- [ ] Adicionar toggle "Aplicar Correção Automática" no formulário
+- [ ] Atualizar schema do tRPC para aceitar novos campos
+- [ ] Testar configuração e verificar se correção está sendo aplicada
+- [ ] Validar que valores de correção aparecem corretamente nas tabelas
+
+## Interface de Configuração de Correção Monetária BCB
+- [x] Adicionar campos indiceCorrecao e aplicarCorrecaoAuto no formulário de condomínio
+- [x] Criar seletor de índice BCB (IPCA, IGP-M, INPC, IGP-DI, NENHUM)
+- [x] Criar toggle para ativar/desativar correção automática
+- [x] Atualizar schema tRPC do endpoint update para aceitar novos campos
+- [x] Adicionar conversão de boolean para number (0/1) no backend
+- [x] Testar configuração e persistência no banco de dados
+- [x] Validar que sistema usa correção BCB quando ativado (aplicarCorrecaoAuto=1 e indiceCorrecao!=NENHUM)
