@@ -3,6 +3,7 @@ import { devedores, cobrancas, tentativasCobranca, condominios } from "../drizzl
 import { eq, and, sql } from "drizzle-orm";
 import { calcularScore } from "../shared/scoring";
 import { calcularValorDevido } from "../shared/calculos";
+import { calcularValorDevidoAsync } from "./calculos-bcb";
 
 /**
  * Atualiza o score e prioridade de um devedor específico
@@ -39,19 +40,31 @@ export async function atualizarScoreDevedor(devedorId: number) {
   let valorTotalDevido = 0;
   let diasEmAtrasoMaximo = 0;
 
+  const taxas = {
+    taxaJurosMensal: Number(condominio.taxaJurosMensal || 0),
+    taxaMulta: Number(condominio.taxaMulta || 0),
+    taxaHonorarios: Number(condominio.taxaHonorarios || 0),
+    correcaoMonetaria: Number(condominio.correcaoMonetaria || 0),
+    indiceCorrecao: condominio.indiceCorrecao || "NENHUM",
+    aplicarCorrecaoAuto: Boolean(condominio.aplicarCorrecaoAuto),
+  };
+
   for (const cobranca of cobrancasPendentes) {
     if (cobranca.dueDate) {
-      const resultado = calcularValorDevido(
-        cobranca.amount,
-        cobranca.dueDate,
-        {
-          taxaJurosMensal: Number(condominio.taxaJurosMensal || 0),
-          taxaMulta: Number(condominio.taxaMulta || 0),
-          taxaHonorarios: Number(condominio.taxaHonorarios || 0),
-          correcaoMonetaria: Number(condominio.correcaoMonetaria || 0),
-        },
-        cobranca.custasJudiciais || 0
-      );
+      // Usar correção monetária via BCB se configurado
+      const resultado = (taxas.aplicarCorrecaoAuto && taxas.indiceCorrecao !== "NENHUM")
+        ? await calcularValorDevidoAsync(
+            cobranca.amount,
+            cobranca.dueDate,
+            taxas,
+            cobranca.custasJudiciais || 0
+          )
+        : calcularValorDevido(
+            cobranca.amount,
+            cobranca.dueDate,
+            taxas,
+            cobranca.custasJudiciais || 0
+          );
       valorTotalDevido += resultado.valorTotal;
 
       // Calcular dias em atraso

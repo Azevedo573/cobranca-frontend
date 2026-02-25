@@ -230,6 +230,72 @@ export const appRouter = router({
       await deleteCobranca(input.id);
       return { success: true };
     }),
+    
+    // Calcular valores de cobranças com correção monetária BCB
+    calcularValoresComCorrecao: protectedProcedure.input(z.object({
+      cobrancas: z.array(z.object({
+        id: z.number(),
+        amount: z.number(),
+        dueDate: z.date().nullable(),
+        custasJudiciais: z.number().optional(),
+      })),
+      condominioId: z.number(),
+    })).query(async ({ input }) => {
+      const { calcularValorDevidoAsync } = await import("./calculos-bcb");
+      const { calcularValorDevido } = await import("../shared/calculos");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      
+      const { condominios } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      
+      // Buscar taxas do condomínio
+      const condominioData = await db.select().from(condominios).where(eq(condominios.id, input.condominioId)).limit(1);
+      const condominio = condominioData[0];
+      
+      if (!condominio) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado" });
+      }
+      
+      const taxas = {
+        taxaJurosMensal: Number(condominio.taxaJurosMensal || 0),
+        taxaMulta: Number(condominio.taxaMulta || 0),
+        taxaHonorarios: Number(condominio.taxaHonorarios || 0),
+        correcaoMonetaria: Number(condominio.correcaoMonetaria || 0),
+        indiceCorrecao: condominio.indiceCorrecao || "NENHUM",
+        aplicarCorrecaoAuto: Boolean(condominio.aplicarCorrecaoAuto),
+      };
+      
+      // Calcular valores para cada cobrança
+      const resultados = await Promise.all(
+        input.cobrancas.map(async (cobranca) => {
+          const dataVencimento = cobranca.dueDate || new Date();
+          
+          // Usar correção monetária via BCB se configurado
+          const breakdown = (taxas.aplicarCorrecaoAuto && taxas.indiceCorrecao !== "NENHUM")
+            ? await calcularValorDevidoAsync(
+                cobranca.amount,
+                dataVencimento,
+                taxas,
+                cobranca.custasJudiciais || 0
+              )
+            : calcularValorDevido(
+                cobranca.amount,
+                dataVencimento,
+                taxas,
+                cobranca.custasJudiciais || 0
+              );
+          
+          return {
+            id: cobranca.id,
+            valorAtualizado: breakdown.valorTotal,
+            breakdown,
+          };
+        })
+      );
+      
+      return resultados;
+    }),
   }),
 
   // Tentativas de Cobrança

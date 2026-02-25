@@ -2,6 +2,7 @@ import { eq, and } from "drizzle-orm";
 import { devedores, InsertDevedor, cobrancas, condominios } from "../drizzle/schema";
 import { getDb } from "./db";
 import { calcularValorDevido } from "../shared/calculos";
+import { calcularValorDevidoAsync } from "./calculos-bcb";
 
 export async function getDevedoresByCondominio(condominioId: number) {
   const db = await getDb();
@@ -17,6 +18,8 @@ export async function getDevedoresByCondominio(condominioId: number) {
     taxaMulta: Number(condominioData[0].taxaMulta || 0),
     taxaHonorarios: Number(condominioData[0].taxaHonorarios || 0),
     correcaoMonetaria: Number(condominioData[0].correcaoMonetaria || 0),
+    indiceCorrecao: condominioData[0].indiceCorrecao || "NENHUM",
+    aplicarCorrecaoAuto: Boolean(condominioData[0].aplicarCorrecaoAuto),
   } : null;
   
   // Para cada devedor, calcular valor total devido
@@ -42,14 +45,28 @@ export async function getDevedoresByCondominio(condominioId: number) {
       // Calcular valor total com encargos
       let valorTotalDevido = 0;
       if (todasCobrancasAtivas.length > 0 && taxas) {
-        valorTotalDevido = todasCobrancasAtivas.reduce((sum, cob) => {
-          const breakdown = calcularValorDevido(
-            cob.amount / 100,  // Converter centavos para reais
-            cob.dueDate ? new Date(cob.dueDate) : new Date(),
-            taxas
-          );
-          return sum + breakdown.valorTotal;
-        }, 0);
+        // Usar correção monetária via BCB se configurado
+        if (taxas.aplicarCorrecaoAuto && taxas.indiceCorrecao && taxas.indiceCorrecao !== "NENHUM") {
+          // Versão assíncrona com correção BCB
+          for (const cob of todasCobrancasAtivas) {
+            const breakdown = await calcularValorDevidoAsync(
+              cob.amount,  // Já está em centavos
+              cob.dueDate ? new Date(cob.dueDate) : new Date(),
+              taxas
+            );
+            valorTotalDevido += breakdown.valorTotal;
+          }
+        } else {
+          // Versão síncrona com percentual fixo
+          valorTotalDevido = todasCobrancasAtivas.reduce((sum, cob) => {
+            const breakdown = calcularValorDevido(
+              cob.amount,  // Já está em centavos
+              cob.dueDate ? new Date(cob.dueDate) : new Date(),
+              taxas
+            );
+            return sum + breakdown.valorTotal;
+          }, 0);
+        }
       }
       
       // Retornar devedor com valor atualizado (em centavos)

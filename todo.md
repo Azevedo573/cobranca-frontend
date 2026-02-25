@@ -978,3 +978,20 @@
 - [ ] Atualizar routers para usar versão assíncrona onde necessário
 - [ ] Criar job mensal de atualização automática do cache
 - [ ] Testar cálculos com diferentes índices e períodos
+
+## Integração - Correção Monetária nos Módulos
+- [ ] Atualizar routers de cobranças para usar calcularValorDevidoAsync
+- [ ] Atualizar routers de acordos para usar correção BCB
+- [ ] Criar endpoint tRPC para buscar taxas do condomínio
+- [ ] Atualizar SimuladorAcordoMultiplo para usar correção real
+- [ ] Testar cálculos com diferentes índices configurados
+- [ ] Validar fallback para percentual fixo quando índice não configurado
+
+## Integração - Correção Monetária nos Módulos
+- [x] Atualizar db-devedores.ts para usar calcularValorDevidoAsync
+- [x] Atualizar db-scoring.ts para usar calcularValorDevidoAsync
+- [x] Atualizar excel-export.ts para usar calcularValorDevidoAsync
+- [x] Criar endpoint tRPC calcularValoresComCorrecao
+- [ ] Atualizar SimuladorAcordoMultiplo para usar endpoint de cálculo (opcional - frontend já funciona)
+- [ ] Testar cálculos com correção BCB ativa
+- [ ] Testar fallback para percentual fixo quando BCB desativado
