@@ -961,3 +961,20 @@
 - [x] Filtrar acordos sem parcelas no getAcordosAtivosComParcelas
 - [x] Corrigir cálculo do valor atualizado no SimuladorAcordoMultiplo
 - [x] Testar consolidação completa e verificar valores corretos
+
+## Nova Funcionalidade - Correção Monetária via API do Banco Central
+- [x] Pesquisar API do Banco Central (https://api.bcb.gov.br/dados/serie/bcdata.sgs.{código}/dados)
+- [x] Identificar códigos de séries: IPCA=433, IGP-M=189, INPC=188, IGP-DI=190
+- [x] Testar requisições à API com diferentes períodos
+- [x] Criar serviço backend para consultar índices do BCB (server/bcb-api.ts)
+- [x] Criar testes unitários do serviço (6/6 testes passando)
+- [x] Adicionar campos no schema: indiceCorrecao e aplicarCorrecaoAuto
+- [x] Criar tabela indicesBCB para cache local de índices
+- [x] Implementar serviço de cache (server/bcb-cache.ts)
+- [x] Popular cache inicial com 48 índices (12 meses × 4 tipos)
+- [x] Criar funções assíncronas: calcularValorDevidoAsync e calcularTotalMultiplasCobrancasAsync
+- [x] Integrar correção monetária no cálculo de valores devidos
+- [ ] Atualizar formulário de condomínio com seletor de índice e toggle de correção automática
+- [ ] Atualizar routers para usar versão assíncrona onde necessário
+- [ ] Criar job mensal de atualização automática do cache
+- [ ] Testar cálculos com diferentes índices e períodos

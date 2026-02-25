@@ -1,4 +1,4 @@
-import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { date, decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -42,6 +42,9 @@ export const condominios = mysqlTable("condominios", {
   taxaHonorarios: decimal("taxaHonorarios", { precision: 5, scale: 2 }).default("10.00"),
   descontoMaximo: decimal("descontoMaximo", { precision: 5, scale: 2 }).default("0.00"),
   correcaoMonetaria: decimal("correcaoMonetaria", { precision: 5, scale: 2 }).default("0.00"),
+  // Configuração de correção monetária via API BCB
+  indiceCorrecao: mysqlEnum("indiceCorrecao", ["IPCA", "IGP-M", "INPC", "IGP-DI", "NENHUM"]).default("NENHUM"),
+  aplicarCorrecaoAuto: int("aplicarCorrecaoAuto").default(0).notNull(), // 0 = não, 1 = sim
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -129,6 +132,19 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+/**
+ * Tabela de cache de índices de correção monetária do Banco Central
+ * Armazena histórico de IPCA, IGP-M, INPC e IGP-DI para cálculos rápidos
+ */
+export const indicesBCB = mysqlTable("indicesBCB", {
+  id: int("id").autoincrement().primaryKey(),
+  indice: mysqlEnum("indice", ["IPCA", "IGP-M", "INPC", "IGP-DI"]).notNull(),
+  mesReferencia: date("mesReferencia", { mode: "string" }).notNull(), // Primeiro dia do mês (ex: "2025-01-01")
+  valor: decimal("valor", { precision: 10, scale: 6 }).notNull(), // Percentual (ex: 0.560000 = 0.56%)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export type Condominio = typeof condominios.$inferSelect;
 export type InsertCondominio = typeof condominios.$inferInsert;
 export type Devedor = typeof devedores.$inferSelect;
@@ -143,3 +159,5 @@ export type AcordoCobranca = typeof acordoCobrancas.$inferSelect;
 export type InsertAcordoCobranca = typeof acordoCobrancas.$inferInsert;
 export type ParcelaAcordo = typeof parcelasAcordo.$inferSelect;
 export type InsertParcelaAcordo = typeof parcelasAcordo.$inferInsert;
+export type IndiceBCB = typeof indicesBCB.$inferSelect;
+export type InsertIndiceBCB = typeof indicesBCB.$inferInsert;
