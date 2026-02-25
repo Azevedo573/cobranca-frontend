@@ -970,3 +970,12 @@
 - [x] Criar endpoint tRPC cobrancas.getComCalculos
 - [x] Atualizar DevedorDetalhes para usar valores calculados pelo backend
 - [x] Validar que correção BCB funciona com dados reais (R$ 51,52, R$ 10,30, etc.)
+
+## Bug - Simulador de Acordo mostra valores desatualizados
+- [x] Investigar por que SimuladorAcordoMultiplo mostra R$ 1.310,00 em vez de R$ 1.361,52
+- [x] Verificar se o componente está usando cálculo antigo do frontend
+- [x] Atualizar para usar breakdown.valorTotal do backend (com correção BCB)
+- [x] Testar e validar que valores do simulador batem com tabela de cobranças
+- [x] Adicionar campo breakdown na interface Cobranca
+- [x] Priorizar uso de breakdown do backend sobre cálculo frontend
+- [x] Validar que simulador mostra R$ 1.356,08 (igual à tabela)

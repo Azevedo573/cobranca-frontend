@@ -33,10 +33,18 @@ interface Cobranca {
   dueDate: Date | null;
   monthReference: string | null;
   status: string;
+  breakdown?: {
+    valorOriginal: number;
+    juros: number;
+    multa: number;
+    honorarios: number;
+    correcaoMonetaria: number;
+    valorTotal: number;
+  };
 }
 
 interface CobrancaComValorAtualizado extends Cobranca {
-  valorAtualizado: number; // Valor com juros, multa e honorários em centavos
+  valorAtualizado: number; // Valor com juros, multa, honorários e correção BCB em centavos
 }
 
 interface SimuladorAcordoMultiploProps {
@@ -75,31 +83,38 @@ export function SimuladorAcordoMultiplo({
     (c) => c.status === "pendente" || c.status === "em_cobranca"
   );
   
-  // Calcular valor atualizado de cada cobrança (com juros/multa/honorários)
+  // Usar valor atualizado de cada cobrança (já calculado pelo backend com correção BCB)
   const cobrancasComValorAtualizado: CobrancaComValorAtualizado[] = useMemo(() => {
-    if (!condominio) return cobrancasDisponiveis as CobrancaComValorAtualizado[];
-    
-    const taxas = {
-      taxaJurosMensal: Number(condominio.taxaJurosMensal || "1.00"),
-      taxaMulta: Number(condominio.taxaMulta || "2.00"),
-      taxaHonorarios: Number(condominio.taxaHonorarios || "10.00"),
-      correcaoMonetaria: Number(condominio.correcaoMonetaria || "0.00"),
-    };
-    
     return cobrancasDisponiveis.map(c => {
-      if (!c.dueDate) {
+      // Se breakdown já vem do backend (com correção BCB), usar ele
+      if (c.breakdown) {
+        return {
+          ...c,
+          valorAtualizado: Math.round(c.breakdown.valorTotal * 100), // Converter reais para centavos
+        };
+      }
+      
+      // Fallback: se não tem breakdown, calcular no frontend (sem correção BCB)
+      if (!c.dueDate || !condominio) {
         return { ...c, valorAtualizado: c.amount };
       }
       
+      const taxas = {
+        taxaJurosMensal: Number(condominio.taxaJurosMensal || "1.00"),
+        taxaMulta: Number(condominio.taxaMulta || "2.00"),
+        taxaHonorarios: Number(condominio.taxaHonorarios || "10.00"),
+        correcaoMonetaria: Number(condominio.correcaoMonetaria || "0.00"),
+      };
+      
       const breakdown = calcularValorDevido(
-        c.amount / 100, // Converter centavos para reais
+        c.amount / 100,
         new Date(c.dueDate),
         taxas
       );
       
       return {
         ...c,
-        valorAtualizado: Math.round(breakdown.valorTotal * 100), // Converter reais para centavos
+        valorAtualizado: Math.round(breakdown.valorTotal * 100),
       };
     });
   }, [cobrancasDisponiveis, condominio]);
