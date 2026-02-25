@@ -1,2 +1,0 @@
-ALTER TABLE `condominios` ADD `indiceCorrecao` enum('IPCA','IGP-M','INPC','IGP-DI','NENHUM') DEFAULT 'NENHUM';--> statement-breakpoint
-ALTER TABLE `condominios` ADD `aplicarCorrecaoAuto` int DEFAULT 0 NOT NULL;

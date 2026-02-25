@@ -1,6 +1,5 @@
 import ExcelJS from "exceljs";
 import { calcularValorDevido } from "../shared/calculos";
-import { calcularValorDevidoAsync } from "./calculos-bcb";
 
 /**
  * Helper para criar workbook Excel com formatação padrão
@@ -151,7 +150,7 @@ export async function exportCobrancas(
   let totalOriginal = 0;
   let totalDevido = 0;
 
-  for (const cobranca of cobrancas) {
+  cobrancas.forEach((cobranca) => {
     const devedor = devedores.find((d) => d.id === cobranca.devedorId);
     const condominio = condominios.find((c) => c.id === devedor?.condominioId);
 
@@ -161,24 +160,14 @@ export async function exportCobrancas(
       taxaMulta: condominio?.taxaMulta || 0,
       taxaHonorarios: condominio?.taxaHonorarios || 0,
       correcaoMonetaria: condominio?.correcaoMonetaria || 0,
-      indiceCorrecao: condominio?.indiceCorrecao || "NENHUM",
-      aplicarCorrecaoAuto: Boolean(condominio?.aplicarCorrecaoAuto),
     };
 
-    // Usar correção monetária via BCB se configurado
-    const breakdown = (taxas.aplicarCorrecaoAuto && taxas.indiceCorrecao !== "NENHUM")
-      ? await calcularValorDevidoAsync(
-          cobranca.valorOriginal,
-          cobranca.dataVencimento,
-          taxas,
-          cobranca.custasJudiciais || 0
-        )
-      : calcularValorDevido(
-          cobranca.valorOriginal,
-          cobranca.dataVencimento,
-          taxas,
-          cobranca.custasJudiciais || 0
-        );
+    const breakdown = calcularValorDevido(
+      cobranca.valorOriginal,
+      cobranca.dataVencimento,
+      taxas,
+      cobranca.custasJudiciais || 0
+    );
 
     totalOriginal += cobranca.valorOriginal;
     totalDevido += breakdown.valorTotal;
@@ -212,7 +201,7 @@ export async function exportCobrancas(
     [5, 8, 9, 10, 11, 12, 13].forEach((colIndex) => {
       row.getCell(colIndex).numFmt = "R$ #,##0.00";
     });
-  }
+  });
 
   // Totais
   const totalRow = worksheet.addRow([

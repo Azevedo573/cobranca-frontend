@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "39d01aa2-1a77-4d4d-98ca-95d499f8b529",
+  "id": "6f2b6af5-4865-4d8d-903d-762bb7877acb",
   "prevId": "888b6c22-2e57-47cf-a93c-995e38ffed22",
   "tables": {
     "acordoCobrancas": {
@@ -422,7 +422,7 @@
         },
         "indiceCorrecao": {
           "name": "indiceCorrecao",
-          "type": "enum('IPCA','IGP-M','INPC','IGP-DI','NENHUM')",
+          "type": "enum('NENHUM','IPCA','IGP-M','INPC','IGP-DI')",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,

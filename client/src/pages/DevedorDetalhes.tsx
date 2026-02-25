@@ -40,7 +40,7 @@ export default function DevedorDetalhes() {
     { enabled: !!devedorId }
   );
 
-  const { data: cobrancas = [] } = trpc.cobrancas.getByDevedor.useQuery(
+  const { data: cobrancas = [] } = trpc.cobrancas.getComCalculos.useQuery(
     { devedorId: devedorId! },
     { enabled: !!devedorId }
   );
@@ -268,7 +268,7 @@ export default function DevedorDetalhes() {
 
             {/* Distribuição de Cobranças */}
             {cobrancas.length > 0 && (
-              <GraficoDistribuicaoCobrancas cobrancas={cobrancas} taxas={taxas} />
+              <GraficoDistribuicaoCobrancas cobrancas={cobrancas as any} taxas={taxas} />
             )}
           </div>
 
@@ -301,16 +301,15 @@ export default function DevedorDetalhes() {
                     </TableHeader>
                     <TableBody>
                       {cobrancas.map((cob: any) => {
-                        const breakdown = taxas
-                          ? calcularValorDevido(cob.amount / 100, new Date(cob.dueDate), taxas)
-                          : {
-                              valorOriginal: cob.amount / 100,
-                              juros: 0,
-                              multa: 0,
-                              honorarios: 0,
-                              correcaoMonetaria: 0,
-                              valorTotal: cob.amount / 100,
-                            };
+                        // Usar breakdown calculado pelo backend (inclui correção BCB)
+                        const breakdown = cob.breakdown || {
+                          valorOriginal: cob.amount / 100,
+                          juros: 0,
+                          multa: 0,
+                          honorarios: 0,
+                          correcaoMonetaria: 0,
+                          valorTotal: cob.amount / 100,
+                        };
                         return (
                           <TableRow key={cob.id}>
                             <TableCell className="font-medium">{cob.description || "-"}</TableCell>
@@ -345,7 +344,7 @@ export default function DevedorDetalhes() {
             {/* Simulador de Acordo Consolidado */}
             {condominio && cobrancas.length > 0 && (
               <SimuladorAcordoMultiplo
-                cobrancas={cobrancas}
+                cobrancas={cobrancas as any}
                 devedorId={devedor.id}
                 devedorNome={devedor.name}
                 condominioId={devedor.condominioId}

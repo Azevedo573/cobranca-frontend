@@ -1,160 +1,124 @@
 /**
- * Serviço de integração com a API do Banco Central do Brasil
+ * Integração com API do Banco Central do Brasil
+ * https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados
  * 
- * Fornece acesso aos índices de correção monetária oficiais (IPCA, IGP-M, INPC, IGP-DI)
- * através da API pública do BCB.
- * 
- * Documentação: https://api.bcb.gov.br/
+ * Códigos dos índices:
+ * - IPCA: 433
+ * - IGP-M: 189
+ * - INPC: 188
+ * - IGP-DI: 190
  */
 
-export type IndiceType = "IPCA" | "IGP-M" | "INPC" | "IGP-DI";
+interface BCBDataPoint {
+  data: string; // formato: "DD/MM/YYYY"
+  valor: string; // percentual como string, ex: "0.42"
+}
 
-/**
- * Mapeamento de índices para códigos de série do BCB
- */
-const SERIE_CODES: Record<IndiceType, number> = {
-  "IPCA": 433,    // Índice Nacional de Preços ao Consumidor Amplo (IBGE)
-  "IGP-M": 189,   // Índice Geral de Preços do Mercado (FGV)
-  "INPC": 188,    // Índice Nacional de Preços ao Consumidor (IBGE)
-  "IGP-DI": 190,  // Índice Geral de Preços - Disponibilidade Interna (FGV)
+const CODIGO_INDICES: Record<string, number> = {
+  "IPCA": 433,
+  "IGP-M": 189,
+  "INPC": 188,
+  "IGP-DI": 190,
 };
 
-/**
- * Resposta da API do BCB para um ponto de dados
- */
-interface BCBDataPoint {
-  data: string;  // Formato: "dd/mm/aaaa"
-  valor: string; // Percentual como string (ex: "0.56")
-}
+// Cache simples em memória (em produção, usar Redis)
+const cache: Map<string, { data: BCBDataPoint[], timestamp: number }> = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 horas
 
 /**
- * Converte Date para formato dd/mm/aaaa
+ * Busca dados de um índice na API do BCB
+ * @param indice Nome do índice (IPCA, IGP-M, INPC, IGP-DI)
+ * @param dataInicio Data inicial no formato DD/MM/YYYY
+ * @param dataFim Data final no formato DD/MM/YYYY
  */
-function formatDateBR(date: Date): string {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-}
+async function buscarIndicesBCB(
+  indice: string,
+  dataInicio: string,
+  dataFim: string
+): Promise<BCBDataPoint[]> {
+  const codigo = CODIGO_INDICES[indice];
+  if (!codigo) {
+    throw new Error(`Índice desconhecido: ${indice}`);
+  }
 
-/**
- * Converte string dd/mm/aaaa para Date
- */
-function parseDateBR(dateBR: string): Date {
-  const [day, month, year] = dateBR.split("/").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-/**
- * Busca índices de correção monetária para um período
- * 
- * @param indice Tipo de índice (IPCA, IGP-M, INPC, IGP-DI)
- * @param dataInicial Data inicial do período
- * @param dataFinal Data final do período
- * @returns Array de pontos de dados com data e valor percentual
- */
-export async function buscarIndices(
-  indice: IndiceType,
-  dataInicial: Date,
-  dataFinal: Date
-): Promise<Array<{ data: Date; valor: number }>> {
-  const codigoSerie = SERIE_CODES[indice];
+  const cacheKey = `${indice}-${dataInicio}-${dataFim}`;
+  const cached = cache.get(cacheKey);
   
-  const dataInicialStr = formatDateBR(dataInicial);
-  const dataFinalStr = formatDateBR(dataFinal);
-  
-  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigoSerie}/dados?formato=json&dataInicial=${dataInicialStr}&dataFinal=${dataFinalStr}`;
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+
+  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados?formato=json&dataInicial=${dataInicio}&dataFinal=${dataFim}`;
   
   try {
     const response = await fetch(url);
-    
     if (!response.ok) {
-      // 404 = período sem dados disponíveis (ex: futuro)
-      if (response.status === 404) {
-        console.warn(`Sem dados disponíveis para ${indice} no período ${dataInicialStr} a ${dataFinalStr}`);
-        return [];
-      }
-      throw new Error(`Erro ao buscar índices do BCB: ${response.status} ${response.statusText}`);
+      throw new Error(`Erro na API BCB: ${response.status}`);
     }
     
     const data: BCBDataPoint[] = await response.json();
-    
-    // Converter formato da API para formato interno
-    return data.map((point) => ({
-      data: parseDateBR(point.data),
-      valor: parseFloat(point.valor),
-    }));
+    cache.set(cacheKey, { data, timestamp: Date.now() });
+    return data;
   } catch (error) {
-    // Se for 404, já tratamos acima
-    if (error instanceof Error && error.message.includes("404")) {
-      return [];
-    }
-    console.error(`Erro ao buscar índices ${indice}:`, error);
-    throw new Error(`Falha ao buscar índices de correção monetária: ${error instanceof Error ? error.message : "Erro desconhecido"}`);
+    console.error("Erro ao buscar índices BCB:", error);
+    throw error;
   }
 }
 
 /**
- * Calcula o fator de correção monetária acumulado para um período
- * 
- * @param indice Tipo de índice (IPCA, IGP-M, INPC, IGP-DI)
- * @param dataInicial Data inicial do período
- * @param dataFinal Data final do período
- * @returns Fator de correção (ex: 1.0204 = 2.04% de correção)
+ * Converte Date para formato DD/MM/YYYY
  */
-export async function calcularFatorCorrecao(
-  indice: IndiceType,
-  dataInicial: Date,
-  dataFinal: Date
-): Promise<number> {
-  const indices = await buscarIndices(indice, dataInicial, dataFinal);
-  
-  if (indices.length === 0) {
-    // Sem índices no período = sem correção
-    return 1.0;
-  }
-  
-  // Fórmula de correção acumulada:
-  // fator = (1 + índice1/100) × (1 + índice2/100) × ... × (1 + índiceN/100)
-  const fator = indices.reduce((acc, point) => {
-    return acc * (1 + point.valor / 100);
-  }, 1.0);
-  
-  return fator;
+function formatarDataBCB(date: Date): string {
+  const dia = String(date.getDate()).padStart(2, '0');
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  const ano = date.getFullYear();
+  return `${dia}/${mes}/${ano}`;
 }
 
 /**
- * Aplica correção monetária a um valor
- * 
- * @param valorOriginal Valor original em centavos
- * @param indice Tipo de índice (IPCA, IGP-M, INPC, IGP-DI)
- * @param dataInicial Data inicial do período
- * @param dataFinal Data final do período (padrão: hoje)
- * @returns Valor corrigido em centavos
+ * Calcula a correção monetária acumulada entre duas datas usando índice BCB
+ * @param valorOriginal Valor a ser corrigido
+ * @param dataVencimento Data de vencimento da cobrança
+ * @param indice Nome do índice (IPCA, IGP-M, INPC, IGP-DI)
+ * @returns Valor da correção monetária
  */
-export async function aplicarCorrecaoMonetaria(
+export async function calcularCorrecaoBCB(
   valorOriginal: number,
-  indice: IndiceType,
-  dataInicial: Date,
-  dataFinal: Date = new Date()
+  dataVencimento: Date,
+  indice: string
 ): Promise<number> {
-  const fator = await calcularFatorCorrecao(indice, dataInicial, dataFinal);
-  return Math.round(valorOriginal * fator);
+  const hoje = new Date();
+  
+  // Se não venceu ainda, não há correção
+  if (dataVencimento >= hoje) {
+    return 0;
+  }
+
+  const dataInicio = formatarDataBCB(dataVencimento);
+  const dataFim = formatarDataBCB(hoje);
+
+  try {
+    const indices = await buscarIndicesBCB(indice, dataInicio, dataFim);
+    
+    // Calcula correção acumulada (produto dos fatores)
+    let fatorAcumulado = 1;
+    for (const ponto of indices) {
+      const percentual = parseFloat(ponto.valor);
+      fatorAcumulado *= (1 + percentual / 100);
+    }
+    
+    // Correção = valor original * (fator acumulado - 1)
+    const correcao = valorOriginal * (fatorAcumulado - 1);
+    return Math.max(0, correcao);
+  } catch (error) {
+    console.error("Erro ao calcular correção BCB, usando 0:", error);
+    return 0; // Fallback: retorna 0 se API falhar
+  }
 }
 
 /**
- * Calcula o percentual de correção para um período
- * 
- * @param indice Tipo de índice (IPCA, IGP-M, INPC, IGP-DI)
- * @param dataInicial Data inicial do período
- * @param dataFinal Data final do período
- * @returns Percentual de correção (ex: 2.04 = 2.04%)
+ * Limpa o cache (útil para testes)
  */
-export async function calcularPercentualCorrecao(
-  indice: IndiceType,
-  dataInicial: Date,
-  dataFinal: Date
-): Promise<number> {
-  const fator = await calcularFatorCorrecao(indice, dataInicial, dataFinal);
-  return (fator - 1) * 100;
+export function limparCacheBCB(): void {
+  cache.clear();
 }

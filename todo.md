@@ -951,63 +951,22 @@
 - [x] Garantir que totalAmount = novas cobranças + valor restante do acordo anterior
 
 ## Bug - Valor Total e Parcelas do Acordo Consolidado
-- [x] Investigar por que totalAmount não está somando valor do acordo anterior no banco
-- [x] Corrigir problema: parcelas não estavam sendo criadas (acordoId = 0)
-- [x] Padronizar conversão de valores: banco em centavos (int), frontend divide por 100
-- [x] Corrigir extração de acordoId do resultado do Drizzle insert
-- [x] Corrigir conversão de decimal para centavos no getAcordosAtivosComParcelas
-- [x] Remover divisão por 100 na criação de parcelas (salvar em centavos)
-- [x] Restaurar divisão por 100 no formatCurrency do frontend
-- [x] Filtrar acordos sem parcelas no getAcordosAtivosComParcelas
-- [x] Corrigir cálculo do valor atualizado no SimuladorAcordoMultiplo
-- [x] Testar consolidação completa e verificar valores corretos
+- [ ] Investigar por que totalAmount não está somando valor do acordo anterior no banco
+- [ ] Verificar se frontend está enviando totalAmountFinal corretamente
+- [ ] Verificar se backend está salvando totalAmount correto
+- [ ] Adicionar visualização de parcelas no card do acordo
+- [ ] Criar modal ou expansão para mostrar lista de parcelas
+- [ ] Testar consolidação completa e verificar valores
 
-## Nova Funcionalidade - Correção Monetária via API do Banco Central
-- [x] Pesquisar API do Banco Central (https://api.bcb.gov.br/dados/serie/bcdata.sgs.{código}/dados)
-- [x] Identificar códigos de séries: IPCA=433, IGP-M=189, INPC=188, IGP-DI=190
-- [x] Testar requisições à API com diferentes períodos
-- [x] Criar serviço backend para consultar índices do BCB (server/bcb-api.ts)
-- [x] Criar testes unitários do serviço (6/6 testes passando)
-- [x] Adicionar campos no schema: indiceCorrecao e aplicarCorrecaoAuto
-- [x] Criar tabela indicesBCB para cache local de índices
-- [x] Implementar serviço de cache (server/bcb-cache.ts)
-- [x] Popular cache inicial com 48 índices (12 meses × 4 tipos)
-- [x] Criar funções assíncronas: calcularValorDevidoAsync e calcularTotalMultiplasCobrancasAsync
-- [x] Integrar correção monetária no cálculo de valores devidos
-- [ ] Atualizar formulário de condomínio com seletor de índice e toggle de correção automática
-- [ ] Atualizar routers para usar versão assíncrona onde necessário
-- [ ] Criar job mensal de atualização automática do cache
-- [ ] Testar cálculos com diferentes índices e períodos
-
-## Integração - Correção Monetária nos Módulos
-- [ ] Atualizar routers de cobranças para usar calcularValorDevidoAsync
-- [ ] Atualizar routers de acordos para usar correção BCB
-- [ ] Criar endpoint tRPC para buscar taxas do condomínio
-- [ ] Atualizar SimuladorAcordoMultiplo para usar correção real
-- [ ] Testar cálculos com diferentes índices configurados
-- [ ] Validar fallback para percentual fixo quando índice não configurado
-
-## Integração - Correção Monetária nos Módulos
-- [x] Atualizar db-devedores.ts para usar calcularValorDevidoAsync
-- [x] Atualizar db-scoring.ts para usar calcularValorDevidoAsync
-- [x] Atualizar excel-export.ts para usar calcularValorDevidoAsync
-- [x] Criar endpoint tRPC calcularValoresComCorrecao
-- [ ] Atualizar SimuladorAcordoMultiplo para usar endpoint de cálculo (opcional - frontend já funciona)
-- [ ] Testar cálculos com correção BCB ativa
-- [ ] Testar fallback para percentual fixo quando BCB desativado
-
-## UI de Configuração de Correção Monetária
-- [ ] Adicionar seletor de índice BCB no formulário de condomínio (IPCA, IGP-M, INPC, IGP-DI, NENHUM)
-- [ ] Adicionar toggle "Aplicar Correção Automática" no formulário
-- [ ] Atualizar schema do tRPC para aceitar novos campos
-- [ ] Testar configuração e verificar se correção está sendo aplicada
-- [ ] Validar que valores de correção aparecem corretamente nas tabelas
-
-## Interface de Configuração de Correção Monetária BCB
-- [x] Adicionar campos indiceCorrecao e aplicarCorrecaoAuto no formulário de condomínio
-- [x] Criar seletor de índice BCB (IPCA, IGP-M, INPC, IGP-DI, NENHUM)
-- [x] Criar toggle para ativar/desativar correção automática
-- [x] Atualizar schema tRPC do endpoint update para aceitar novos campos
-- [x] Adicionar conversão de boolean para number (0/1) no backend
-- [x] Testar configuração e persistência no banco de dados
-- [x] Validar que sistema usa correção BCB quando ativado (aplicarCorrecaoAuto=1 e indiceCorrecao!=NENHUM)
+## Bug - Coluna Correção mostrando R$ 0,00
+- [x] Investigar por que a coluna "Correção" não mostra valores calculados
+- [x] Verificar se calcularValorDevidoAsync está sendo chamado corretamente
+- [x] Verificar se o retorno da função inclui o valor de correção separado
+- [x] Corrigir lógica para popular a coluna Correção na tabela
+- [x] Testar com cobranças reais e validar cálculos
+- [x] Adicionar campos indiceCorrecao e aplicarCorrecaoAuto no schema do banco
+- [x] Criar módulo de integração com API do Banco Central (server/bcb-api.ts)
+- [x] Criar função getCobrancasComCalculos que calcula valores no backend
+- [x] Criar endpoint tRPC cobrancas.getComCalculos
+- [x] Atualizar DevedorDetalhes para usar valores calculados pelo backend
+- [x] Validar que correção BCB funciona com dados reais (R$ 51,52, R$ 10,30, etc.)

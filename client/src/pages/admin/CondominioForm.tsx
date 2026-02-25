@@ -4,8 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Save } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -37,8 +35,6 @@ export default function CondominioForm() {
     taxaHonorarios: "10.00",
     correcaoMonetaria: "0.00",
     descontoMaximo: "0.00",
-    indiceCorrecao: "NENHUM",
-    aplicarCorrecaoAuto: false,
   });
 
   const { data: condominio } = trpc.condominios.getById.useQuery(
@@ -68,8 +64,6 @@ export default function CondominioForm() {
         taxaHonorarios: condominio.taxaHonorarios || "10.00",
         correcaoMonetaria: condominio.correcaoMonetaria || "0.00",
         descontoMaximo: condominio.descontoMaximo || "0.00",
-        indiceCorrecao: condominio.indiceCorrecao || "NENHUM",
-        aplicarCorrecaoAuto: condominio.aplicarCorrecaoAuto === 1,
       });
     }
   }, [condominio]);
@@ -105,15 +99,10 @@ export default function CondominioForm() {
       return;
     }
 
-    const payload = {
-      ...formData,
-      indiceCorrecao: formData.indiceCorrecao as "NENHUM" | "IPCA" | "IGP-M" | "INPC" | "IGP-DI"
-    };
-    
     if (isEdit && condominioId) {
-      updateMutation.mutate({ id: condominioId, ...payload });
+      updateMutation.mutate({ id: condominioId, ...formData });
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(formData);
     }
   };
 
@@ -379,60 +368,9 @@ export default function CondominioForm() {
                       onChange={handleChange}
                       placeholder="0.00"
                     />
-                    <p className="text-xs text-muted-foreground">Aplicado por mês de atraso (fixo)</p>
+                    <p className="text-xs text-muted-foreground">Aplicado por mês de atraso</p>
                   </div>
                 </div>
-                
-                {/* Correção Monetária Automática via API BCB */}
-                <div className="mt-6 border-t pt-6">
-                  <h4 className="text-md font-semibold mb-2">Correção Monetária Automática (API BCB)</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Ative para usar índices oficiais do Banco Central (IPCA, IGP-M, etc.) ao invés do percentual fixo
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="indiceCorrecao">Índice de Correção</Label>
-                      <Select
-                        value={formData.indiceCorrecao}
-                        onValueChange={(value) => setFormData({ ...formData, indiceCorrecao: value })}
-                      >
-                        <SelectTrigger id="indiceCorrecao">
-                          <SelectValue placeholder="Selecione o índice" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="NENHUM">Nenhum (usar percentual fixo)</SelectItem>
-                          <SelectItem value="IPCA">IPCA - Índice de Preços ao Consumidor Amplo</SelectItem>
-                          <SelectItem value="IGP-M">IGP-M - Índice Geral de Preços do Mercado</SelectItem>
-                          <SelectItem value="INPC">INPC - Índice Nacional de Preços ao Consumidor</SelectItem>
-                          <SelectItem value="IGP-DI">IGP-DI - Índice Geral de Preços - Disponibilidade Interna</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Índice oficial do Banco Central</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="aplicarCorrecaoAuto" className="flex items-center gap-2">
-                        <span>Ativar Correção Automática</span>
-                      </Label>
-                      <div className="flex items-center gap-2 h-10">
-                        <Switch
-                          id="aplicarCorrecaoAuto"
-                          checked={formData.aplicarCorrecaoAuto}
-                          onCheckedChange={(checked) => setFormData({ ...formData, aplicarCorrecaoAuto: checked })}
-                          disabled={formData.indiceCorrecao === "NENHUM"}
-                        />
-                        <span className="text-sm text-muted-foreground">
-                          {formData.aplicarCorrecaoAuto ? "Ativada" : "Desativada"}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {formData.indiceCorrecao === "NENHUM" 
-                          ? "Selecione um índice para ativar"
-                          : "Aplica correção baseada no índice selecionado"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
                 <div className="mt-4">
                   <div className="space-y-2">
                     <Label htmlFor="descontoMaximo">Desconto Máximo Permitido (%)</Label>

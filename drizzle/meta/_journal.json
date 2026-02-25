@@ -101,13 +101,6 @@
       "breakpoints": true
     },
     {
-      "idx": 14,
-      "version": "5",
-      "when": 1771887566502,
-      "tag": "0014_chemical_arclight",
-      "breakpoints": true
-    },
-    {
       "idx": 15,
       "version": "5",
       "when": 1771890095998,
@@ -117,15 +110,8 @@
     {
       "idx": 16,
       "version": "5",
-      "when": 1771986900318,
-      "tag": "0016_damp_supernaut",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "5",
-      "when": 1771987121775,
-      "tag": "0017_nostalgic_hammerhead",
+      "when": 1772022884277,
+      "tag": "0016_short_spot",
       "breakpoints": true
     }
   ]

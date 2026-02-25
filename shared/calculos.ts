@@ -7,9 +7,7 @@ export interface TaxasCondominio {
   taxaJurosMensal: number; // Percentual de juros por mês (ex: 1.0 = 1%)
   taxaMulta: number; // Percentual de multa (ex: 2.0 = 2%)
   taxaHonorarios: number; // Percentual de honorários (ex: 10.0 = 10%)
-  correcaoMonetaria: number; // Percentual de correção monetária ao mês (ex: 0.5 = 0.5%) - DEPRECATED, usar indiceCorrecao
-  indiceCorrecao?: "IPCA" | "IGP-M" | "INPC" | "IGP-DI" | "NENHUM"; // Índice de correção monetária via API BCB
-  aplicarCorrecaoAuto?: boolean; // Se true, aplica correção monetária automática via API BCB
+  correcaoMonetaria: number; // Percentual de correção monetária ao mês (ex: 0.5 = 0.5%)
 }
 
 export interface BreakdownValor {
@@ -52,9 +50,6 @@ export function calcularMesesAtraso(dataVencimento: Date): number {
 
 /**
  * Calcula o valor total devido incluindo juros, multa, honorários, custas judiciais e correção monetária
- * 
- * NOTA: Esta versão usa percentual fixo de correção monetária.
- * Para usar índices oficiais do BCB, use calcularValorDevidoAsync().
  */
 export function calcularValorDevido(
   valorOriginal: number,
@@ -133,4 +128,3 @@ export function calcularTotalMultiplasCobrancas(
   
   return resultado;
 }
-
