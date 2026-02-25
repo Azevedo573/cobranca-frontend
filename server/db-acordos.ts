@@ -144,33 +144,17 @@ export async function createParcelas(parcelas: InsertParcelaAcordo[]) {
   if (!db) throw new Error("Database not available");
   if (parcelas.length === 0) return [];
   
-  // Usar SQL raw para evitar problema do Drizzle ORM
-  // Formatar datas corretamente para MySQL
-  const formatDate = (date: any): string => {
-    if (date instanceof Date) {
-      return date.toISOString().slice(0, 19).replace('T', ' ');
-    }
-    if (typeof date === 'string') {
-      // Se já é string, tentar converter para Date e formatar
-      const d = new Date(date);
-      if (!isNaN(d.getTime())) {
-        return d.toISOString().slice(0, 19).replace('T', ' ');
-      }
-    }
-    // Fallback: usar data atual
-    return new Date().toISOString().slice(0, 19).replace('T', ' ');
-  };
+  // Inserir parcelas uma por uma para garantir sucesso
+  for (const parcela of parcelas) {
+    await db.insert(parcelasAcordo).values({
+      acordoId: parcela.acordoId,
+      installmentNumber: parcela.installmentNumber,
+      amount: parcela.amount, // Salvar em centavos (int)
+      dueDate: parcela.dueDate,
+      status: parcela.status,
+    });
+  }
   
-  const values = parcelas.map(p => 
-    `(${p.acordoId}, ${p.installmentNumber}, '${p.amount}', '${formatDate(p.dueDate)}', '${p.status}')`
-  ).join(', ');
-  
-  const sql = `
-    INSERT INTO parcelasAcordo (acordoId, installmentNumber, amount, dueDate, status)
-    VALUES ${values}
-  `;
-  
-  await db.execute(sql);
   return { success: true };
 }
 
@@ -250,7 +234,7 @@ export async function getAcordosAtivosComParcelas(devedorId: number) {
     }
     
     // Para cada acordo, buscar parcelas pendentes
-    const acordosComParcelas = await Promise.all(
+    const acordosComParcelasTemp = await Promise.all(
       acordosAtivos.map(async (acordo) => {
         try {
           const parcelas = await db.select().from(parcelasAcordo).where(
@@ -258,8 +242,9 @@ export async function getAcordosAtivosComParcelas(devedorId: number) {
           );
           
           const parcelasPendentes = parcelas.filter(p => p.status === "pendente" || p.status === "atrasado");
-          const valorRestante = parcelasPendentes.reduce((sum, p) => sum + p.amount, 0);
-          const valorParcela = parcelasPendentes.length > 0 ? parcelasPendentes[0].amount : 0;
+          // amount já está em centavos (int) no banco
+          const valorRestante = parcelasPendentes.reduce((sum, p) => sum + (typeof p.amount === 'number' ? p.amount : parseInt(p.amount)), 0);
+          const valorParcela = parcelasPendentes.length > 0 ? (typeof parcelasPendentes[0].amount === 'number' ? parcelasPendentes[0].amount : parseInt(parcelasPendentes[0].amount)) : 0;
           
           return {
             ...acordo,
@@ -283,6 +268,9 @@ export async function getAcordosAtivosComParcelas(devedorId: number) {
         }
       })
     );
+    
+    // Filtrar apenas acordos com parcelas pendentes
+    const acordosComParcelas = acordosComParcelasTemp.filter(a => a.parcelasPendentes > 0);
     
     return acordosComParcelas;
   } catch (error) {

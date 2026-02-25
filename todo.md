@@ -949,3 +949,15 @@
 - [x] Investigar por que totalAmount não inclui valor do acordo anterior
 - [x] Corrigir cálculo de totalAmountFinal no SimuladorAcordoMultiplo
 - [x] Garantir que totalAmount = novas cobranças + valor restante do acordo anterior
+
+## Bug - Valor Total e Parcelas do Acordo Consolidado
+- [x] Investigar por que totalAmount não está somando valor do acordo anterior no banco
+- [x] Corrigir problema: parcelas não estavam sendo criadas (acordoId = 0)
+- [x] Padronizar conversão de valores: banco em centavos (int), frontend divide por 100
+- [x] Corrigir extração de acordoId do resultado do Drizzle insert
+- [x] Corrigir conversão de decimal para centavos no getAcordosAtivosComParcelas
+- [x] Remover divisão por 100 na criação de parcelas (salvar em centavos)
+- [x] Restaurar divisão por 100 no formatCurrency do frontend
+- [x] Filtrar acordos sem parcelas no getAcordosAtivosComParcelas
+- [x] Corrigir cálculo do valor atualizado no SimuladorAcordoMultiplo
+- [x] Testar consolidação completa e verificar valores corretos

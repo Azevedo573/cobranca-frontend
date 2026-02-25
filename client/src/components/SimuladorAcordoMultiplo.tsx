@@ -21,6 +21,7 @@ import {
   gerarTextoAcordo,
   type PlanoAcordo,
 } from "@/../../shared/calculos-acordo";
+import { calcularValorDevido } from "@/../../shared/calculos";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -32,6 +33,10 @@ interface Cobranca {
   dueDate: Date | null;
   monthReference: string | null;
   status: string;
+}
+
+interface CobrancaComValorAtualizado extends Cobranca {
+  valorAtualizado: number; // Valor com juros, multa e honorários em centavos
 }
 
 interface SimuladorAcordoMultiploProps {
@@ -65,6 +70,40 @@ export function SimuladorAcordoMultiplo({
   const { data: condominio } = trpc.condominios.getById.useQuery({ id: condominioId });
   const descontoMaximo = parseFloat(condominio?.descontoMaximo || "0");
   
+  // Filtrar apenas cobranças pendentes ou em cobrança
+  const cobrancasDisponiveis = cobrancas.filter(
+    (c) => c.status === "pendente" || c.status === "em_cobranca"
+  );
+  
+  // Calcular valor atualizado de cada cobrança (com juros/multa/honorários)
+  const cobrancasComValorAtualizado: CobrancaComValorAtualizado[] = useMemo(() => {
+    if (!condominio) return cobrancasDisponiveis as CobrancaComValorAtualizado[];
+    
+    const taxas = {
+      taxaJurosMensal: Number(condominio.taxaJurosMensal || "1.00"),
+      taxaMulta: Number(condominio.taxaMulta || "2.00"),
+      taxaHonorarios: Number(condominio.taxaHonorarios || "10.00"),
+      correcaoMonetaria: Number(condominio.correcaoMonetaria || "0.00"),
+    };
+    
+    return cobrancasDisponiveis.map(c => {
+      if (!c.dueDate) {
+        return { ...c, valorAtualizado: c.amount };
+      }
+      
+      const breakdown = calcularValorDevido(
+        c.amount / 100, // Converter centavos para reais
+        new Date(c.dueDate),
+        taxas
+      );
+      
+      return {
+        ...c,
+        valorAtualizado: Math.round(breakdown.valorTotal * 100), // Converter reais para centavos
+      };
+    });
+  }, [cobrancasDisponiveis, condominio]);
+  
   // Buscar acordos ativos do devedor
   const { data: acordosAtivos, error: acordosError, isLoading: acordosLoading } = trpc.acordos.getAtivosComParcelas.useQuery({ devedorId });
   const temAcordoAtivo = !acordosError && !acordosLoading && acordosAtivos && acordosAtivos.length > 0;
@@ -80,18 +119,13 @@ export function SimuladorAcordoMultiplo({
     },
   });
 
-  // Filtrar apenas cobranças pendentes ou em cobrança
-  const cobrancasDisponiveis = cobrancas.filter(
-    (c) => c.status === "pendente" || c.status === "em_cobranca"
-  );
-
-  // Calcular valor total das cobranças selecionadas
+  // Calcular valor total das cobranças selecionadas (usando valor atualizado)
   const valorTotalSelecionado = useMemo(() => {
     return Array.from(cobrancasSelecionadas).reduce((total, id) => {
-      const cobranca = cobrancasDisponiveis.find((c) => c.id === id);
-      return total + (cobranca?.amount || 0);
+      const cobranca = cobrancasComValorAtualizado.find((c) => c.id === id);
+      return total + (cobranca?.valorAtualizado || 0);
     }, 0);
-  }, [cobrancasSelecionadas, cobrancasDisponiveis]);
+  }, [cobrancasSelecionadas, cobrancasComValorAtualizado]);
 
   // Calcula o plano de acordo com os parâmetros atuais
   const planoAcordo: PlanoAcordo = useMemo(() => {
@@ -111,7 +145,7 @@ export function SimuladorAcordoMultiplo({
     let valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
     
     // Se consolidar com acordo ativo
-    if (consolidarAcordo && acordoAtivo) {
+    if (consolidarAcordo && acordoAtivo && acordoAtivo.valorRestante) {
       valorComDesconto += acordoAtivo.valorRestante;
     }
 
@@ -126,7 +160,7 @@ export function SimuladorAcordoMultiplo({
   
   // Calcular opção 1: Somar parcelas (manter valor da parcela)
   const planoOpcao1 = useMemo(() => {
-    if (!consolidarAcordo || !acordoAtivo || valorTotalSelecionado === 0) return null;
+    if (!consolidarAcordo || !acordoAtivo || valorTotalSelecionado === 0 || !acordoAtivo.valorParcela || !acordoAtivo.valorRestante) return null;
     
     const valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
     const valorParcelaAtual = acordoAtivo.valorParcela;
@@ -145,7 +179,7 @@ export function SimuladorAcordoMultiplo({
   
   // Calcular opção 2: Diluir no novo prazo (parcela maior)
   const planoOpcao2 = useMemo(() => {
-    if (!consolidarAcordo || !acordoAtivo || valorTotalSelecionado === 0) return null;
+    if (!consolidarAcordo || !acordoAtivo || valorTotalSelecionado === 0 || !acordoAtivo.valorRestante) return null;
     
     const valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
     const valorTotal = acordoAtivo.valorRestante + valorComDesconto;
@@ -272,7 +306,7 @@ export function SimuladorAcordoMultiplo({
       </div>
 
       {/* Alerta de Acordo Ativo */}
-      {temAcordoAtivo && acordoAtivo && (
+      {temAcordoAtivo && acordoAtivo && acordoAtivo.parcelasPendentes > 0 && (
         <Alert className="mb-6 border-orange-500 bg-orange-50">
           <Info className="h-4 w-4 text-orange-600" />
           <AlertDescription className="text-orange-900">
@@ -280,8 +314,8 @@ export function SimuladorAcordoMultiplo({
               ⚠️ Este devedor possui acordo ativo
             </div>
             <div className="text-sm space-y-1">
-              <p>• {acordoAtivo.parcelasPendentes} parcelas restantes de {formatarMoedaAcordo(acordoAtivo.valorParcela)}</p>
-              <p>• Valor restante: {formatarMoedaAcordo(acordoAtivo.valorRestante)}</p>
+              <p>• {acordoAtivo.parcelasPendentes || 0} parcelas restantes de {formatarMoedaAcordo(acordoAtivo.valorParcela || 0)}</p>
+              <p>• Valor restante: {formatarMoedaAcordo(acordoAtivo.valorRestante || 0)}</p>
             </div>
             <div className="mt-3 flex items-center gap-2">
               <Checkbox 
@@ -320,7 +354,7 @@ export function SimuladorAcordoMultiplo({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {cobrancasDisponiveis.map((cobranca) => (
+              {cobrancasComValorAtualizado.map((cobranca) => (
                 <TableRow key={cobranca.id}>
                   <TableCell>
                     <Checkbox
@@ -336,7 +370,7 @@ export function SimuladorAcordoMultiplo({
                   </TableCell>
                   <TableCell>{cobranca.monthReference || "-"}</TableCell>
                   <TableCell className="text-right font-semibold">
-                    {formatarMoedaAcordo(cobranca.amount)}
+                    {formatarMoedaAcordo(cobranca.valorAtualizado)}
                   </TableCell>
                 </TableRow>
               ))}

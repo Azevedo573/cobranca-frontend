@@ -59,7 +59,7 @@ export default function AcordoDetalhes() {
     return new Intl.NumberFormat("pt-BR", {
       style: "currency",
       currency: "BRL",
-    }).format(value / 100);
+    }).format(value / 100); // Converter centavos para reais
   };
 
   const formatDate = (date: string | Date | null) => {

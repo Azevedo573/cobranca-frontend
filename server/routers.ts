@@ -365,7 +365,15 @@ export const appRouter = router({
         paymentFrequency: input.paymentFrequency,
         notes: input.notes,
       });
-      const acordoId = Number((acordoResult as any).insertId || 0);
+      console.log('[DEBUG] Resultado do createAcordo:', JSON.stringify(acordoResult, null, 2));
+      // Drizzle retorna um array com o resultado, acessar o primeiro elemento
+      const insertResult = Array.isArray(acordoResult) ? acordoResult[0] : acordoResult;
+      const acordoId = Number(insertResult?.insertId || 0);
+      console.log('[DEBUG] acordoId extraído:', acordoId);
+      
+      if (acordoId === 0) {
+        throw new Error('Falha ao obter ID do acordo criado');
+      }
       
       // Criar todas as parcelas de uma vez
       const parcelasData = input.parcelas.map(p => ({
@@ -376,7 +384,10 @@ export const appRouter = router({
         status: 'pendente' as const,
       }));
       
+      console.log('[DEBUG] Criando', parcelasData.length, 'parcelas para acordo', acordoId);
+      console.log('[DEBUG] Dados das parcelas:', JSON.stringify(parcelasData, null, 2));
       await createParcelas(parcelasData);
+      console.log('[DEBUG] Parcelas criadas com sucesso');
       
       // Criar relacionamentos entre acordo e cobranças
       await createAcordoCobrancas(acordoId, input.cobrancaIds);
