@@ -1,0 +1,90 @@
+{
+  "query": "SELECT * FROM indicesBCB ORDER BY mesReferencia DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT * FROM indicesBCB ORDER BY mesReferencia DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "24",
+      "indice": "IGP-M",
+      "mesReferencia": "2026-01-01",
+      "valor": "0.410000",
+      "createdAt": "2026-02-25 02:40:28",
+      "updatedAt": "2026-02-25 02:40:28"
+    },
+    {
+      "id": "36",
+      "indice": "INPC",
+      "mesReferencia": "2026-01-01",
+      "valor": "0.390000",
+      "createdAt": "2026-02-25 02:40:29",
+      "updatedAt": "2026-02-25 02:40:29"
+    },
+    {
+      "id": "48",
+      "indice": "IGP-DI",
+      "mesReferencia": "2026-01-01",
+      "valor": "0.200000",
+      "createdAt": "2026-02-25 02:40:31",
+      "updatedAt": "2026-02-25 02:40:31"
+    },
+    {
+      "id": "12",
+      "indice": "IPCA",
+      "mesReferencia": "2026-01-01",
+      "valor": "0.330000",
+      "createdAt": "2026-02-25 02:40:26",
+      "updatedAt": "2026-02-25 02:40:26"
+    },
+    {
+      "id": "35",
+      "indice": "INPC",
+      "mesReferencia": "2025-12-01",
+      "valor": "0.210000",
+      "createdAt": "2026-02-25 02:40:29",
+      "updatedAt": "2026-02-25 02:40:29"
+    },
+    {
+      "id": "47",
+      "indice": "IGP-DI",
+      "mesReferencia": "2025-12-01",
+      "valor": "0.100000",
+      "createdAt": "2026-02-25 02:40:31",
+      "updatedAt": "2026-02-25 02:40:31"
+    },
+    {
+      "id": "23",
+      "indice": "IGP-M",
+      "mesReferencia": "2025-12-01",
+      "valor": "-0.010000",
+      "createdAt": "2026-02-25 02:40:27",
+      "updatedAt": "2026-02-25 02:40:27"
+    },
+    {
+      "id": "11",
+      "indice": "IPCA",
+      "mesReferencia": "2025-12-01",
+      "valor": "0.330000",
+      "createdAt": "2026-02-25 02:40:26",
+      "updatedAt": "2026-02-25 02:40:26"
+    },
+    {
+      "id": "10",
+      "indice": "IPCA",
+      "mesReferencia": "2025-11-01",
+      "valor": "0.180000",
+      "createdAt": "2026-02-25 02:40:26",
+      "updatedAt": "2026-02-25 02:40:26"
+    },
+    {
+      "id": "34",
+      "indice": "INPC",
+      "mesReferencia": "2025-11-01",
+      "valor": "0.030000",
+      "createdAt": "2026-02-25 02:40:29",
+      "updatedAt": "2026-02-25 02:40:29"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tindice\tmesReferencia\tvalor\tcreatedAt\tupdatedAt\n24\tIGP-M\t2026-01-01\t0.410000\t2026-02-25 02:40:28\t2026-02-25 02:40:28\n36\tINPC\t2026-01-01\t0.390000\t2026-02-25 02:40:29\t2026-02-25 02:40:29\n48\tIGP-DI\t2026-01-01\t0.200000\t2026-02-25 02:40:31\t2026-02-25 02:40:31\n12\tIPCA\t2026-01-01\t0.330000\t2026-02-25 02:40:26\t2026-02-25 02:40:26\n35\tINPC\t2025-12-01\t0.210000\t2026-02-25 02:40:29\t2026-02-25 02:40:29\n47\tIGP-DI\t2025-12-01\t0.100000\t2026-02-25 02:40:31\t2026-02-25 02:40:31\n23\tIGP-M\t2025-12-01\t-0.010000\t2026-02-25 02:40:27\t2026-02-25 02:40:27\n11\tIPCA\t2025-12-01\t0.330000\t2026-02-25 02:40:26\t2026-02-25 02:40:26\n10\tIPCA\t2025-11-01\t0.180000\t2026-02-25 02:40:26\t2026-02-25 02:40:26\n34\tINPC\t2025-11-01\t0.030000\t2026-02-25 02:40:29\t2026-02-25 02:40:29\n",
+  "stderr": "",
+  "execution_time_ms": 373
+}

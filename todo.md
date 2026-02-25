@@ -979,3 +979,13 @@
 - [x] Adicionar campo breakdown na interface Cobranca
 - [x] Priorizar uso de breakdown do backend sobre cálculo frontend
 - [x] Validar que simulador mostra R$ 1.356,08 (igual à tabela)
+
+## Popular tabela indicesbcb com 10 anos de dados históricos
+- [x] Criar script seed-indices-bcb.mjs que busca dados de 2016-2026
+- [x] Implementar lógica para buscar dados dos 4 índices (IPCA, IGP-M, INPC, IGP-DI)
+- [x] Adicionar tratamento de erros e retry para API do BCB
+- [x] Testar script e validar que dados foram inseridos corretamente
+- [x] Documentar como executar o script (README ou comentários)
+- [x] Ajustar schema para usar tabela existente indicesBCB
+- [x] Executar script e popular 436 registros históricos (2016-2024)
+- [x] Validar cobertura de 121 meses por índice (10 anos completos)

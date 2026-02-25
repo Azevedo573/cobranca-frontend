@@ -145,3 +145,17 @@ export type AcordoCobranca = typeof acordoCobrancas.$inferSelect;
 export type InsertAcordoCobranca = typeof acordoCobrancas.$inferInsert;
 export type ParcelaAcordo = typeof parcelasAcordo.$inferSelect;
 export type InsertParcelaAcordo = typeof parcelasAcordo.$inferInsert;
+
+// Tabela para armazenar índices de correção monetária do Banco Central
+// Usa nome indicesBCB (com B maiúsculo) para manter compatibilidade com tabela existente
+export const indicesbcb = mysqlTable("indicesBCB", {
+  id: int("id").autoincrement().primaryKey(),
+  indice: mysqlEnum("indice", ["IPCA", "IGP-M", "INPC", "IGP-DI"]).notNull(),
+  mesReferencia: varchar("mesReferencia", { length: 10 }).notNull(), // Formato: YYYY-MM-01
+  valor: decimal("valor", { precision: 10, scale: 4 }).notNull(), // Valor percentual do índice
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type IndiceBCB = typeof indicesbcb.$inferSelect;
+export type InsertIndiceBCB = typeof indicesbcb.$inferInsert;
