@@ -1041,3 +1041,18 @@
 - [x] Teste 3: Sem juros e correção (R$ 3.940,83, redução de R$ 1.020,39)
 - [x] Teste 4: Apenas original + honorários (R$ 3.870,46)
 - [x] Validar cálculos matemáticos (diferença de R$ 0,01 por arredondamento)
+
+
+## Alterar Base de Cálculo de Honorários
+- [x] Localizar função de cálculo de honorários em shared/calculos.ts
+- [x] Localizar função de cálculo de honorários em server/db-cobrancas.ts
+- [x] Alterar fórmula: honorários = % sobre (valorOriginal + juros + multa + correção)
+- [x] Atualizar cálculo no backend (getCobrancasComCalculos) - linha 118-121
+- [x] Atualizar cálculo no frontend (calcularValorDevido - fallback) - linha 71-74
+- [x] Recalcular honorários quando usar correção BCB
+- [x] Testar com cobrança real e validar novo valor de honorários
+- [x] Comparar valores antes/depois da mudança
+- [x] Antes: R$ 351,86 (10% de R$ 3.518,60)
+- [x] Depois: R$ 498,18 (10% de R$ 4.981,81)
+- [x] Aumento de R$ 146,32 (+41,6% nos honorários, +2,7% no total)
+- [x] Validar cálculo matemático (base = R$ 4.981,81)

@@ -65,11 +65,13 @@ export function calcularValorDevido(
   // Calcula multa (percentual fixo, aplicado apenas se houver atraso)
   const multa = mesesAtraso > 0 ? (valorOriginal * (taxas.taxaMulta / 100)) : 0;
   
-  // Calcula honorários (percentual sobre valor original, aplicado apenas se houver atraso)
-  const honorarios = mesesAtraso > 0 ? (valorOriginal * (taxas.taxaHonorarios / 100)) : 0;
-  
   // Calcula correção monetária (percentual mensal * meses de atraso sobre valor original)
   const correcaoMonetaria = (valorOriginal * (taxas.correcaoMonetaria / 100)) * mesesAtraso;
+  
+  // Calcula honorários sobre o valor atualizado (valor original + juros + multa + correção)
+  // Aplicado apenas se houver atraso
+  const baseHonorarios = valorOriginal + juros + multa + correcaoMonetaria;
+  const honorarios = mesesAtraso > 0 ? (baseHonorarios * (taxas.taxaHonorarios / 100)) : 0;
   
   // Valor total
   const valorTotal = valorOriginal + juros + multa + honorarios + custasJudiciais + correcaoMonetaria;

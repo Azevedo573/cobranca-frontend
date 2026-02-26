@@ -115,11 +115,17 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
           condominio.indiceCorrecao
         );
         
-        // Recalcular valor total com correção BCB
+        // Recalcular honorários sobre o valor atualizado (com correção BCB)
+        const baseHonorarios = valorOriginal + breakdown.juros + breakdown.multa + correcaoBCB;
+        const mesesAtraso = breakdown.mesesAtraso;
+        const honorarios = mesesAtraso > 0 ? (baseHonorarios * (taxas.taxaHonorarios / 100)) : 0;
+        
+        // Recalcular valor total com correção BCB e honorários atualizados
         breakdown = {
           ...breakdown,
+          honorarios,
           correcaoMonetaria: correcaoBCB,
-          valorTotal: valorOriginal + breakdown.juros + breakdown.multa + breakdown.honorarios + custasJudiciais + correcaoBCB,
+          valorTotal: valorOriginal + breakdown.juros + breakdown.multa + honorarios + custasJudiciais + correcaoBCB,
         };
       } catch (error) {
         console.error("Erro ao calcular correção BCB, usando percentual fixo:", error);
