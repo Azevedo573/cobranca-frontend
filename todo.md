@@ -1004,3 +1004,21 @@
 - [x] Corrigir filtros de busca para incluir bloco
 - [ ] Testar cadastro manual com apenas Bloco/Apto (sem nome)
 - [ ] Validar exibição em todas as telas
+
+
+## Bug - Correção Monetária mostrando R$ 0,00
+- [ ] Investigar por que coluna Correção mostra R$ 0,00
+- [ ] Verificar se condomínio tem aplicarCorrecaoAuto=true e indiceCorrecao configurado
+- [ ] Verificar se API BCB está sendo chamada corretamente
+- [ ] Verificar se dados de índices BCB existem no banco para o período
+- [ ] Corrigir cálculo e testar com dados reais
+
+
+## Bug - Correção Monetária BCB mostrando R$ 0,00 (RESOLVIDO)
+- [x] Identificar que bcb-api.ts estava usando API externa em vez de tabela local
+- [x] Modificar bcb-api.ts para buscar índices da tabela indicesBCB
+- [x] Corrigir query Drizzle com sql template para buscar por enum
+- [x] Converter valor de string para number no retorno
+- [x] Ativar correção BCB para condomínio PARK PREMIUM
+- [x] Validar que correção mostra R$ 372,45 (IPCA out/2023 - fev/2026)
+- [x] Confirmar que valor atualizado mudou de R$ 4.961,23 para R$ 5.333,68

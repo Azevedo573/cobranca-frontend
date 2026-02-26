@@ -1,0 +1,34 @@
+{
+  "query": "SELECT * FROM condominios;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT * FROM condominios;",
+  "rows": [
+    {
+      "id": "150001",
+      "name": "CONDOMINIO PARK PREMIUM RECREIO RESIDENCES",
+      "cnpj": "23.177.858/0001-21",
+      "address": "Rua Silvia Pozzano, 2760",
+      "city": "Rio de Janeiro",
+      "state": "RJ",
+      "zipCode": "22790-671",
+      "phone": "",
+      "email": "",
+      "managerName": "park.premium.sindico",
+      "managerEmail": "sindico@parkpremium.com.br",
+      "createdAt": "2026-02-26 18:20:11",
+      "updatedAt": "2026-02-26 18:20:11",
+      "username": "park.premium ",
+      "password": "$2b$10$KTMBNX/uZVOiaGd98CYj2eEUttcmJcAoQhTRlWxMA4zZ4iI.pfpzW",
+      "taxaJurosMensal": "1.00",
+      "taxaMulta": "2.00",
+      "taxaHonorarios": "10.00",
+      "descontoMaximo": "5.00",
+      "correcaoMonetaria": "0.00",
+      "indiceCorrecao": "NENHUM",
+      "aplicarCorrecaoAuto": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\tcnpj\taddress\tcity\tstate\tzipCode\tphone\temail\tmanagerName\tmanagerEmail\tcreatedAt\tupdatedAt\tusername\tpassword\ttaxaJurosMensal\ttaxaMulta\ttaxaHonorarios\tdescontoMaximo\tcorrecaoMonetaria\tindiceCorrecao\taplicarCorrecaoAuto\n150001\tCONDOMINIO PARK PREMIUM RECREIO RESIDENCES\t23.177.858/0001-21\tRua Silvia Pozzano, 2760\tRio de Janeiro\tRJ\t22790-671\t\t\tpark.premium.sindico\tsindico@parkpremium.com.br\t2026-02-26 18:20:11\t2026-02-26 18:20:11\tpark.premium \t$2b$10$KTMBNX/uZVOiaGd98CYj2eEUttcmJcAoQhTRlWxMA4zZ4iI.pfpzW\t1.00\t2.00\t10.00\t5.00\t0.00\tNENHUM\t0\n",
+  "stderr": "",
+  "execution_time_ms": 365
+}
