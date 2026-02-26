@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -197,7 +198,7 @@ export default function CobrancaDetalhes() {
                 cobrancaId={cobranca.id}
                 valorTotal={Math.round(breakdown.valorTotal * 100)}
                 devedorId={devedor.id}
-                devedorNome={devedor.name}
+                devedorNome={getDevedorIdentificador(devedor)}
                 condominioId={condominio.id}
                 condominioNome={condominio.name}
                 taxaJurosMensal={taxas.taxaJurosMensal}

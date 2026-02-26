@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'wouter';
 import { trpc } from '../lib/trpc';
 import { useAuth } from '../_core/hooks/useAuth';
+import { getDevedorIdentificador } from '@/lib/devedorUtils';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { BadgePrioridade } from '../components/BadgePrioridade';
@@ -150,7 +151,7 @@ export default function CasosPrioritarios() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{devedor.name}</div>
+                        <div className="text-sm font-medium text-gray-900">{getDevedorIdentificador(devedor)}</div>
                         {devedor.email && (
                           <div className="text-sm text-gray-500">{devedor.email}</div>
                         )}

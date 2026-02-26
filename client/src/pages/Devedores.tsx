@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getDevedorIdentificador } from '@/lib/devedorUtils';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -71,8 +72,9 @@ export default function Devedores() {
   });
 
   const filteredDevedores = devedores?.filter(dev =>
-    dev.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    dev.unitNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    (dev.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    dev.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (dev.bloco?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
   
   const handleDeleteClick = (id: number) => {
@@ -218,7 +220,7 @@ export default function Devedores() {
                 <TableBody>
                   {filteredDevedores.map((dev) => (
                     <TableRow key={dev.id}>
-                      <TableCell className="font-medium">{dev.name}</TableCell>
+                      <TableCell className="font-medium">{getDevedorIdentificador(dev)}</TableCell>
                       <TableCell>{dev.unitNumber}</TableCell>
                       <TableCell>{dev.bloco || "-"}</TableCell>
                       <TableCell>

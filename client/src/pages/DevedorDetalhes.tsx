@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -346,7 +347,7 @@ export default function DevedorDetalhes() {
               <SimuladorAcordoMultiplo
                 cobrancas={cobrancas as any}
                 devedorId={devedor.id}
-                devedorNome={devedor.name}
+                devedorNome={getDevedorIdentificador(devedor)}
                 condominioId={devedor.condominioId}
                 condominioNome={condominio.name}
                 taxaJurosMensal={Number(condominio.taxaJurosMensal || "1.00")}

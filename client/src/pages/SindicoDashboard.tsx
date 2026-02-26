@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -168,7 +169,7 @@ export default function SindicoDashboard() {
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div>
                               <p className="font-medium text-sm">
-                                {devedor?.name || "Devedor não encontrado"}
+                                {devedor ? getDevedorIdentificador(devedor) : "Devedor não encontrado"}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 Unidade {devedor?.unitNumber || "N/A"}
@@ -266,7 +267,7 @@ export default function SindicoDashboard() {
                   {devedores.slice(0, 5).map((dev) => (
                     <div key={dev.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
                       <div>
-                        <p className="font-medium text-sm">{dev.name}</p>
+                        <p className="font-medium text-sm">{getDevedorIdentificador(dev)}</p>
                         <p className="text-xs text-muted-foreground">
                           Unidade {dev.unitNumber} - R$ {(dev.totalDue / 100).toFixed(2)}
                         </p>

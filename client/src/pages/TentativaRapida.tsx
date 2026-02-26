@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -106,8 +107,9 @@ export default function TentativaRapida() {
 
   // Filtrar devedores por busca
   const devedoresFiltrados = devedores?.filter(d => 
-    d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    d.unitNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    (d.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    d.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (d.bloco?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   ) || [];
 
   return (
@@ -179,7 +181,7 @@ export default function TentativaRapida() {
                     >
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-medium text-sm">{dev.name}</p>
+                          <p className="font-medium text-sm">{getDevedorIdentificador(dev)}</p>
                           <p className="text-xs text-muted-foreground">
                             Unidade {dev.unitNumber}
                           </p>

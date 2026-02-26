@@ -51,7 +51,7 @@ export const condominios = mysqlTable("condominios", {
 export const devedores = mysqlTable("devedores", {
   id: int("id").autoincrement().primaryKey(),
   condominioId: int("condominioId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }), // Opcional: pode usar Bloco + Unidade como identificador
   cpfCnpj: varchar("cpfCnpj", { length: 18 }),
   unitNumber: varchar("unitNumber", { length: 50 }).notNull(),
   bloco: varchar("bloco", { length: 50 }),

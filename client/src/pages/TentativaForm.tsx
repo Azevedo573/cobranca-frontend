@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -105,7 +106,7 @@ export default function TentativaForm() {
               </Button>
               <div>
                 <h1 className="text-2xl font-bold text-primary">Registrar Tentativa</h1>
-                <p className="text-sm text-muted-foreground">{devedor.name} - Unidade {devedor.unitNumber}</p>
+                <p className="text-sm text-muted-foreground">{getDevedorIdentificador(devedor)} - Unidade {devedor.unitNumber}</p>
               </div>
             </div>
             <div className="flex items-center gap-4">

@@ -989,3 +989,18 @@
 - [x] Ajustar schema para usar tabela existente indicesBCB
 - [x] Executar script e popular 436 registros históricos (2016-2024)
 - [x] Validar cobertura de 121 meses por índice (10 anos completos)
+
+
+## Identificação de Devedores por Bloco + Apartamento
+- [x] Analisar schema atual da tabela devedores (campos bloco e unitNumber já existem)
+- [x] Tornar campo `name` opcional (nullable) no banco de dados
+- [x] Atualizar formulário de cadastro de devedor para incluir Bloco e Apartamento
+- [x] Adicionar validação: deve ter Nome OU (Bloco + Unidade)
+- [x] Criar função helper `getDevedorIdentificador` em client/src/lib/devedorUtils.ts
+- [x] Atualizar listagens de devedores (Devedores.tsx, CasosPrioritarios.tsx)
+- [x] Atualizar dashboards (CobradorDashboard, SindicoDashboard)
+- [x] Atualizar formulários de seleção (TentativaForm, ProcessoCobrancaForm)
+- [x] Atualizar páginas de detalhes (DevedorDetalhes, ProcessoCobrancaDetalhes, TentativaRapida)
+- [x] Corrigir filtros de busca para incluir bloco
+- [ ] Testar cadastro manual com apenas Bloco/Apto (sem nome)
+- [ ] Validar exibição em todas as telas

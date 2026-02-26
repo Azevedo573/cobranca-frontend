@@ -82,8 +82,9 @@ export default function DevedorForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name.trim()) {
-      toast.error("Nome é obrigatório");
+    // Validação: deve ter Nome OU (Bloco + Unidade)
+    if (!formData.name.trim() && !formData.bloco.trim()) {
+      toast.error("Preencha o Nome ou o Bloco para identificar o devedor");
       return;
     }
 
@@ -190,16 +191,20 @@ export default function DevedorForm() {
               )}
 
               {/* Dados Básicos */}
+              <div className="space-y-2 mb-4">
+                <p className="text-sm text-muted-foreground">
+                  Preencha o <strong>Nome</strong> ou o <strong>Bloco</strong> para identificar o devedor
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nome Completo *</Label>
+                  <Label htmlFor="name">Nome Completo</Label>
                   <Input
                     id="name"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="Nome do condômino"
-                    required
                   />
                 </div>
                 <div className="space-y-2">

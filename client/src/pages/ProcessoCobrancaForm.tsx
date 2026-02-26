@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -210,7 +211,7 @@ export default function CobrancaForm() {
                   <SelectContent>
                     {devedores?.map((dev) => (
                       <SelectItem key={dev.id} value={dev.id.toString()}>
-                        {dev.name} - Unidade {dev.unitNumber}
+                        {getDevedorIdentificador(dev)} - Unidade {dev.unitNumber}
                       </SelectItem>
                     ))}
                   </SelectContent>
