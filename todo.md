@@ -1022,3 +1022,22 @@
 - [x] Ativar correção BCB para condomínio PARK PREMIUM
 - [x] Validar que correção mostra R$ 372,45 (IPCA out/2023 - fev/2026)
 - [x] Confirmar que valor atualizado mudou de R$ 4.961,23 para R$ 5.333,68
+
+
+## Controles Individuais de Encargos no Simulador de Acordo
+- [x] Analisar componente SimuladorAcordoMultiplo atual
+- [x] Adicionar toggle on/off para incluir/excluir Juros
+- [x] Adicionar toggle on/off para incluir/excluir Multa
+- [x] Adicionar toggle on/off para incluir/excluir Correção Monetária
+- [x] Atualizar lógica de cálculo para considerar toggles ativos
+- [x] Adicionar estados incluirJuros, incluirMulta, incluirCorrecao
+- [x] Modificar cálculo de valorAtualizado para considerar toggles
+- [x] Adicionar seção visual com 3 checkboxes (Juros, Multa, Correção)
+- [x] Recalcular valor total dinamicamente ao mudar toggles (via useMemo)
+- [x] Testar simulação com diferentes combinações (todos ativos, alguns desativados, etc.)
+- [x] Validar que valor total reflete corretamente os encargos selecionados
+- [x] Teste 1: Todos encargos ativos (R$ 5.333,68)
+- [x] Teste 2: Sem correção (R$ 4.961,23, redução de R$ 372,45)
+- [x] Teste 3: Sem juros e correção (R$ 3.940,83, redução de R$ 1.020,39)
+- [x] Teste 4: Apenas original + honorários (R$ 3.870,46)
+- [x] Validar cálculos matemáticos (diferença de R$ 0,01 por arredondamento)

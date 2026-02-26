@@ -73,6 +73,11 @@ export function SimuladorAcordoMultiplo({
   const [copiado, setCopiado] = useState(false);
   const [consolidarAcordo, setConsolidarAcordo] = useState(false);
   const [opcaoConsolidacao, setOpcaoConsolidacao] = useState<'somar' | 'diluir'>('diluir');
+  
+  // Controles de encargos (toggles on/off)
+  const [incluirJuros, setIncluirJuros] = useState(true);
+  const [incluirMulta, setIncluirMulta] = useState(true);
+  const [incluirCorrecao, setIncluirCorrecao] = useState(true);
 
   // Buscar desconto máximo do condomínio
   const { data: condominio } = trpc.condominios.getById.useQuery({ id: condominioId });
@@ -88,9 +93,18 @@ export function SimuladorAcordoMultiplo({
     return cobrancasDisponiveis.map(c => {
       // Se breakdown já vem do backend (com correção BCB), usar ele
       if (c.breakdown) {
+        // Calcular valor considerando toggles de encargos
+        let valorCalculado = c.breakdown.valorOriginal;
+        
+        if (incluirJuros) valorCalculado += c.breakdown.juros;
+        if (incluirMulta) valorCalculado += c.breakdown.multa;
+        if (incluirCorrecao) valorCalculado += c.breakdown.correcaoMonetaria;
+        // Honorários sempre incluídos
+        valorCalculado += c.breakdown.honorarios;
+        
         return {
           ...c,
-          valorAtualizado: Math.round(c.breakdown.valorTotal * 100), // Converter reais para centavos
+          valorAtualizado: Math.round(valorCalculado * 100), // Converter reais para centavos
         };
       }
       
@@ -117,7 +131,7 @@ export function SimuladorAcordoMultiplo({
         valorAtualizado: Math.round(breakdown.valorTotal * 100),
       };
     });
-  }, [cobrancasDisponiveis, condominio]);
+  }, [cobrancasDisponiveis, condominio, incluirJuros, incluirMulta, incluirCorrecao]);
   
   // Buscar acordos ativos do devedor
   const { data: acordosAtivos, error: acordosError, isLoading: acordosLoading } = trpc.acordos.getAtivosComParcelas.useQuery({ devedorId });
@@ -463,6 +477,60 @@ export function SimuladorAcordoMultiplo({
                 Máximo: {descontoMaximo}% (configurado no condomínio)
               </p>
             </div>
+          </div>
+          
+          {/* Controles de Encargos */}
+          <div className="mb-6">
+            <Label className="mb-3 block">Encargos a Incluir no Acordo</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
+              {/* Toggle Juros */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-juros"
+                  checked={incluirJuros}
+                  onCheckedChange={(checked) => setIncluirJuros(checked as boolean)}
+                />
+                <label
+                  htmlFor="incluir-juros"
+                  className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Juros
+                </label>
+              </div>
+              
+              {/* Toggle Multa */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-multa"
+                  checked={incluirMulta}
+                  onCheckedChange={(checked) => setIncluirMulta(checked as boolean)}
+                />
+                <label
+                  htmlFor="incluir-multa"
+                  className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Multa
+                </label>
+              </div>
+              
+              {/* Toggle Correção Monetária */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-correcao"
+                  checked={incluirCorrecao}
+                  onCheckedChange={(checked) => setIncluirCorrecao(checked as boolean)}
+                />
+                <label
+                  htmlFor="incluir-correcao"
+                  className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Correção Monetária
+                </label>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              💡 Honorários são sempre incluídos no acordo
+            </p>
           </div>
           
           {/* Opções de Consolidação */}
