@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 import { Upload, FileSpreadsheet, Download, AlertCircle, CheckCircle2 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 export default function ImportarDividas() {
   const params = useParams();
@@ -70,17 +71,35 @@ export default function ImportarDividas() {
   };
   
   const downloadTemplate = () => {
-    // Criar template de planilha
-    const template = `Descrição,Valor,Vencimento,Tipo,Custas Judiciais,Mês Referência
-Condomínio Janeiro/2024,500.00,31/01/2024,condominio,,2024-01
-Condomínio Fevereiro/2024,500.00,28/02/2024,condominio,,2024-02
-Multa por barulho,150.00,15/03/2024,multa,,`;
+    // Criar workbook Excel
+    const wb = XLSX.utils.book_new();
     
-    const blob = new Blob([template], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "template_importacao_dividas.csv";
-    link.click();
+    // Dados do template
+    const data = [
+      ["Descrição", "Valor", "Vencimento", "Tipo", "Custas Judiciais", "Mês Referência"],
+      ["Condomínio Janeiro/2024", 500.00, "31/01/2024", "condominio", "", "2024-01"],
+      ["Condomínio Fevereiro/2024", 500.00, "28/02/2024", "condominio", "", "2024-02"],
+      ["Multa por barulho", 150.00, "15/03/2024", "multa", "", ""]
+    ];
+    
+    // Criar worksheet
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    // Definir largura das colunas
+    ws['!cols'] = [
+      { wch: 30 }, // Descrição
+      { wch: 12 }, // Valor
+      { wch: 15 }, // Vencimento
+      { wch: 15 }, // Tipo
+      { wch: 18 }, // Custas Judiciais
+      { wch: 18 }  // Mês Referência
+    ];
+    
+    // Adicionar worksheet ao workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    
+    // Gerar arquivo Excel
+    XLSX.writeFile(wb, "template_importacao_dividas.xlsx");
   };
   
   if (!devedor) {

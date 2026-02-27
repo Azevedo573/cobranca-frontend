@@ -1078,3 +1078,19 @@
 - [x] 3 cobranças criadas: Condomínio Jan/Fev 2024 + Multa
 - [x] Encargos calculados automaticamente (juros, multa, honorários, correção BCB)
 - [x] Valores validados: R$ 749,12, R$ 738,68, R$ 221,32
+
+
+## Modificar Template de Importação para Excel (.xlsx)
+- [x] Modificar função downloadTemplate em ImportarDividas.tsx
+- [x] Usar biblioteca xlsx para gerar arquivo Excel
+- [x] Garantir que colunas fiquem separadas corretamente
+- [x] Adicionar import de biblioteca xlsx
+- [x] Criar workbook e worksheet com dados do template
+- [x] Definir largura das colunas para melhor visualização
+- [x] Testar download do template
+- [x] Validar que arquivo abre corretamente no Excel/LibreOffice
+- [x] Arquivo baixado com sucesso (17KB)
+- [x] Colunas separadas corretamente (6 colunas)
+- [x] Cabeçalho: Descrição, Valor, Vencimento, Tipo, Custas Judiciais, Mês Referência
+- [x] 3 linhas de exemplo com dados corretos
+- [x] Largura das colunas ajustada para melhor visualização
