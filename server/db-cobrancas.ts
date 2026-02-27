@@ -141,3 +141,115 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
   
   return cobrancasComCalculos;
 }
+
+
+/**
+ * Importar múltiplas cobranças de uma planilha Excel
+ */
+export async function importarCobrancasPlanilha(
+  devedorId: number,
+  condominioId: number,
+  fileBase64: string
+): Promise<{ success: boolean; imported: number; errors: string[] }> {
+  const xlsx = await import("xlsx");
+  
+  // Decodificar base64 para buffer
+  const buffer = Buffer.from(fileBase64.split(",")[1] || fileBase64, "base64");
+  
+  // Ler planilha
+  const workbook = xlsx.read(buffer, { type: "buffer" });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  
+  // Converter para JSON
+  const rows: any[] = xlsx.utils.sheet_to_json(worksheet);
+  
+  const errors: string[] = [];
+  let imported = 0;
+  
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2; // +2 porque linha 1 é cabeçalho e índice começa em 0
+    
+    try {
+      // Validar campos obrigatórios
+      if (!row["Descrição"] && !row["Descricao"]) {
+        errors.push(`Linha ${rowNum}: Campo "Descrição" é obrigatório`);
+        continue;
+      }
+      
+      if (!row["Valor"]) {
+        errors.push(`Linha ${rowNum}: Campo "Valor" é obrigatório`);
+        continue;
+      }
+      
+      if (!row["Vencimento"]) {
+        errors.push(`Linha ${rowNum}: Campo "Vencimento" é obrigatório`);
+        continue;
+      }
+      
+      // Processar data de vencimento (pode vir como número serial do Excel ou string)
+      let dueDate: Date;
+      if (typeof row["Vencimento"] === "number") {
+        // Converter número serial do Excel para data
+        const excelEpoch = new Date(1899, 11, 30);
+        dueDate = new Date(excelEpoch.getTime() + row["Vencimento"] * 86400000);
+      } else {
+        // Tentar parsear string (formato DD/MM/YYYY ou YYYY-MM-DD)
+        const dateStr = String(row["Vencimento"]);
+        if (dateStr.includes("/")) {
+          const [day, month, year] = dateStr.split("/");
+          dueDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        } else {
+          dueDate = new Date(dateStr);
+        }
+      }
+      
+      if (isNaN(dueDate.getTime())) {
+        errors.push(`Linha ${rowNum}: Data de vencimento inválida`);
+        continue;
+      }
+      
+      // Processar valor (remover R$, pontos e trocar vírgula por ponto)
+      let amount = row["Valor"];
+      if (typeof amount === "string") {
+        amount = parseFloat(amount.replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
+      }
+      
+      if (isNaN(amount) || amount <= 0) {
+        errors.push(`Linha ${rowNum}: Valor inválido`);
+        continue;
+      }
+      
+      // Tipo de cobrança (opcional, padrão: condominio)
+      const tipoCobranca = row["Tipo"] || "condominio";
+      const tiposValidos = ["condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"];
+      if (!tiposValidos.includes(tipoCobranca)) {
+        errors.push(`Linha ${rowNum}: Tipo "${tipoCobranca}" inválido. Use: ${tiposValidos.join(", ")}`);
+        continue;
+      }
+      
+      // Criar cobrança
+      await createCobranca({
+        devedorId,
+        condominioId,
+        description: row["Descrição"] || row["Descricao"] || "",
+        amount: Math.round(amount * 100), // converter para centavos
+        dueDate,
+        tipoCobranca: tipoCobranca as any,
+        custasJudiciais: row["Custas Judiciais"] ? Math.round(parseFloat(row["Custas Judiciais"]) * 100) : undefined,
+        monthReference: row["Mês Referência"] || row["Mes Referencia"] || undefined,
+      });
+      
+      imported++;
+    } catch (error: any) {
+      errors.push(`Linha ${rowNum}: ${error.message}`);
+    }
+  }
+  
+  return {
+    success: errors.length === 0,
+    imported,
+    errors,
+  };
+}

@@ -1056,3 +1056,25 @@
 - [x] Depois: R$ 498,18 (10% de R$ 4.981,81)
 - [x] Aumento de R$ 146,32 (+41,6% nos honorários, +2,7% no total)
 - [x] Validar cálculo matemático (base = R$ 4.981,81)
+
+
+## Importação em Massa de Dívidas via Planilha Excel
+- [x] Instalar biblioteca xlsx para processar planilhas Excel
+- [x] Criar endpoint tRPC `cobrancas.importarPlanilha` que recebe base64 do arquivo
+- [x] Processar planilha e extrair dados (descrição, valor, vencimento, tipo)
+- [x] Validar dados obrigatórios e formatos (descrição, valor, vencimento)
+- [x] Criar página `/devedores/:id/importar-dividas` com upload de arquivo
+- [x] Criar função de importação em lote (inserir múltiplas cobranças)
+- [x] Adicionar botão "Importar Dívidas" na página de detalhes do devedor
+- [x] Criar template CSV para download
+- [x] Adicionar feedback de sucesso/erro após importação
+- [x] Suportar formatos de data DD/MM/YYYY e número serial do Excel
+- [x] Suportar valores com R$, pontos e vírgulas
+- [x] Testar importação com planilha real (3 cobranças)
+- [x] Validar que cobranças foram criadas corretamente no banco
+- [x] Criar arquivo Excel de teste com openpyxl
+- [x] Upload de arquivo .xlsx bem-sucedido
+- [x] Importação processada sem erros
+- [x] 3 cobranças criadas: Condomínio Jan/Fev 2024 + Multa
+- [x] Encargos calculados automaticamente (juros, multa, honorários, correção BCB)
+- [x] Valores validados: R$ 749,12, R$ 738,68, R$ 221,32

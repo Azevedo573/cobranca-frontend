@@ -234,6 +234,14 @@ export const appRouter = router({
       await deleteCobranca(input.id);
       return { success: true };
     }),
+    importarPlanilha: condominioAccessProcedure.input(z.object({
+      devedorId: z.number(),
+      condominioId: z.number(),
+      fileBase64: z.string(),
+    })).mutation(async ({ input }) => {
+      const { importarCobrancasPlanilha } = await import("./db-cobrancas");
+      return await importarCobrancasPlanilha(input.devedorId, input.condominioId, input.fileBase64);
+    }),
   }),
 
   // Tentativas de Cobrança

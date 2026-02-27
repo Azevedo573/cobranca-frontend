@@ -20,6 +20,7 @@ import UserForm from "./pages/admin/UserForm";
 import Devedores from "./pages/Devedores";
 import DevedorForm from "./pages/DevedorForm";
 import DevedorDetalhes from "./pages/DevedorDetalhes";
+import ImportarDividas from "./pages/ImportarDividas";
 import TentativaForm from "./pages/TentativaForm";
 import TentativaRapida from "./pages/TentativaRapida";
 import ProcessosCobranca from "./pages/ProcessosCobranca";
@@ -141,6 +142,9 @@ function Router() {
       </Route>
       <Route path="/devedores/:id/detalhes">
         {() => <ProtectedRoute component={DevedorDetalhes} />}
+      </Route>
+      <Route path="/devedores/:id/importar-dividas">
+        {() => <ProtectedRoute component={ImportarDividas} />}
       </Route>
       <Route path="/devedores/:devedorId/tentativa/nova">
         {() => <ProtectedRoute component={TentativaForm} />}

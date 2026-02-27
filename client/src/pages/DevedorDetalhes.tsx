@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -187,6 +187,12 @@ export default function DevedorDetalhes() {
                 <Plus className="mr-2 h-4 w-4" />
                 Nova Dívida
               </Button>
+              <Link href={`/devedores/${devedor.id}/importar-dividas`}>
+                <Button variant="outline" size="sm">
+                  <Upload className="mr-2 h-4 w-4" />
+                  Importar Dívidas
+                </Button>
+              </Link>
               <Link href={`/devedores/${devedor.id}/tentativa/nova`}>
                 <Button variant="outline" size="sm">
                   <Plus className="mr-2 h-4 w-4" />
