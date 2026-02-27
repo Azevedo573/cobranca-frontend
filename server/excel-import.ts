@@ -10,7 +10,7 @@ export function gerarTemplateExcel(): Buffer {
   // Dados de exemplo para o template
   const dados = [
     {
-      "Nome Completo": "João da Silva",
+      "Nome Completo (opcional)": "João da Silva",
       "CPF/CNPJ": "123.456.789-00",
       "Email": "joao@example.com",
       "Telefone": "(11) 98765-4321",
@@ -22,7 +22,7 @@ export function gerarTemplateExcel(): Buffer {
       "Valor Original (R$)": "1500.00",
     },
     {
-      "Nome Completo": "Maria Santos",
+      "Nome Completo (opcional)": "Maria Santos",
       "CPF/CNPJ": "987.654.321-00",
       "Email": "maria@example.com",
       "Telefone": "(11) 91234-5678",
@@ -57,7 +57,7 @@ export function gerarTemplateExcel(): Buffer {
   
   // Adicionar aba de instruções
   const instrucoes = [
-    { "Instruções de Preenchimento": "1. Preencha todos os campos obrigatórios" },
+    { "Instruções de Preenchimento": "1. Nome Completo é opcional se Bloco + Unidade estiverem preenchidos" },
     { "Instruções de Preenchimento": "2. CPF/CNPJ deve estar no formato: 123.456.789-00 ou 12.345.678/0001-00" },
     { "Instruções de Preenchimento": "3. Data de Vencimento no formato: DD/MM/AAAA" },
     { "Instruções de Preenchimento": "4. Mês de Referência no formato: MM/AAAA" },
@@ -79,7 +79,7 @@ export function gerarTemplateExcel(): Buffer {
  * Interface para dados importados da planilha
  */
 export interface DadosImportacao {
-  nomeCompleto: string;
+  nomeCompleto?: string;
   cpfCnpj: string;
   email?: string;
   telefone?: string;
@@ -121,8 +121,12 @@ export function processarPlanilha(buffer: Buffer): {
     const linha = index + 2; // +2 porque linha 1 é cabeçalho e index começa em 0
     
     // Validar campos obrigatórios
-    if (!row["Nome Completo"]) {
-      erros.push({ linha, campo: "Nome Completo", mensagem: "Campo obrigatório" });
+    // Nome é opcional se Bloco + Unidade estiverem preenchidos
+    const temNome = row["Nome Completo (opcional)"] || row["Nome Completo"];
+    const temBlocoUnidade = row["Bloco"] && row["Unidade"];
+    
+    if (!temNome && !temBlocoUnidade) {
+      erros.push({ linha, campo: "Nome/Bloco+Unidade", mensagem: "Preencha Nome OU (Bloco + Unidade)" });
     }
     if (!row["CPF/CNPJ"]) {
       erros.push({ linha, campo: "CPF/CNPJ", mensagem: "Campo obrigatório" });
@@ -163,9 +167,10 @@ export function processarPlanilha(buffer: Buffer): {
     }
     
     // Se não houver erros críticos, adicionar aos dados
-    if (row["Nome Completo"] && row["CPF/CNPJ"] && row["Unidade"]) {
+    if (row["CPF/CNPJ"] && row["Unidade"]) {
+      const nomeCompleto = row["Nome Completo (opcional)"] || row["Nome Completo"];
       dados.push({
-        nomeCompleto: String(row["Nome Completo"]),
+        nomeCompleto: nomeCompleto ? String(nomeCompleto) : undefined,
         cpfCnpj: String(row["CPF/CNPJ"]).replace(/[^\d]/g, ""),
         email: row["Email"] ? String(row["Email"]) : undefined,
         telefone: row["Telefone"] ? String(row["Telefone"]) : undefined,

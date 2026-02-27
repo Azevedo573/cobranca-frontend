@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 
 interface DadoImportacao {
-  nomeCompleto: string;
+  nomeCompleto?: string;
   cpfCnpj: string;
   email?: string;
   telefone?: string;
@@ -177,7 +177,8 @@ export default function ImportarDevedores() {
       <div>
         <h1 className="text-3xl font-bold">Importar Devedores via Planilha</h1>
         <p className="text-muted-foreground mt-2">
-          Faça o upload de uma planilha Excel para importar múltiplos devedores e cobranças de uma vez
+          Faça o upload de uma planilha Excel para importar múltiplos devedores e cobranças de uma vez.
+          O campo <strong>Nome Completo é opcional</strong> se Bloco + Unidade estiverem preenchidos.
         </p>
       </div>
 
@@ -189,7 +190,8 @@ export default function ImportarDevedores() {
             Passo 1: Baixar Template
           </CardTitle>
           <CardDescription>
-            Baixe o template padronizado e preencha com os dados dos devedores
+            Baixe o template padronizado e preencha com os dados dos devedores.
+            <strong>Nome é opcional</strong> quando Bloco + Unidade identificam o devedor.
           </CardDescription>
         </CardHeader>
         <CardContent>

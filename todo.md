@@ -1094,3 +1094,16 @@
 - [x] Cabeçalho: Descrição, Valor, Vencimento, Tipo, Custas Judiciais, Mês Referência
 - [x] 3 linhas de exemplo com dados corretos
 - [x] Largura das colunas ajustada para melhor visualização
+
+
+## Atualizar Importar Devedores para Seguir Novas Regras
+- [x] Verificar código atual da página ImportarDevedores
+- [x] Verificar validação no backend (endpoint tRPC)
+- [x] Atualizar validação: Nome OU (Bloco + Unidade) obrigatório
+- [x] Atualizar template de planilha para refletir regras
+- [x] Adicionar coluna Bloco no template (já existia)
+- [x] Adicionar coluna Unidade no template (já existia)
+- [x] Marcar coluna Nome como opcional na documentação
+- [x] Testar importação com devedores SEM nome (apenas Bloco + Unidade)
+- [x] Testar importação com devedores COM nome (já testado anteriormente)
+- [x] Validar que getDevedorIdentificador funciona após importação

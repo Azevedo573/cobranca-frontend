@@ -739,7 +739,7 @@ export const appRouter = router({
     importarDevedores: adminProcedure.input(z.object({
       condominioId: z.number(),
       dados: z.array(z.object({
-        nomeCompleto: z.string(),
+        nomeCompleto: z.string().optional(),
         cpfCnpj: z.string(),
         email: z.string().optional(),
         telefone: z.string().optional(),
@@ -772,7 +772,7 @@ export const appRouter = router({
             // Criar novo devedor
             const devedorResult = await createDevedor({
               condominioId: input.condominioId,
-              name: dado.nomeCompleto,
+              name: dado.nomeCompleto || null,
               cpfCnpj: dado.cpfCnpj,
               email: dado.email,
               phone: dado.telefone,
