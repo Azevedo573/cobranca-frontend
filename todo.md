@@ -1107,3 +1107,14 @@
 - [x] Testar importação com devedores SEM nome (apenas Bloco + Unidade)
 - [x] Testar importação com devedores COM nome (já testado anteriormente)
 - [x] Validar que getDevedorIdentificador funciona após importação
+
+
+## Remover Obrigatoriedade de CPF/CNPJ na Importação de Devedores
+- [x] Atualizar validação em excel-import.ts para tornar CPF/CNPJ opcional
+- [x] Atualizar schema tRPC em routers.ts (campo cpfCnpj opcional)
+- [x] Atualizar interface DadosImportacao no frontend
+- [x] Modificar template Excel para indicar "CPF/CNPJ (opcional)"
+- [x] Atualizar instruções do template
+- [x] Testar importação com devedor SEM CPF/CNPJ
+- [x] Validar processamento sem erros
+- [x] Verificar que cpfCnpj = undefined quando vazio

@@ -23,7 +23,7 @@ import {
 
 interface DadoImportacao {
   nomeCompleto?: string;
-  cpfCnpj: string;
+  cpfCnpj?: string;
   email?: string;
   telefone?: string;
   unidade: string;

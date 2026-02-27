@@ -740,7 +740,7 @@ export const appRouter = router({
       condominioId: z.number(),
       dados: z.array(z.object({
         nomeCompleto: z.string().optional(),
-        cpfCnpj: z.string(),
+        cpfCnpj: z.string().optional(),
         email: z.string().optional(),
         telefone: z.string().optional(),
         unidade: z.string(),
@@ -764,16 +764,19 @@ export const appRouter = router({
       
       for (const dado of input.dados) {
         try {
-          // Verificar se devedor já existe
+          // Verificar se devedor já existe (apenas se CPF/CNPJ fornecido)
           const { getDevedorByCpfCnpj, getDevedorById } = await import("./db-devedores");
-          let devedor = await getDevedorByCpfCnpj(dado.cpfCnpj, input.condominioId);
+          let devedor = null;
+          if (dado.cpfCnpj) {
+            devedor = await getDevedorByCpfCnpj(dado.cpfCnpj, input.condominioId);
+          }
           
           if (!devedor) {
             // Criar novo devedor
             const devedorResult = await createDevedor({
               condominioId: input.condominioId,
               name: dado.nomeCompleto || null,
-              cpfCnpj: dado.cpfCnpj,
+              cpfCnpj: dado.cpfCnpj || null,
               email: dado.email,
               phone: dado.telefone,
               unitNumber: dado.unidade,
