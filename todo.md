@@ -1118,3 +1118,9 @@
 - [x] Testar importação com devedor SEM CPF/CNPJ
 - [x] Validar processamento sem erros
 - [x] Verificar que cpfCnpj = undefined quando vazio
+
+## Bug - Data de Vencimento Exibe Número Serial do Excel na Prévia
+- [x] Corrigir conversorData em excel-import.ts para tratar número serial do Excel
+- [x] Usar XLSX.SSF.parse_date_code para converter serial → DD/MM/AAAA
+- [x] Garantir que validação de formato aceita datas salvas como número no Excel
+- [x] Testar com planilha onde data foi digitada diretamente (formato nativo do Excel)

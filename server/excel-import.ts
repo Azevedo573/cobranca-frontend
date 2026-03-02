@@ -111,8 +111,8 @@ export function processarPlanilha(buffer: Buffer): {
   const wsName = wb.SheetNames[0];
   const ws = wb.Sheets[wsName];
   
-  // Converter para JSON
-  const rows = XLSX.utils.sheet_to_json(ws) as any[];
+  // Converter para JSON (raw: true garante que datas sejam lidas como número serial)
+  const rows = XLSX.utils.sheet_to_json(ws, { raw: true }) as any[];
   
   const dados: DadosImportacao[] = [];
   const erros: ErroValidacao[] = [];
@@ -148,11 +148,12 @@ export function processarPlanilha(buffer: Buffer): {
       }
     }
     
-    // Validar formato de data
+    // Validar formato de data (aceita texto DD/MM/AAAA ou número serial do Excel)
     if (row["Data de Vencimento"]) {
       const dataStr = String(row["Data de Vencimento"]);
       const dataRegex = /^\d{2}\/\d{2}\/\d{4}$/;
-      if (!dataRegex.test(dataStr)) {
+      const isSerial = /^\d+(\.\d+)?$/.test(dataStr);
+      if (!dataRegex.test(dataStr) && !isSerial) {
         erros.push({ linha, campo: "Data de Vencimento", mensagem: "Formato deve ser DD/MM/AAAA" });
       }
     }
@@ -179,13 +180,35 @@ export function processarPlanilha(buffer: Buffer): {
         bloco: row["Bloco"] ? String(row["Bloco"]) : undefined,
         descricaoCobranca: row["Descrição da Cobrança"] ? String(row["Descrição da Cobrança"]) : undefined,
         mesReferencia: row["Mês de Referência"] ? String(row["Mês de Referência"]) : undefined,
-        dataVencimento: String(row["Data de Vencimento"]),
+        dataVencimento: normalizarData(row["Data de Vencimento"]),
         valorOriginal: Number(String(row["Valor Original (R$)"]).replace(",", ".")),
       });
     }
   });
   
   return { dados, erros };
+}
+
+/**
+ * Normaliza valor de data do Excel para string DD/MM/AAAA
+ * Aceita: string "DD/MM/AAAA" ou número serial do Excel (ex: 46063)
+ */
+function normalizarData(valor: unknown): string {
+  if (valor === null || valor === undefined) return "";
+  const str = String(valor).trim();
+  // Já está no formato correto
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str;
+  // É número serial do Excel
+  const serial = Number(str);
+  if (!isNaN(serial) && serial > 1000) {
+    // Excel usa epoch 1/1/1900 (com bug do ano 1900)
+    const date = XLSX.SSF.parse_date_code(serial);
+    const dia = String(date.d).padStart(2, "0");
+    const mes = String(date.m).padStart(2, "0");
+    const ano = String(date.y);
+    return `${dia}/${mes}/${ano}`;
+  }
+  return str;
 }
 
 /**
