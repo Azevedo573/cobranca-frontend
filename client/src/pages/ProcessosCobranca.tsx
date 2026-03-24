@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { FileText, Plus, Eye, ArrowLeft, Search, Pencil, Trash2 } from "lucide-react";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
@@ -169,14 +170,25 @@ export default function ProcessosCobranca() {
                   Total: {filteredCobrancas?.length || 0} processo(s)
                 </CardDescription>
               </div>
-              {(user?.role === "admin" || user?.role === "sindico") && (
-                <Link href="/processos/novo">
-                  <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Novo Processo
-                  </Button>
-                </Link>
-              )}
+              <div className="flex items-center gap-2">
+                <ExportExcelButton
+                  onClick={async () => {
+                    const result = await utils.client.exportacao.cobrancas.mutate({
+                      condominioId: condominioId || undefined,
+                    });
+                    return result;
+                  }}
+                  label="Exportar Excel"
+                />
+                {(user?.role === "admin" || user?.role === "sindico") && (
+                  <Link href="/processos/novo">
+                    <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Novo Processo
+                    </Button>
+                  </Link>
+                )}
+              </div>
             </div>
             <div className="mt-4 space-y-4">
               {user?.role === "admin" && (

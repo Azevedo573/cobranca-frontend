@@ -71,11 +71,23 @@ export default function Devedores() {
     },
   });
 
-  const filteredDevedores = devedores?.filter(dev =>
-    (dev.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    dev.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (dev.bloco?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  );
+  // Normaliza CPF/CNPJ removendo pontos, traços e barras para comparação
+  const normalizarDocumento = (doc: string) => doc.replace(/[.\-\/]/g, '');
+
+  const filteredDevedores = devedores?.filter(dev => {
+    const termo = searchTerm.toLowerCase();
+    const termoNormalizado = normalizarDocumento(searchTerm);
+    return (
+      (dev.name?.toLowerCase() || '').includes(termo) ||
+      dev.unitNumber.toLowerCase().includes(termo) ||
+      (dev.bloco?.toLowerCase() || '').includes(termo) ||
+      // Busca por CPF/CNPJ: aceita com ou sem formatação
+      (dev.cpfCnpj && (
+        dev.cpfCnpj.toLowerCase().includes(termo) ||
+        normalizarDocumento(dev.cpfCnpj).includes(termoNormalizado)
+      ))
+    );
+  });
   
   const handleDeleteClick = (id: number) => {
     setDevedorToDelete(id);
@@ -189,7 +201,7 @@ export default function Devedores() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por nome ou unidade..."
+                  placeholder="Buscar por nome, unidade, bloco ou CPF/CNPJ..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"

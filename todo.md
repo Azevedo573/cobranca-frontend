@@ -1132,3 +1132,16 @@
 - [x] Adicionar t\u00edtulos H2 com palavras-chave
 - [x] Adicionar palavras-chave relevantes no conte\u00fado
 - [x] Validar estrutura de heading (H1 > H2 > H3)
+
+## Exportação Excel nas Páginas de Cobranças e Tentativas
+- [x] Verificar endpoint exportarExcel no backend (cobrancas e tentativas já existiam)
+- [x] Adicionar botão "Exportar Excel" na página de Cobranças
+- [x] Adicionar botão "Exportar Excel" na página de Tentativas de Cobrança
+- [x] Testar exportação (6 testes passando)
+
+## Busca por CPF/CNPJ na Listagem de Devedores
+- [x] Verificar como a busca atual está implementada no frontend
+- [x] Verificar se o backend suporta filtro por CPF/CNPJ (frontend-only, sem query extra)
+- [x] Adicionar CPF/CNPJ na lógica de filtragem (com e sem formatação)
+- [x] Atualizar placeholder do campo de busca
+- [x] Testar busca por CPF/CNPJ (9 testes passando)

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { Phone, Plus, Search, ArrowLeft } from "lucide-react";
+import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Link } from "wouter";
 import { useState } from "react";
 import { format } from "date-fns";
@@ -41,6 +42,8 @@ export default function TentativasCobranca() {
     { condominioId: condominioId ?? 0 },
     { enabled: condominioId !== null && condominioId !== undefined }
   );
+
+  const utils = trpc.useUtils();
 
 
 
@@ -169,7 +172,15 @@ export default function TentativasCobranca() {
                   Total: {filteredTentativas?.length || 0} tentativa(s)
                 </CardDescription>
               </div>
-
+              <ExportExcelButton
+                onClick={async () => {
+                  const result = await utils.client.exportacao.tentativas.mutate({
+                    condominioId: condominioId || undefined,
+                  });
+                  return result;
+                }}
+                label="Exportar Excel"
+              />
             </div>
             <div className="mt-4 space-y-4">
               {user?.role === "admin" && (
