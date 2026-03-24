@@ -931,11 +931,11 @@
 - [x] Testar visualização com diferentes status de acordos
 
 ## Bug - Consolidação de Acordos Não Cancela Acordos Antigos
-- [ ] Investigar por que acordos antigos não estão sendo cancelados ao criar consolidado
-- [ ] Verificar lógica de detecção de consolidação no backend
-- [ ] Corrigir condição de cancelamento automático
-- [ ] Testar criação de acordo consolidado
-- [ ] Validar que acordos antigos ficam com status "cancelado"
+- [x] Investigar por que acordos antigos não estão sendo cancelados ao criar consolidado
+- [x] Verificar lógica de detecção de consolidação no backend
+- [x] Corrigir condição: usar acordoOrigemId como flag confiável (não texto das notes)
+- [x] Testar criação de acordo consolidado (testes unitários passando)
+- [x] Validar que acordos antigos ficam com status "cancelado"
 
 ## Bug - Consolidação de Acordos Não Cancela Acordos Antigos
 - [x] Investigar por que acordos antigos não estão sendo cancelados

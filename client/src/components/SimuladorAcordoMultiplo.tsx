@@ -274,11 +274,10 @@ export function SimuladorAcordoMultiplo({
     
     notes += ` Entrada: ${formatarMoedaAcordo(valorEntrada)} + ${planoFinal.numeroParcelas}x de ${formatarMoedaAcordo(planoFinal.valorParcela)}`;
 
-    // Calcular totalAmount correto (incluindo valor do acordo anterior se consolidar)
-    let totalAmountFinal = valorTotalSelecionado;
-    if (consolidarAcordo && acordoAtivo) {
-      totalAmountFinal += acordoAtivo.valorRestante;
-    }
+    // Calcular totalAmount correto:
+    // - Usa planoFinal.valorTotal que já inclui desconto, valor do acordo anterior e juros
+    // - Isso garante que o valor salvo no banco bate com o que foi simulado
+    const totalAmountFinal = planoFinal.valorTotal;
 
     createAcordoMutation.mutate({
       cobrancaIds: Array.from(cobrancasSelecionadas),

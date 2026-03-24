@@ -169,16 +169,22 @@ export async function createAcordoCobrancas(acordoId: number, cobrancaIds: numbe
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // Buscar valores originais das cobranças
+  if (cobrancaIds.length === 0) return [];
+  
+  // Buscar valores originais de TODAS as cobranças (corrigido: antes só buscava a primeira)
   const { cobrancas } = await import("../drizzle/schema");
+  const { inArray } = await import("drizzle-orm");
   const cobrancasData = await db.select().from(cobrancas).where(
-    eq(cobrancas.id, cobrancaIds[0]) // Simplificado para primeira implementação
+    inArray(cobrancas.id, cobrancaIds)
   );
+  
+  // Criar um mapa de id -> amount para lookup rápido
+  const cobrancaAmountMap = new Map(cobrancasData.map(c => [c.id, c.amount]));
   
   const relacionamentos = cobrancaIds.map(cobrancaId => ({
     acordoId,
     cobrancaId,
-    valorOriginal: cobrancasData[0]?.amount || 0,
+    valorOriginal: cobrancaAmountMap.get(cobrancaId) || 0,
   }));
   
   const result = await db.insert(acordoCobrancas).values(relacionamentos);

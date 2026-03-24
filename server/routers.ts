@@ -358,11 +358,13 @@ export const appRouter = router({
       const { createAcordo, createParcelas, createAcordoCobrancas, getAcordosAtivosComParcelas, updateAcordo } = await import("./db-acordos");
       
       // Verificar se há acordos ativos e cancelar (se for consolidação)
+      // Usa acordoOrigemId como flag confiável de consolidação (não depende do texto das notes)
       const acordosAtivos = await getAcordosAtivosComParcelas(input.devedorId);
-      if (acordosAtivos.length > 0 && input.notes?.includes('Consolidação:')) {
-        // Cancelar todos os acordos ativos
+      if (acordosAtivos.length > 0 && input.acordoOrigemId) {
+        // Cancelar todos os acordos ativos do devedor
         for (const acordo of acordosAtivos) {
           await updateAcordo(acordo.id, { status: 'cancelado' });
+          console.log(`[DEBUG] Acordo #${acordo.id} cancelado por consolidação`);
         }
       }
       
