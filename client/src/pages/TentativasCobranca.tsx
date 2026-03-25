@@ -14,16 +14,21 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { Phone, Plus, Search, ArrowLeft } from "lucide-react";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
+import { Pagination, paginateItems } from "@/components/Pagination";
 import { Link } from "wouter";
 import { useState } from "react";
 import { format } from "date-fns";
 
+
+const PAGE_SIZE_DEFAULT = 25;
 
 export default function TentativasCobranca() {
   const { user, logout } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
   
   // Para admin, usar condomínio selecionado; para síndico/cobrador, usar o próprio
@@ -47,6 +52,11 @@ export default function TentativasCobranca() {
 
 
 
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
 
   const filteredTentativas = tentativas?.filter(tent => {
     const devedorName = tent.devedorName || "";
@@ -205,7 +215,7 @@ export default function TentativasCobranca() {
                 <Input
                   placeholder="Buscar por devedor ou observações..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -218,6 +228,7 @@ export default function TentativasCobranca() {
                 <p className="mt-4 text-muted-foreground">Carregando...</p>
               </div>
             ) : filteredTentativas && filteredTentativas.length > 0 ? (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -229,7 +240,7 @@ export default function TentativasCobranca() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTentativas.map((tent) => (
+                  {paginateItems(filteredTentativas, currentPage, pageSize).map((tent) => (
                     <TableRow key={tent.id}>
                       <TableCell className="font-medium">
                         {format(new Date(tent.attemptDate), "dd/MM/yyyy HH:mm")}
@@ -242,6 +253,14 @@ export default function TentativasCobranca() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredTentativas.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+              />
+              </>
             ) : (
               <div className="text-center py-12">
                 <Phone className="h-16 w-16 text-muted-foreground mx-auto mb-4" />

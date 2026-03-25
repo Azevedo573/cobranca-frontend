@@ -22,6 +22,7 @@ import {
 import { trpc } from "@/lib/trpc";
 import { Users, Plus, Eye, ArrowLeft, Search, Pencil, Trash2 } from "lucide-react";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
+import { Pagination, paginateItems } from "@/components/Pagination";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import {
@@ -37,6 +38,8 @@ import {
 import { toast } from "sonner";
 import { BadgePrioridade } from "@/components/BadgePrioridade";
 
+const PAGE_SIZE_DEFAULT = 25;
+
 export default function Devedores() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
@@ -44,6 +47,8 @@ export default function Devedores() {
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [devedorToDelete, setDevedorToDelete] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
   
   // Admin precisa selecionar um condomínio, síndicos/cobradores usam o próprio
   const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
@@ -73,6 +78,11 @@ export default function Devedores() {
 
   // Normaliza CPF/CNPJ removendo pontos, traços e barras para comparação
   const normalizarDocumento = (doc: string) => doc.replace(/[.\-\/]/g, '');
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Resetar para página 1 ao buscar
+  };
 
   const filteredDevedores = devedores?.filter(dev => {
     const termo = searchTerm.toLowerCase();
@@ -203,7 +213,7 @@ export default function Devedores() {
                 <Input
                   placeholder="Buscar por nome, unidade, bloco ou CPF/CNPJ..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -216,6 +226,7 @@ export default function Devedores() {
                 <p className="mt-4 text-muted-foreground">Carregando...</p>
               </div>
             ) : filteredDevedores && filteredDevedores.length > 0 ? (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -230,7 +241,7 @@ export default function Devedores() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDevedores.map((dev) => (
+                   {paginateItems(filteredDevedores, currentPage, pageSize).map((dev) => (
                     <TableRow key={dev.id}>
                       <TableCell className="font-medium">{getDevedorIdentificador(dev)}</TableCell>
                       <TableCell>{dev.unitNumber}</TableCell>
@@ -282,6 +293,14 @@ export default function Devedores() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredDevedores.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+              />
+              </>
             ) : (
               <div className="text-center py-12">
                 <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />

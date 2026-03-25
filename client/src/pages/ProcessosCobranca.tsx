@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { FileText, Plus, Eye, ArrowLeft, Search, Pencil, Trash2 } from "lucide-react";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
+import { Pagination, paginateItems } from "@/components/Pagination";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
@@ -30,6 +31,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
+const PAGE_SIZE_DEFAULT = 25;
+
 export default function ProcessosCobranca() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
@@ -37,6 +40,8 @@ export default function ProcessosCobranca() {
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [cobrancaToDelete, setCobrancaToDelete] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
   
   // Para admin, usar condomínio selecionado; para síndico/cobrador, usar o próprio
   const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
@@ -98,6 +103,11 @@ export default function ProcessosCobranca() {
     if (cobrancaToDelete) {
       deleteMutation.mutate({ id: cobrancaToDelete });
     }
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
   };
 
   const filteredCobrancas = cobrancas?.filter(cob => {
@@ -213,7 +223,7 @@ export default function ProcessosCobranca() {
                 <Input
                   placeholder="Buscar por devedor, descrição ou mês..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -226,6 +236,7 @@ export default function ProcessosCobranca() {
                 <p className="mt-4 text-muted-foreground">Carregando...</p>
               </div>
             ) : filteredCobrancas && filteredCobrancas.length > 0 ? (
+              <>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -240,7 +251,7 @@ export default function ProcessosCobranca() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCobrancas.map((cob) => {
+                  {paginateItems(filteredCobrancas, currentPage, pageSize).map((cob) => {
                     const breakdown = taxas && cob.status !== "pago" && cob.dueDate ? calcularValorDevido(
                       cob.amount / 100,
                       new Date(cob.dueDate),
@@ -296,6 +307,14 @@ export default function ProcessosCobranca() {
                   })}
                 </TableBody>
               </Table>
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredCobrancas.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+              />
+              </>
             ) : (
               <div className="text-center py-12">
                 <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />

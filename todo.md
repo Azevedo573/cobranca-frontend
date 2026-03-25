@@ -1145,3 +1145,11 @@
 - [x] Adicionar CPF/CNPJ na lógica de filtragem (com e sem formatação)
 - [x] Atualizar placeholder do campo de busca
 - [x] Testar busca por CPF/CNPJ (9 testes passando)
+
+## Paginação nas Listagens
+- [x] Criar componente reutilizável Pagination
+- [x] Adicionar paginação na página de Devedores
+- [x] Adicionar paginação na página de Cobranças (ProcessosCobranca)
+- [x] Adicionar paginação na página de Tentativas (TentativasCobranca)
+- [x] Resetar página ao mudar filtro de busca
+- [x] Escrever testes unitários para lógica de paginação (19 testes passando)
