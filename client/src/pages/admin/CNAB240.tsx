@@ -129,6 +129,21 @@ export default function CNAB240() {
     c.status === "pendente" || c.status === "em_cobranca"
   ) || [];
 
+  // Cobranças com remessa gerada mas ainda não confirmadas como enviadas
+  // Derivado diretamente da listagem — persiste mesmo após recarregar a página
+  const cobrancasAguardandoEnvio = cobrancas?.filter(c =>
+    (c as any).statusRemessa === "remessa_gerada"
+  ) || [];
+
+  const handleConfirmarEnvio = () => {
+    const ids = cobrancasAguardandoEnvio.map(c => c.id);
+    if (ids.length === 0) {
+      toast.error("Nenhuma cobrança com status 'Remessa Gerada' encontrada");
+      return;
+    }
+    marcarEnviadoMutation.mutate({ cobrancaIds: ids });
+  };
+
   const getStatusRemessaBadge = (statusRemessa: string | null | undefined) => {
     switch (statusRemessa) {
       case "remessa_gerada":
@@ -354,6 +369,38 @@ export default function CNAB240() {
             </CardContent>
           </Card>
 
+          {/* Seção persistente: cobranças aguardando confirmação de envio (visível mesmo após recarregar) */}
+          {cobrancasAguardandoEnvio.length > 0 && !resultadoRemessa && (
+            <Card className="border-purple-200 bg-purple-50">
+              <CardContent className="pt-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-purple-700 font-semibold">
+                      <FileText className="h-5 w-5" />
+                      {cobrancasAguardandoEnvio.length} cobrança{cobrancasAguardandoEnvio.length > 1 ? "s" : ""} aguardando confirmação de envio
+                    </div>
+                    <p className="text-sm text-purple-600 mt-1">
+                      Remessa gerada, mas o envio ao banco ainda não foi confirmado.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                    onClick={handleConfirmarEnvio}
+                    disabled={marcarEnviadoMutation.isPending}
+                  >
+                    <MailCheck className="mr-2 h-4 w-4" />
+                    {marcarEnviadoMutation.isPending ? "Marcando..." : "Confirmar Envio ao Banco"}
+                  </Button>
+                </div>
+                <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Clique em "Confirmar Envio ao Banco" após enviar o arquivo ao BTG Pactual para avançar o status para Enviado.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Resultado da remessa gerada */}
           {resultadoRemessa && (
             <Card className="border-purple-200 bg-purple-50">
@@ -383,8 +430,8 @@ export default function CNAB240() {
                       <Button
                         variant="outline"
                         className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                        onClick={() => marcarEnviadoMutation.mutate({ cobrancaIds: cobrancasSelecionadas })}
-                        disabled={marcarEnviadoMutation.isPending}
+                        onClick={handleConfirmarEnvio}
+                        disabled={marcarEnviadoMutation.isPending || cobrancasAguardandoEnvio.length === 0}
                       >
                         <MailCheck className="mr-2 h-4 w-4" />
                         {marcarEnviadoMutation.isPending ? "Marcando..." : "Confirmar Envio ao Banco"}

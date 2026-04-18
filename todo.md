@@ -1341,3 +1341,9 @@
 - [x] Frontend: botão renomeado para "Confirmar Envio ao Banco"
 - [x] Frontend: fluxo visual: Não Enviado (laranja) → Remessa Gerada (roxo) → Enviado (azul) → Retorno Recebido (verde)
 - [x] 119 testes passando
+
+## Bug Fix — Botão "Confirmar Envio ao Banco" com array vazio
+
+- [x] Corrigir CNAB240.tsx: botão usa IDs das cobranças com status "remessa_gerada" da listagem, não do estado de seleção
+- [x] Adicionada seção persistente "X cobranças aguardando confirmação de envio" visível mesmo após recarregar a página
+- [x] 0 erros TypeScript
