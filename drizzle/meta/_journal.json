@@ -155,6 +155,13 @@
       "when": 1776540300408,
       "tag": "0022_plain_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1776541046856,
+      "tag": "0023_fearless_aaron_stack",
+      "breakpoints": true
     }
   ]
 }

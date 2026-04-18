@@ -1357,7 +1357,7 @@ export const appRouter = router({
         const valorTotal = cobList.reduce((s, c) => s + c.amount, 0);
         const nomeArquivo = `remessa_cnab240_${condId}_${Date.now()}.txt`;
 
-        await criarRemessaCNAB({
+        const remessaResult = await criarRemessaCNAB({
           condominioId: condId,
           usuarioId: ctx.user.id,
           banco: input.dadosBanco.codigoBanco,
@@ -1368,6 +1368,13 @@ export const appRouter = router({
           nossoNumeroFim: titulos[titulos.length - 1]?.nossoNumero,
           status: "gerado",
         });
+
+        // Marcar cobranças incluidas como "remessa_gerada" automaticamente
+        if (input.cobrancaIds.length > 0) {
+          await db.update(cobrancas)
+            .set({ statusRemessa: "remessa_gerada" })
+            .where(inArray(cobrancas.id, input.cobrancaIds));
+        }
 
         return {
           nomeArquivo,

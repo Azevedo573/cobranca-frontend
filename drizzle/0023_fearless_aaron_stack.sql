@@ -1,0 +1,1 @@
+ALTER TABLE `cobrancas` MODIFY COLUMN `statusRemessa` enum('nao_enviado','remessa_gerada','enviado','retorno_recebido') DEFAULT 'nao_enviado';

@@ -1329,3 +1329,15 @@
 - [x] Frontend: botões de abrir, copiar link (com toast "Cole no WhatsApp ou e-mail") e excluir
 - [x] Frontend: estado vazio com instrução para acessar detalhes da cobrança
 - [x] 119 testes passando (nenhum novo teste necessário)
+
+## Correção Status Remessa CNAB — Novo Status "Remessa Gerada"
+
+- [x] Schema: adicionar "remessa_gerada" ao enum statusRemessa (nao_enviado | remessa_gerada | enviado | retorno_recebido)
+- [x] Migração: pnpm db:push (migração 0023 aplicada)
+- [x] Backend: procedure gerarRemessa marca cobranças como "remessa_gerada" automaticamente
+- [x] Backend: procedure marcarComoEnviado avança para "enviado"
+- [x] Frontend: badge roxo "Remessa Gerada" na coluna de status da tabela
+- [x] Frontend: card de resultado da remessa em roxo com badge de status
+- [x] Frontend: botão renomeado para "Confirmar Envio ao Banco"
+- [x] Frontend: fluxo visual: Não Enviado (laranja) → Remessa Gerada (roxo) → Enviado (azul) → Retorno Recebido (verde)
+- [x] 119 testes passando

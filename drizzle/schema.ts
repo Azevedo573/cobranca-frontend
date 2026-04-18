@@ -80,7 +80,7 @@ export const cobrancas = mysqlTable("cobrancas", {
   paidAt: timestamp("paidAt"),
   paidAmount: int("paidAmount"),
   nossoNumero: varchar("nossoNumero", { length: 30 }), // Número do boleto/título para CNAB
-  statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "enviado", "retorno_recebido"]).default("nao_enviado"),
+  statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "remessa_gerada", "enviado", "retorno_recebido"]).default("nao_enviado"),
   remessaId: int("remessaId"), // ID da remessa CNAB que gerou este boleto
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

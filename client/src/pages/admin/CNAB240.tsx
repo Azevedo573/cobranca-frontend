@@ -97,8 +97,10 @@ export default function CNAB240() {
   const gerarRemessaMutation = trpc.cnab.gerarRemessa.useMutation({
     onSuccess: (data) => {
       setResultadoRemessa(data);
+      setRemessaEnviada(false); // reset para novo ciclo
       utils.cnab.listarRemessas.invalidate();
-      toast.success(`Remessa gerada: ${data.totalTitulos} títulos`);
+      utils.cobrancas.list.invalidate(); // atualiza status na tabela
+      toast.success(`Remessa gerada: ${data.totalTitulos} títulos — status atualizado para "Remessa Gerada"`);
     },
     onError: (err) => toast.error("Erro ao gerar remessa: " + err.message),
   });
@@ -129,6 +131,8 @@ export default function CNAB240() {
 
   const getStatusRemessaBadge = (statusRemessa: string | null | undefined) => {
     switch (statusRemessa) {
+      case "remessa_gerada":
+        return <Badge className="bg-purple-100 text-purple-700 border-purple-200"><FileText className="h-3 w-3 mr-1" />Remessa Gerada</Badge>;
       case "enviado":
         return <Badge className="bg-blue-100 text-blue-700 border-blue-200"><MailCheck className="h-3 w-3 mr-1" />Enviado</Badge>;
       case "retorno_recebido":
@@ -352,21 +356,26 @@ export default function CNAB240() {
 
           {/* Resultado da remessa gerada */}
           {resultadoRemessa && (
-            <Card className="border-green-200 bg-green-50">
+            <Card className="border-purple-200 bg-purple-50">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-2 text-green-700 font-semibold">
-                      <CheckCircle2 className="h-5 w-5" />
-                      Remessa gerada com sucesso!
+                    <div className="flex items-center gap-2 text-purple-700 font-semibold">
+                      <FileText className="h-5 w-5" />
+                      Arquivo de remessa gerado!
                     </div>
-                    <p className="text-sm text-green-600 mt-1">
+                    <p className="text-sm text-purple-600 mt-1">
                       {resultadoRemessa.totalTitulos} títulos — {formatarMoeda(resultadoRemessa.valorTotal)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">{resultadoRemessa.nomeArquivo}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
+                        <FileText className="h-3 w-3 mr-1" />Status: Remessa Gerada
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Button onClick={handleDownloadRemessa} className="bg-green-600 hover:bg-green-700">
+                    <Button onClick={handleDownloadRemessa} className="bg-purple-600 hover:bg-purple-700">
                       <Download className="mr-2 h-4 w-4" />
                       Baixar Arquivo
                     </Button>
@@ -378,7 +387,7 @@ export default function CNAB240() {
                         disabled={marcarEnviadoMutation.isPending}
                       >
                         <MailCheck className="mr-2 h-4 w-4" />
-                        {marcarEnviadoMutation.isPending ? "Marcando..." : "Marcar como Enviado ao Banco"}
+                        {marcarEnviadoMutation.isPending ? "Marcando..." : "Confirmar Envio ao Banco"}
                       </Button>
                     ) : (
                       <Badge className="bg-blue-100 text-blue-700 border-blue-200 px-3 py-1.5">
@@ -391,7 +400,7 @@ export default function CNAB240() {
                 {!remessaEnviada && (
                   <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    Após enviar o arquivo ao BTG Pactual, clique em "Marcar como Enviado" para atualizar o status das cobranças.
+                    Baixe o arquivo e envie ao BTG Pactual. Após o envio, clique em "Confirmar Envio ao Banco" para avançar o status para Enviado.
                   </p>
                 )}
               </CardContent>
