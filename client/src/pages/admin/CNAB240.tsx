@@ -17,7 +17,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
-  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send
+  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -74,6 +74,7 @@ export default function CNAB240() {
   const [retornoNomeArquivo, setRetornoNomeArquivo] = useState("");
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [retornoResultadoOpen, setRetornoResultadoOpen] = useState(false);
+  const [remessaEnviada, setRemessaEnviada] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -102,6 +103,15 @@ export default function CNAB240() {
     onError: (err) => toast.error("Erro ao gerar remessa: " + err.message),
   });
 
+  const marcarEnviadoMutation = trpc.cnab.marcarComoEnviado.useMutation({
+    onSuccess: (data) => {
+      setRemessaEnviada(true);
+      utils.cobrancas.list.invalidate();
+      toast.success(`${data.updated} cobranças marcadas como enviadas ao banco`);
+    },
+    onError: (err) => toast.error("Erro ao marcar como enviado: " + err.message),
+  });
+
   const processarRetornoMutation = trpc.cnab.processarRetorno.useMutation({
     onSuccess: (data) => {
       setResultadoRetorno(data);
@@ -116,6 +126,17 @@ export default function CNAB240() {
   const cobrancasPendentes = cobrancas?.filter(c =>
     c.status === "pendente" || c.status === "em_cobranca"
   ) || [];
+
+  const getStatusRemessaBadge = (statusRemessa: string | null | undefined) => {
+    switch (statusRemessa) {
+      case "enviado":
+        return <Badge className="bg-blue-100 text-blue-700 border-blue-200"><MailCheck className="h-3 w-3 mr-1" />Enviado</Badge>;
+      case "retorno_recebido":
+        return <Badge className="bg-green-100 text-green-700 border-green-200"><CheckCircle2 className="h-3 w-3 mr-1" />Retorno Recebido</Badge>;
+      default:
+        return <Badge variant="outline" className="text-amber-600 border-amber-300"><Clock className="h-3 w-3 mr-1" />Não Enviado</Badge>;
+    }
+  };
 
   const toggleCobranca = (id: number) => {
     setCobrancasSelecionadas(prev =>
@@ -288,6 +309,7 @@ export default function CNAB240() {
                           <TableHead>Vencimento</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Remessa</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -315,6 +337,9 @@ export default function CNAB240() {
                             <TableCell>
                               <Badge variant="secondary">{cob.status}</Badge>
                             </TableCell>
+                            <TableCell>
+                              {getStatusRemessaBadge((cob as any).statusRemessa)}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -329,7 +354,7 @@ export default function CNAB240() {
           {resultadoRemessa && (
             <Card className="border-green-200 bg-green-50">
               <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 text-green-700 font-semibold">
                       <CheckCircle2 className="h-5 w-5" />
@@ -340,11 +365,35 @@ export default function CNAB240() {
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">{resultadoRemessa.nomeArquivo}</p>
                   </div>
-                  <Button onClick={handleDownloadRemessa} className="bg-green-600 hover:bg-green-700">
-                    <Download className="mr-2 h-4 w-4" />
-                    Baixar Arquivo
-                  </Button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button onClick={handleDownloadRemessa} className="bg-green-600 hover:bg-green-700">
+                      <Download className="mr-2 h-4 w-4" />
+                      Baixar Arquivo
+                    </Button>
+                    {!remessaEnviada ? (
+                      <Button
+                        variant="outline"
+                        className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                        onClick={() => marcarEnviadoMutation.mutate({ cobrancaIds: cobrancasSelecionadas })}
+                        disabled={marcarEnviadoMutation.isPending}
+                      >
+                        <MailCheck className="mr-2 h-4 w-4" />
+                        {marcarEnviadoMutation.isPending ? "Marcando..." : "Marcar como Enviado ao Banco"}
+                      </Button>
+                    ) : (
+                      <Badge className="bg-blue-100 text-blue-700 border-blue-200 px-3 py-1.5">
+                        <MailCheck className="h-3.5 w-3.5 mr-1.5" />
+                        Enviado ao banco
+                      </Badge>
+                    )}
+                  </div>
                 </div>
+                {!remessaEnviada && (
+                  <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Após enviar o arquivo ao BTG Pactual, clique em "Marcar como Enviado" para atualizar o status das cobranças.
+                  </p>
+                )}
               </CardContent>
             </Card>
           )}

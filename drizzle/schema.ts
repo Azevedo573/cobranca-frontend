@@ -80,6 +80,8 @@ export const cobrancas = mysqlTable("cobrancas", {
   paidAt: timestamp("paidAt"),
   paidAmount: int("paidAmount"),
   nossoNumero: varchar("nossoNumero", { length: 30 }), // Número do boleto/título para CNAB
+  statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "enviado", "retorno_recebido"]).default("nao_enviado"),
+  remessaId: int("remessaId"), // ID da remessa CNAB que gerou este boleto
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -268,6 +270,23 @@ export const retornosCNAB = mysqlTable("retornosCNAB", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// Boletos PDF enviados pelos usuários para disponibilização no sistema
+export const boletosUpload = mysqlTable("boletosUpload", {
+  id: int("id").autoincrement().primaryKey(),
+  cobrancaId: int("cobrancaId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  nomeArquivo: varchar("nomeArquivo", { length: 255 }).notNull(),
+  urlS3: text("urlS3").notNull(),
+  fileKey: varchar("fileKey", { length: 500 }).notNull(),
+  tamanhoBytes: int("tamanhoBytes").default(0),
+  mimeType: varchar("mimeType", { length: 100 }).default("application/pdf"),
+  uploadedBy: int("uploadedBy").notNull(), // userId
+  uploadedByName: varchar("uploadedByName", { length: 100 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BoletoUpload = typeof boletosUpload.$inferSelect;
+export type InsertBoletoUpload = typeof boletosUpload.$inferInsert;
 export type HistoricoImportacao = typeof historicoImportacoes.$inferSelect;
 export type InsertHistoricoImportacao = typeof historicoImportacoes.$inferInsert;
 export type RemessaCNAB = typeof remessasCNAB.$inferSelect;

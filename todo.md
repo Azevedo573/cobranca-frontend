@@ -1302,3 +1302,21 @@
 - [x] 8 testes para parser CSV de baixa em lote
 - [x] Bug CNAB detectado e corrigido pelos testes (trailer lote 227 → 240 chars)
 - [x] Total: 36 novos testes + 83 existentes = 119 testes passando
+
+## Melhorias CNAB 240 — Status de Remessa e Upload de Boletos
+
+- [x] Schema: adicionar campo `statusRemessa` (nao_enviado | enviado | retorno_recebido) em cobrancas
+- [x] Schema: criar tabela `boletosUpload` (id, cobrancaId, condominioId, nomeArquivo, urlS3, fileKey, tamanhoBytes, mimeType, uploadedBy, uploadedByName, createdAt)
+- [x] Migração: pnpm db:push (migração 0022 aplicada)
+- [x] Backend: procedure `cnab.marcarComoEnviado` para atualizar statusRemessa das cobranças
+- [x] Backend: procedure `cnab.uploadBoleto` para salvar PDF no S3 e registrar na tabela
+- [x] Backend: procedure `cnab.listarBoletos` para buscar boletos de uma cobrança
+- [x] Backend: procedure `cnab.deletarBoleto` para remover boleto
+- [x] Frontend CNAB240: coluna "Remessa" na listagem de cobranças pendentes com badge de status
+- [x] Frontend CNAB240: botão "Marcar como Enviado ao Banco" após geração da remessa
+- [x] Frontend CNAB240: badges visuais (Não Enviado / Enviado / Retorno Recebido)
+- [x] Frontend: seção "Boletos" na página de detalhes da cobrança (ProcessoCobrancaDetalhes)
+- [x] Frontend: upload de PDF (até 10MB) com leitura base64
+- [x] Frontend: listagem de boletos com botões de abrir, copiar link e deletar
+- [x] Frontend: botão "Copiar Link" para envio rápido por WhatsApp/E-mail
+- [x] Total: 119 testes passando (nenhum novo teste necessário, funcionalidade coberta por testes de integração)

@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, FileText, Calendar, DollarSign, User, Home } from "lucide-react";
+import { ArrowLeft, FileText, Calendar, DollarSign, User, Home, Upload, Paperclip, Trash2, ExternalLink, Copy } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { calcularValorDevido, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import BreakdownValorComponent from "@/components/BreakdownValor";
 import { SimuladorAcordo } from "@/components/SimuladorAcordo";
@@ -255,6 +256,9 @@ export default function CobrancaDetalhes() {
                 <ControleParcelas cobrancaId={cobranca.id} />
               </>
             )}
+
+            {/* Boletos PDF */}
+            <BoletosCard cobrancaId={cobranca.id} condominioId={cobranca.condominioId} />
           </div>
 
           {/* Informações do Devedor */}
@@ -333,5 +337,172 @@ export default function CobrancaDetalhes() {
         </div>
       </main>
     </div>
+  );
+}
+
+// ===== Componente BoletosCard =====
+function BoletosCard({ cobrancaId, condominioId }: { cobrancaId: number; condominioId: number }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const utils = trpc.useUtils();
+
+  const { data: boletos, isLoading } = trpc.cnab.listarBoletos.useQuery({ cobrancaId });
+
+  const uploadMutation = trpc.cnab.uploadBoleto.useMutation({
+    onSuccess: () => {
+      utils.cnab.listarBoletos.invalidate({ cobrancaId });
+      toast.success("Boleto enviado com sucesso!");
+      setUploading(false);
+    },
+    onError: (err) => {
+      toast.error("Erro ao enviar boleto: " + err.message);
+      setUploading(false);
+    },
+  });
+
+  const deletarMutation = trpc.cnab.deletarBoleto.useMutation({
+    onSuccess: () => {
+      utils.cnab.listarBoletos.invalidate({ cobrancaId });
+      toast.success("Boleto removido");
+    },
+    onError: (err) => toast.error("Erro ao remover: " + err.message),
+  });
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 10MB.");
+      return;
+    }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = (ev.target?.result as string).split(",")[1];
+      uploadMutation.mutate({
+        cobrancaId,
+        condominioId,
+        nomeArquivo: file.name,
+        conteudoBase64: base64,
+        tamanhoBytes: file.size,
+        mimeType: file.type || "application/pdf",
+      });
+    };
+    reader.readAsDataURL(file);
+    // Reset input
+    e.target.value = "";
+  };
+
+  const formatarTamanho = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Paperclip className="h-5 w-5" />
+            Boletos
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {uploading ? "Enviando..." : "Anexar Boleto"}
+          </Button>
+        </div>
+        <CardDescription>
+          PDFs de boletos disponíveis para envio rápido no atendimento
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.PDF"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+
+        {isLoading ? (
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto" />
+          </div>
+        ) : !boletos || boletos.length === 0 ? (
+          <div
+            className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">
+              Nenhum boleto anexado. Clique para enviar um PDF.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {boletos.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center justify-between p-3 bg-muted/30 rounded-lg group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <FileText className="h-5 w-5 text-red-500 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{b.nomeArquivo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {b.tamanhoBytes ? formatarTamanho(b.tamanhoBytes) : ""} •{" "}
+                      {format(new Date(b.createdAt), "dd/MM/yyyy HH:mm")}
+                      {b.uploadedByName ? ` • ${b.uploadedByName}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    title="Copiar link"
+                    onClick={() => {
+                      navigator.clipboard.writeText(b.urlS3);
+                      toast.success("Link copiado!");
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <a href={b.urlS3} target="_blank" rel="noopener noreferrer">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" title="Abrir boleto">
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </a>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    title="Remover"
+                    onClick={() => deletarMutation.mutate({ id: b.id })}
+                    disabled={deletarMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <div
+              className="flex items-center gap-2 p-2 text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" />
+              Adicionar outro boleto
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

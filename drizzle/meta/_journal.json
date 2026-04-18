@@ -148,6 +148,13 @@
       "when": 1776538801569,
       "tag": "0021_mushy_sprite",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1776540300408,
+      "tag": "0022_plain_captain_flint",
+      "breakpoints": true
     }
   ]
 }

@@ -1171,6 +1171,85 @@ export const appRouter = router({
 
   // ===== CNAB 240 =====
   cnab: router({
+    // Marcar cobranças como enviadas ao banco após envio da remessa
+    marcarComoEnviado: protectedProcedure
+      .input(z.object({
+        cobrancaIds: z.array(z.number()).min(1),
+        remessaId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await import("./db").then(m => m.getDb());
+        if (!db) throw new Error("Database not available");
+        const { inArray } = await import("drizzle-orm");
+        const { cobrancas } = await import("../drizzle/schema");
+        await db.update(cobrancas)
+          .set({
+            statusRemessa: "enviado",
+            ...(input.remessaId ? { remessaId: input.remessaId } : {}),
+          })
+          .where(inArray(cobrancas.id, input.cobrancaIds));
+        return { updated: input.cobrancaIds.length };
+      }),
+
+    // Upload de PDF de boleto vinculado a uma cobrança
+    uploadBoleto: protectedProcedure
+      .input(z.object({
+        cobrancaId: z.number(),
+        condominioId: z.number(),
+        nomeArquivo: z.string(),
+        conteudoBase64: z.string(), // arquivo em base64
+        tamanhoBytes: z.number().optional(),
+        mimeType: z.string().default("application/pdf"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { storagePut } = await import("./storage");
+        const { boletosUpload } = await import("../drizzle/schema");
+        const db = await import("./db").then(m => m.getDb());
+        if (!db) throw new Error("Database not available");
+        // Converter base64 para Buffer
+        const buffer = Buffer.from(input.conteudoBase64, "base64");
+        const suffix = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+        const fileKey = `boletos/${input.condominioId}/${input.cobrancaId}/${suffix}-${input.nomeArquivo}`;
+        const { url } = await storagePut(fileKey, buffer, input.mimeType);
+        const [result] = await db.insert(boletosUpload).values({
+          cobrancaId: input.cobrancaId,
+          condominioId: input.condominioId,
+          nomeArquivo: input.nomeArquivo,
+          urlS3: url,
+          fileKey,
+          tamanhoBytes: input.tamanhoBytes ?? buffer.length,
+          mimeType: input.mimeType,
+          uploadedBy: ctx.user.id,
+          uploadedByName: ctx.user.name ?? ctx.user.email,
+        });
+        return { id: (result as any).insertId, url, fileKey };
+      }),
+
+    // Listar boletos de uma cobrança
+    listarBoletos: protectedProcedure
+      .input(z.object({ cobrancaId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await import("./db").then(m => m.getDb());
+        if (!db) return [];
+        const { eq, desc } = await import("drizzle-orm");
+        const { boletosUpload } = await import("../drizzle/schema");
+        return db.select().from(boletosUpload)
+          .where(eq(boletosUpload.cobrancaId, input.cobrancaId))
+          .orderBy(desc(boletosUpload.createdAt));
+      }),
+
+    // Deletar boleto
+    deletarBoleto: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const db = await import("./db").then(m => m.getDb());
+        if (!db) throw new Error("Database not available");
+        const { eq } = await import("drizzle-orm");
+        const { boletosUpload } = await import("../drizzle/schema");
+        await db.delete(boletosUpload).where(eq(boletosUpload.id, input.id));
+        return { deleted: true };
+      }),
+
     listarRemessas: protectedProcedure
       .input(z.object({ condominioId: z.number() }))
       .query(async ({ input, ctx }) => {
