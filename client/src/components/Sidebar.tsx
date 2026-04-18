@@ -15,6 +15,8 @@ import {
   ChevronRight,
   Upload,
   Calendar,
+  Zap,
+  History as HistoryIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -56,6 +58,18 @@ const menuItems: MenuItem[] = [
     label: "Relatório de Produtividade",
     href: "/admin/relatorios/produtividade",
     icon: BarChart3,
+    roles: ["admin"],
+  },
+  {
+    label: "Régua de Cobrança",
+    href: "/admin/regua-cobranca",
+    icon: Zap,
+    roles: ["admin"],
+  },
+  {
+    label: "Histórico de Disparos",
+    href: "/admin/historico-disparos",
+    icon: HistoryIcon,
     roles: ["admin"],
   },
   

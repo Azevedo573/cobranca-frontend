@@ -1198,3 +1198,45 @@
 - [x] Integrar modal na página DevedorDetalhes (substitui navegação)
 - [x] Botão "Nova Tentativa" abre modal sem sair da tela
 - [x] Invalida cache após criação para atualizar timeline automaticamente
+
+## Sprint 2 — Régua de Cobrança Automatizada
+
+### Schema do Banco de Dados
+- [x] Criar tabela `reguasCobranca` (id, nome, descricao, condominioId, ativa, tipoCobranca)
+- [x] Criar tabela `reguaPosicoes` (id, reguaId, diasInadimplencia, tipoAcao, template, ordem)
+- [x] Criar tabela `reguaDisparos` (id, posicaoId, cobrancaId, devedorId, dataDisparo, status, resultado)
+- [x] Tabelas criadas via SQL direto (conflito de migração resolvido)
+
+### Backend — CRUD e Engine
+- [x] Criar router `regua` com CRUD completo (db-reguas.ts + routers.ts)
+- [x] Endpoint para listar réguas por condomínio
+- [x] Endpoint para criar/editar/excluir régua
+- [x] Endpoint para criar/editar/excluir posições da régua
+- [x] Endpoint para executar régua manualmente (avaliar cobranças)
+- [x] Engine: função que avalia quais cobranças atingiram cada posição
+- [x] Engine: registrar disparo no histórico (tabela reguaDisparos)
+- [x] Engine: criar tentativa de cobrança automática ao disparar
+- [x] Job automático (job-regua.ts): executa todas as réguas a cada 1 hora
+
+### Frontend — Configuração da Régua
+- [x] Criar página `/admin/regua-cobranca` com listagem de réguas
+- [x] Componente visual de linha do tempo para posições da régua
+- [x] Modal para adicionar/editar posição (dias, tipo de ação, template)
+- [x] Botão "Executar Régua Agora" para disparo manual
+- [x] Adicionar link "Régua de Cobrança" no menu do admin
+- [x] Templates padrão para cada tipo de ação (WhatsApp, E-mail, SMS, Carta, Ligação)
+
+### Frontend — Histórico de Disparos
+- [x] Criar página `/admin/historico-disparos` com histórico completo
+- [x] Tabela com disparos: data, devedor, cobrança, ação, status
+- [x] Filtros por tipo de ação e status
+- [x] Visualização da mensagem gerada
+- [x] Adicionar link "Histórico de Disparos" no menu do admin
+
+### Testes
+- [x] Testes unitários para substituição de variáveis nos templates (5 testes)
+- [x] Testes unitários para cálculo de dias de atraso (5 testes)
+- [x] Testes unitários para lógica de disparo (6 testes)
+- [x] Testes unitários para templates padrão (2 testes)
+- [x] Testes de validações de negócio (2 testes)
+- [x] Total: 21 novos testes + 62 existentes = 83 testes passando

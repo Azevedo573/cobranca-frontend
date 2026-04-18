@@ -28,6 +28,8 @@ import ProcessoCobrancaForm from "./pages/ProcessoCobrancaForm";
 import ProcessoCobrancaDetalhes from "./pages/ProcessoCobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import ImportarDevedores from "./pages/admin/ImportarDevedores";
+import ReguaCobranca from "./pages/admin/ReguaCobranca";
+import HistoricoDisparos from "./pages/admin/HistoricoDisparos";
 import CasosPrioritarios from "./pages/CasosPrioritarios";
 import Acordos from "./pages/Acordos";
 import AcordosAcompanhamento from "./pages/AcordosAcompanhamento";
@@ -129,6 +131,16 @@ function Router() {
       {/* Rotas de Relatórios (Admin) */}
       <Route path="/admin/relatorios/produtividade">
         {() => <ProtectedRoute component={RelatorioProdutividade} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Régua de Cobrança */}
+      <Route path="/admin/regua-cobranca">
+        {() => <ProtectedRoute component={ReguaCobranca} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Histórico de Disparos */}
+      <Route path="/admin/historico-disparos">
+        {() => <ProtectedRoute component={HistoricoDisparos} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rota de Casos Prioritários */}

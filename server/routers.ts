@@ -1002,6 +1002,121 @@ export const appRouter = router({
       };
     }),
   }),
-});
 
+  // ===== RÉGUA DE COBRANÇA =====
+  regua: router({
+    list: protectedProcedure
+      .input(z.object({ condominioId: z.number() }))
+      .query(async ({ input }) => {
+        const { listReguasByCondominio } = await import("./db-reguas");
+        return listReguasByCondominio(input.condominioId);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getReguaById } = await import("./db-reguas");
+        return getReguaById(input.id);
+      }),
+
+    create: adminProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        nome: z.string().min(1),
+        descricao: z.string().optional(),
+        tipoCobranca: z.enum(["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
+        ativa: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createRegua } = await import("./db-reguas");
+        const id = await createRegua(input);
+        return { id };
+      }),
+
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().min(1).optional(),
+        descricao: z.string().optional(),
+        tipoCobranca: z.enum(["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
+        ativa: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateRegua } = await import("./db-reguas");
+        const { id, ...data } = input;
+        await updateRegua(id, data);
+        return { success: true };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deleteRegua } = await import("./db-reguas");
+        await deleteRegua(input.id);
+        return { success: true };
+      }),
+
+    createPosicao: adminProcedure
+      .input(z.object({
+        reguaId: z.number(),
+        diasInadimplencia: z.number(),
+        tipoAcao: z.enum(["whatsapp", "email", "sms", "carta", "ligacao", "notificacao_interna"]),
+        titulo: z.string().min(1),
+        template: z.string().optional(),
+        ordem: z.number().optional(),
+        ativa: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createPosicao } = await import("./db-reguas");
+        const id = await createPosicao(input);
+        return { id };
+      }),
+
+    updatePosicao: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        diasInadimplencia: z.number().optional(),
+        tipoAcao: z.enum(["whatsapp", "email", "sms", "carta", "ligacao", "notificacao_interna"]).optional(),
+        titulo: z.string().min(1).optional(),
+        template: z.string().optional(),
+        ordem: z.number().optional(),
+        ativa: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updatePosicao } = await import("./db-reguas");
+        const { id, ...data } = input;
+        await updatePosicao(id, data);
+        return { success: true };
+      }),
+
+    deletePosicao: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deletePosicao } = await import("./db-reguas");
+        await deletePosicao(input.id);
+        return { success: true };
+      }),
+
+    executar: adminProcedure
+      .input(z.object({ reguaId: z.number(), condominioId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { executarRegua } = await import("./db-reguas");
+        return executarRegua(input.reguaId, input.condominioId);
+      }),
+
+    getDisparos: protectedProcedure
+      .input(z.object({ reguaId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const { getDisparosByRegua } = await import("./db-reguas");
+        return getDisparosByRegua(input.reguaId, input.limit);
+      }),
+
+    getDisparosByCondominio: protectedProcedure
+      .input(z.object({ condominioId: z.number(), limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const { getDisparosByCondominio } = await import("./db-reguas");
+        return getDisparosByCondominio(input.condominioId, input.limit);
+      }),
+  }),
+});
 export type AppRouter = typeof appRouter;

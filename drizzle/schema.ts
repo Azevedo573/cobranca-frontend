@@ -159,3 +159,56 @@ export const indicesbcb = mysqlTable("indicesBCB", {
 
 export type IndiceBCB = typeof indicesbcb.$inferSelect;
 export type InsertIndiceBCB = typeof indicesbcb.$inferInsert;
+
+// ===== RÉGUA DE COBRANÇA =====
+
+// Tabela principal: define uma régua de cobrança para um condomínio
+export const reguasCobranca = mysqlTable("reguasCobranca", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId").notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  tipoCobranca: mysqlEnum("tipoCobranca", ["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).default("todos").notNull(),
+  ativa: int("ativa").default(1).notNull(), // 1 = ativa, 0 = inativa
+  ultimaExecucao: timestamp("ultimaExecucao"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// Posições da régua: cada posição define uma ação em X dias de inadimplência
+export const reguaPosicoes = mysqlTable("reguaPosicoes", {
+  id: int("id").autoincrement().primaryKey(),
+  reguaId: int("reguaId").notNull(),
+  diasInadimplencia: int("diasInadimplencia").notNull(), // Ex: -3, 0, 5, 15, 30, 60
+  tipoAcao: mysqlEnum("tipoAcao", ["whatsapp", "email", "sms", "carta", "ligacao", "notificacao_interna"]).notNull(),
+  titulo: varchar("titulo", { length: 255 }).notNull(), // Ex: "Aviso de Vencimento"
+  template: text("template"), // Texto da mensagem com variáveis: {{nome}}, {{valor}}, {{vencimento}}
+  ordem: int("ordem").default(0).notNull(), // Ordem de exibição na linha do tempo
+  ativa: int("ativa").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// Histórico de disparos: registra cada vez que uma posição foi disparada para uma cobrança
+export const reguaDisparos = mysqlTable("reguaDisparos", {
+  id: int("id").autoincrement().primaryKey(),
+  reguaId: int("reguaId").notNull(),
+  posicaoId: int("posicaoId").notNull(),
+  cobrancaId: int("cobrancaId").notNull(),
+  devedorId: int("devedorId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  diasInadimplencia: int("diasInadimplencia").notNull(), // Dias reais no momento do disparo
+  tipoAcao: varchar("tipoAcao", { length: 50 }).notNull(),
+  mensagemGerada: text("mensagemGerada"), // Mensagem com variáveis substituídas
+  status: mysqlEnum("status", ["pendente", "enviado", "erro", "ignorado"]).default("pendente").notNull(),
+  tentativaId: int("tentativaId"), // ID da tentativa criada automaticamente (se aplicável)
+  dataDisparo: timestamp("dataDisparo").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ReguaCobranca = typeof reguasCobranca.$inferSelect;
+export type InsertReguaCobranca = typeof reguasCobranca.$inferInsert;
+export type ReguaPosicao = typeof reguaPosicoes.$inferSelect;
+export type InsertReguaPosicao = typeof reguaPosicoes.$inferInsert;
+export type ReguaDisparo = typeof reguaDisparos.$inferSelect;
+export type InsertReguaDisparo = typeof reguaDisparos.$inferInsert;

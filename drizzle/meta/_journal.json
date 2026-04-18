@@ -127,6 +127,13 @@
       "when": 1772130707125,
       "tag": "0018_fresh_rocket_raccoon",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1776526109232,
+      "tag": "0019_calm_silverclaw",
+      "breakpoints": true
     }
   ]
 }
