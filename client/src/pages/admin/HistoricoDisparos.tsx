@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useAdminCondominio } from "@/hooks/useAdminCondominio";
+import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,8 +46,13 @@ type Disparo = {
 };
 
 export default function HistoricoDisparos() {
-  const { user } = useAuth();
-  const condominioId = (user as any)?.condominioId as number | undefined;
+  const {
+    condominioId,
+    isAdmin,
+    condominios,
+    selectedCondominioId,
+    setSelectedCondominioId,
+  } = useAdminCondominio();
 
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroStatus, setFiltroStatus] = useState("todos");
@@ -58,6 +64,26 @@ export default function HistoricoDisparos() {
     { enabled: !!condominioId }
   );
 
+  // Admin sem condomínio selecionado: mostrar seletor
+  if (isAdmin && !condominioId) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
+        <p>Selecione um condomínio para ver o histórico de disparos.</p>
+        {condominios && setSelectedCondominioId && (
+          <div className="mt-4 flex justify-center">
+            <AdminCondominioSelector
+              condominios={condominios}
+              selectedId={selectedCondominioId}
+              onSelect={setSelectedCondominioId}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Não-admin sem condominioId
   if (!condominioId) {
     return (
       <div className="p-8 text-center text-muted-foreground">
@@ -88,7 +114,7 @@ export default function HistoricoDisparos() {
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <History className="w-6 h-6 text-primary" />
@@ -98,10 +124,19 @@ export default function HistoricoDisparos() {
             Registro de todas as ações automáticas executadas pela Régua de Cobrança
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {isAdmin && condominios && setSelectedCondominioId && (
+            <AdminCondominioSelector
+              condominios={condominios}
+              selectedId={selectedCondominioId}
+              onSelect={setSelectedCondominioId}
+            />
+          )}
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       {/* Cards de resumo */}

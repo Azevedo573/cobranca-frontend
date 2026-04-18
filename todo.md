@@ -1240,3 +1240,18 @@
 - [x] Testes unitários para templates padrão (2 testes)
 - [x] Testes de validações de negócio (2 testes)
 - [x] Total: 21 novos testes + 62 existentes = 83 testes passando
+
+## Liberar Acesso Completo para Administrador
+
+- [x] Auditar todas as páginas que bloqueiam admin por falta de condominioId
+- [x] Régua de Cobrança: admin vê réguas com seletor de condomínio (hook useAdminCondominio)
+- [x] Histórico de Disparos: admin vê disparos com seletor de condomínio
+- [x] Processos de Cobrança: admin já tinha seletor (confirmado)
+- [x] Tentativas de Cobrança: admin já tinha seletor (confirmado)
+- [x] Acordos: admin já tinha seletor (confirmado)
+- [x] Vencimentos: admin já tinha seletor (confirmado)
+- [x] Casos Prioritários: admin vê todos os condomínios (condominioId optional no backend)
+- [x] TentativaRapida: corrigido para usar condominioId do hook useAdminCondominio
+- [x] Backend: condominioAccessProcedure já permite admin sem restrição (confirmado)
+- [x] Criado hook useAdminCondominio com persistência no localStorage
+- [x] Criado componente AdminCondominioSelector reutilizável

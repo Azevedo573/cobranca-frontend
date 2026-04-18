@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAdminCondominio } from "@/hooks/useAdminCondominio";
 import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,8 @@ import { toast } from "sonner";
 export default function TentativaRapida() {
   const { user, logout } = useAuth();
   const [, navigate] = useLocation();
+  const { condominioId: adminCondominioId } = useAdminCondominio();
+  const effectiveCondominioId = user?.role === "admin" ? adminCondominioId : user?.condominioId;
   
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDevedor, setSelectedDevedor] = useState<any>(null);
@@ -28,8 +31,8 @@ export default function TentativaRapida() {
 
   // Carregar devedores do condomínio
   const { data: devedores } = trpc.devedores.list.useQuery(
-    { condominioId: user?.condominioId! },
-    { enabled: !!user?.condominioId }
+    { condominioId: effectiveCondominioId! },
+    { enabled: !!effectiveCondominioId }
   );
 
   // Carregar cobranças do devedor selecionado
@@ -92,7 +95,7 @@ export default function TentativaRapida() {
     createMutation.mutate({
       cobrancaId: parseInt(formData.cobrancaId),
       devedorId: selectedDevedor.id,
-      condominioId: user?.condominioId!,
+      condominioId: effectiveCondominioId!,
       contactType: formData.contactType as "telefone" | "email" | "pessoal" | "whatsapp",
       result: formData.result as "sem_resposta" | "promessa_pagamento" | "recusa" | "outro" | "deseja_acordo",
       notes: formData.notes || undefined,

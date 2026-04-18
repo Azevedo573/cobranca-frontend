@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useAdminCondominio } from "@/hooks/useAdminCondominio";
+import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -70,10 +71,15 @@ type Regua = {
 };
 
 export default function ReguaCobranca() {
-  const { user } = useAuth();
   const utils = trpc.useUtils();
 
-  const condominioId = (user as any)?.condominioId as number | undefined;
+  const {
+    condominioId,
+    isAdmin,
+    condominios,
+    selectedCondominioId,
+    setSelectedCondominioId,
+  } = useAdminCondominio();
 
   const { data: reguas, isLoading } = trpc.regua.list.useQuery(
     { condominioId: condominioId! },
@@ -187,7 +193,7 @@ export default function ReguaCobranca() {
     }));
   };
 
-  if (!condominioId) {
+  if (!condominioId && !isAdmin) {
     return (
       <div className="p-8 text-center text-muted-foreground">
         <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
@@ -196,10 +202,28 @@ export default function ReguaCobranca() {
     );
   }
 
+  if (isAdmin && !condominioId) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
+        <p>Selecione um condomínio para continuar.</p>
+        {condominios && setSelectedCondominioId && (
+          <div className="mt-4 flex justify-center">
+            <AdminCondominioSelector
+              condominios={condominios}
+              selectedId={selectedCondominioId}
+              onSelect={setSelectedCondominioId}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Zap className="w-6 h-6 text-yellow-500" />
@@ -209,10 +233,19 @@ export default function ReguaCobranca() {
             Configure fluxos automáticos de comunicação por dias de inadimplência
           </p>
         </div>
-        <Button onClick={() => setShowCreateRegua(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nova Régua
-        </Button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {isAdmin && condominios && setSelectedCondominioId && (
+            <AdminCondominioSelector
+              condominios={condominios}
+              selectedId={selectedCondominioId}
+              onSelect={setSelectedCondominioId}
+            />
+          )}
+          <Button onClick={() => setShowCreateRegua(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Régua
+          </Button>
+        </div>
       </div>
 
       {/* Explicação */}
