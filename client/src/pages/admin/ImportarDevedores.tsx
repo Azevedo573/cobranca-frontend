@@ -28,6 +28,7 @@ interface DadoImportacao {
   telefone?: string;
   unidade: string;
   bloco?: string;
+  tipoCobranca?: string;
   descricaoCobranca?: string;
   mesReferencia?: string;
   dataVencimento: string;
@@ -302,6 +303,7 @@ export default function ImportarDevedores() {
                     <TableHead>CPF/CNPJ</TableHead>
                     <TableHead>Unidade</TableHead>
                     <TableHead>Bloco</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Telefone</TableHead>
                     <TableHead>Vencimento</TableHead>
@@ -315,6 +317,7 @@ export default function ImportarDevedores() {
                       <TableCell>{dado.cpfCnpj}</TableCell>
                       <TableCell>{dado.unidade}</TableCell>
                       <TableCell>{dado.bloco || "-"}</TableCell>
+                      <TableCell>{dado.tipoCobranca || "Cota Condominial"}</TableCell>
                       <TableCell>{dado.email || "-"}</TableCell>
                       <TableCell>{dado.telefone || "-"}</TableCell>
                       <TableCell>{dado.dataVencimento}</TableCell>

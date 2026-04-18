@@ -747,6 +747,7 @@ export const appRouter = router({
         telefone: z.string().optional(),
         unidade: z.string(),
         bloco: z.string().optional(),
+        tipoCobranca: z.string().optional(),
         descricaoCobranca: z.string().optional(),
         mesReferencia: z.string().optional(),
         dataVencimento: z.string(),
@@ -794,9 +795,30 @@ export const appRouter = router({
           // Criar cobrança
           if (devedor) {
             const dataVencimento = converterData(dado.dataVencimento);
+            // Mapear tipo de cobrança do texto para o enum do banco
+            const tipoMap: Record<string, string> = {
+              "cota condominial": "condominio",
+              "condomínio": "condominio",
+              "condominio": "condominio",
+              "fundo de reserva": "cota_extra",
+              "taxa extra": "cota_extra",
+              "cota extra": "cota_extra",
+              "multa": "multa",
+              "acordo": "outros",
+              "judicial": "outros",
+              "salão de jogos": "salao_jogos",
+              "salao jogos": "salao_jogos",
+              "churrasqueira": "churrasqueira",
+              "outros": "outros",
+            };
+            const tipoNormalizado = dado.tipoCobranca
+              ? tipoMap[dado.tipoCobranca.toLowerCase().trim()] || "outros"
+              : "condominio"; // padrão: cota condominial
+            
             await createCobranca({
               condominioId: input.condominioId,
               devedorId: devedor.id,
+              tipoCobranca: tipoNormalizado as any,
               description: dado.descricaoCobranca,
               monthReference: dado.mesReferencia,
               dueDate: dataVencimento,

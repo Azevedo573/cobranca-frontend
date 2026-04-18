@@ -124,7 +124,24 @@ export default function DevedorForm() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === "phone") {
+      // Aplicar máscara de telefone
+      const digits = value.replace(/\D/g, "").slice(0, 11);
+      let formatted = digits;
+      if (digits.length > 6) {
+        formatted = digits.length <= 10
+          ? `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`
+          : `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+      } else if (digits.length > 2) {
+        formatted = `(${digits.slice(0,2)}) ${digits.slice(2)}`;
+      } else if (digits.length > 0) {
+        formatted = `(${digits}`;
+      }
+      setFormData({ ...formData, phone: formatted });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   return (

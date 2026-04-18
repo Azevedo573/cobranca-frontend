@@ -30,21 +30,50 @@ const ANO_FINAL = 2026;
 
 /**
  * Busca dados de um índice na API do BCB para um período
+ * Tenta múltiplas URLs para contornar instabilidades da API
  */
 async function buscarDadosBCB(codigoIndice, dataInicio, dataFim) {
-  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigoIndice}/dados?formato=json&dataInicial=${dataInicio}&dataFinal=${dataFim}`;
+  // URLs alternativas para o mesmo índice
+  const urls = [
+    `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigoIndice}/dados?formato=json&dataInicial=${dataInicio}&dataFinal=${dataFim}`,
+    `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigoIndice}/dados/ultimos/120?formato=json`,
+  ];
   
-  console.log(`  Buscando dados da API: ${url}`);
+  let lastError = null;
   
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Erro na API do BCB: ${response.status} ${response.statusText}`);
+  for (const url of urls) {
+    try {
+      console.log(`  Buscando dados da API: ${url}`);
+      
+      const response = await fetch(url, {
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro na API do BCB: ${response.status} ${response.statusText}`);
+      }
+      
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('json')) {
+        throw new Error(`Resposta não é JSON (content-type: ${contentType})`);
+      }
+      
+      const dados = await response.json();
+      
+      if (!Array.isArray(dados)) {
+        throw new Error(`Resposta inesperada: ${JSON.stringify(dados).substring(0, 100)}`);
+      }
+      
+      console.log(`  Recebidos ${dados.length} registros`);
+      return dados;
+    } catch (error) {
+      lastError = error;
+      console.warn(`  ⚠️ Tentativa falhou: ${error.message}`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
   
-  const dados = await response.json();
-  console.log(`  Recebidos ${dados.length} registros`);
-  
-  return dados;
+  throw lastError || new Error('Todas as tentativas falharam');
 }
 
 /**

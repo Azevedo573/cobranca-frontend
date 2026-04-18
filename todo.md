@@ -1153,3 +1153,48 @@
 - [x] Adicionar paginação na página de Tentativas (TentativasCobranca)
 - [x] Resetar página ao mudar filtro de busca
 - [x] Escrever testes unitários para lógica de paginação (19 testes passando)
+
+
+## Sprint 1 — Operação Básica Completa
+
+### Bug 1: Correção Monetária mostrando R$ 0,00
+- [x] Investigar bcb-api.ts e função de cálculo de correção
+- [x] Verificar se condomínio tem aplicarCorrecaoAuto=true e indiceCorrecao configurado
+- [x] Popular tabela indicesBCB (IGP-M, INPC, IGP-DI, IPCA) com dados históricos 2016-2026
+- [x] Corrigir query bcb-api.ts para formatar data como YYYY-MM-01 (primeiro do mês)
+
+### Bug 2: Parcelas do Acordo não aparecem no ControleParcelas
+- [x] Verificar se parcelas são criadas no banco ao criar acordo (fluxo correto)
+- [x] Verificar query getParcelas no backend (retorna dados corretamente)
+- [x] Validar que AcordosDevedor.tsx exibe parcelas expandidas (já implementado)
+- [x] Fluxo validado: parcelas aparecem no card do acordo
+
+### Bug 3: Testar acordo com 2 cobranças e 6 parcelas
+- [x] SQL corrigido para buscar valores de TODAS as cobranças (não apenas a primeira)
+- [x] Relacionamento acordoCobrancas criado corretamente
+- [x] Testes unitários validam criação com múltiplas cobranças
+- [x] Bug resolvido
+
+### Feature: Tipo de Cobrança na Importação Excel
+- [x] Adicionar coluna "Tipo de Cobrança" no template de importação de devedores
+- [x] Atualizar processamento do backend para ler o tipo
+- [x] Atualizar validação para aceitar os tipos válidos
+- [x] Coluna exibida na prévia de importação
+
+### Feature: Máscara de Telefone nos Formulários
+- [x] Criar hook usePhoneMask nativo (sem dependência externa)
+- [x] Aplicar máscara (00) 00000-0000 no formulário de condomínios
+- [x] Aplicar máscara no formulário de devedores
+- [x] Formatação automática ao digitar
+
+### Feature: Indicador "Mais Tentativas" no Dashboard
+- [x] Localizar componente do dashboard que exibe tentativas limitadas a 4
+- [x] Adicionar contagem total de tentativas
+- [x] Adicionar link "Ver todas (X)" no AdminDashboard e SindicoDashboard
+- [x] Implementado com navegação para página de tentativas filtrada
+
+### Feature: Botão "Nova Tentativa" inline na tela do Devedor
+- [x] Criar componente NovaTentativaModal com todos os campos necessários
+- [x] Integrar modal na página DevedorDetalhes (substitui navegação)
+- [x] Botão "Nova Tentativa" abre modal sem sair da tela
+- [x] Invalida cache após criação para atualizar timeline automaticamente

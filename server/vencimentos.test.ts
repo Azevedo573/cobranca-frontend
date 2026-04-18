@@ -91,14 +91,15 @@ describe("Vencimentos Próximos", () => {
     // Se houver resultados, validar estrutura
     if (result.length > 0) {
       const parcela = result[0];
-      expect(parcela).toHaveProperty("id");
-      expect(parcela).toHaveProperty("numeroParcela");
-      expect(parcela).toHaveProperty("valorParcela");
+      // Campos reais retornados por getVencimentosProximos
+      expect(parcela).toHaveProperty("parcelaId");
+      expect(parcela).toHaveProperty("acordoId");
+      expect(parcela).toHaveProperty("devedorId");
+      expect(parcela).toHaveProperty("devedorNome");
+      expect(parcela).toHaveProperty("parcelaNumero");
+      expect(parcela).toHaveProperty("parcelaValor");
       expect(parcela).toHaveProperty("dataVencimento");
-      expect(parcela).toHaveProperty("status");
-      expect(parcela).toHaveProperty("acordo");
-      expect(parcela.acordo).toHaveProperty("devedor");
-      expect(parcela.acordo.devedor).toHaveProperty("condominio");
+      expect(parcela).toHaveProperty("condominioId");
     }
   });
 });

@@ -24,12 +24,14 @@ import { IndicadorRiscoDevedor } from "@/components/IndicadorRiscoDevedor";
 import { AcordosDevedor } from "@/components/AcordosDevedor";
 import { useMemo, useState } from "react";
 import { NovaDividaModal } from "@/components/NovaDividaModal";
+import { NovaTentativaModal } from "@/components/NovaTentativaModal";
 
 export default function DevedorDetalhes() {
   const { user } = useAuth();
   const [, params] = useRoute("/devedores/:id/detalhes");
   const devedorId = params?.id ? parseInt(params.id) : null;
   const [modalDividaOpen, setModalDividaOpen] = useState(false);
+  const [modalTentativaOpen, setModalTentativaOpen] = useState(false);
 
   const { data: devedor, isLoading } = trpc.devedores.getById.useQuery(
     { id: devedorId! },
@@ -193,12 +195,10 @@ export default function DevedorDetalhes() {
                   Importar Dívidas
                 </Button>
               </Link>
-              <Link href={`/devedores/${devedor.id}/tentativa/nova`}>
-                <Button variant="outline" size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Tentativa
-                </Button>
-              </Link>
+              <Button variant="outline" size="sm" onClick={() => setModalTentativaOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Tentativa
+              </Button>
               <Link href={`/devedores/${devedor.id}/editar`}>
                 <Button size="sm">
                   <Edit className="mr-2 h-4 w-4" />
@@ -370,6 +370,14 @@ export default function DevedorDetalhes() {
       <NovaDividaModal
         open={modalDividaOpen}
         onOpenChange={setModalDividaOpen}
+        devedorId={devedor.id}
+        condominioId={devedor.condominioId}
+      />
+
+      {/* Modal de Nova Tentativa */}
+      <NovaTentativaModal
+        open={modalTentativaOpen}
+        onOpenChange={setModalTentativaOpen}
         devedorId={devedor.id}
         condominioId={devedor.condominioId}
       />

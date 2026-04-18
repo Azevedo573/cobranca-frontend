@@ -189,6 +189,15 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
+                {tentativasRecentes.length > 4 && (
+                  <div className="pt-2 border-t">
+                    <Link href="/tentativas">
+                      <Button variant="ghost" size="sm" className="w-full text-muted-foreground hover:text-foreground">
+                        Ver todas ({tentativasRecentes.length} tentativas recentes)
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-12">

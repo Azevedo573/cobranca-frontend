@@ -8,13 +8,13 @@ import { indicesbcb } from "../drizzle/schema";
 import { and, gte, lte, eq, sql } from "drizzle-orm";
 
 /**
- * Formata data para YYYY-MM-DD (formato do banco)
+ * Formata data para YYYY-MM-01 (primeiro do mês, formato do banco)
+ * Os registros na tabela indicesBCB usam sempre o dia 01 do mês
  */
 function formatarDataSQL(date: Date): string {
   const ano = date.getFullYear();
   const mes = String(date.getMonth() + 1).padStart(2, '0');
-  const dia = String(date.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
+  return `${ano}-${mes}-01`;
 }
 
 /**
