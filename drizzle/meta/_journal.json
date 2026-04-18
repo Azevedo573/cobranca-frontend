@@ -134,6 +134,20 @@
       "when": 1776526109232,
       "tag": "0019_calm_silverclaw",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1776538734174,
+      "tag": "0020_wide_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1776538801569,
+      "tag": "0021_mushy_sprite",
+      "breakpoints": true
     }
   ]
 }

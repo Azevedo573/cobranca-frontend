@@ -12,7 +12,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { FileText, Plus, Eye, ArrowLeft, Search, Pencil, Trash2 } from "lucide-react";
+import { FileText, Plus, Eye, ArrowLeft, Search, Pencil, Trash2, ListChecks } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Pagination, paginateItems } from "@/components/Pagination";
 import { Link, useLocation } from "wouter";
@@ -42,6 +49,9 @@ export default function ProcessosCobranca() {
   const [cobrancaToDelete, setCobrancaToDelete] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [statusLoteDialogOpen, setStatusLoteDialogOpen] = useState(false);
+  const [novoStatusLote, setNovoStatusLote] = useState<string>("");
   
   // Para admin, usar condomínio selecionado; para síndico/cobrador, usar o próprio
   const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
@@ -77,6 +87,17 @@ export default function ProcessosCobranca() {
 
   const utils = trpc.useUtils();
   
+  const alterarStatusLoteMutation = trpc.importacoes.alterarStatusEmLote.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Status alterado em ${data.alterados} cobranças`);
+      utils.cobrancas.list.invalidate();
+      setSelectedIds([]);
+      setStatusLoteDialogOpen(false);
+      setNovoStatusLote("");
+    },
+    onError: (err) => toast.error("Erro ao alterar status: " + err.message),
+  });
+
   const deleteMutation = trpc.cobrancas.delete.useMutation({
     onSuccess: () => {
       toast.success("Processo excluído com sucesso!");
@@ -181,6 +202,16 @@ export default function ProcessosCobranca() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                {selectedIds.length > 0 && (user?.role === "admin" || user?.role === "sindico") && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setStatusLoteDialogOpen(true)}
+                    className="border-primary text-primary hover:bg-primary/10"
+                  >
+                    <ListChecks className="mr-2 h-4 w-4" />
+                    Alterar Status ({selectedIds.length})
+                  </Button>
+                )}
                 <ExportExcelButton
                   onClick={async () => {
                     const result = await utils.client.exportacao.cobrancas.mutate({
@@ -240,6 +271,23 @@ export default function ProcessosCobranca() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      {(user?.role === "admin" || user?.role === "sindico") && (
+                        <Checkbox
+                          checked={selectedIds.length > 0 && paginateItems(filteredCobrancas, currentPage, pageSize).every(c => selectedIds.includes(c.id))}
+                          onCheckedChange={(checked) => {
+                            const paginated = paginateItems(filteredCobrancas, currentPage, pageSize);
+            if (checked) {
+              const newIds = paginated.map(c => c.id);
+              setSelectedIds(prev => Array.from(new Set([...prev, ...newIds])));
+            } else {
+              const pageIds = paginated.map(c => c.id);
+              setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)));
+            }
+                          }}
+                        />
+                      )}
+                    </TableHead>
                     <TableHead>Devedor</TableHead>
                     <TableHead>Descrição</TableHead>
                     <TableHead>Mês Ref.</TableHead>
@@ -258,7 +306,18 @@ export default function ProcessosCobranca() {
                       taxas
                     ) : null;
                     return (
-                      <TableRow key={cob.id}>
+                      <TableRow key={cob.id} className={selectedIds.includes(cob.id) ? "bg-primary/5" : ""}>
+                        <TableCell>
+                          {(user?.role === "admin" || user?.role === "sindico") && (
+                            <Checkbox
+                              checked={selectedIds.includes(cob.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) setSelectedIds(prev => [...prev, cob.id]);
+                                else setSelectedIds(prev => prev.filter(id => id !== cob.id));
+                              }}
+                            />
+                          )}
+                        </TableCell>
                         <TableCell className="font-medium">{getDevedorName(cob.devedorId)}</TableCell>
                         <TableCell>{cob.description || "-"}</TableCell>
                         <TableCell>{cob.monthReference || "-"}</TableCell>
@@ -340,6 +399,59 @@ export default function ProcessosCobranca() {
         </Card>
       </main>
       
+      {/* Diálogo de Alteração de Status em Lote */}
+      <Dialog open={statusLoteDialogOpen} onOpenChange={setStatusLoteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListChecks className="h-5 w-5" />
+              Alterar Status em Lote
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {selectedIds.length} cobrança(s) selecionada(s) serão atualizadas.
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Novo Status</label>
+              <Select value={novoStatusLote} onValueChange={setNovoStatusLote}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o novo status..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="em_cobranca">Em Cobrança</SelectItem>
+                  <SelectItem value="em_negociacao">Em Negociação</SelectItem>
+                  <SelectItem value="acordo">Acordo</SelectItem>
+                  <SelectItem value="em_acordo">Em Acordo</SelectItem>
+                  <SelectItem value="acordo_atrasado">Acordo Atrasado</SelectItem>
+                  <SelectItem value="suspenso">Suspenso</SelectItem>
+                  <SelectItem value="judicial">Judicial</SelectItem>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusLoteDialogOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                if (!novoStatusLote || !condominioId) return;
+                alterarStatusLoteMutation.mutate({
+                  condominioId,
+                  cobrancaIds: selectedIds,
+                  novoStatus: novoStatusLote as any,
+                });
+              }}
+              disabled={!novoStatusLote || alterarStatusLoteMutation.isPending}
+            >
+              {alterarStatusLoteMutation.isPending ? "Atualizando..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Diálogo de Confirmação de Exclusão */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

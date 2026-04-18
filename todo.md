@@ -1255,3 +1255,50 @@
 - [x] Backend: condominioAccessProcedure já permite admin sem restrição (confirmado)
 - [x] Criado hook useAdminCondominio com persistência no localStorage
 - [x] Criado componente AdminCondominioSelector reutilizável
+
+## Sprint 6 — Arquivos e Integração Bancária
+
+### 6.1 Histórico de Importações
+- [x] Criar tabela `historicoImportacoes` no schema
+- [x] Criar tabela `remessasCNAB` e `retornosCNAB` no schema
+- [x] Executar migração no banco (pnpm db:push)
+- [x] Backend: procedure para listar histórico de importações
+- [x] Backend: procedure para registrar nova importação
+- [x] Backend: procedure para download do arquivo original (URL S3)
+- [x] Frontend: página `/admin/historico-importacoes` com listagem, filtros e upload
+- [x] Frontend: botão de download do arquivo original
+
+### 6.2 Baixa em Lote via Arquivo
+- [x] Backend: procedure `importacoes.baixaEmLote` com parser CSV/Excel
+- [x] Backend: parser CSV com suporte a vírgula, ponto-e-vírgula e pipe
+- [x] Backend: registrar baixa em lote no histórico de importações
+- [x] Frontend: aba de baixa em lote na página de histórico de importações
+- [x] Frontend: preview dos registros antes de confirmar baixa
+- [x] Frontend: relatório de resultado (sucesso/erro por linha)
+
+### 6.3 Integração BTG Pactual CNAB 240
+- [x] Backend: gerador de arquivo de remessa CNAB 240 (segmentos P, Q + header/trailer)
+- [x] Backend: parser de arquivo de retorno CNAB 240
+- [x] Backend: procedure `cnab.gerarRemessa` por condomínio
+- [x] Backend: procedure `cnab.processarRetorno` com upload de arquivo
+- [x] Backend: registrar remessas e retornos no histórico
+- [x] Frontend: página `/admin/cnab240` com abas (Remessa / Retorno / Histórico)
+- [x] Frontend: aba Remessa — selecionar cobranças e gerar arquivo para download
+- [x] Frontend: aba Retorno — upload do arquivo de retorno e visualização de títulos baixados
+- [x] Frontend: aba Histórico — listagem de remessas e retornos por condomínio
+- [x] Bug corrigido: trailer de lote tinha 227 chars, corrigido para 240
+
+### 6.4 Alteração de Status em Lote
+- [x] Backend: procedure `importacoes.alterarStatusEmLote` com validação de role
+- [x] Frontend: checkboxes na listagem de Processos de Cobrança
+- [x] Frontend: botão "Alterar Status (N)" aparece ao selecionar itens
+- [x] Frontend: modal com seletor de novo status (10 opções)
+- [x] Frontend: feedback de quantos registros foram alterados
+
+### Testes Sprint 6
+- [x] 5 testes unitários para utiliários CNAB (padLeft, padRight, limparTexto, etc.)
+- [x] 8 testes para geração de remessa CNAB 240 (header 240 chars, linhas 240 chars, etc.)
+- [x] 4 testes para parser de retorno CNAB 240
+- [x] 8 testes para parser CSV de baixa em lote
+- [x] Bug CNAB detectado e corrigido pelos testes (trailer lote 227 → 240 chars)
+- [x] Total: 36 novos testes + 83 existentes = 119 testes passando

@@ -76,7 +76,10 @@ export const cobrancas = mysqlTable("cobrancas", {
   custasJudiciais: int("custasJudiciais").default(0).notNull(),
   dueDate: timestamp("dueDate"),
   monthReference: varchar("monthReference", { length: 20 }),
-  status: mysqlEnum("status", ["pendente", "em_cobranca", "pago", "acordo", "em_acordo", "acordo_atrasado"]).default("pendente").notNull(),
+  status: mysqlEnum("status", ["pendente", "em_cobranca", "pago", "acordo", "em_acordo", "acordo_atrasado", "em_negociacao", "suspenso", "judicial", "cancelado"]).default("pendente").notNull(),
+  paidAt: timestamp("paidAt"),
+  paidAmount: int("paidAmount"),
+  nossoNumero: varchar("nossoNumero", { length: 30 }), // Número do boleto/título para CNAB
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -212,3 +215,62 @@ export type ReguaPosicao = typeof reguaPosicoes.$inferSelect;
 export type InsertReguaPosicao = typeof reguaPosicoes.$inferInsert;
 export type ReguaDisparo = typeof reguaDisparos.$inferSelect;
 export type InsertReguaDisparo = typeof reguaDisparos.$inferInsert;
+// ============================================================
+// Sprint 6 — Arquivos e Integração Bancária
+// ============================================================
+
+// Histórico de todas as importações realizadas no sistema
+export const historicoImportacoes = mysqlTable("historicoImportacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId"),
+  usuarioId: int("usuarioId").notNull(),
+  tipo: mysqlEnum("tipo", ["devedores", "dividas", "baixa_lote", "cnab_remessa", "cnab_retorno"]).notNull(),
+  nomeArquivo: varchar("nomeArquivo", { length: 255 }).notNull(),
+  urlArquivo: text("urlArquivo"), // URL no S3 para download posterior
+  totalRegistros: int("totalRegistros").default(0).notNull(),
+  registrosSucesso: int("registrosSucesso").default(0).notNull(),
+  registrosErro: int("registrosErro").default(0).notNull(),
+  detalhesErros: text("detalhesErros"), // JSON com lista de erros por linha
+  status: mysqlEnum("status", ["processando", "concluido", "erro"]).default("processando").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Remessas CNAB 240 geradas para envio ao banco
+export const remessasCNAB = mysqlTable("remessasCNAB", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId").notNull(),
+  usuarioId: int("usuarioId").notNull(),
+  banco: varchar("banco", { length: 50 }).default("BTG").notNull(),
+  nomeArquivo: varchar("nomeArquivo", { length: 255 }).notNull(),
+  urlArquivo: text("urlArquivo"), // URL no S3
+  totalTitulos: int("totalTitulos").default(0).notNull(),
+  valorTotal: int("valorTotal").default(0).notNull(), // em centavos
+  nossoNumeroInicio: varchar("nossoNumeroInicio", { length: 20 }),
+  nossoNumeroFim: varchar("nossoNumeroFim", { length: 20 }),
+  status: mysqlEnum("status", ["gerado", "enviado", "processado"]).default("gerado").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Retornos CNAB 240 processados
+export const retornosCNAB = mysqlTable("retornosCNAB", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId").notNull(),
+  usuarioId: int("usuarioId").notNull(),
+  remessaId: int("remessaId"), // Referência à remessa original (opcional)
+  banco: varchar("banco", { length: 50 }).default("BTG").notNull(),
+  nomeArquivo: varchar("nomeArquivo", { length: 255 }).notNull(),
+  urlArquivo: text("urlArquivo"),
+  totalTitulos: int("totalTitulos").default(0).notNull(),
+  titulosPagos: int("titulosPagos").default(0).notNull(),
+  titulosRejeitados: int("titulosRejeitados").default(0).notNull(),
+  valorTotalPago: int("valorTotalPago").default(0).notNull(), // em centavos
+  detalhes: text("detalhes"), // JSON com detalhes de cada título processado
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type HistoricoImportacao = typeof historicoImportacoes.$inferSelect;
+export type InsertHistoricoImportacao = typeof historicoImportacoes.$inferInsert;
+export type RemessaCNAB = typeof remessasCNAB.$inferSelect;
+export type InsertRemessaCNAB = typeof remessasCNAB.$inferInsert;
+export type RetornoCNAB = typeof retornosCNAB.$inferSelect;
+export type InsertRetornoCNAB = typeof retornosCNAB.$inferInsert;

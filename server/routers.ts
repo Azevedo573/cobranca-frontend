@@ -1003,7 +1003,7 @@ export const appRouter = router({
     }),
   }),
 
-  // ===== RÉGUA DE COBRANÇA =====
+  // ===== REGUA DE COBRANCA =====
   regua: router({
     list: protectedProcedure
       .input(z.object({ condominioId: z.number() }))
@@ -1116,6 +1116,187 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { getDisparosByCondominio } = await import("./db-reguas");
         return getDisparosByCondominio(input.condominioId, input.limit);
+      }),
+  }),
+
+  // ===== IMPORTACOES =====
+  importacoes: router({
+    list: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const { listarHistoricoImportacoes } = await import("./db-importacoes");
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId ?? undefined;
+        return listarHistoricoImportacoes(condId);
+      }),
+
+    baixaEmLote: adminProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        csvConteudo: z.string(),
+        nomeArquivo: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { parsearCSVBaixaLote, executarBaixaEmLote, criarHistoricoImportacao, atualizarHistoricoImportacao } = await import("./db-importacoes");
+        const itens = parsearCSVBaixaLote(input.csvConteudo);
+        const [hist] = await criarHistoricoImportacao({
+          condominioId: input.condominioId,
+          usuarioId: ctx.user.id,
+          tipo: "baixa_lote",
+          nomeArquivo: input.nomeArquivo,
+          totalRegistros: itens.length,
+          status: "processando",
+        }) as any;
+        const resultado = await executarBaixaEmLote(itens, input.condominioId, ctx.user.id);
+        await atualizarHistoricoImportacao(hist?.insertId ?? 0, {
+          status: resultado.erros === itens.length && itens.length > 0 ? "erro" : "concluido",
+          registrosSucesso: resultado.sucesso,
+          registrosErro: resultado.erros,
+          detalhesErros: JSON.stringify(resultado.detalhes.filter(d => d.status === "erro")),
+        });
+        return resultado;
+      }),
+
+    alterarStatusEmLote: condominioAccessProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        cobrancaIds: z.array(z.number()).min(1).max(500),
+        novoStatus: z.enum(["pendente", "em_cobranca", "pago", "acordo", "em_acordo", "acordo_atrasado", "em_negociacao", "suspenso", "judicial", "cancelado"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { alterarStatusEmLote } = await import("./db-importacoes");
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        return alterarStatusEmLote(input.cobrancaIds, input.novoStatus as any, condId);
+      }),
+  }),
+
+  // ===== CNAB 240 =====
+  cnab: router({
+    listarRemessas: protectedProcedure
+      .input(z.object({ condominioId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const { listarRemessasCNAB } = await import("./db-cnab");
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        return listarRemessasCNAB(condId);
+      }),
+
+    listarRetornos: protectedProcedure
+      .input(z.object({ condominioId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const { listarRetornosCNAB } = await import("./db-cnab");
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        return listarRetornosCNAB(condId);
+      }),
+
+    gerarRemessa: condominioAccessProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        cobrancaIds: z.array(z.number()).min(1).max(1000),
+        dadosBanco: z.object({
+          codigoBanco: z.string().default("208"),
+          agencia: z.string(),
+          digitoAgencia: z.string(),
+          conta: z.string(),
+          digitoConta: z.string(),
+          convenio: z.string(),
+          cedente: z.string(),
+          cnpjCedente: z.string(),
+        }),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await import("./db").then(m => m.getDb());
+        if (!db) throw new Error("Database not available");
+        const { eq, and, inArray } = await import("drizzle-orm");
+        const { cobrancas, devedores } = await import("../drizzle/schema");
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+
+        const cobList = await db.select().from(cobrancas)
+          .where(and(inArray(cobrancas.id, input.cobrancaIds), eq(cobrancas.condominioId, condId)));
+
+        const devList = await db.select().from(devedores).where(eq(devedores.condominioId, condId));
+        const devMap = new Map(devList.map(d => [d.id, d]));
+
+        const { gerarArquivoRemessaCNAB240, criarRemessaCNAB } = await import("./db-cnab");
+
+        const titulos = cobList.map((cob, idx) => {
+          const dev = devMap.get(cob.devedorId);
+          const nossoNum = cob.nossoNumero || String(cob.id).padStart(10, "0");
+          return {
+            cobrancaId: cob.id,
+            nossoNumero: nossoNum,
+            devedorNome: dev?.name || "NAO INFORMADO",
+            devedorCpfCnpj: dev?.cpfCnpj || "00000000000",
+            devedorEndereco: `Unidade ${dev?.unitNumber || "S/N"} ${dev?.bloco ? "Bloco " + dev.bloco : ""}`.trim(),
+            devedorCidade: "SAO PAULO",
+            devedorUF: "SP",
+            devedorCEP: "01310100",
+            valorNominal: cob.amount,
+            dataVencimento: cob.dueDate ? new Date(cob.dueDate) : new Date(),
+            dataEmissao: new Date(cob.createdAt),
+            instrucao1: "COBRAR JUROS DE 1% AO MES",
+            instrucao2: "",
+          };
+        });
+
+        const { listarRemessasCNAB: listRemessas } = await import("./db-cnab");
+        const remessas = await listRemessas(condId);
+        const numeroRemessa = remessas.length + 1;
+        const conteudo = gerarArquivoRemessaCNAB240(input.dadosBanco, titulos, numeroRemessa);
+        const valorTotal = cobList.reduce((s, c) => s + c.amount, 0);
+        const nomeArquivo = `remessa_cnab240_${condId}_${Date.now()}.txt`;
+
+        await criarRemessaCNAB({
+          condominioId: condId,
+          usuarioId: ctx.user.id,
+          banco: input.dadosBanco.codigoBanco,
+          nomeArquivo,
+          totalTitulos: titulos.length,
+          valorTotal,
+          nossoNumeroInicio: titulos[0]?.nossoNumero,
+          nossoNumeroFim: titulos[titulos.length - 1]?.nossoNumero,
+          status: "gerado",
+        });
+
+        return {
+          nomeArquivo,
+          conteudo,
+          totalTitulos: titulos.length,
+          valorTotal,
+        };
+      }),
+
+    processarRetorno: condominioAccessProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        nomeArquivo: z.string(),
+        conteudo: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        const { parsearRetornoCNAB240, processarTitulosRetorno, criarRetornoCNAB } = await import("./db-cnab");
+
+        const titulos = parsearRetornoCNAB240(input.conteudo);
+        const resultado = await processarTitulosRetorno(titulos, condId);
+
+        await criarRetornoCNAB({
+          condominioId: condId,
+          usuarioId: ctx.user.id,
+          banco: "BTG",
+          nomeArquivo: input.nomeArquivo,
+          totalTitulos: titulos.length,
+          titulosPagos: resultado.pagos,
+          titulosRejeitados: resultado.erros,
+          valorTotalPago: resultado.detalhes
+            .filter(t => t.processado && t.cobrancaId)
+            .reduce((s, t) => s + (t.valorPago || 0), 0),
+          detalhes: JSON.stringify(resultado.detalhes),
+        });
+
+        return {
+          totalTitulos: titulos.length,
+          pagos: resultado.pagos,
+          erros: resultado.erros,
+          detalhes: resultado.detalhes,
+        };
       }),
   }),
 });

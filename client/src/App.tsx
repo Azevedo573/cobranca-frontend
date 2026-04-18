@@ -30,6 +30,8 @@ import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import ImportarDevedores from "./pages/admin/ImportarDevedores";
 import ReguaCobranca from "./pages/admin/ReguaCobranca";
 import HistoricoDisparos from "./pages/admin/HistoricoDisparos";
+import CNAB240 from "./pages/admin/CNAB240";
+import HistoricoImportacoes from "./pages/admin/HistoricoImportacoes";
 import CasosPrioritarios from "./pages/CasosPrioritarios";
 import Acordos from "./pages/Acordos";
 import AcordosAcompanhamento from "./pages/AcordosAcompanhamento";
@@ -141,6 +143,14 @@ function Router() {
       {/* Histórico de Disparos */}
       <Route path="/admin/historico-disparos">
         {() => <ProtectedRoute component={HistoricoDisparos} allowedRoles={["admin"]} />}
+      </Route>
+      {/* CNAB 240 */}
+      <Route path="/admin/cnab240">
+        {() => <ProtectedRoute component={CNAB240} allowedRoles={["admin", "sindico"]} />}
+      </Route>
+      {/* Histórico de Importações */}
+      <Route path="/admin/historico-importacoes">
+        {() => <ProtectedRoute component={HistoricoImportacoes} allowedRoles={["admin", "sindico"]} />}
       </Route>
 
       {/* Rota de Casos Prioritários */}
