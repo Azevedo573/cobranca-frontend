@@ -1320,3 +1320,12 @@
 - [x] Frontend: listagem de boletos com botões de abrir, copiar link e deletar
 - [x] Frontend: botão "Copiar Link" para envio rápido por WhatsApp/E-mail
 - [x] Total: 119 testes passando (nenhum novo teste necessário, funcionalidade coberta por testes de integração)
+
+## Histórico de Boletos no Perfil do Devedor
+
+- [x] Backend: procedure `cnab.listarBoletosPorDevedor` que busca todos os boletos das cobranças do devedor
+- [x] Frontend: seção "Boletos Anexados" na página de detalhes do devedor com lista consolidada
+- [x] Frontend: exibir tipo de cobrança, mês de referência, vencimento, valor e status em cada boleto
+- [x] Frontend: botões de abrir, copiar link (com toast "Cole no WhatsApp ou e-mail") e excluir
+- [x] Frontend: estado vazio com instrução para acessar detalhes da cobrança
+- [x] 119 testes passando (nenhum novo teste necessário)

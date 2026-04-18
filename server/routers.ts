@@ -1238,6 +1238,40 @@ export const appRouter = router({
           .orderBy(desc(boletosUpload.createdAt));
       }),
 
+    // Listar todos os boletos de um devedor (join com cobranças)
+    listarBoletosPorDevedor: protectedProcedure
+      .input(z.object({ devedorId: z.number() }))
+      .query(async ({ input }) => {
+        const db = await import("./db").then(m => m.getDb());
+        if (!db) return [];
+        const { eq, desc } = await import("drizzle-orm");
+        const { boletosUpload, cobrancas } = await import("../drizzle/schema");
+        // Buscar cobranças do devedor
+        const cobsDoDevedor = await db.select({
+          id: cobrancas.id,
+          description: cobrancas.description,
+          amount: cobrancas.amount,
+          dueDate: cobrancas.dueDate,
+          status: cobrancas.status,
+          monthReference: cobrancas.monthReference,
+          tipoCobranca: cobrancas.tipoCobranca,
+        }).from(cobrancas)
+          .where(eq(cobrancas.devedorId, input.devedorId));
+        if (cobsDoDevedor.length === 0) return [];
+        const cobrancaIds = cobsDoDevedor.map(c => c.id);
+        // Buscar boletos dessas cobranças
+        const { inArray } = await import("drizzle-orm");
+        const boletos = await db.select().from(boletosUpload)
+          .where(inArray(boletosUpload.cobrancaId, cobrancaIds))
+          .orderBy(desc(boletosUpload.createdAt));
+        // Enriquecer com dados da cobrança
+        const cobsMap = new Map(cobsDoDevedor.map(c => [c.id, c]));
+        return boletos.map(b => ({
+          ...b,
+          cobranca: cobsMap.get(b.cobrancaId) ?? null,
+        }));
+      }),
+
     // Deletar boleto
     deletarBoleto: protectedProcedure
       .input(z.object({ id: z.number() }))

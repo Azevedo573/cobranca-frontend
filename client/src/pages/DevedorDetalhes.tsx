@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2 } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -22,7 +22,8 @@ import { GraficoDistribuicaoCobrancas } from "@/components/GraficoDistribuicaoCo
 import { TimelineTentativas } from "@/components/TimelineTentativas";
 import { IndicadorRiscoDevedor } from "@/components/IndicadorRiscoDevedor";
 import { AcordosDevedor } from "@/components/AcordosDevedor";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
+import { toast } from "sonner";
 import { NovaDividaModal } from "@/components/NovaDividaModal";
 import { NovaTentativaModal } from "@/components/NovaTentativaModal";
 
@@ -345,6 +346,9 @@ export default function DevedorDetalhes() {
               </CardContent>
             </Card>
 
+            {/* Boletos do Devedor */}
+            <BoletosPorDevedor devedorId={devedor.id} condominioId={devedor.condominioId} />
+
             {/* Acordos do Devedor */}
             <AcordosDevedor devedorId={devedor.id} />
 
@@ -382,5 +386,196 @@ export default function DevedorDetalhes() {
         condominioId={devedor.condominioId}
       />
     </div>
+  );
+}
+
+// ===== Componente BoletosPorDevedor =====
+function BoletosPorDevedor({ devedorId, condominioId }: { devedorId: number; condominioId: number }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingCobrancaId, setUploadingCobrancaId] = useState<number | null>(null);
+  const utils = trpc.useUtils();
+
+  const { data: boletos = [], isLoading } = trpc.cnab.listarBoletosPorDevedor.useQuery({ devedorId });
+
+  const uploadMutation = trpc.cnab.uploadBoleto.useMutation({
+    onSuccess: () => {
+      utils.cnab.listarBoletosPorDevedor.invalidate({ devedorId });
+      toast.success("Boleto anexado com sucesso!");
+      setUploadingCobrancaId(null);
+    },
+    onError: (err) => {
+      toast.error("Erro ao enviar boleto: " + err.message);
+      setUploadingCobrancaId(null);
+    },
+  });
+
+  const deletarMutation = trpc.cnab.deletarBoleto.useMutation({
+    onSuccess: () => {
+      utils.cnab.listarBoletosPorDevedor.invalidate({ devedorId });
+      toast.success("Boleto removido");
+    },
+    onError: (err) => toast.error("Erro ao remover: " + err.message),
+  });
+
+  const handleFileChange = (cobrancaId: number) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 10MB.");
+      return;
+    }
+    setUploadingCobrancaId(cobrancaId);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = (ev.target?.result as string).split(",")[1];
+      uploadMutation.mutate({
+        cobrancaId,
+        condominioId,
+        nomeArquivo: file.name,
+        conteudoBase64: base64,
+        tamanhoBytes: file.size,
+        mimeType: file.type || "application/pdf",
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const formatarTamanho = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatarTipoCobranca = (tipo: string) => {
+    const tipos: Record<string, string> = {
+      condominio: "Condomínio",
+      salao_jogos: "Salão de Jogos",
+      churrasqueira: "Churrasqueira",
+      cota_extra: "Cota Extra",
+      multa: "Multa",
+      outros: "Outros",
+    };
+    return tipos[tipo] ?? tipo;
+  };
+
+  const statusCobrancaColor = (status: string) => {
+    if (status === "pago") return "text-green-600";
+    if (status === "pendente") return "text-amber-600";
+    if (status === "em_acordo" || status === "acordo") return "text-blue-600";
+    if (status === "judicial") return "text-red-600";
+    return "text-muted-foreground";
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Paperclip className="h-5 w-5" />
+              Boletos Anexados
+            </CardTitle>
+            <CardDescription>
+              PDFs de boletos de todas as cobranças deste devedor
+            </CardDescription>
+          </div>
+          {boletos.length > 0 && (
+            <Badge variant="secondary">{boletos.length} boleto{boletos.length > 1 ? "s" : ""}</Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+          </div>
+        ) : boletos.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Paperclip className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">Nenhum boleto anexado ainda.</p>
+            <p className="text-xs mt-1">Acesse os detalhes de uma cobrança para anexar boletos.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {boletos.map((b: any) => (
+              <div
+                key={b.id}
+                className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
+              >
+                {/* Ícone PDF */}
+                <div className="flex-shrink-0 mt-0.5">
+                  <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center">
+                    <FileText className="h-5 w-5 text-red-600" />
+                  </div>
+                </div>
+
+                {/* Informações */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{b.nomeArquivo}</p>
+                  {b.cobranca && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
+                      <span className="text-xs text-muted-foreground">
+                        {formatarTipoCobranca(b.cobranca.tipoCobranca)}
+                        {b.cobranca.monthReference ? ` · ${b.cobranca.monthReference}` : ""}
+                      </span>
+                      {b.cobranca.dueDate && (
+                        <span className="text-xs text-muted-foreground">
+                          · Venc. {format(new Date(b.cobranca.dueDate), "dd/MM/yyyy")}
+                        </span>
+                      )}
+                      <span className={`text-xs font-medium ${statusCobrancaColor(b.cobranca.status)}`}>
+                        · {b.cobranca.status}
+                      </span>
+                      {b.cobranca.amount && (
+                        <span className="text-xs text-muted-foreground">
+                          · {formatarMoeda(b.cobranca.amount / 100)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {b.tamanhoBytes ? formatarTamanho(b.tamanhoBytes) + " · " : ""}
+                    {format(new Date(b.createdAt), "dd/MM/yyyy HH:mm")}
+                    {b.uploadedByName ? ` · ${b.uploadedByName}` : ""}
+                  </p>
+                </div>
+
+                {/* Ações */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    title="Copiar link para envio rápido"
+                    onClick={() => {
+                      navigator.clipboard.writeText(b.urlS3);
+                      toast.success("Link copiado! Cole no WhatsApp ou e-mail.");
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <a href={b.urlS3} target="_blank" rel="noopener noreferrer">
+                    <Button size="icon" variant="ghost" className="h-8 w-8" title="Abrir boleto">
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </a>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    title="Remover boleto"
+                    onClick={() => deletarMutation.mutate({ id: b.id })}
+                    disabled={deletarMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
