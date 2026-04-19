@@ -1347,3 +1347,13 @@
 - [x] Corrigir CNAB240.tsx: botão usa IDs das cobranças com status "remessa_gerada" da listagem, não do estado de seleção
 - [x] Adicionada seção persistente "X cobranças aguardando confirmação de envio" visível mesmo após recarregar a página
 - [x] 0 erros TypeScript
+
+## Reorganização do Menu Lateral — Submenus Colapsáveis
+
+- [x] Sidebar reescrito com grupos colapsáveis: Configurações, Cobrança, Automação, Arquivos e Banco, Relatórios
+- [x] Dashboard permanece como item direto (sem grupo)
+- [x] Estado de abertura dos grupos persiste no localStorage
+- [x] Grupo do item ativo abre automaticamente ao navegar
+- [x] Submenus com borda lateral para hierarquia visual
+- [x] Modo colapsado mantém apenas ícones dos grupos
+- [x] 0 erros TypeScript
