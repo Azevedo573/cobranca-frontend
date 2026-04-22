@@ -28,6 +28,7 @@ import ProcessoCobrancaForm from "./pages/ProcessoCobrancaForm";
 import ProcessoCobrancaDetalhes from "./pages/ProcessoCobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import ImportarDevedores from "./pages/admin/ImportarDevedores";
+import ImportarCondominios from "./pages/admin/ImportarCondominios";
 import ReguaCobranca from "./pages/admin/ReguaCobranca";
 import HistoricoDisparos from "./pages/admin/HistoricoDisparos";
 import CNAB240 from "./pages/admin/CNAB240";
@@ -120,6 +121,9 @@ function Router() {
       </Route>
       <Route path="/admin/importar-devedores">
         {() => <ProtectedRoute component={ImportarDevedores} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/importar-condominios">
+        {() => <ProtectedRoute component={ImportarCondominios} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas de Usuários (Admin) */}

@@ -94,6 +94,7 @@ const menuGroups: MenuGroup[] = [
       { label: "CNAB 240 / BTG", href: "/admin/cnab240", icon: Landmark, roles: ["admin", "sindico"] },
       { label: "Histórico de Importações", href: "/admin/historico-importacoes", icon: ClipboardList, roles: ["admin", "sindico"] },
       { label: "Importar Devedores", href: "/admin/importar-devedores", icon: Upload, roles: ["admin"] },
+      { label: "Importar Condomínios", href: "/admin/importar-condominios", icon: Building2, roles: ["admin"] },
     ],
   },
 

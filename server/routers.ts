@@ -135,13 +135,122 @@ export const appRouter = router({
       const { updateCondominio } = await import("./db-condominios");
       return await updateCondominio(id, data);
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       const { deleteCondominio } = await import("./db-condominios");
       await deleteCondominio(input.id);
       return { success: true };
     }),
-  }),
 
+    // Importacao de condomínios via planilha Excel
+    importarPlanilha: adminProcedure.input(z.object({
+      // Dados da planilha em base64 (xlsx)
+      fileBase64: z.string(),
+      fileName: z.string(),
+      // Se true, apenas valida sem inserir
+      apenasValidar: z.boolean().default(false),
+    })).mutation(async ({ input, ctx }) => {
+      const XLSX = await import("xlsx");
+      const { createCondominio } = await import("./db-condominios");
+      const { getDb } = await import("./db");
+      const { historicoImportacoes } = await import("../drizzle/schema");
+
+      // Decodificar base64
+      const buffer = Buffer.from(input.fileBase64, "base64");
+      const workbook = XLSX.read(buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const resultados: Array<{
+        linha: number;
+        nome: string;
+        status: "ok" | "erro" | "aviso";
+        mensagem: string;
+        dados?: Record<string, unknown>;
+      }> = [];
+
+      const condominiosInseridos: number[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const linha = i + 2; // linha 1 = cabeçalho
+
+        const nome = String(row["Nome"] || row["nome"] || row["NOME"] || "").trim();
+        if (!nome) {
+          resultados.push({ linha, nome: "(vazio)", status: "erro", mensagem: "Campo 'Nome' é obrigatório" });
+          continue;
+        }
+
+        const cnpj = String(row["CNPJ"] || row["cnpj"] || "").trim();
+        const address = String(row["Endereço"] || row["Endereco"] || row["endereco"] || "").trim();
+        const city = String(row["Cidade"] || row["cidade"] || "").trim();
+        const state = String(row["Estado"] || row["UF"] || row["uf"] || "").trim().toUpperCase().slice(0, 2);
+        const zipCode = String(row["CEP"] || row["cep"] || "").trim();
+        const phone = String(row["Telefone"] || row["telefone"] || "").trim();
+        const email = String(row["Email"] || row["email"] || "").trim();
+        const managerName = String(row["Síndico"] || row["Sindico"] || row["sindico"] || row["Gestor"] || "").trim();
+        const managerEmail = String(row["Email Síndico"] || row["Email Sindico"] || row["email_sindico"] || "").trim();
+        const taxaJurosMensal = String(row["Juros Mensal (%)"] || row["juros_mensal"] || "1.00").trim();
+        const taxaMulta = String(row["Multa (%)"] || row["multa"] || "2.00").trim();
+        const taxaHonorarios = String(row["Honorários (%)"] || row["honorarios"] || "10.00").trim();
+
+        const dados = { nome, cnpj, address, city, state, zipCode, phone, email, managerName, managerEmail, taxaJurosMensal, taxaMulta, taxaHonorarios };
+
+        if (input.apenasValidar) {
+          resultados.push({ linha, nome, status: "ok", mensagem: "Válido — pronto para importar", dados });
+          continue;
+        }
+
+        try {
+          const novo = await createCondominio({
+            name: nome,
+            cnpj: cnpj || undefined,
+            address: address || undefined,
+            city: city || undefined,
+            state: state || undefined,
+            zipCode: zipCode || undefined,
+            phone: phone || undefined,
+            email: email || undefined,
+            managerName: managerName || undefined,
+            managerEmail: managerEmail || undefined,
+            taxaJurosMensal: taxaJurosMensal || undefined,
+            taxaMulta: taxaMulta || undefined,
+            taxaHonorarios: taxaHonorarios || undefined,
+          });
+          condominiosInseridos.push((novo as { insertId?: number }).insertId ?? 0);
+          resultados.push({ linha, nome, status: "ok", mensagem: "Importado com sucesso" });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          resultados.push({ linha, nome, status: "erro", mensagem: `Erro ao inserir: ${msg}` });
+        }
+      }
+
+      // Registrar no histórico de importações
+      if (!input.apenasValidar) {
+        const db = await getDb();
+        const totalErros = resultados.filter((r) => r.status === "erro").length;
+        const totalOk = resultados.filter((r) => r.status === "ok").length;
+        await db!.insert(historicoImportacoes).values({
+          condominioId: null,
+          usuarioId: ctx.user.id,
+          tipo: "devedores" as const, // reutilizando enum mais próximo; tipo "condominios" não existe no enum
+          nomeArquivo: input.fileName,
+          totalRegistros: rows.length,
+          registrosSucesso: totalOk,
+          registrosErro: totalErros,
+          status: totalErros === 0 ? "concluido" : totalOk === 0 ? "erro" : "concluido",
+          detalhesErros: JSON.stringify(resultados.filter((r) => r.status === "erro").slice(0, 50)),
+        });
+      }
+
+      return {
+        total: rows.length,
+        sucesso: resultados.filter((r) => r.status === "ok").length,
+        erros: resultados.filter((r) => r.status === "erro").length,
+        resultados,
+      };
+    }),
+  }),
   // Devedores
   devedores: router({
     list: condominioAccessProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {

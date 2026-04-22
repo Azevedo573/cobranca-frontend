@@ -1357,3 +1357,16 @@
 - [x] Submenus com borda lateral para hierarquia visual
 - [x] Modo colapsado mantém apenas ícones dos grupos
 - [x] 0 erros TypeScript
+
+## Importação de Condomínios via Excel
+
+- [x] Backend: procedure `condominios.importarPlanilha` com parser XLSX
+- [x] Backend: validação de campos obrigatórios (nome, CNPJ, endereço)
+- [x] Backend: registrar importação no histórico (historicoImportacoes)
+- [x] Frontend: página `/admin/importar-condominios` com 3 etapas (upload, preview, resultado)
+- [x] Frontend: botão "Baixar Template" que gera xlsx de exemplo com colunas corretas
+- [x] Frontend: preview dos registros com status Válido/Erro antes de confirmar
+- [x] Frontend: relatório de resultado com contadores e detalhes de erros por linha
+- [x] Frontend: item "Importar Condomínios" no grupo Arquivos e Banco do Sidebar
+- [x] Rota `/admin/importar-condominios` registrada no App.tsx
+- [x] 0 erros TypeScript
