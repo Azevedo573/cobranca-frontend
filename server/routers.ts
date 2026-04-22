@@ -143,14 +143,15 @@ export const appRouter = router({
 
     // Importacao de condomínios via planilha Excel
     importarPlanilha: adminProcedure.input(z.object({
-      // Dados da planilha em base64 (xlsx)
       fileBase64: z.string(),
       fileName: z.string(),
-      // Se true, apenas valida sem inserir
+      // Se true, apenas valida sem inserir (etapa de preview)
       apenasValidar: z.boolean().default(false),
+      // Como tratar CNPJs duplicados: "pular" (ignora) ou "atualizar" (sobrescreve)
+      modoConflito: z.enum(["pular", "atualizar"]).default("pular"),
     })).mutation(async ({ input, ctx }) => {
       const XLSX = await import("xlsx");
-      const { createCondominio } = await import("./db-condominios");
+      const { createCondominio, updateCondominio, getAllCondominios } = await import("./db-condominios");
       const { getDb } = await import("./db");
       const { historicoImportacoes } = await import("../drizzle/schema");
 
@@ -161,19 +162,30 @@ export const appRouter = router({
       const sheet = workbook.Sheets[sheetName];
       const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
+      // Buscar todos os CNPJs existentes para detecção de duplicatas
+      const todosCondominios = await getAllCondominios();
+      const cnpjExistente = new Map<string, number>(); // cnpj -> id
+      for (const c of todosCondominios) {
+        if (c.cnpj) cnpjExistente.set(c.cnpj.replace(/\D/g, ""), c.id);
+      }
+
       const resultados: Array<{
         linha: number;
         nome: string;
-        status: "ok" | "erro" | "aviso";
+        status: "ok" | "erro" | "aviso" | "atualizado" | "pulado";
         mensagem: string;
+        duplicado?: boolean;
+        idExistente?: number;
         dados?: Record<string, unknown>;
       }> = [];
 
-      const condominiosInseridos: number[] = [];
+      let totalCriados = 0;
+      let totalAtualizados = 0;
+      let totalPulados = 0;
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        const linha = i + 2; // linha 1 = cabeçalho
+        const linha = i + 2;
 
         const nome = String(row["Nome"] || row["nome"] || row["NOME"] || "").trim();
         if (!nome) {
@@ -182,6 +194,7 @@ export const appRouter = router({
         }
 
         const cnpj = String(row["CNPJ"] || row["cnpj"] || "").trim();
+        const cnpjLimpo = cnpj.replace(/\D/g, "");
         const address = String(row["Endereço"] || row["Endereco"] || row["endereco"] || "").trim();
         const city = String(row["Cidade"] || row["cidade"] || "").trim();
         const state = String(row["Estado"] || row["UF"] || row["uf"] || "").trim().toUpperCase().slice(0, 2);
@@ -196,32 +209,57 @@ export const appRouter = router({
 
         const dados = { nome, cnpj, address, city, state, zipCode, phone, email, managerName, managerEmail, taxaJurosMensal, taxaMulta, taxaHonorarios };
 
+        // Verificar duplicata por CNPJ
+        const idDuplicado = cnpjLimpo ? cnpjExistente.get(cnpjLimpo) : undefined;
+        const isDuplicado = !!idDuplicado;
+
         if (input.apenasValidar) {
-          resultados.push({ linha, nome, status: "ok", mensagem: "Válido — pronto para importar", dados });
+          if (isDuplicado) {
+            resultados.push({
+              linha, nome, status: "aviso",
+              mensagem: `CNPJ já cadastrado (ID #${idDuplicado}) — será ${input.modoConflito === "atualizar" ? "atualizado" : "pulado"}`,
+              duplicado: true, idExistente: idDuplicado, dados,
+            });
+          } else {
+            resultados.push({ linha, nome, status: "ok", mensagem: "Válido — será criado", dados });
+          }
           continue;
         }
 
+        const payload = {
+          name: nome,
+          cnpj: cnpj || undefined,
+          address: address || undefined,
+          city: city || undefined,
+          state: state || undefined,
+          zipCode: zipCode || undefined,
+          phone: phone || undefined,
+          email: email || undefined,
+          managerName: managerName || undefined,
+          managerEmail: managerEmail || undefined,
+          taxaJurosMensal: taxaJurosMensal || undefined,
+          taxaMulta: taxaMulta || undefined,
+          taxaHonorarios: taxaHonorarios || undefined,
+        };
+
         try {
-          const novo = await createCondominio({
-            name: nome,
-            cnpj: cnpj || undefined,
-            address: address || undefined,
-            city: city || undefined,
-            state: state || undefined,
-            zipCode: zipCode || undefined,
-            phone: phone || undefined,
-            email: email || undefined,
-            managerName: managerName || undefined,
-            managerEmail: managerEmail || undefined,
-            taxaJurosMensal: taxaJurosMensal || undefined,
-            taxaMulta: taxaMulta || undefined,
-            taxaHonorarios: taxaHonorarios || undefined,
-          });
-          condominiosInseridos.push((novo as { insertId?: number }).insertId ?? 0);
-          resultados.push({ linha, nome, status: "ok", mensagem: "Importado com sucesso" });
+          if (isDuplicado) {
+            if (input.modoConflito === "atualizar") {
+              await updateCondominio(idDuplicado!, payload);
+              totalAtualizados++;
+              resultados.push({ linha, nome, status: "atualizado", mensagem: `Atualizado (ID #${idDuplicado})`, duplicado: true, idExistente: idDuplicado });
+            } else {
+              totalPulados++;
+              resultados.push({ linha, nome, status: "pulado", mensagem: `Pulado — CNPJ já existe (ID #${idDuplicado})`, duplicado: true, idExistente: idDuplicado });
+            }
+          } else {
+            await createCondominio(payload);
+            totalCriados++;
+            resultados.push({ linha, nome, status: "ok", mensagem: "Criado com sucesso" });
+          }
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          resultados.push({ linha, nome, status: "erro", mensagem: `Erro ao inserir: ${msg}` });
+          resultados.push({ linha, nome, status: "erro", mensagem: `Erro: ${msg}` });
         }
       }
 
@@ -229,23 +267,24 @@ export const appRouter = router({
       if (!input.apenasValidar) {
         const db = await getDb();
         const totalErros = resultados.filter((r) => r.status === "erro").length;
-        const totalOk = resultados.filter((r) => r.status === "ok").length;
         await db!.insert(historicoImportacoes).values({
           condominioId: null,
           usuarioId: ctx.user.id,
-          tipo: "devedores" as const, // reutilizando enum mais próximo; tipo "condominios" não existe no enum
+          tipo: "devedores" as const,
           nomeArquivo: input.fileName,
           totalRegistros: rows.length,
-          registrosSucesso: totalOk,
+          registrosSucesso: totalCriados + totalAtualizados,
           registrosErro: totalErros,
-          status: totalErros === 0 ? "concluido" : totalOk === 0 ? "erro" : "concluido",
+          status: totalErros === 0 ? "concluido" : totalCriados + totalAtualizados === 0 ? "erro" : "concluido",
           detalhesErros: JSON.stringify(resultados.filter((r) => r.status === "erro").slice(0, 50)),
         });
       }
 
       return {
         total: rows.length,
-        sucesso: resultados.filter((r) => r.status === "ok").length,
+        criados: totalCriados,
+        atualizados: totalAtualizados,
+        pulados: totalPulados,
         erros: resultados.filter((r) => r.status === "erro").length,
         resultados,
       };

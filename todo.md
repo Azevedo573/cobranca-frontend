@@ -1370,3 +1370,16 @@
 - [x] Frontend: item "Importar Condomínios" no grupo Arquivos e Banco do Sidebar
 - [x] Rota `/admin/importar-condominios` registrada no App.tsx
 - [x] 0 erros TypeScript
+
+## Detecção de Duplicatas na Importação de Condomínios
+
+- [x] Backend: ao importar, verificar CNPJ já existente no banco (Map cnpjLimpo -> id)
+- [x] Backend: retornar flag `duplicado: true` e `idExistente` para cada linha com CNPJ duplicado
+- [x] Backend: suportar parâmetro `modoConflito: "pular" | "atualizar"` no procedure
+- [x] Backend: contadores separados (criados, atualizados, pulados, erros) no retorno
+- [x] Frontend: badge "Âmbar" no preview para linhas com CNPJ existente
+- [x] Frontend: toggle "Pular" / "Atualizar" na etapa de upload e também no preview
+- [x] Frontend: re-validação automática ao mudar modo no preview
+- [x] Frontend: 4 cards de resumo no preview (Total, Novos, Duplicados, Erros)
+- [x] Frontend: relatório final mostra contadores separados: criados, atualizados, pulados, erros
+- [x] 0 erros TypeScript
