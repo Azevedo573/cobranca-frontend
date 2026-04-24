@@ -1383,3 +1383,31 @@
 - [x] Frontend: 4 cards de resumo no preview (Total, Novos, Duplicados, Erros)
 - [x] Frontend: relatório final mostra contadores separados: criados, atualizados, pulados, erros
 - [x] 0 erros TypeScript
+
+## Módulo de Operações de Cobrança — Ativa e Passiva
+
+### Cobrança Ativa (Operador recebe fila priorizada)
+- [x] Backend: procedure `operacoes.filaAtiva` — lista devedores ordenados por prioridade (score, dias de atraso, valor)
+- [x] Backend: procedure `operacoes.devedorParaAtendimento` — retorna detalhes completos do devedor para o painel
+- [x] Backend: procedure `operacoes.registrarAcaoAtiva` — registra tentativa (sem resposta, promessa, acordo, recusa, outro)
+- [x] Frontend: página `/operacoes/cobranca-ativa` com fila de devedores à esquerda e painel de ação à direita
+- [x] Frontend: card do devedor com dados de contato, histórico resumido e valor devido
+- [x] Frontend: botões de ação rápida: Sem Resposta, Promessa de Pagamento, Deseja Acordo, Recusa, Outro
+- [x] Frontend: contador de atendimentos realizados na sessão
+- [x] Frontend: indicador de posição na fila (ex: "3 de 47 pendentes")
+
+### Cobrança Passiva (Devedor entra em contato)
+- [x] Backend: procedure `operacoes.buscarDevedorPassivo` — busca por CPF, nome, unidade ou telefone
+- [x] Backend: procedure `operacoes.registrarContatoPassivo` — registra o atendimento com resultado e observações
+- [x] Frontend: página `/operacoes/cobranca-passiva` com campo de busca rápida por CPF/nome
+- [x] Frontend: card do devedor encontrado com todas as cobranças em aberto
+- [x] Frontend: formulário de registro do atendimento (canal, resultado, proposta do devedor, observações)
+- [x] Frontend: histórico de contatos anteriores do devedor visível durante o atendimento
+- [x] Frontend: botão "Gerar Proposta de Acordo" que preenche o formulário de acordo
+
+### Navegação
+- [x] Adicionar grupo "Operações" no Sidebar com os dois itens
+- [x] Registrar rotas no App.tsx
+
+### Testes
+- [x] 44 testes unitários para o módulo de operações (priorização, busca, formatação, validação)

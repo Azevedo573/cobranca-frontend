@@ -1567,5 +1567,109 @@ export const appRouter = router({
         };
       }),
   }),
+  operacoes: router({
+    // Cobrança Ativa: fila priorizada para o operador
+    filaAtiva: protectedProcedure
+      .input(z.object({
+        condominioId: z.number().nullable().optional(),
+        limite: z.number().min(1).max(200).default(50),
+      }))
+      .query(async ({ input, ctx }) => {
+        const { buscarFilaAtiva } = await import("./db-operacoes");
+        const condId = ctx.user.role === "admin"
+          ? (input.condominioId ?? null)
+          : (ctx.user.condominioId ?? null);
+        return await buscarFilaAtiva(condId, input.limite);
+      }),
+
+    // Detalhes completos do devedor para o painel de atendimento
+    devedorParaAtendimento: protectedProcedure
+      .input(z.object({ devedorId: z.number() }))
+      .query(async ({ input }) => {
+        const { buscarDevedorParaAtendimento } = await import("./db-operacoes");
+        return await buscarDevedorParaAtendimento(input.devedorId);
+      }),
+
+    // Registrar ação da cobrança ativa (tentativa)
+    registrarAcaoAtiva: protectedProcedure
+      .input(z.object({
+        devedorId: z.number(),
+        cobrancaId: z.number(),
+        contactType: z.enum(["telefone", "email", "pessoal", "whatsapp"]),
+        result: z.enum(["sem_resposta", "promessa_pagamento", "deseja_acordo", "recusa", "outro"]),
+        notes: z.string().optional(),
+        nextAttemptDate: z.date().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { tentativasCobranca: tc, devedores: dev } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        // Buscar condominioId do devedor
+        const devedorResult = await db.select({ condominioId: dev.condominioId }).from(dev).where(eq(dev.id, input.devedorId)).limit(1);
+        const condominioId = devedorResult[0]?.condominioId ?? 0;
+        await db.insert(tc).values({
+          devedorId: input.devedorId,
+          cobrancaId: input.cobrancaId,
+          condominioId,
+          userId: ctx.user.id,
+          contactType: input.contactType,
+          result: input.result,
+          notes: input.notes ?? null,
+          nextAttemptDate: input.nextAttemptDate ?? null,
+          attemptDate: new Date(),
+        });
+        return { ok: true };
+      }),
+
+    // Cobrança Passiva: busca devedor por CPF/nome/unidade
+    buscarDevedorPassivo: protectedProcedure
+      .input(z.object({
+        termo: z.string().min(2),
+        condominioId: z.number().nullable().optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        const { buscarDevedorPorIdentificador } = await import("./db-operacoes");
+        const condId = ctx.user.role === "admin"
+          ? (input.condominioId ?? null)
+          : (ctx.user.condominioId ?? null);
+        return await buscarDevedorPorIdentificador(input.termo, condId);
+      }),
+
+    // Registrar contato passivo (devedor ligou/veio ao escritório)
+    registrarContatoPassivo: protectedProcedure
+      .input(z.object({
+        devedorId: z.number(),
+        cobrancaId: z.number(),
+        contactType: z.enum(["telefone", "email", "pessoal", "whatsapp"]),
+        result: z.enum(["sem_resposta", "promessa_pagamento", "deseja_acordo", "recusa", "outro"]),
+        propostaDevedor: z.string().optional(),
+        notes: z.string().optional(),
+        nextAttemptDate: z.date().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { tentativasCobranca: tc, devedores: dev } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const devedorResult = await db.select({ condominioId: dev.condominioId }).from(dev).where(eq(dev.id, input.devedorId)).limit(1);
+        const condominioId = devedorResult[0]?.condominioId ?? 0;
+        const notesCompleto = input.propostaDevedor
+          ? `[CONTATO PASSIVO] Proposta do devedor: ${input.propostaDevedor}${input.notes ? ` | Obs: ${input.notes}` : ""}`
+          : `[CONTATO PASSIVO]${input.notes ? ` ${input.notes}` : ""}`;
+        await db.insert(tc).values({
+          devedorId: input.devedorId,
+          cobrancaId: input.cobrancaId,
+          condominioId,
+          userId: ctx.user.id,
+          contactType: input.contactType,
+          result: input.result,
+          notes: notesCompleto,
+          nextAttemptDate: input.nextAttemptDate ?? null,
+          attemptDate: new Date(),
+        });
+        return { ok: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

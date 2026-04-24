@@ -24,6 +24,8 @@ import {
   Briefcase,
   Bot,
   FolderOpen,
+  PhoneCall,
+  PhoneIncoming,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -55,6 +57,17 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Condomínios", href: "/admin/condominios", icon: Building2, roles: ["admin"] },
       { label: "Usuários", href: "/admin/usuarios", icon: Users, roles: ["admin"] },
+    ],
+  },
+
+  // ── Operações ──
+  {
+    label: "Operações",
+    icon: PhoneCall,
+    roles: ["admin", "cobrador"],
+    items: [
+      { label: "Cobrança Ativa", href: "/operacoes/cobranca-ativa", icon: PhoneCall, roles: ["admin", "cobrador"] },
+      { label: "Cobrança Passiva", href: "/operacoes/cobranca-passiva", icon: PhoneIncoming, roles: ["admin", "cobrador"] },
     ],
   },
 

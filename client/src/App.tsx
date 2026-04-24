@@ -39,6 +39,8 @@ import AcordosAcompanhamento from "./pages/AcordosAcompanhamento";
 import AcordoDetalhes from "./pages/AcordoDetalhes";
 import TentativasCobranca from "./pages/TentativasCobranca";
 import Vencimentos from "./pages/Vencimentos";
+import CobrancaAtiva from "./pages/operacoes/CobrancaAtiva";
+import CobrancaPassiva from "./pages/operacoes/CobrancaPassiva";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -210,6 +212,14 @@ function Router() {
       {/* Rotas de Vencimentos */}
       <Route path="/vencimentos">
         {() => <ProtectedRoute component={Vencimentos} />}
+      </Route>
+
+      {/* Rotas de Operações de Cobrança */}
+      <Route path="/operacoes/cobranca-ativa">
+        {() => <ProtectedRoute component={CobrancaAtiva} allowedRoles={["admin", "cobrador"]} />}
+      </Route>
+      <Route path="/operacoes/cobranca-passiva">
+        {() => <ProtectedRoute component={CobrancaPassiva} allowedRoles={["admin", "cobrador"]} />}
       </Route>
 
       {/* Rotas de Tentativas */}
