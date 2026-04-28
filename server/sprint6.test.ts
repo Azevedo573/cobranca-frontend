@@ -149,8 +149,8 @@ describe("Geração de Remessa CNAB 240", () => {
   it("gera arquivo completo com número correto de linhas", () => {
     const arquivo = gerarArquivoRemessaCNAB240(BANCO_TESTE, [TITULO_TESTE], 1);
     const linhas = arquivo.split(/\r?\n/).filter(l => l.trim().length > 0);
-    // Header arquivo + Header lote + Seg P + Seg Q + Trailer lote + Trailer arquivo = 6
-    expect(linhas.length).toBe(6);
+    // Header arquivo + Header lote + Seg P + Seg Q + Seg R + Trailer lote + Trailer arquivo = 7
+    expect(linhas.length).toBe(7);
   });
 
   it("cada linha do arquivo tem exatamente 240 caracteres", () => {
@@ -165,8 +165,8 @@ describe("Geração de Remessa CNAB 240", () => {
     const titulos = [TITULO_TESTE, { ...TITULO_TESTE, cobrancaId: 124, nossoNumero: "0000000124" }];
     const arquivo = gerarArquivoRemessaCNAB240(BANCO_TESTE, titulos, 1);
     const linhas = arquivo.split(/\r?\n/).filter(l => l.trim().length > 0);
-    // Header + Header lote + (Seg P + Seg Q) * 2 + Trailer lote + Trailer arquivo = 8
-    expect(linhas.length).toBe(8);
+    // Header + Header lote + (Seg P + Seg Q + Seg R) * 2 + Trailer lote + Trailer arquivo = 10
+    expect(linhas.length).toBe(10);
   });
 
   it("segmento P tem tipo 'P' na posição 14", () => {

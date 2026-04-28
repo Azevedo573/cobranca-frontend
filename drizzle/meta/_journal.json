@@ -162,6 +162,13 @@
       "when": 1776541046856,
       "tag": "0023_fearless_aaron_stack",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1777147055420,
+      "tag": "0024_high_wither",
+      "breakpoints": true
     }
   ]
 }

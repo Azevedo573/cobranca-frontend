@@ -1319,6 +1319,63 @@ export const appRouter = router({
 
   // ===== CNAB 240 =====
   cnab: router({
+    // ---- Configuração de Boleto (Portador + Dados do Boleto + Arquivo) ----
+    getConfiguracaoBoleto: condominioAccessProcedure
+      .input(z.object({ condominioId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+        return await getConfiguracaoBoleto(condId);
+      }),
+
+    salvarConfiguracaoBoleto: condominioAccessProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        // Portador
+        banco: z.string().default("208"),
+        nomeBanco: z.string().default("BTG PACTUAL"),
+        agencia: z.string(),
+        digitoAgencia: z.string().default("0"),
+        conta: z.string(),
+        digitoConta: z.string().default("0"),
+        convenio: z.string().default(""),
+        ativo: z.number().default(1),
+        contaRepasse: z.number().default(0),
+        // Configuração de remessa
+        minimosDiasAntesVencimento: z.number().default(0),
+        usarMinimoDias: z.number().default(0),
+        enviarParcelasApenasPrimeiraPaga: z.number().default(0),
+        enviarParcelasApenasAnteriorPaga: z.number().default(1),
+        // Dados do boleto
+        carteira: z.string().default("1"),
+        especieDocumento: z.string().default("DD"),
+        aceite: z.string().default("N"),
+        nomeBeneficiario: z.string().optional(),
+        cnpjBeneficiario: z.string().optional(),
+        enderecoBeneficiario: z.string().optional(),
+        localPagamento: z.string().default("PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO"),
+        instrucoesCaixa: z.string().default("APOS VENCIMENTO COBRAR MULTA DE #MULTA# e MORA DIARIA DE #JUROS#"),
+        taxaJurosDia: z.string().default("0.03330"),
+        taxaMulta: z.string().default("2.00"),
+        // Configuração do arquivo
+        padraoNomeArquivo: z.string().default("BTG_ddmmyyyy.txt"),
+        layoutArquivo: z.string().default("CNAB240"),
+        enviarInstrucoesProtesto: z.number().default(0),
+        // Forma de pagamento
+        habilitarBoleto: z.number().default(1),
+        habilitarPix: z.number().default(1),
+        taxaCobrancaValor: z.string().default("3.50"),
+        taxaCobrancaPercentual: z.string().default("0.00"),
+        despesaValor: z.string().default("0.00"),
+        despesaPercentual: z.string().default("0.00"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        const { upsertConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+        const { condominioId: _cid, ...data } = input;
+        return await upsertConfiguracaoBoleto(condId, data);
+      }),
+
     // Marcar cobranças como enviadas ao banco após envio da remessa
     marcarComoEnviado: protectedProcedure
       .input(z.object({
@@ -1452,6 +1509,7 @@ export const appRouter = router({
       .input(z.object({
         condominioId: z.number(),
         cobrancaIds: z.array(z.number()).min(1).max(1000),
+        // dadosBanco agora e opcional: se omitido, usa a configuracao salva do condominio
         dadosBanco: z.object({
           codigoBanco: z.string().default("208"),
           agencia: z.string(),
@@ -1461,14 +1519,29 @@ export const appRouter = router({
           convenio: z.string(),
           cedente: z.string(),
           cnpjCedente: z.string(),
-        }),
+        }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const db = await import("./db").then(m => m.getDb());
         if (!db) throw new Error("Database not available");
         const { eq, and, inArray } = await import("drizzle-orm");
-        const { cobrancas, devedores } = await import("../drizzle/schema");
+        const { cobrancas, devedores, condominios } = await import("../drizzle/schema");
         const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+
+        // Buscar configuracao de boleto salva
+        const { getConfiguracaoBoleto, configParaDadosBanco, gerarNomeArquivoRemessa, incrementarSequencialArquivo } = await import("./db-configuracao-boleto");
+        const configBoleto = await getConfiguracaoBoleto(condId);
+
+        // Buscar nome do condominio para fallback
+        const [cond] = await db.select().from(condominios).where(eq(condominios.id, condId)).limit(1);
+        const nomeCondominio = cond?.name || "CONDOMINIO";
+
+        // Resolver dados bancarios: prioridade = config salva > input manual
+        const dadosBanco = configBoleto
+          ? configParaDadosBanco(configBoleto, nomeCondominio)
+          : input.dadosBanco;
+
+        if (!dadosBanco) throw new Error("Dados bancarios nao configurados. Configure o portador bancario antes de gerar remessa.");
 
         const cobList = await db.select().from(cobrancas)
           .where(and(inArray(cobrancas.id, input.cobrancaIds), eq(cobrancas.condominioId, condId)));
@@ -1478,9 +1551,34 @@ export const appRouter = router({
 
         const { gerarArquivoRemessaCNAB240, criarRemessaCNAB } = await import("./db-cnab");
 
+        // Incrementar sequencial e obter nosso numero inicial
+        let nossoNumeroBase = 1000000001;
+        let numeroRemessa = 1;
+        if (configBoleto) {
+          const seq = await incrementarSequencialArquivo(condId, cobList.length);
+          nossoNumeroBase = seq.nossoNumeroInicio;
+          numeroRemessa = seq.numeroSequencial;
+        } else {
+          const { listarRemessasCNAB: listRemessas } = await import("./db-cnab");
+          const remessas = await listRemessas(condId);
+          numeroRemessa = remessas.length + 1;
+        }
+
+        // Converter taxas da config para centavos
+        const taxaJurosDia = configBoleto
+          ? Math.round(parseFloat(configBoleto.taxaJurosDia) * 100)
+          : 33; // 0,033% ao dia = 1% ao mes
+        const taxaMulta = configBoleto
+          ? Math.round(parseFloat(configBoleto.taxaMulta) * 100)
+          : 200; // 2,00%
+        const instrucoesCaixa = configBoleto?.instrucoesCaixa
+          .replace("#MULTA#", `${configBoleto.taxaMulta}%`)
+          .replace("#JUROS#", `${configBoleto.taxaJurosDia}% ao dia`)
+          || "COBRAR JUROS DE 1% AO MES";
+
         const titulos = cobList.map((cob, idx) => {
           const dev = devMap.get(cob.devedorId);
-          const nossoNum = cob.nossoNumero || String(cob.id).padStart(10, "0");
+          const nossoNum = cob.nossoNumero || String(nossoNumeroBase + idx).padStart(10, "0");
           return {
             cobrancaId: cob.id,
             nossoNumero: nossoNum,
@@ -1493,22 +1591,29 @@ export const appRouter = router({
             valorNominal: cob.amount,
             dataVencimento: cob.dueDate ? new Date(cob.dueDate) : new Date(),
             dataEmissao: new Date(cob.createdAt),
-            instrucao1: "COBRAR JUROS DE 1% AO MES",
+            instrucao1: instrucoesCaixa,
             instrucao2: "",
+            carteira: configBoleto?.carteira || "1",
+            especieDocumento: configBoleto?.especieDocumento || "12",
+            aceite: configBoleto?.aceite || "N",
+            taxaJurosDia,
+            taxaMulta,
+            enviarProtesto: configBoleto ? configBoleto.enviarInstrucoesProtesto === 1 : false,
           };
         });
 
-        const { listarRemessasCNAB: listRemessas } = await import("./db-cnab");
-        const remessas = await listRemessas(condId);
-        const numeroRemessa = remessas.length + 1;
-        const conteudo = gerarArquivoRemessaCNAB240(input.dadosBanco, titulos, numeroRemessa);
+        const conteudo = gerarArquivoRemessaCNAB240(dadosBanco, titulos, numeroRemessa);
         const valorTotal = cobList.reduce((s, c) => s + c.amount, 0);
-        const nomeArquivo = `remessa_cnab240_${condId}_${Date.now()}.txt`;
 
-        const remessaResult = await criarRemessaCNAB({
+        // Nome do arquivo conforme padrao configurado
+        const nomeArquivo = configBoleto
+          ? gerarNomeArquivoRemessa(configBoleto.padraoNomeArquivo)
+          : `remessa_cnab240_${condId}_${Date.now()}.rem`;
+
+        await criarRemessaCNAB({
           condominioId: condId,
           usuarioId: ctx.user.id,
-          banco: input.dadosBanco.codigoBanco,
+          banco: dadosBanco.codigoBanco,
           nomeArquivo,
           totalTitulos: titulos.length,
           valorTotal,

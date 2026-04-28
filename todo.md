@@ -1411,3 +1411,54 @@
 
 ### Testes
 - [x] 44 testes unitários para o módulo de operações (priorização, busca, formatação, validação)
+
+## Módulo de Configuração de Boleto BTG Pactual — CNAB 240
+
+### Análise e Documentação
+- [x] Analisar documentação BTG Pactual (PDFs, arquivos .rem/.ret, planilhas CNAB)
+- [x] Mapear lacunas entre implementação atual e especificação BTG
+
+### Schema e Banco de Dados
+- [x] Tabela `configuracaoBoleto` com todos os campos do concorrente (portador, dados boleto, arquivo, forma pagamento)
+- [x] Campos: banco, agência, conta, convênio, carteira, espécie, aceite, juros, multa, nome arquivo, layout, protesto, PIX, taxas
+- [x] Campos de controle: nossoNumeroAtual, numeroSequencialArquivo (auto-incremento)
+- [x] Migração executada com `pnpm db:push`
+
+### Backend
+- [x] `db-configuracao-boleto.ts`: helpers getConfiguracaoBoleto, upsertConfiguracaoBoleto, incrementarSequencialArquivo, configParaDadosBanco, gerarNomeArquivoRemessa
+- [x] Procedure `cnab.getConfiguracaoBoleto` — busca configuração por condomínio
+- [x] Procedure `cnab.salvarConfiguracaoBoleto` — cria ou atualiza configuração (upsert)
+- [x] Procedure `cnab.gerarRemessa` atualizada para usar config salva automaticamente (dadosBanco agora opcional)
+- [x] Nosso número sequencial automático via `incrementarSequencialArquivo`
+- [x] Nome do arquivo gerado conforme padrão configurado (BTG_ddmmyyyy → .rem)
+- [x] Taxas de juros e multa da configuração aplicadas nos títulos da remessa
+- [x] Instruções de caixa com substituição de variáveis #MULTA# e #JUROS#
+
+### Gerador CNAB 240 — Segmento R
+- [x] Função `gerarSegmentoRCNAB240` — segmento R com multa percentual e instruções adicionais
+- [x] Arquivo de remessa agora gera P+Q+R por título (conforme especificação BTG)
+- [x] Contagem de registros atualizada no trailer (3 segmentos × n títulos)
+
+### Parser de Retorno — Melhorias
+- [x] Suporte ao segmento R no parser (limpa estado após Q+R)
+- [x] `CODIGOS_LIQUIDACAO` exportado como Set (06, 07, 15, 17)
+- [x] Novos códigos de ocorrência BTG: 07, 29, 32, 33, 34, 35, 40, 55, 73, 74, 75
+- [x] `processado` agora usa `CODIGOS_LIQUIDACAO.has()` em vez de comparação hardcoded
+
+### Frontend
+- [x] Página `/admin/configuracao-boleto` com 4 abas: Portador, Dados do Boleto, Arquivo CNAB, Forma de Pagamento
+- [x] Aba Portador: banco, agência, conta, dígitos, convênio, flags ativo/repasse, configuração de remessa
+- [x] Aba Dados do Boleto: carteira, espécie, aceite, nome/CNPJ/endereço beneficiário, local pagamento, instruções de caixa, juros/multa com preview
+- [x] Aba Arquivo CNAB: nº sequencial (somente leitura), padrão nome, layout, protesto, informações técnicas
+- [x] Aba Forma de Pagamento: boleto/PIX, taxa de cobrança, despesa
+- [x] Badge de status "Configurado" / "Não configurado"
+- [x] Preview do nome do arquivo com data atual
+- [x] Preview das instruções de caixa com variáveis substituídas
+- [x] Seletor de condomínio para admin
+- [x] Item "Configuração de Boleto" adicionado ao grupo "Arquivos e Banco" no Sidebar
+- [x] Rota `/admin/configuracao-boleto` registrada no App.tsx
+
+### Testes
+- [x] 29 testes unitários para o módulo de configuração de boleto (segmento R, P+Q+R, parser, CODIGOS_LIQUIDACAO, gerarNomeArquivoRemessa, configParaDadosBanco)
+- [x] Testes do sprint6 atualizados para refletir P+Q+R (7 e 10 linhas)
+- [x] 192 testes passando (0 falhas)

@@ -92,6 +92,13 @@ export interface TituloRemessa {
   dataEmissao: Date;
   instrucao1: string;         // ex: "COBRAR JUROS DE 1% AO MES"
   instrucao2: string;
+  // Campos opcionais vindos da configuracao de boleto
+  carteira?: string;          // ex: "1" (Cobranca Simples)
+  especieDocumento?: string;  // ex: "01" (DM), "12" (DD)
+  aceite?: string;            // "N" ou "S"
+  taxaJurosDia?: number;      // em centavos por dia
+  taxaMulta?: number;         // em centavos (ex: 200 = 2,00%)
+  enviarProtesto?: boolean;
 }
 
 export function gerarHeaderArquivoCNAB240(
@@ -183,37 +190,78 @@ export function gerarSegmentoPCNAB240(
     padLeft(banco.conta, 12),                         // 024-035
     banco.digitoConta.substring(0, 1),                // 036
     " ",                                              // 037
-    padLeft(titulo.nossoNumero, 20),                  // 038-057: Nosso número
-    "1",                                              // 058: Carteira (1=cobrança simples)
+    padLeft(titulo.nossoNumero, 20),                  // 038-057: Nosso numero
+    titulo.carteira?.substring(0, 1) || "1",          // 058: Carteira
     "1",                                              // 059: Forma de cadastramento
     "0",                                              // 060: Tipo de documento
-    "2",                                              // 061: Emissão do boleto (2=cedente)
-    "2",                                              // 062: Distribuição (2=cedente)
-    padLeft(titulo.nossoNumero, 15),                  // 063-077: Número do documento
+    "2",                                              // 061: Emissao do boleto (2=cedente)
+    "2",                                              // 062: Distribuicao (2=cedente)
+    padLeft(titulo.nossoNumero, 15),                  // 063-077: Numero do documento
     formatarDataCNAB(titulo.dataVencimento),          // 078-085: Data de vencimento
     formatarValorCNAB(titulo.valorNominal),           // 086-098: Valor nominal
-    "00000",                                          // 099-103: Agência cobradora
-    " ",                                              // 104: Dígito agência cobradora
-    "01",                                             // 105-106: Espécie do título (01=DM)
-    "N",                                              // 107: Aceite (N=não)
-    formatarDataCNAB(titulo.dataEmissao),             // 108-115: Data de emissão
-    "1",                                              // 116: Código de juros (1=% ao mês)
-    formatarDataCNAB(titulo.dataVencimento),          // 117-124: Data de juros
-    padLeft(100, 13),                                 // 125-137: Juros (1% = 100 centavos por 10000)
-    "0",                                              // 138: Código de desconto
+    "00000",                                          // 099-103: Agencia cobradora
+    " ",                                              // 104: Digito agencia cobradora
+    titulo.especieDocumento?.substring(0, 2).padStart(2, "0") || "12", // 105-106: Especie (12=DD)
+    titulo.aceite?.substring(0, 1) || "N",            // 107: Aceite
+    formatarDataCNAB(titulo.dataEmissao),             // 108-115: Data de emissao
+    titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "3" : "0", // 116: Cod juros (3=taxa diaria, 0=isento)
+    formatarDataCNAB(titulo.dataVencimento),          // 117-124: Data de inicio juros
+    padLeft(titulo.taxaJurosDia ?? 0, 13),            // 125-137: Taxa de juros diaria em centavos
+    "0",                                              // 138: Codigo de desconto
     "00000000",                                       // 139-146: Data de desconto
     padLeft(0, 13),                                   // 147-159: Valor de desconto
     padLeft(0, 13),                                   // 160-172: Valor IOF
     padLeft(0, 13),                                   // 173-185: Abatimento
-    padLeft(titulo.cobrancaId, 25),                   // 186-210: Identificação do título na empresa
-    "3",                                              // 211: Protesto (3=não protestar)
-    "00",                                             // 212-213: Prazo para protesto
-    "3",                                              // 214: Baixa/devolução (3=não baixar)
+    padLeft(titulo.cobrancaId, 25),                   // 186-210: Identificacao do titulo na empresa
+    titulo.enviarProtesto ? "1" : "3",                // 211: Protesto (1=protestar, 3=nao protestar)
+    titulo.enviarProtesto ? "10" : "00",              // 212-213: Prazo para protesto (10 dias)
+    "3",                                              // 214: Baixa/devolucao (3=nao baixar)
     padLeft(0, 3),                                    // 215-217: Prazo para baixa
     "09",                                             // 218-219: Moeda (09=real)
-    padLeft(0, 10),                                   // 220-229: Número contrato
+    padLeft(0, 10),                                   // 220-229: Numero contrato
     " ",                                              // 230: Brancos
     " ".repeat(10),                                   // 231-240: Brancos
+  ].join("");
+
+  return linha.substring(0, 240);
+}
+
+/** Segmento R: Informacoes de multa e instrucoes adicionais (recomendado pelo BTG) */
+export function gerarSegmentoRCNAB240(
+  banco: DadosBanco,
+  titulo: TituloRemessa,
+  numeroLote: number,
+  sequencial: number
+): string {
+  const codMulta = titulo.taxaMulta && titulo.taxaMulta > 0 ? "2" : "0"; // 2=percentual
+  const valorMulta = titulo.taxaMulta ?? 0;
+  const dataMulta = new Date(titulo.dataVencimento);
+  dataMulta.setDate(dataMulta.getDate() + 1);
+
+  const linha = [
+    padLeft(banco.codigoBanco, 3),                    // 001-003
+    padLeft(numeroLote, 4),                           // 004-007
+    "3",                                              // 008: Tipo registro
+    padLeft(sequencial, 5),                           // 009-013
+    "R",                                              // 014: Segmento R
+    " ",                                              // 015: Brancos
+    "01",                                             // 016-017: Movimento
+    "0",                                              // 018: Cod. desconto 2 (0=sem desconto)
+    "00000000",                                       // 019-026: Data desconto 2
+    padLeft(0, 13),                                   // 027-039: Valor desconto 2
+    "0",                                              // 040: Cod. desconto 3 (0=sem desconto)
+    "00000000",                                       // 041-048: Data desconto 3
+    padLeft(0, 13),                                   // 049-061: Valor desconto 3
+    codMulta,                                         // 062: Cod. multa (0=isento, 2=%)
+    formatarDataCNAB(dataMulta),                      // 063-070: Data multa
+    padLeft(valorMulta, 13),                          // 071-083: Valor/% multa (centavos)
+    padRight(limparTexto(titulo.instrucao1 || ""), 40),// 084-123: Informacao sacado 3
+    padRight(limparTexto(titulo.instrucao2 || ""), 40),// 124-163: Informacao sacado 4
+    padRight(" ", 40),                                // 164-203: Informacao sacado 5
+    " ".repeat(10),                                   // 204-213: Uso exclusivo FEBRABAN
+    "0",                                              // 214: Cod. ocorrencia do sacado
+    " ".repeat(16),                                   // 215-230: Brancos
+    " ".repeat(10),                                   // 231-240: Ocorrencias
   ].join("");
 
   return linha.substring(0, 240);
@@ -322,16 +370,18 @@ export function gerarArquivoRemessaCNAB240(
   for (const titulo of titulos) {
     linhas.push(gerarSegmentoPCNAB240(banco, titulo, numeroLote, sequencial++));
     linhas.push(gerarSegmentoQCNAB240(banco, titulo, numeroLote, sequencial++));
+    // Segmento R: sempre incluido para informar multa e instrucoes
+    linhas.push(gerarSegmentoRCNAB240(banco, titulo, numeroLote, sequencial++));
     valorTotal += titulo.valorNominal;
   }
 
-  // Trailer lote
+  // Trailer lote: 3 segmentos por titulo (P, Q, R)
   linhas.push(
     gerarTrailerLoteCNAB240(banco, numeroLote, sequencial - 1, titulos.length, valorTotal)
   );
 
-  // Trailer arquivo: total de registros = header + header_lote + (2 segs * n) + trailer_lote + trailer_arquivo
-  const totalRegistros = 2 + (titulos.length * 2) + 2;
+  // Trailer arquivo: header_arq + header_lote + (3 segs * n) + trailer_lote + trailer_arq
+  const totalRegistros = 2 + (titulos.length * 3) + 2;
   linhas.push(gerarTrailerArquivoCNAB240(banco, 1, totalRegistros));
 
   return linhas.join("\r\n") + "\r\n";
@@ -359,6 +409,7 @@ const OCORRENCIAS_CNAB: Record<string, string> = {
   "02": "Entrada Confirmada",
   "03": "Entrada Rejeitada",
   "06": "Liquidação Normal",
+  "07": "Liquidação Parcial",
   "09": "Baixa Automática",
   "10": "Baixa Solicitada",
   "11": "Títulos em Ser",
@@ -372,8 +423,21 @@ const OCORRENCIAS_CNAB: Record<string, string> = {
   "25": "Protestado e Baixado",
   "27": "Baixa Rejeitada",
   "28": "Débito de Tarifas",
+  "29": "Ocorrência do Sacado",
   "30": "Alteração de Dados Rejeitada",
+  "32": "Instrução Rejeitada",
+  "33": "Confirmação Pedido Alteração Outros Dados",
+  "34": "Retirada de Cartório e Manutenção em Carteira",
+  "35": "Desagendamento do Débito Automático",
+  "40": "Estorno de Pagamento",
+  "55": "Sustado Judicial",
+  "73": "Confirmação Recebimento Instrução Sustação Protesto",
+  "74": "Confirmação Recebimento Instrução Cancelamento Protesto",
+  "75": "Confirmação Recebimento Instrução Protesto Falimentar",
 };
+
+/** Códigos que indicam liquidação/pagamento efetivo */
+export const CODIGOS_LIQUIDACAO = new Set(["06", "07", "15", "17"]);
 
 export function parsearRetornoCNAB240(conteudo: string): TituloRetorno[] {
   const linhas = conteudo
@@ -413,7 +477,7 @@ export function parsearRetornoCNAB240(conteudo: string): TituloRetorno[] {
         valorJuros,
         devedorNome: "",
         devedorCpfCnpj: "",
-        processado: codigoOcorrencia === "06" || codigoOcorrencia === "17",
+        processado: CODIGOS_LIQUIDACAO.has(codigoOcorrencia),
       };
     }
 
@@ -421,7 +485,14 @@ export function parsearRetornoCNAB240(conteudo: string): TituloRetorno[] {
     if (tipoRegistro === "3" && segmento === "Q" && ultimoSegP) {
       ultimoSegP.devedorCpfCnpj = linha.substring(18, 33).trim();
       ultimoSegP.devedorNome = linha.substring(33, 73).trim();
+      // Emitir imediatamente (segmento R e opcional; sera sobrescrito se vier)
       titulos.push({ ...ultimoSegP });
+      // Manter ultimoSegP para o caso de segmento R complementar
+    }
+
+    // Segmento R: instrucoes adicionais (opcional)
+    // O titulo ja foi emitido no segmento Q; segmento R apenas limpa o estado
+    if (tipoRegistro === "3" && segmento === "R") {
       ultimoSegP = null;
     }
   }

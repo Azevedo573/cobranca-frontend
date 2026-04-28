@@ -285,6 +285,57 @@ export const boletosUpload = mysqlTable("boletosUpload", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// Configuração de Boleto/CNAB por condomínio (portador bancário + dados do boleto + config arquivo)
+export const configuracaoBoleto = mysqlTable("configuracaoBoleto", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId").notNull().unique(), // 1 config por condomínio
+  // === Portador (Dados Bancários) ===
+  banco: varchar("banco", { length: 10 }).default("208").notNull(),     // 208 = BTG Pactual
+  nomeBanco: varchar("nomeBanco", { length: 50 }).default("BTG PACTUAL").notNull(),
+  agencia: varchar("agencia", { length: 10 }).default("0001").notNull(),
+  digitoAgencia: varchar("digitoAgencia", { length: 2 }).default("0").notNull(),
+  conta: varchar("conta", { length: 20 }).notNull(),
+  digitoConta: varchar("digitoConta", { length: 2 }).default("0").notNull(),
+  convenio: varchar("convenio", { length: 30 }).default("").notNull(),   // Código do convênio/cedente no banco
+  ativo: int("ativo").default(1).notNull(),
+  contaRepasse: int("contaRepasse").default(0).notNull(),
+  // === Configuração de Remessa ===
+  minimosDiasAntesVencimento: int("minimosDiasAntesVencimento").default(0).notNull(),
+  usarMinimoDias: int("usarMinimoDias").default(0).notNull(),
+  enviarParcelasApenasPrimeiraPaga: int("enviarParcelasApenasPrimeiraPaga").default(0).notNull(),
+  enviarParcelasApenasAnteriorPaga: int("enviarParcelasApenasAnteriorPaga").default(1).notNull(),
+  // === Dados do Boleto ===
+  carteira: varchar("carteira", { length: 5 }).default("1").notNull(),   // 1 = Cobrança Simples
+  especieDocumento: varchar("especieDocumento", { length: 5 }).default("DD").notNull(), // DD, DM, etc.
+  aceite: varchar("aceite", { length: 1 }).default("N").notNull(),       // N ou S
+  nomeBeneficiario: varchar("nomeBeneficiario", { length: 100 }),        // Pode diferir do nome do condomínio
+  cnpjBeneficiario: varchar("cnpjBeneficiario", { length: 18 }),
+  enderecoBeneficiario: varchar("enderecoBeneficiario", { length: 200 }),
+  localPagamento: varchar("localPagamento", { length: 500 }).default("PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO").notNull(),
+  instrucoesCaixa: varchar("instrucoesCaixa", { length: 500 }).default("APOS VENCIMENTO COBRAR MULTA DE #MULTA# e MORA DIARIA DE #JUROS#").notNull(),
+  taxaJurosDia: varchar("taxaJurosDia", { length: 10 }).default("0.03330").notNull(), // % ao dia
+  taxaMulta: varchar("taxaMulta", { length: 10 }).default("2.00").notNull(),           // % multa
+  // === Configuração do Arquivo CNAB ===
+  numeroSequencialArquivo: int("numeroSequencialArquivo").default(1).notNull(), // Incrementado a cada remessa
+  padraoNomeArquivo: varchar("padraoNomeArquivo", { length: 100 }).default("BTG_ddmmyyyy.txt").notNull(),
+  layoutArquivo: varchar("layoutArquivo", { length: 20 }).default("CNAB240").notNull(),
+  enviarInstrucoesProtesto: int("enviarInstrucoesProtesto").default(0).notNull(),
+  // === Forma de Pagamento ===
+  habilitarBoleto: int("habilitarBoleto").default(1).notNull(),
+  habilitarPix: int("habilitarPix").default(1).notNull(),
+  taxaCobrancaValor: varchar("taxaCobrancaValor", { length: 15 }).default("3.50").notNull(), // Taxa cobrada do devedor por parcela
+  taxaCobrancaPercentual: varchar("taxaCobrancaPercentual", { length: 10 }).default("0.00").notNull(),
+  despesaValor: varchar("despesaValor", { length: 15 }).default("0.00").notNull(),
+  despesaPercentual: varchar("despesaPercentual", { length: 10 }).default("0.00").notNull(),
+  // === Nosso Número ===
+  nossoNumeroAtual: int("nossoNumeroAtual").default(1000000001).notNull(), // Sequencial por condomínio
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ConfiguracaoBoleto = typeof configuracaoBoleto.$inferSelect;
+export type InsertConfiguracaoBoleto = typeof configuracaoBoleto.$inferInsert;
+
 export type BoletoUpload = typeof boletosUpload.$inferSelect;
 export type InsertBoletoUpload = typeof boletosUpload.$inferInsert;
 export type HistoricoImportacao = typeof historicoImportacoes.$inferSelect;

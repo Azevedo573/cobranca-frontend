@@ -41,6 +41,7 @@ import TentativasCobranca from "./pages/TentativasCobranca";
 import Vencimentos from "./pages/Vencimentos";
 import CobrancaAtiva from "./pages/operacoes/CobrancaAtiva";
 import CobrancaPassiva from "./pages/operacoes/CobrancaPassiva";
+import ConfiguracaoBoleto from "./pages/admin/ConfiguracaoBoleto";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -153,6 +154,10 @@ function Router() {
       {/* CNAB 240 */}
       <Route path="/admin/cnab240">
         {() => <ProtectedRoute component={CNAB240} allowedRoles={["admin", "sindico"]} />}
+      </Route>
+      {/* Configuração de Boleto */}
+      <Route path="/admin/configuracao-boleto">
+        {() => <ProtectedRoute component={ConfiguracaoBoleto} allowedRoles={["admin", "sindico"]} />}
       </Route>
       {/* Histórico de Importações */}
       <Route path="/admin/historico-importacoes">
