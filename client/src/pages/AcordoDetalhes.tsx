@@ -24,6 +24,8 @@ import {
   XCircle,
   Clock,
   TrendingUp,
+  FileText,
+  MailCheck,
 } from "lucide-react";
 import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
 
@@ -292,6 +294,7 @@ export default function AcordoDetalhes() {
                     <TableHead>Vencimento</TableHead>
                     <TableHead>Pagamento</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Boleto</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -316,6 +319,29 @@ export default function AcordoDetalhes() {
                           )}
                         </TableCell>
                         <TableCell>{getStatusBadge(parcela.status)}</TableCell>
+                        <TableCell>
+                          {(parcela as any).statusRemessa === "remessa_gerada" && (
+                            <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs gap-1">
+                              <FileText className="h-3 w-3" />Remessa Gerada
+                            </Badge>
+                          )}
+                          {(parcela as any).statusRemessa === "enviado" && (
+                            <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs gap-1">
+                              <MailCheck className="h-3 w-3" />Enviado
+                            </Badge>
+                          )}
+                          {(parcela as any).statusRemessa === "retorno_recebido" && (
+                            <Badge className="bg-green-100 text-green-700 border-green-200 text-xs gap-1">
+                              <CheckCircle2 className="h-3 w-3" />Confirmado
+                            </Badge>
+                          )}
+                          {(parcela as any).nossoNumero && (
+                            <p className="text-xs font-mono text-muted-foreground mt-1">{(parcela as any).nossoNumero}</p>
+                          )}
+                          {!(parcela as any).statusRemessa && (
+                            <span className="text-xs text-muted-foreground italic">Aguardando remessa</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
                           {parcela.status !== "pago" && (
                             <Button

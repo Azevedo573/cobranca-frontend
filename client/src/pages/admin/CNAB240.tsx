@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useAdminCondominio } from "@/hooks/useAdminCondominio";
 import { trpc } from "@/lib/trpc";
@@ -17,7 +17,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
-  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock
+  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock, Handshake
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -75,6 +75,9 @@ export default function CNAB240() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [retornoResultadoOpen, setRetornoResultadoOpen] = useState(false);
   const [remessaEnviada, setRemessaEnviada] = useState(false);
+  const [parcelasSelecionadas, setParcelasSelecionadas] = useState<number[]>([]);
+  const [resultadoRemessaAcordos, setResultadoRemessaAcordos] = useState<{ nomeArquivo: string; conteudo: string; totalParcelas: number; remessaId: number } | null>(null);
+  const [diasAVencer, setDiasAVencer] = useState(30);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -124,6 +127,63 @@ export default function CNAB240() {
     },
     onError: (err) => toast.error("Erro ao processar retorno: " + err.message),
   });
+
+  const { data: parcelasParaRemessa, isLoading: loadingParcelas } = trpc.cnab.listarParcelasParaRemessa.useQuery(
+    { condominioId: effectiveCondominioId ?? 0, diasAVencer },
+    { enabled: !!effectiveCondominioId }
+  );
+
+  const gerarRemessaAcordosMutation = trpc.cnab.gerarRemessaAcordos.useMutation({
+    onSuccess: (data) => {
+      setResultadoRemessaAcordos(data);
+      setParcelasSelecionadas([]);
+      utils.cnab.listarRemessas.invalidate();
+      utils.cnab.listarParcelasParaRemessa.invalidate();
+      toast.success(`Remessa de acordos gerada: ${data.totalParcelas} parcela(s)`);
+    },
+    onError: (err) => toast.error("Erro ao gerar remessa de acordos: " + err.message),
+  });
+
+  const handleGerarRemessaAcordos = () => {
+    if (parcelasSelecionadas.length === 0) {
+      toast.error("Selecione pelo menos uma parcela");
+      return;
+    }
+    if (!effectiveCondominioId) {
+      toast.error("Selecione um condomínio");
+      return;
+    }
+    gerarRemessaAcordosMutation.mutate({
+      condominioId: effectiveCondominioId,
+      parcelaIds: parcelasSelecionadas,
+    });
+  };
+
+  const handleDownloadRemessaAcordos = () => {
+    if (!resultadoRemessaAcordos) return;
+    const blob = new Blob([resultadoRemessaAcordos.conteudo], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = resultadoRemessaAcordos.nomeArquivo;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleParcela = (id: number) => {
+    setParcelasSelecionadas(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleTodasParcelas = () => {
+    if (!parcelasParaRemessa) return;
+    if (parcelasSelecionadas.length === parcelasParaRemessa.length) {
+      setParcelasSelecionadas([]);
+    } else {
+      setParcelasSelecionadas(parcelasParaRemessa.map(p => p.parcelaId));
+    }
+  };
 
   const cobrancasPendentes = cobrancas?.filter(c =>
     c.status === "pendente" || c.status === "em_cobranca"
@@ -257,10 +317,14 @@ export default function CNAB240() {
       </div>
 
       <Tabs defaultValue="remessa">
-        <TabsList className="grid w-full grid-cols-3 max-w-lg">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
           <TabsTrigger value="remessa">
             <Send className="h-4 w-4 mr-2" />
             Remessa
+          </TabsTrigger>
+          <TabsTrigger value="acordos">
+            <Handshake className="h-4 w-4 mr-2" />
+            Acordos
           </TabsTrigger>
           <TabsTrigger value="retorno">
             <Download className="h-4 w-4 mr-2" />
@@ -450,6 +514,165 @@ export default function CNAB240() {
                     Baixe o arquivo e envie ao BTG Pactual. Após o envio, clique em "Confirmar Envio ao Banco" para avançar o status para Enviado.
                   </p>
                 )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ABA ACORDOS */}
+        <TabsContent value="acordos" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Handshake className="h-5 w-5 text-primary" />
+                Parcelas de Acordo — Gerar Remessa
+              </CardTitle>
+              <CardDescription>
+                Selecione as parcelas de acordos ativos para incluir no arquivo CNAB 240 e registrar os boletos no BTG Pactual
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filtro de dias a vencer */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm text-muted-foreground">Mostrar parcelas com vencimento nos próximos</span>
+                <div className="flex gap-2">
+                  {[7, 15, 30, 60, 90].map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setDiasAVencer(d)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        diasAVencer === d
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-border hover:border-primary"
+                      }`}
+                    >
+                      {d} dias
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {!effectiveCondominioId ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
+                  <p>Selecione um condomínio para continuar</p>
+                </div>
+              ) : loadingParcelas ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+                </div>
+              ) : !parcelasParaRemessa || parcelasParaRemessa.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle2 className="h-10 w-10 mx-auto mb-2 text-green-500" />
+                  <p>Nenhuma parcela de acordo pendente nos próximos {diasAVencer} dias</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={parcelasSelecionadas.length === parcelasParaRemessa.length && parcelasParaRemessa.length > 0}
+                        onCheckedChange={toggleTodasParcelas}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {parcelasSelecionadas.length} de {parcelasParaRemessa.length} selecionadas
+                      </span>
+                    </div>
+                    <Button
+                      onClick={handleGerarRemessaAcordos}
+                      disabled={parcelasSelecionadas.length === 0 || gerarRemessaAcordosMutation.isPending}
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {gerarRemessaAcordosMutation.isPending ? "Gerando..." : "Gerar Remessa"}
+                    </Button>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Devedor</TableHead>
+                          <TableHead>Acordo</TableHead>
+                          <TableHead className="text-center">Parcela</TableHead>
+                          <TableHead>Vencimento</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                          <TableHead>Status Boleto</TableHead>
+                          <TableHead>Nosso Nº</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {parcelasParaRemessa.map((p) => (
+                          <TableRow
+                            key={p.parcelaId}
+                            className={parcelasSelecionadas.includes(p.parcelaId) ? "bg-primary/5" : ""}
+                          >
+                            <TableCell>
+                              <Checkbox
+                                checked={parcelasSelecionadas.includes(p.parcelaId)}
+                                onCheckedChange={() => toggleParcela(p.parcelaId)}
+                              />
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {p.devedorNome || `Dev. #${p.devedorId}`}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              Acordo #{p.acordoId}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline" className="text-xs">
+                                {p.installmentNumber}ª
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              <span className={new Date(p.dueDate) < new Date() ? "text-red-600 font-medium" : ""}>
+                                {format(new Date(p.dueDate), "dd/MM/yyyy")}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(p.amount / 100)}
+                            </TableCell>
+                            <TableCell>
+                              {getStatusRemessaBadge(p.statusRemessa)}
+                            </TableCell>
+                            <TableCell className="text-xs font-mono text-muted-foreground">
+                              {p.nossoNumero || <span className="italic">a gerar</span>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Resultado da remessa de acordos */}
+          {resultadoRemessaAcordos && (
+            <Card className="border-purple-200 bg-purple-50">
+              <CardContent className="pt-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-purple-700 font-semibold">
+                      <FileText className="h-5 w-5" />
+                      Remessa de acordos gerada!
+                    </div>
+                    <p className="text-sm text-purple-600 mt-1">
+                      {resultadoRemessaAcordos.totalParcelas} parcela(s) incluída(s)
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{resultadoRemessaAcordos.nomeArquivo}</p>
+                  </div>
+                  <Button onClick={handleDownloadRemessaAcordos} className="bg-purple-600 hover:bg-purple-700">
+                    <Download className="mr-2 h-4 w-4" />
+                    Baixar Arquivo
+                  </Button>
+                </div>
+                <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Baixe o arquivo e envie ao BTG Pactual. O retorno confirmará os boletos registrados.
+                </p>
               </CardContent>
             </Card>
           )}

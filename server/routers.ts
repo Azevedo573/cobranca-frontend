@@ -537,19 +537,36 @@ export const appRouter = router({
         throw new Error('Falha ao obter ID do acordo criado');
       }
       
-      // Criar todas as parcelas de uma vez
-      const parcelasData = input.parcelas.map(p => ({
+      // Tentar gerar nossos números automáticos via configuração BTG
+      let nossoNumeroBase: number | null = null;
+      try {
+        const { getConfiguracaoBoleto, incrementarSequencialArquivo } = await import("./db-configuracao-boleto");
+        const configBoleto = await getConfiguracaoBoleto(input.condominioId);
+        if (configBoleto) {
+          const seq = await incrementarSequencialArquivo(input.condominioId, input.parcelas.length);
+          nossoNumeroBase = seq.nossoNumeroInicio;
+        }
+      } catch (e) {
+        // Configuração BTG não disponível — parcelas ficam sem nossoNumero por enquanto
+        console.log('[ACORDO] Configuração BTG não encontrada, parcelas sem nossoNumero');
+      }
+
+      // Criar todas as parcelas com nossoNumero (se disponível)
+      const parcelasData = input.parcelas.map((p, idx) => ({
         acordoId,
         installmentNumber: p.installmentNumber,
         amount: p.amount,
         dueDate: p.dueDate,
         status: 'pendente' as const,
+        nossoNumero: nossoNumeroBase !== null
+          ? String(nossoNumeroBase + idx).padStart(10, '0')
+          : undefined,
+        statusRemessa: 'nao_enviado' as const,
       }));
       
       console.log('[DEBUG] Criando', parcelasData.length, 'parcelas para acordo', acordoId);
-      console.log('[DEBUG] Dados das parcelas:', JSON.stringify(parcelasData, null, 2));
       await createParcelas(parcelasData);
-      console.log('[DEBUG] Parcelas criadas com sucesso');
+      console.log('[DEBUG] Parcelas criadas com sucesso', nossoNumeroBase ? `(nossoNumero: ${nossoNumeroBase}..${nossoNumeroBase + input.parcelas.length - 1})` : '(sem nossoNumero)');
       
       // Criar relacionamentos entre acordo e cobranças
       await createAcordoCobrancas(acordoId, input.cobrancaIds);
@@ -1669,6 +1686,181 @@ export const appRouter = router({
           pagos: resultado.pagos,
           erros: resultado.erros,
           detalhes: resultado.detalhes,
+        };
+      }),
+
+    // Lista parcelas de acordo pendentes de remessa (statusRemessa = nao_enviado)
+    listarParcelasParaRemessa: condominioAccessProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        diasAVencer: z.number().min(1).max(365).default(30),
+      }))
+      .query(async ({ input, ctx }) => {
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { parcelasAcordo, acordos, devedores } = await import("../drizzle/schema");
+        const { eq, and, lte, isNull, or } = await import("drizzle-orm");
+
+        const dataLimite = new Date();
+        dataLimite.setDate(dataLimite.getDate() + input.diasAVencer);
+
+        const rows = await db
+          .select({
+            parcelaId: parcelasAcordo.id,
+            acordoId: parcelasAcordo.acordoId,
+            installmentNumber: parcelasAcordo.installmentNumber,
+            amount: parcelasAcordo.amount,
+            dueDate: parcelasAcordo.dueDate,
+            nossoNumero: parcelasAcordo.nossoNumero,
+            statusRemessa: parcelasAcordo.statusRemessa,
+            remessaId: parcelasAcordo.remessaId,
+            statusParcela: parcelasAcordo.status,
+            devedorId: devedores.id,
+            devedorNome: devedores.name,
+            devedorCpfCnpj: devedores.cpfCnpj,
+            devedorPhone: devedores.phone,
+            condominioId: acordos.condominioId,
+          })
+          .from(parcelasAcordo)
+          .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+          .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+          .where(
+            and(
+              eq(acordos.condominioId, condId),
+              eq(acordos.status, "ativo"),
+              eq(parcelasAcordo.status, "pendente"),
+              or(
+                isNull(parcelasAcordo.statusRemessa),
+                eq(parcelasAcordo.statusRemessa, "nao_enviado")
+              ),
+              lte(parcelasAcordo.dueDate, dataLimite)
+            )
+          )
+          .orderBy(parcelasAcordo.dueDate);
+
+        return rows;
+      }),
+
+    // Gera arquivo de remessa CNAB 240 a partir de parcelas de acordo selecionadas
+    gerarRemessaAcordos: condominioAccessProcedure
+      .input(z.object({
+        condominioId: z.number(),
+        parcelaIds: z.array(z.number()).min(1).max(500),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
+        const { eq, and, inArray } = await import("drizzle-orm");
+
+        // Buscar configuração BTG
+        const { getConfiguracaoBoleto, configParaDadosBanco, gerarNomeArquivoRemessa, incrementarSequencialArquivo } = await import("./db-configuracao-boleto");
+        const configBoleto = await getConfiguracaoBoleto(condId);
+        if (!configBoleto) throw new TRPCError({ code: "BAD_REQUEST", message: "Configure o portador bancário antes de gerar remessa." });
+
+        const [cond] = await db.select().from(condominios).where(eq(condominios.id, condId)).limit(1);
+        const dadosBanco = configParaDadosBanco(configBoleto, cond?.name || "CONDOMINIO");
+
+        // Buscar parcelas selecionadas com dados do devedor
+        const rows = await db
+          .select({
+            parcelaId: parcelasAcordo.id,
+            acordoId: parcelasAcordo.acordoId,
+            installmentNumber: parcelasAcordo.installmentNumber,
+            amount: parcelasAcordo.amount,
+            dueDate: parcelasAcordo.dueDate,
+            nossoNumero: parcelasAcordo.nossoNumero,
+            devedorId: devedores.id,
+            devedorNome: devedores.name,
+            devedorCpfCnpj: devedores.cpfCnpj,
+            devedorPhone: devedores.phone,
+          })
+          .from(parcelasAcordo)
+          .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+          .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+          .where(and(
+            inArray(parcelasAcordo.id, input.parcelaIds),
+            eq(acordos.condominioId, condId)
+          ));
+
+        if (rows.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Nenhuma parcela encontrada." });
+
+        // Atribuir nossoNumero para parcelas que ainda não têm
+        const semNossoNumero = rows.filter(r => !r.nossoNumero);
+        if (semNossoNumero.length > 0) {
+          const seqExtra = await incrementarSequencialArquivo(condId, semNossoNumero.length);
+          for (let i = 0; i < semNossoNumero.length; i++) {
+            const nn = String(seqExtra.nossoNumeroInicio + i).padStart(10, '0');
+            await db.update(parcelasAcordo)
+              .set({ nossoNumero: nn })
+              .where(eq(parcelasAcordo.id, semNossoNumero[i].parcelaId));
+            semNossoNumero[i].nossoNumero = nn;
+          }
+        }
+
+        // Montar títulos para CNAB (interface TituloRemessa)
+        const taxaJurosDia = Math.round(parseFloat(configBoleto.taxaJurosDia) * 100);
+        const taxaMulta = Math.round(parseFloat(configBoleto.taxaMulta) * 100);
+        const instrucoesCaixa = (configBoleto.instrucoesCaixa || '')
+          .replace('#MULTA#', configBoleto.taxaMulta + '%')
+          .replace('#JUROS#', configBoleto.taxaJurosDia + '% ao dia');
+        const hoje = new Date();
+
+        const titulos = rows.map(r => ({
+          cobrancaId: r.parcelaId,
+          nossoNumero: r.nossoNumero || String(Date.now()),
+          devedorNome: r.devedorNome || 'NAO INFORMADO',
+          devedorCpfCnpj: r.devedorCpfCnpj || '',
+          devedorEndereco: '',
+          devedorCidade: '',
+          devedorUF: '',
+          devedorCEP: '',
+          valorNominal: r.amount,
+          dataVencimento: new Date(r.dueDate),
+          dataEmissao: hoje,
+          instrucao1: instrucoesCaixa,
+          instrucao2: configBoleto.localPagamento || 'PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO',
+          taxaJurosDia,
+          taxaMulta,
+          carteira: configBoleto.carteira || '1',
+          especieDocumento: configBoleto.especieDocumento || '01',
+          aceite: configBoleto.aceite || 'N',
+          enviarProtesto: configBoleto.enviarInstrucoesProtesto === 1,
+        }));
+
+        const { gerarArquivoRemessaCNAB240, criarRemessaCNAB } = await import("./db-cnab");
+        const numeroRemessa = configBoleto.numeroSequencialArquivo;
+        const nomeArquivo = gerarNomeArquivoRemessa(configBoleto.padraoNomeArquivo || 'BTG_ddmmyyyy', new Date());
+
+        const conteudo = gerarArquivoRemessaCNAB240(dadosBanco, titulos, numeroRemessa);
+
+        // Salvar remessa no banco
+        const remessaResult = await criarRemessaCNAB({
+          condominioId: condId,
+          usuarioId: ctx.user.id,
+          banco: dadosBanco.codigoBanco,
+          nomeArquivo,
+          totalTitulos: titulos.length,
+          nossoNumeroInicio: rows[0].nossoNumero || '',
+          nossoNumeroFim: rows[rows.length - 1].nossoNumero || '',
+        });
+        const remessaId = Number((remessaResult as any)?.[0]?.insertId || 0);
+
+        // Atualizar statusRemessa das parcelas
+        await db.update(parcelasAcordo)
+          .set({
+            statusRemessa: "remessa_gerada",
+            remessaId: remessaId || null,
+          })
+          .where(inArray(parcelasAcordo.id, input.parcelaIds));
+
+        return {
+          nomeArquivo,
+          conteudo,
+          totalParcelas: titulos.length,
+          remessaId,
         };
       }),
   }),

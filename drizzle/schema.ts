@@ -133,6 +133,10 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   dueDate: timestamp("dueDate").notNull(),
   paymentDate: timestamp("paymentDate"),
   status: mysqlEnum("status", ["pendente", "pago", "atrasado"]).default("pendente").notNull(),
+  // Campos de boleto CNAB 240
+  nossoNumero: varchar("nossoNumero", { length: 30 }), // Nosso número BTG atribuído ao criar o acordo
+  statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "remessa_gerada", "enviado", "retorno_recebido"]).default("nao_enviado"),
+  remessaId: int("remessaId"), // ID da remessa CNAB que incluiu esta parcela
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

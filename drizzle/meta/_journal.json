@@ -169,6 +169,13 @@
       "when": 1777147055420,
       "tag": "0024_high_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1777382886232,
+      "tag": "0025_funny_doctor_spectrum",
+      "breakpoints": true
     }
   ]
 }

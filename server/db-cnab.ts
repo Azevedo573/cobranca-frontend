@@ -21,6 +21,8 @@ import {
   cobrancas,
   devedores,
   condominios,
+  parcelasAcordo,
+  acordos,
   type InsertRemessaCNAB,
   type InsertRetornoCNAB,
 } from "../drizzle/schema";
@@ -613,7 +615,7 @@ export async function processarTitulosRetorno(
         erros++;
       }
     } else {
-      // Tentar pelo nosso número
+      // Tentar pelo nosso número — primeiro em cobranças avulsas
       const [cobranca] = await db
         .select()
         .from(cobrancas)
@@ -637,6 +639,61 @@ export async function processarTitulosRetorno(
 
         pagos++;
         titulo.cobrancaId = cobranca.id;
+      } else if (!cobranca) {
+        // Tentar pelo nosso número em parcelas de acordo
+        const [parcela] = await db
+          .select({
+            id: parcelasAcordo.id,
+            acordoId: parcelasAcordo.acordoId,
+            amount: parcelasAcordo.amount,
+            status: parcelasAcordo.status,
+          })
+          .from(parcelasAcordo)
+          .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+          .where(
+            and(
+              eq(parcelasAcordo.nossoNumero, titulo.nossoNumero),
+              eq(acordos.condominioId, condominioId)
+            )
+          )
+          .limit(1);
+
+        if (parcela && parcela.status !== "pago") {
+          const dataPag = titulo.dataPagamento ? new Date(titulo.dataPagamento) : new Date();
+
+          // Baixar a parcela
+          await db
+            .update(parcelasAcordo)
+            .set({
+              status: "pago",
+              paymentDate: dataPag,
+              statusRemessa: "retorno_recebido",
+            })
+            .where(eq(parcelasAcordo.id, parcela.id));
+
+          // Verificar se todas as parcelas do acordo foram pagas
+          const todasParcelas = await db
+            .select({ status: parcelasAcordo.status })
+            .from(parcelasAcordo)
+            .where(eq(parcelasAcordo.acordoId, parcela.acordoId));
+
+          const todasPagas = todasParcelas.every(p => p.status === "pago");
+          if (todasPagas) {
+            await db
+              .update(acordos)
+              .set({ status: "pago" })
+              .where(eq(acordos.id, parcela.acordoId));
+          }
+
+          pagos++;
+          titulo.descricaoOcorrencia += " (parcela de acordo)"; 
+        } else if (parcela?.status === "pago") {
+          erros++;
+          titulo.descricaoOcorrencia += " (parcela já estava paga)";
+        } else {
+          erros++;
+          titulo.descricaoOcorrencia += " (título não encontrado)";
+        }
       } else {
         erros++;
       }

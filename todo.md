@@ -1462,3 +1462,43 @@
 - [x] 29 testes unitários para o módulo de configuração de boleto (segmento R, P+Q+R, parser, CODIGOS_LIQUIDACAO, gerarNomeArquivoRemessa, configParaDadosBanco)
 - [x] Testes do sprint6 atualizados para refletir P+Q+R (7 e 10 linhas)
 - [x] 192 testes passando (0 falhas)
+
+## Fluxo Acordo → Boleto CNAB 240 (Integração Completa)
+
+### Schema
+- [ ] Adicionar nossoNumero, statusRemessa e remessaId na tabela parcelasAcordo
+- [ ] Executar migração db:push
+
+### Backend — Geração de Nosso Número no Acordo
+- [ ] Ao criar acordo: gerar nossoNumero sequencial (via incrementarSequencialArquivo) para cada parcela
+- [ ] Procedure gerarRemessaAcordos: gera remessa CNAB 240 a partir de parcelas de acordo pendentes
+- [ ] Procedure listarParcelasParaRemessa: lista parcelas com statusRemessa = nao_enviado e vencimento próximo
+
+### Backend — Retorno CNAB com Parcelas de Acordo
+- [ ] Parser de retorno: ao encontrar nossoNumero, verificar se pertence a parcela de acordo
+- [ ] Se pertencer: dar baixa na parcela (status = pago, paymentDate = data do retorno)
+- [ ] Se todas as parcelas do acordo estiverem pagas: marcar acordo como pago
+
+### Frontend — Tela CNAB 240
+- [ ] Aba "Parcelas de Acordo" na tela CNAB 240 com lista de parcelas pendentes de remessa
+- [ ] Checkbox para selecionar parcelas a incluir na remessa
+- [ ] Indicador visual de status do boleto em cada parcela (não enviado / remessa gerada / pago)
+- [ ] Exibir nossoNumero em cada parcela após geração
+
+### Frontend — Tela de Detalhes do Acordo
+- [ ] Exibir nossoNumero e status do boleto em cada parcela
+- [ ] Badge de status: "Aguardando Remessa" / "Boleto Enviado" / "Pago"
+
+## Fluxo Acordo → Boleto CNAB 240
+
+- [x] Schema: campos nossoNumero, statusRemessa, remessaId na tabela parcelasAcordo + migração
+- [x] Backend: geração automática de nossos números ao criar acordo (procedure acordos.criar)
+- [x] Backend: procedure cnab.listarParcelasParaRemessa — lista parcelas pendentes por diasAVencer
+- [x] Backend: procedure cnab.gerarRemessaAcordos — gera arquivo CNAB 240 para parcelas selecionadas
+- [x] Backend: parser de retorno atualizado — baixa parcelas de acordo pelo nossoNumero
+- [x] Backend: ao baixar última parcela, marca o acordo como pago automaticamente
+- [x] Frontend: aba "Acordos" na tela CNAB 240 com filtro por dias a vencer (7/15/30/60/90)
+- [x] Frontend: tabela de parcelas com checkbox, nosso número, status do boleto e vencimento
+- [x] Frontend: download do arquivo de remessa de acordos
+- [x] Frontend: coluna "Boleto" na tabela de parcelas do AcordoDetalhes (nosso número + status)
+- [x] Testes: 26 testes unitários para o fluxo acordo→boleto (218 total)
