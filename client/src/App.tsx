@@ -42,6 +42,7 @@ import Vencimentos from "./pages/Vencimentos";
 import CobrancaAtiva from "./pages/operacoes/CobrancaAtiva";
 import CobrancaPassiva from "./pages/operacoes/CobrancaPassiva";
 import ConfiguracaoBoleto from "./pages/admin/ConfiguracaoBoleto";
+import RetornoCNAB from "./pages/admin/RetornoCNAB";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -162,6 +163,10 @@ function Router() {
       {/* Histórico de Importações */}
       <Route path="/admin/historico-importacoes">
         {() => <ProtectedRoute component={HistoricoImportacoes} allowedRoles={["admin", "sindico"]} />}
+      </Route>
+      {/* Retorno CNAB 240 */}
+      <Route path="/admin/retorno-cnab">
+        {() => <ProtectedRoute component={RetornoCNAB} allowedRoles={["admin", "sindico"]} />}
       </Route>
 
       {/* Rota de Casos Prioritários */}

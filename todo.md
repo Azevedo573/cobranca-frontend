@@ -1508,3 +1508,14 @@
 - [x] Separar grupo "Arquivos e Banco" em dois grupos distintos
 - [x] Grupo "Banco": Configuração de Boleto + CNAB 240 / BTG (visível para admin e síndico)
 - [x] Grupo "Importações": Importar Devedores + Importar Condomínios + Histórico de Importações (visível apenas para admin)
+
+## Página Dedicada de Retorno CNAB
+
+- [x] Criar página /admin/retorno-cnab com upload de arquivo .ret
+- [x] Drag-and-drop + clique para selecionar arquivo
+- [x] Processar retorno e exibir cards de resumo (pagos, erros, valor total)
+- [x] Dialog com detalhes de todos os títulos processados
+- [x] Histórico dos retornos processados em tabela com data, pagos, rejeitados e valor
+- [x] Adicionar item "Retorno CNAB 240" no grupo Banco do Sidebar
+- [x] Registrar rota /admin/retorno-cnab no App.tsx
+- [x] Aba de retorno mantida na tela CNAB 240 como atalho alternativo
