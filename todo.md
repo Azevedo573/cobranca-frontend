@@ -1502,3 +1502,9 @@
 - [x] Frontend: download do arquivo de remessa de acordos
 - [x] Frontend: coluna "Boleto" na tabela de parcelas do AcordoDetalhes (nosso número + status)
 - [x] Testes: 26 testes unitários para o fluxo acordo→boleto (218 total)
+
+## Reorganização do Menu Lateral
+
+- [x] Separar grupo "Arquivos e Banco" em dois grupos distintos
+- [x] Grupo "Banco": Configuração de Boleto + CNAB 240 / BTG (visível para admin e síndico)
+- [x] Grupo "Importações": Importar Devedores + Importar Condomínios + Histórico de Importações (visível apenas para admin)

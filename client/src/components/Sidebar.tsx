@@ -26,6 +26,7 @@ import {
   FolderOpen,
   PhoneCall,
   PhoneIncoming,
+  Download,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -98,17 +99,26 @@ const menuGroups: MenuGroup[] = [
     ],
   },
 
-  // ── Arquivos e Banco ──
+  // ── Banco ──
   {
-    label: "Arquivos e Banco",
-    icon: FolderOpen,
+    label: "Banco",
+    icon: Landmark,
     roles: ["admin", "sindico"],
     items: [
-      { label: "CNAB 240 / BTG", href: "/admin/cnab240", icon: Landmark, roles: ["admin", "sindico"] },
       { label: "Configuração de Boleto", href: "/admin/configuracao-boleto", icon: Settings, roles: ["admin", "sindico"] },
-      { label: "Histórico de Importações", href: "/admin/historico-importacoes", icon: ClipboardList, roles: ["admin", "sindico"] },
+      { label: "CNAB 240 / BTG", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin", "sindico"] },
+    ],
+  },
+
+  // ── Importações ──
+  {
+    label: "Importações",
+    icon: Download,
+    roles: ["admin"],
+    items: [
       { label: "Importar Devedores", href: "/admin/importar-devedores", icon: Upload, roles: ["admin"] },
       { label: "Importar Condomínios", href: "/admin/importar-condominios", icon: Building2, roles: ["admin"] },
+      { label: "Histórico de Importações", href: "/admin/historico-importacoes", icon: ClipboardList, roles: ["admin"] },
     ],
   },
 
