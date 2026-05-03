@@ -1528,3 +1528,8 @@
 - [x] Adicionar filtro de período (hoje, semana, mês, últimos 7/30 dias) na página Histórico de Contatos
 - [x] Adicionar filtro de canal (telefone, email, whatsapp, presencial) na página Histórico de Contatos
 - [x] Renomear "Tentativas" para "Histórico de Contatos" no Sidebar
+
+## Renomeação Processos → Dívidas
+
+- [x] Renomear "Processos de Cobrança" para "Dívidas" no Sidebar
+- [x] Atualizar título, descrição e textos internos da página ProcessosCobranca

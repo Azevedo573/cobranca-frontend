@@ -100,13 +100,13 @@ export default function ProcessosCobranca() {
 
   const deleteMutation = trpc.cobrancas.delete.useMutation({
     onSuccess: () => {
-      toast.success("Processo excluído com sucesso!");
+      toast.success("Dívida excluída com sucesso!");
       utils.cobrancas.list.invalidate();
       setDeleteDialogOpen(false);
       setCobrancaToDelete(null);
     },
     onError: (error) => {
-      toast.error("Erro ao excluir processo: " + error.message);
+      toast.error("Erro ao excluir dívida: " + error.message);
     },
   });
 
@@ -170,8 +170,8 @@ export default function ProcessosCobranca() {
                 </Button>
               </Link>
               <div>
-                <h1 className="text-2xl font-bold text-primary">Processos de Cobrança</h1>
-                <p className="text-sm text-muted-foreground">Gestão de processos judiciais e extrajudiciais</p>
+                <h1 className="text-2xl font-bold text-primary">Dívidas</h1>
+                <p className="text-sm text-muted-foreground">Gestão de cobranças e dívidas em aberto</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -195,10 +195,10 @@ export default function ProcessosCobranca() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Lista de Processos
+                  Lista de Dívidas
                 </CardTitle>
                 <CardDescription>
-                  Total: {filteredCobrancas?.length || 0} processo(s)
+                  Total: {filteredCobrancas?.length || 0} dívida(s)
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -225,7 +225,7 @@ export default function ProcessosCobranca() {
                   <Link href="/processos/novo">
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                       <Plus className="mr-2 h-4 w-4" />
-                      Novo Processo
+                      Nova Dívida
                     </Button>
                   </Link>
                 )}
@@ -378,18 +378,18 @@ export default function ProcessosCobranca() {
               <div className="text-center py-12">
                 <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">
-                  {searchTerm ? "Nenhum processo encontrado" : "Nenhum processo cadastrado"}
+                  {searchTerm ? "Nenhuma dívida encontrada" : "Nenhuma dívida cadastrada"}
                 </h3>
                 <p className="text-muted-foreground mb-4">
                   {searchTerm
                     ? "Tente buscar com outros termos"
-                    : "Comece cadastrando os processos dos devedores"}
+                    : "As dívidas cadastradas aparecerão aqui"}
                 </p>
                 {!searchTerm && (user?.role === "admin" || user?.role === "sindico") && (
                   <Link href="/processos/novo">
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                       <Plus className="mr-2 h-4 w-4" />
-                      Cadastrar Primeiro Processo
+                      Cadastrar Primeira Dívida
                     </Button>
                   </Link>
                 )}
@@ -458,7 +458,7 @@ export default function ProcessosCobranca() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este processo? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir esta dívida? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

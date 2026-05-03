@@ -80,7 +80,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Casos Prioritários", href: "/casos-prioritarios", icon: AlertCircle, roles: ["admin", "sindico", "cobrador"] },
       { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador"] },
-      { label: "Processos de Cobrança", href: "/processos", icon: FileText, roles: ["admin", "sindico", "cobrador"] },
+      { label: "Dívidas", href: "/processos", icon: FileText, roles: ["admin", "sindico", "cobrador"] },
       { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador"] },
       { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador"] },
       { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador"] },
