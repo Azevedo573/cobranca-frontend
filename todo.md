@@ -1519,3 +1519,12 @@
 - [x] Adicionar item "Retorno CNAB 240" no grupo Banco do Sidebar
 - [x] Registrar rota /admin/retorno-cnab no App.tsx
 - [x] Aba de retorno mantida na tela CNAB 240 como atalho alternativo
+
+## Melhorias de UX — Menu Cobrança
+
+- [x] Unificar páginas Acordos + AcordosAcompanhamento em uma página com 3 abas (Lista, Parcelas Vencidas, Vencimentos Próximos)
+- [x] Remover item "Acompanhamento de Acordos" do Sidebar
+- [x] Adicionar filtros de resultado (sem_resposta, promessa, acordo, recusa) na página Histórico de Contatos
+- [x] Adicionar filtro de período (hoje, semana, mês, últimos 7/30 dias) na página Histórico de Contatos
+- [x] Adicionar filtro de canal (telefone, email, whatsapp, presencial) na página Histórico de Contatos
+- [x] Renomear "Tentativas" para "Histórico de Contatos" no Sidebar

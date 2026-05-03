@@ -2,81 +2,116 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { HandshakeIcon, Search, Eye, Calendar, DollarSign, User, Building2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  HandshakeIcon, Search, Eye, Calendar, DollarSign, User,
+  AlertCircle, Clock, CheckCircle2, AlertTriangle,
+} from "lucide-react";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
+import { toast } from "sonner";
 
 export default function Acordos() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCondominio, setSelectedCondominio] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [selectedCondominio, setSelectedCondominio] = useState<number | undefined>(undefined);
+  const [selectedAcordoId, setSelectedAcordoId] = useState<number | undefined>(undefined);
+  const [diasVencimento, setDiasVencimento] = useState<7 | 15 | 30>(7);
 
-  // Buscar condomínios para o filtro
+  // Determinar condominioId
+  const condominioId = user?.role === "admin"
+    ? (selectedCondominio ?? undefined)
+    : (user?.condominioId ?? undefined);
+
+  // Queries
   const { data: condominios } = trpc.condominios.list.useQuery(undefined, {
     enabled: user?.role === "admin",
   });
 
-  // Determinar condominioId baseado no role
-  const condominioId = user?.role === "admin" 
-    ? (selectedCondominio || condominios?.[0]?.id || 0)
-    : (user?.condominioId || 0);
+  const { data: acordos, isLoading, refetch: refetchAcordos } = trpc.acordos.list.useQuery(
+    { condominioId: condominioId ?? 0 },
+    { enabled: !!condominioId }
+  );
 
-  // Buscar acordos
-  const { data: acordos, isLoading } = trpc.acordos.list.useQuery(
+  const { data: parcelasVencidas } = trpc.acordos.getParcelasVencidas.useQuery(
     { condominioId },
     { enabled: !!condominioId }
   );
 
-  // Filtrar acordos pelo termo de busca
-  const filteredAcordos = acordos?.filter((acordo) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      acordo.devedorName?.toLowerCase().includes(searchLower) ||
-      acordo.notes?.toLowerCase().includes(searchLower)
-    );
-  }) || [];
+  const { data: parcelasVencendo } = trpc.acordos.getVencimentosProximos.useQuery(
+    { condominioId, dias: diasVencimento },
+    { enabled: !!condominioId }
+  );
+
+  const { data: parcelasModal } = trpc.acordos.getParcelas.useQuery(
+    { acordoId: selectedAcordoId! },
+    { enabled: !!selectedAcordoId }
+  );
+
+  // Mutations
+  const darBaixa = trpc.acordos.darBaixaParcela.useMutation({
+    onSuccess: () => {
+      refetchAcordos();
+      toast.success("Baixa registrada com sucesso");
+    },
+    onError: () => toast.error("Erro ao registrar baixa"),
+  });
+
+  // Filtros da aba Lista
+  const acordosFiltrados = acordos?.filter((acordo) => {
+    const matchSearch = searchTerm === "" ||
+      acordo.devedorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      acordo.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchStatus = statusFilter === "todos" || acordo.status === statusFilter;
+    return matchSearch && matchStatus;
+  }) ?? [];
+
+  // Helpers
+  const formatCurrency = (value: number | string) => {
+    const n = typeof value === "string" ? parseFloat(value) : value;
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n / 100);
+  };
+
+  const formatDate = (date: Date | string) =>
+    new Date(date).toLocaleDateString("pt-BR");
+
+  const calcularDiasAtraso = (dataVencimento: Date | string) => {
+    const diff = Math.floor((Date.now() - new Date(dataVencimento).getTime()) / 86400000);
+    return diff > 0 ? diff : 0;
+  };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      ativo: "default",
-      pago: "secondary",
-      cancelado: "destructive",
+    const map: Record<string, { label: string; className: string }> = {
+      ativo: { label: "Ativo", className: "bg-green-100 text-green-800 border-green-200" },
+      pago: { label: "Pago", className: "bg-blue-100 text-blue-800 border-blue-200" },
+      cancelado: { label: "Cancelado", className: "bg-gray-100 text-gray-700 border-gray-200" },
     };
+    const cfg = map[status] ?? { label: status, className: "bg-gray-100 text-gray-700" };
     return (
-      <Badge variant={variants[status] || "outline"}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.className}`}>
+        {cfg.label}
+      </span>
     );
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value / 100);
-  };
+  // Stats
+  const totalAtivos = acordos?.filter(a => a.status === "ativo").length ?? 0;
+  const totalPagos = acordos?.filter(a => a.status === "pago").length ?? 0;
+  const totalCancelados = acordos?.filter(a => a.status === "cancelado").length ?? 0;
 
-  const formatDate = (date: string | Date) => {
-    return new Date(date).toLocaleDateString("pt-BR");
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Carregando acordos...</p>
-        </div>
-      </div>
-    );
-  }
+  const semCondominio = !condominioId;
 
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -85,221 +120,488 @@ export default function Acordos() {
               Acordos
             </h1>
             <p className="text-muted-foreground mt-1">
-              Gestão de acordos e parcelamentos
+              Gestão de acordos, parcelamentos e acompanhamento de pagamentos
             </p>
           </div>
           <div className="flex items-center gap-3">
             <ExportExcelButton
               onClick={async () => {
                 const utils = trpc.useUtils();
-                const result = await utils.client.exportacao.acordos.mutate({
-                  condominioId: condominioId || undefined,
+                return await utils.client.exportacao.acordos.mutate({
+                  condominioId: condominioId ?? undefined,
                 });
-                return result;
               }}
               label="Exportar Excel"
               size="sm"
             />
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {user?.name}
-              </span>
-              <Badge variant="outline" className="capitalize">
-                {user?.role}
-              </Badge>
-            </div>
           </div>
         </div>
 
-        {/* Filtros */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Filtros</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Filtro de Condomínio (apenas para admin) */}
-              {user?.role === "admin" && condominios && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Condomínio
-                  </label>
-                  <select
-                    className="w-full border border-input rounded-md px-3 py-2 bg-background"
-                    value={selectedCondominio || ""}
-                    onChange={(e) =>
-                      setSelectedCondominio(Number(e.target.value) || null)
-                    }
-                  >
-                    {condominios.map((cond) => (
-                      <option key={cond.id} value={cond.id}>
-                        {cond.name}
-                      </option>
+        {/* Filtro de Condomínio (admin) */}
+        {user?.role === "admin" && (
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium whitespace-nowrap">Condomínio</label>
+                <Select
+                  value={selectedCondominio?.toString() ?? ""}
+                  onValueChange={(v) => setSelectedCondominio(v ? Number(v) : undefined)}
+                >
+                  <SelectTrigger className="w-72">
+                    <SelectValue placeholder="Selecione um condomínio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {condominios?.map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
                     ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Busca */}
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Buscar
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por devedor ou observações..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                  </SelectContent>
+                </Select>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {semCondominio ? (
+          <Card className="p-12 text-center">
+            <HandshakeIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Selecione um condomínio para visualizar os acordos</p>
+          </Card>
+        ) : (
+          <>
+            {/* Cards de resumo */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Total</CardDescription>
+                  <CardTitle className="text-3xl">{acordos?.length ?? 0}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Ativos</CardDescription>
+                  <CardTitle className="text-3xl text-green-600">{totalAtivos}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Pagos</CardDescription>
+                  <CardTitle className="text-3xl text-blue-600">{totalPagos}</CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Vencidas</CardDescription>
+                  <CardTitle className="text-3xl text-red-600">{parcelasVencidas?.length ?? 0}</CardTitle>
+                </CardHeader>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Estatísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total de Acordos</CardDescription>
-              <CardTitle className="text-3xl">
-                {filteredAcordos.length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Acordos Ativos</CardDescription>
-              <CardTitle className="text-3xl text-green-600">
-                {filteredAcordos.filter((a) => a.status === "ativo").length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Acordos Pagos</CardDescription>
-              <CardTitle className="text-3xl text-blue-600">
-                {filteredAcordos.filter((a) => a.status === "pago").length}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
+            {/* Abas */}
+            <Tabs defaultValue="lista">
+              <TabsList className="grid grid-cols-3 w-full max-w-lg">
+                <TabsTrigger value="lista">
+                  Lista de Acordos
+                  {acordosFiltrados.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 text-xs">{acordosFiltrados.length}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="vencidas">
+                  Parcelas Vencidas
+                  {(parcelasVencidas?.length ?? 0) > 0 && (
+                    <Badge variant="destructive" className="ml-2 text-xs">{parcelasVencidas!.length}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="proximas">
+                  Vencimentos Próximos
+                  {(parcelasVencendo?.length ?? 0) > 0 && (
+                    <Badge className="ml-2 text-xs bg-yellow-500 text-white">{parcelasVencendo!.length}</Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
-        {/* Lista de Acordos */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Lista de Acordos
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                Total: {filteredAcordos.length} acordo(s)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredAcordos.length === 0 ? (
-              <div className="text-center py-12">
-                <HandshakeIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">
-                  Nenhum acordo encontrado
-                </h3>
-                <p className="text-muted-foreground">
-                  Os acordos criados aparecerão aqui
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredAcordos.map((acordo) => (
-                  <Card key={acordo.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-3 flex-1">
-                          {/* Cabeçalho */}
-                          <div className="flex items-center gap-3">
-                            <User className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <h3 className="font-semibold text-lg">
-                                {acordo.devedorName}
-                              </h3>
-                              <p className="text-sm text-muted-foreground">
-                                Acordo #{acordo.id}
-                              </p>
-                            </div>
-                            <div className="ml-auto">
-                              {getStatusBadge(acordo.status)}
-                            </div>
-                          </div>
-
-                          {/* Detalhes */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-muted-foreground">Valor Total</p>
-                                <p className="font-medium">
-                                  {formatCurrency(acordo.totalAmount)}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <DollarSign className="h-4 w-4 text-green-600" />
-                              <div>
-                                <p className="text-muted-foreground">Valor Acordado</p>
-                                <p className="font-medium text-green-600">
-                                  {formatCurrency(acordo.agreedAmount)}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-muted-foreground">Parcelas</p>
-                                <p className="font-medium">
-                                  {acordo.installments}x
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="text-muted-foreground">Primeiro Pagamento</p>
-                                <p className="font-medium">
-                                  {formatDate(acordo.firstPaymentDate)}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Observações */}
-                          {acordo.notes && (
-                            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-                              {acordo.notes}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Ações */}
-                        <div className="ml-4">
-                          <Link href={`/acordos/${acordo.id}`}>
-                            <Button variant="outline" size="sm">
-                              <Eye className="h-4 w-4 mr-2" />
-                              Ver Detalhes
-                            </Button>
-                          </Link>
-                        </div>
+              {/* ── ABA 1: Lista de Acordos ── */}
+              <TabsContent value="lista" className="space-y-4 mt-4">
+                {/* Filtros */}
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex flex-col md:flex-row gap-3">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar por devedor ou observações..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10"
+                        />
                       </div>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-44">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todos os status</SelectItem>
+                          <SelectItem value="ativo">Ativos</SelectItem>
+                          <SelectItem value="pago">Pagos</SelectItem>
+                          <SelectItem value="cancelado">Cancelados</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {isLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
+                    <p className="mt-3 text-muted-foreground">Carregando acordos...</p>
+                  </div>
+                ) : acordosFiltrados.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <HandshakeIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="font-semibold">Nenhum acordo encontrado</p>
+                    <p className="text-sm text-muted-foreground mt-1">Tente ajustar os filtros</p>
+                  </Card>
+                ) : (
+                  <Card>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Devedor</TableHead>
+                          <TableHead>Valor Total</TableHead>
+                          <TableHead>Valor Acordado</TableHead>
+                          <TableHead>Valor Pago</TableHead>
+                          <TableHead>Parcelas</TableHead>
+                          <TableHead>1º Pagamento</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {acordosFiltrados.map((acordo) => {
+                          const parcelasPagas = acordo.agreedAmount > 0
+                            ? Math.floor((Number(acordo.valorPago) / Number(acordo.agreedAmount)) * acordo.installments)
+                            : 0;
+                          return (
+                            <TableRow key={acordo.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  <div>
+                                    <p className="font-medium">{acordo.devedorName}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {acordo.devedorBloco && `Bloco ${acordo.devedorBloco} · `}
+                                      Unidade {acordo.devedorUnidade}
+                                    </p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>{formatCurrency(acordo.totalAmount)}</TableCell>
+                              <TableCell className="text-green-700 font-medium">{formatCurrency(acordo.agreedAmount)}</TableCell>
+                              <TableCell className="font-semibold">{formatCurrency(acordo.valorPago)}</TableCell>
+                              <TableCell>
+                                <span className="font-medium">{parcelasPagas}/{acordo.installments}</span>
+                              </TableCell>
+                              <TableCell>{formatDate(acordo.firstPaymentDate)}</TableCell>
+                              <TableCell>{getStatusBadge(acordo.status)}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSelectedAcordoId(acordo.id)}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                    Parcelas
+                                  </Button>
+                                  <Link href={`/acordos/${acordo.id}`}>
+                                    <Button variant="outline" size="sm">
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      Detalhes
+                                    </Button>
+                                  </Link>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                )}
+              </TabsContent>
+
+              {/* ── ABA 2: Parcelas Vencidas ── */}
+              <TabsContent value="vencidas" className="mt-4">
+                {!parcelasVencidas || parcelasVencidas.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                    <p className="font-semibold text-green-700">Nenhuma parcela vencida</p>
+                    <p className="text-sm text-muted-foreground mt-1">Todos os acordos estão em dia</p>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-red-700">
+                        <AlertCircle className="h-5 w-5" />
+                        {parcelasVencidas.length} parcela(s) vencida(s)
+                      </CardTitle>
+                      <CardDescription>Parcelas que passaram da data de vencimento e ainda não foram pagas</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Devedor</TableHead>
+                            <TableHead>Parcela</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead>Vencimento</TableHead>
+                            <TableHead>Atraso</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {parcelasVencidas.map((p) => {
+                            const diasAtraso = calcularDiasAtraso(p.dataVencimento);
+                            return (
+                              <TableRow key={p.parcelaId} className="bg-red-50/30">
+                                <TableCell className="font-medium">{p.devedorNome}</TableCell>
+                                <TableCell>Parcela {p.parcelaNumero}</TableCell>
+                                <TableCell>{formatCurrency(p.parcelaValor)}</TableCell>
+                                <TableCell>{formatDate(p.dataVencimento)}</TableCell>
+                                <TableCell>
+                                  <span className="text-red-700 font-semibold text-sm">
+                                    {diasAtraso} dia(s)
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-green-700 border-green-300 hover:bg-green-50"
+                                      onClick={() => {
+                                        if (confirm("Confirmar pagamento desta parcela?")) {
+                                          darBaixa.mutate({ parcelaId: p.parcelaId });
+                                        }
+                                      }}
+                                      disabled={darBaixa.isPending}
+                                    >
+                                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                                      Dar Baixa
+                                    </Button>
+                                    <Link href={`/acordos/${p.acordoId}`}>
+                                      <Button variant="ghost" size="sm">
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                    </Link>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </TabsContent>
+
+              {/* ── ABA 3: Vencimentos Próximos ── */}
+              <TabsContent value="proximas" className="space-y-4 mt-4">
+                {/* Filtro de dias */}
+                <Card>
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium whitespace-nowrap">Vencendo nos próximos</label>
+                      <div className="flex gap-2">
+                        {([7, 15, 30] as const).map((d) => (
+                          <Button
+                            key={d}
+                            variant={diasVencimento === d ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setDiasVencimento(d)}
+                          >
+                            {d} dias
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {!parcelasVencendo || parcelasVencendo.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="font-semibold">Nenhum vencimento nos próximos {diasVencimento} dias</p>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-yellow-700">
+                        <Clock className="h-5 w-5" />
+                        {parcelasVencendo.length} parcela(s) vencendo em {diasVencimento} dias
+                      </CardTitle>
+                      <CardDescription>Parcelas próximas do vencimento — considere enviar lembretes</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Devedor</TableHead>
+                            <TableHead>Parcela</TableHead>
+                            <TableHead>Valor</TableHead>
+                            <TableHead>Vencimento</TableHead>
+                            <TableHead>Dias Restantes</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {parcelasVencendo.map((p) => {
+                            const diasRestantes = Math.ceil(
+                              (new Date(p.dataVencimento).getTime() - Date.now()) / 86400000
+                            );
+                            const urgente = diasRestantes <= 3;
+                            return (
+                              <TableRow key={p.parcelaId} className={urgente ? "bg-yellow-50/40" : ""}>
+                                <TableCell className="font-medium">{p.devedorNome}</TableCell>
+                                <TableCell>Parcela {p.parcelaNumero}</TableCell>
+                                <TableCell>{formatCurrency(p.parcelaValor)}</TableCell>
+                                <TableCell>{formatDate(p.dataVencimento)}</TableCell>
+                                <TableCell>
+                                  <span className={`font-semibold text-sm ${urgente ? "text-orange-600" : "text-muted-foreground"}`}>
+                                    {diasRestantes === 0 ? "Hoje" : `${diasRestantes} dia(s)`}
+                                    {urgente && <AlertTriangle className="inline h-3 w-3 ml-1" />}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Link href={`/acordos/${p.acordoId}`}>
+                                    <Button variant="ghost" size="sm">
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </Link>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
       </div>
+
+      {/* Modal de Parcelas do Acordo */}
+      <Dialog open={!!selectedAcordoId} onOpenChange={() => setSelectedAcordoId(undefined)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Parcelas do Acordo</DialogTitle>
+          </DialogHeader>
+
+          {parcelasModal && parcelasModal.length > 0 ? (
+            <div className="space-y-4">
+              {/* Mini resumo */}
+              <div className="grid grid-cols-3 gap-3">
+                <Card className="p-3">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Pago</p>
+                      <p className="font-semibold text-sm">
+                        {formatCurrency(parcelasModal.filter(p => p.status === "pago").reduce((s, p) => s + Number(p.amount), 0))}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Pagas</p>
+                      <p className="font-semibold text-sm">
+                        {parcelasModal.filter(p => p.status === "pago").length}/{parcelasModal.length}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-yellow-600" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Pendentes</p>
+                      <p className="font-semibold text-sm">
+                        {parcelasModal.filter(p => p.status === "pendente").length}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Parcela</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Pagamento</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {parcelasModal.map((parcela) => {
+                    const diasAtraso = calcularDiasAtraso(parcela.dueDate);
+                    const atrasada = parcela.status === "pendente" && diasAtraso > 0;
+                    return (
+                      <TableRow key={parcela.id}>
+                        <TableCell className="font-medium">{parcela.installmentNumber}/{parcelasModal.length}</TableCell>
+                        <TableCell>{formatCurrency(parcela.amount)}</TableCell>
+                        <TableCell>
+                          {formatDate(parcela.dueDate)}
+                          {atrasada && (
+                            <span className="ml-1 text-xs text-red-600">({diasAtraso}d atraso)</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${
+                            parcela.status === "pago"
+                              ? "bg-green-100 text-green-800 border-green-200"
+                              : atrasada
+                              ? "bg-red-100 text-red-800 border-red-200"
+                              : "bg-yellow-100 text-yellow-800 border-yellow-200"
+                          }`}>
+                            {parcela.status === "pago" ? "Pago" : atrasada ? "Atrasado" : "Pendente"}
+                          </span>
+                        </TableCell>
+                        <TableCell>{parcela.paymentDate ? formatDate(parcela.paymentDate) : "—"}</TableCell>
+                        <TableCell className="text-right">
+                          {parcela.status === "pendente" && (
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                if (confirm("Confirmar pagamento desta parcela?")) {
+                                  darBaixa.mutate({ parcelaId: parcela.id });
+                                }
+                              }}
+                              disabled={darBaixa.isPending}
+                            >
+                              Dar Baixa
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">Carregando parcelas...</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

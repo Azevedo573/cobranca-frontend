@@ -2,42 +2,41 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Phone, Plus, Search, ArrowLeft } from "lucide-react";
+import { Phone, Search, X, Calendar, TrendingUp, MessageSquare, CheckCircle } from "lucide-react";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Pagination, paginateItems } from "@/components/Pagination";
-import { Link } from "wouter";
-import { useState } from "react";
-import { format } from "date-fns";
-
+import { useState, useMemo } from "react";
+import { format, startOfDay, startOfWeek, startOfMonth, subDays } from "date-fns";
 
 const PAGE_SIZE_DEFAULT = 25;
 
+type PeriodoFiltro = "todos" | "hoje" | "semana" | "mes" | "7dias" | "30dias";
+type ResultadoFiltro = "todos" | "sem_resposta" | "promessa_pagamento" | "acordo" | "recusa" | "outro";
+type CanalFiltro = "todos" | "telefone" | "whatsapp" | "email" | "pessoal";
+
 export default function TentativasCobranca() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
+  const [periodoFiltro, setPeriodoFiltro] = useState<PeriodoFiltro>("todos");
+  const [resultadoFiltro, setResultadoFiltro] = useState<ResultadoFiltro>("todos");
+  const [canalFiltro, setCanalFiltro] = useState<CanalFiltro>("todos");
 
-  
-  // Para admin, usar condomínio selecionado; para síndico/cobrador, usar o próprio
   const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
-  
+
   const { data: condominios } = trpc.condominios.list.useQuery(undefined, {
     enabled: user?.role === "admin",
   });
-  
+
   const { data: tentativas, isLoading } = trpc.tentativas.list.useQuery(
     { condominioId: condominioId ?? 0 },
     { enabled: condominioId !== null && condominioId !== undefined }
@@ -50,49 +49,90 @@ export default function TentativasCobranca() {
 
   const utils = trpc.useUtils();
 
+  // Calcular data de corte do período
+  const dataCortePeriodo = useMemo((): Date | null => {
+    const agora = new Date();
+    switch (periodoFiltro) {
+      case "hoje": return startOfDay(agora);
+      case "semana": return startOfWeek(agora, { weekStartsOn: 1 });
+      case "mes": return startOfMonth(agora);
+      case "7dias": return subDays(agora, 7);
+      case "30dias": return subDays(agora, 30);
+      default: return null;
+    }
+  }, [periodoFiltro]);
 
+  // Filtro combinado
+  const filteredTentativas = useMemo(() => {
+    if (!tentativas) return [];
+    return tentativas.filter((tent) => {
+      // Texto
+      if (searchTerm) {
+        const q = searchTerm.toLowerCase();
+        const matchText =
+          (tent.devedorName ?? "").toLowerCase().includes(q) ||
+          (tent.notes ?? "").toLowerCase().includes(q);
+        if (!matchText) return false;
+      }
+      // Resultado
+      if (resultadoFiltro !== "todos" && tent.result !== resultadoFiltro) return false;
+      // Canal
+      if (canalFiltro !== "todos" && tent.contactType !== canalFiltro) return false;
+      // Período
+      if (dataCortePeriodo) {
+        const data = new Date(tent.attemptDate);
+        if (data < dataCortePeriodo) return false;
+      }
+      return true;
+    });
+  }, [tentativas, searchTerm, resultadoFiltro, canalFiltro, dataCortePeriodo]);
 
+  const temFiltroAtivo = searchTerm || resultadoFiltro !== "todos" || canalFiltro !== "todos" || periodoFiltro !== "todos";
 
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
+  const limparFiltros = () => {
+    setSearchTerm("");
+    setResultadoFiltro("todos");
+    setCanalFiltro("todos");
+    setPeriodoFiltro("todos");
     setCurrentPage(1);
   };
 
-  const filteredTentativas = tentativas?.filter(tent => {
-    const devedorName = tent.devedorName || "";
-    return (
-      devedorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tent.notes?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
+  const handleFilterChange = (setter: (v: any) => void) => (v: any) => {
+    setter(v);
+    setCurrentPage(1);
+  };
 
+  // Badges
   const getContactTypeBadge = (type: string) => {
-    const variants: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; label: string; color: string }> = {
-      telefone: { variant: "default", label: "Telefone", color: "bg-blue-500" },
-      whatsapp: { variant: "secondary", label: "WhatsApp", color: "bg-green-500" },
-      email: { variant: "outline", label: "E-mail", color: "bg-gray-500" },
-      pessoal: { variant: "destructive", label: "Presencial", color: "bg-purple-500" },
+    const map: Record<string, { label: string; className: string }> = {
+      telefone: { label: "Telefone", className: "bg-blue-100 text-blue-800 border-blue-200" },
+      whatsapp: { label: "WhatsApp", className: "bg-green-100 text-green-800 border-green-200" },
+      email: { label: "E-mail", className: "bg-gray-100 text-gray-700 border-gray-200" },
+      pessoal: { label: "Presencial", className: "bg-purple-100 text-purple-800 border-purple-200" },
     };
-    const config = variants[type] || { variant: "outline" as const, label: type, color: "bg-gray-500" };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const cfg = map[type] ?? { label: type, className: "bg-gray-100 text-gray-700 border-gray-200" };
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.className}`}>
+        {cfg.label}
+      </span>
+    );
   };
 
   const getResultBadge = (result: string | null) => {
-    if (!result) return <Badge variant="outline">-</Badge>;
-    const variants: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; label: string }> = {
-      sem_resposta: { variant: "destructive", label: "Sem Resposta" },
-      promessa_pagamento: { variant: "secondary", label: "Promessa de Pagamento" },
-      recusa: { variant: "outline", label: "Recusa" },
-      outro: { variant: "default", label: "Outro" },
+    if (!result) return <span className="text-muted-foreground text-sm">—</span>;
+    const map: Record<string, { label: string; className: string }> = {
+      sem_resposta: { label: "Sem Resposta", className: "bg-red-100 text-red-800 border-red-200" },
+      promessa_pagamento: { label: "Promessa de Pagamento", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+      acordo: { label: "Acordo Firmado", className: "bg-green-100 text-green-800 border-green-200" },
+      recusa: { label: "Recusa", className: "bg-orange-100 text-orange-800 border-orange-200" },
+      outro: { label: "Outro", className: "bg-gray-100 text-gray-700 border-gray-200" },
     };
-    const config = variants[result] || { variant: "outline" as const, label: result };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
-
-  const getDashboardUrl = () => {
-    if (user?.role === "admin") return "/admin/dashboard";
-    if (user?.role === "sindico") return "/sindico/dashboard";
-    return "/cobrador/dashboard";
+    const cfg = map[result] ?? { label: result, className: "bg-gray-100 text-gray-700 border-gray-200" };
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.className}`}>
+        {cfg.label}
+      </span>
+    );
   };
 
   const taxaSucesso = estatisticas && estatisticas.total > 0
@@ -100,191 +140,268 @@ export default function TentativasCobranca() {
     : "0.0";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
-      {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href={getDashboardUrl()}>
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-primary">Tentativas de Cobrança</h1>
-                <p className="text-sm text-muted-foreground">Histórico de contatos realizados</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium">{user?.name}</p>
-                <p className="text-xs text-muted-foreground">{user?.role}</p>
-              </div>
-              <Button variant="outline" onClick={() => logout()}>
-                Sair
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Estatísticas */}
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <Phone className="h-8 w-8 text-primary" />
+              Histórico de Contatos
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Registro de todas as tentativas de cobrança realizadas
+            </p>
+          </div>
+          <ExportExcelButton
+            onClick={async () => {
+              return await utils.client.exportacao.tentativas.mutate({
+                condominioId: condominioId || undefined,
+              });
+            }}
+            label="Exportar Excel"
+          />
+        </div>
+
+        {/* Cards de estatísticas */}
         {estatisticas && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total de Tentativas</CardTitle>
+                <CardDescription className="flex items-center gap-1">
+                  <MessageSquare className="h-3.5 w-3.5" /> Total de Contatos
+                </CardDescription>
+                <CardTitle className="text-3xl">{Number(estatisticas.total)}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{Number(estatisticas.total)}</div>
-              </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Sem Resposta</CardTitle>
+                <CardDescription className="flex items-center gap-1 text-red-600">
+                  <Phone className="h-3.5 w-3.5" /> Sem Resposta
+                </CardDescription>
+                <CardTitle className="text-3xl text-red-600">{Number(estatisticas.semResposta)}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-destructive">{Number(estatisticas.semResposta)}</div>
-              </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Promessas de Pagamento</CardTitle>
+                <CardDescription className="flex items-center gap-1 text-yellow-600">
+                  <Calendar className="h-3.5 w-3.5" /> Promessas
+                </CardDescription>
+                <CardTitle className="text-3xl text-yellow-600">{Number(estatisticas.promessaPagamento)}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-secondary">{Number(estatisticas.promessaPagamento)}</div>
-              </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Sucesso</CardTitle>
+                <CardDescription className="flex items-center gap-1 text-green-600">
+                  <TrendingUp className="h-3.5 w-3.5" /> Taxa de Sucesso
+                </CardDescription>
+                <CardTitle className="text-3xl text-green-600">{taxaSucesso}%</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-primary">{taxaSucesso}%</div>
-              </CardContent>
             </Card>
           </div>
         )}
 
+        {/* Painel de Filtros */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Filtros</CardTitle>
+              {temFiltroAtivo && (
+                <Button variant="ghost" size="sm" onClick={limparFiltros} className="text-muted-foreground h-7 px-2">
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Linha 1: Condomínio (admin) + Busca */}
+            <div className="flex flex-col md:flex-row gap-3">
+              {user?.role === "admin" && (
+                <Select
+                  value={selectedCondominioId?.toString() ?? ""}
+                  onValueChange={(v) => { setSelectedCondominioId(v ? Number(v) : null); setCurrentPage(1); }}
+                >
+                  <SelectTrigger className="w-full md:w-64">
+                    <SelectValue placeholder="Selecione um condomínio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {condominios?.map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por devedor ou observações..."
+                  value={searchTerm}
+                  onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                  className="pl-10"
+                />
+              </div>
+            </div>
 
+            {/* Linha 2: Resultado + Canal + Período */}
+            <div className="flex flex-col md:flex-row gap-3">
+              {/* Resultado */}
+              <div className="flex-1">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Resultado</label>
+                <Select value={resultadoFiltro} onValueChange={handleFilterChange(setResultadoFiltro)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os resultados</SelectItem>
+                    <SelectItem value="sem_resposta">Sem Resposta</SelectItem>
+                    <SelectItem value="promessa_pagamento">Promessa de Pagamento</SelectItem>
+                    <SelectItem value="acordo">Acordo Firmado</SelectItem>
+                    <SelectItem value="recusa">Recusa</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Canal */}
+              <div className="flex-1">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Canal</label>
+                <Select value={canalFiltro} onValueChange={handleFilterChange(setCanalFiltro)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os canais</SelectItem>
+                    <SelectItem value="telefone">Telefone</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="email">E-mail</SelectItem>
+                    <SelectItem value="pessoal">Presencial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Período */}
+              <div className="flex-1">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Período</label>
+                <Select value={periodoFiltro} onValueChange={handleFilterChange(setPeriodoFiltro)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todo o período</SelectItem>
+                    <SelectItem value="hoje">Hoje</SelectItem>
+                    <SelectItem value="semana">Esta semana</SelectItem>
+                    <SelectItem value="mes">Este mês</SelectItem>
+                    <SelectItem value="7dias">Últimos 7 dias</SelectItem>
+                    <SelectItem value="30dias">Últimos 30 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Indicador de resultados filtrados */}
+            {temFiltroAtivo && (
+              <div className="flex items-center gap-2 pt-1">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <span className="text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">{filteredTentativas.length}</span> resultado(s) encontrado(s)
+                  {tentativas && filteredTentativas.length !== tentativas.length && (
+                    <span className="ml-1">de {tentativas.length} total</span>
+                  )}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tabela */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Phone className="h-5 w-5" />
-                  Lista de Tentativas
+                  Lista de Contatos
                 </CardTitle>
                 <CardDescription>
-                  Total: {filteredTentativas?.length || 0} tentativa(s)
+                  {filteredTentativas.length} registro(s)
+                  {temFiltroAtivo && " (filtrado)"}
                 </CardDescription>
-              </div>
-              <ExportExcelButton
-                onClick={async () => {
-                  const result = await utils.client.exportacao.tentativas.mutate({
-                    condominioId: condominioId || undefined,
-                  });
-                  return result;
-                }}
-                label="Exportar Excel"
-              />
-            </div>
-            <div className="mt-4 space-y-4">
-              {user?.role === "admin" && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Selecione o Condomínio</label>
-                  <select
-                    className="w-full md:w-64 px-3 py-2 border rounded-md"
-                    value={selectedCondominioId || ""}
-                    onChange={(e) => setSelectedCondominioId(e.target.value ? Number(e.target.value) : null)}
-                  >
-                    <option value="">Selecione um condomínio</option>
-                    {condominios?.map((cond) => (
-                      <option key={cond.id} value={cond.id}>
-                        {cond.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por devedor ou observações..."
-                  value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-10"
-                />
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {isLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-4 text-muted-foreground">Carregando...</p>
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto" />
+                <p className="mt-3 text-muted-foreground">Carregando...</p>
               </div>
-            ) : filteredTentativas && filteredTentativas.length > 0 ? (
+            ) : !condominioId && user?.role === "admin" ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Phone className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Selecione um condomínio para visualizar os contatos</p>
+              </div>
+            ) : filteredTentativas.length > 0 ? (
               <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data/Hora</TableHead>
-                    <TableHead>Devedor</TableHead>
-                    <TableHead>Tipo de Contato</TableHead>
-                    <TableHead>Resultado</TableHead>
-                    <TableHead>Observações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginateItems(filteredTentativas, currentPage, pageSize).map((tent) => (
-                    <TableRow key={tent.id}>
-                      <TableCell className="font-medium">
-                        {format(new Date(tent.attemptDate), "dd/MM/yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell>{tent.devedorName || "Desconhecido"}</TableCell>
-                      <TableCell>{getContactTypeBadge(tent.contactType)}</TableCell>
-                      <TableCell>{getResultBadge(tent.result)}</TableCell>
-                      <TableCell className="max-w-xs truncate">{tent.notes || "-"}</TableCell>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data/Hora</TableHead>
+                      <TableHead>Devedor</TableHead>
+                      <TableHead>Canal</TableHead>
+                      <TableHead>Resultado</TableHead>
+                      <TableHead>Observações</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Pagination
-                currentPage={currentPage}
-                totalItems={filteredTentativas.length}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
-              />
+                  </TableHeader>
+                  <TableBody>
+                    {paginateItems(filteredTentativas, currentPage, pageSize).map((tent) => (
+                      <TableRow key={tent.id}>
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {format(new Date(tent.attemptDate), "dd/MM/yyyy HH:mm")}
+                        </TableCell>
+                        <TableCell>{tent.devedorName ?? "Desconhecido"}</TableCell>
+                        <TableCell>{getContactTypeBadge(tent.contactType)}</TableCell>
+                        <TableCell>{getResultBadge(tent.result)}</TableCell>
+                        <TableCell className="max-w-xs truncate text-muted-foreground text-sm">
+                          {tent.notes ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="p-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalItems={filteredTentativas.length}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={(size) => { setPageSize(size); setCurrentPage(1); }}
+                  />
+                </div>
               </>
             ) : (
               <div className="text-center py-12">
-                <Phone className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <Phone className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-30" />
                 <h3 className="text-lg font-semibold mb-2">
-                  {searchTerm ? "Nenhuma tentativa encontrada" : "Nenhuma tentativa registrada"}
+                  {temFiltroAtivo ? "Nenhum contato encontrado" : "Nenhum contato registrado"}
                 </h3>
-                <p className="text-muted-foreground mb-4">
-                  {searchTerm
-                    ? "Tente buscar com outros termos"
-                    : "Comece registrando as tentativas de cobrança"}
+                <p className="text-muted-foreground text-sm">
+                  {temFiltroAtivo
+                    ? "Tente ajustar os filtros para ver mais resultados"
+                    : "Os contatos registrados aparecerão aqui"}
                 </p>
-                {!searchTerm && (
-                  <Link href="/tentativas/nova">
-                    <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Registrar Primeira Tentativa
-                    </Button>
-                  </Link>
+                {temFiltroAtivo && (
+                  <Button variant="outline" size="sm" className="mt-4" onClick={limparFiltros}>
+                    <X className="h-4 w-4 mr-2" />
+                    Limpar filtros
+                  </Button>
                 )}
               </div>
             )}
           </CardContent>
         </Card>
-      </main>
+      </div>
     </div>
   );
 }
