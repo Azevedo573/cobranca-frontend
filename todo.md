@@ -1533,3 +1533,20 @@
 
 - [x] Renomear "Processos de Cobrança" para "Dívidas" no Sidebar
 - [x] Atualizar título, descrição e textos internos da página ProcessosCobranca
+
+## Correção do Gerador CNAB 240 BTG
+
+- [x] Header arquivo: nome do banco corrigido para "BTG PACTUAL S/A"
+- [x] Header arquivo: versão do layout corrigida para "103" (BTG CNAB240)
+- [x] Header arquivo: densidade corrigida para "00000" (BTG usa 00000)
+- [x] Header lote: campo convenio corrigido para brancos
+- [x] Segmento P: tipo de documento campo [060] corrigido para "1"
+- [x] Segmento P: espécie campo [105-106] corrigida para "0 " (BTG)
+- [x] Segmento P: aceite campo [107] corrigido para "2" (BTG)
+- [x] Segmento P: agência cobradora corrigida para "30000" (código BTG)
+- [x] Segmento P: moeda [218-219] corrigida para brancos (BTG)
+- [x] Segmento P: número do contrato [220-229] recebe nosso número
+- [x] Segmento P: protesto/baixa/prazo corrigidos para brancos (sem instrução BTG)
+- [x] Segmento R: campo desconto 3 [041-048] corrigido para "0       " (BTG)
+- [x] Segmento R: valor desconto 3 [049-061] corrigido para brancos (BTG)
+- [x] Segmento R: código ocorrência sacado [214] corrigido para branco (BTG)

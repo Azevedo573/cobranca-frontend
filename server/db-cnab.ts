@@ -122,7 +122,7 @@ export function gerarHeaderArquivoCNAB240(
     banco.digitoConta.substring(0, 1),        // 071: Dígito conta
     " ",                                      // 072: Dígito verificador ag/conta
     padRight(limparTexto(banco.cedente), 30), // 073-102: Nome da empresa
-    padRight(limparTexto(`BANCO ${banco.codigoBanco}`), 30), // 103-132: Nome do banco
+    padRight("BTG PACTUAL S/A", 30),          // 103-132: Nome do banco
     " ".repeat(10),                           // 133-142: Brancos
     "1",                                      // 143: Código de remessa (1=remessa)
     formatarDataCNAB(dataGeracao),            // 144-151: Data de geração
@@ -130,8 +130,8 @@ export function gerarHeaderArquivoCNAB240(
             dataGeracao.getMinutes().toString().padStart(2,"0") +
             dataGeracao.getSeconds().toString().padStart(2,"0"), 6), // 152-157: Hora
     padLeft(numeroRemessa, 6),                // 158-163: Número sequencial do arquivo
-    "089",                                    // 164-166: Versão do layout (089 = CNAB240)
-    "01600",                                  // 167-171: Densidade de gravação
+    "103",                                    // 164-166: Versão do layout (103 = BTG CNAB240)
+    "00000",                                  // 167-171: Densidade de gravação (BTG usa 00000)
     " ".repeat(20),                           // 172-191: Reservado banco
     " ".repeat(20),                           // 192-211: Reservado empresa
     " ".repeat(29),                           // 212-240: Brancos
@@ -156,7 +156,7 @@ export function gerarHeaderLoteCNAB240(
     " ",                                      // 017: Brancos
     "2",                                      // 018: Tipo inscrição empresa
     padLeft(limparDocumento(banco.cnpjCedente), 14), // 019-032
-    padLeft(banco.convenio, 20),              // 033-052
+    " ".repeat(20),                          // 033-052: Convenio (brancos no BTG)
     padLeft(banco.agencia, 5),                // 053-057
     banco.digitoAgencia.substring(0, 1),      // 058
     padLeft(banco.conta, 12),                 // 059-070
@@ -195,32 +195,32 @@ export function gerarSegmentoPCNAB240(
     padLeft(titulo.nossoNumero, 20),                  // 038-057: Nosso numero
     titulo.carteira?.substring(0, 1) || "1",          // 058: Carteira
     "1",                                              // 059: Forma de cadastramento
-    "0",                                              // 060: Tipo de documento
+    "1",                                              // 060: Tipo de documento (1=BTG)
     "2",                                              // 061: Emissao do boleto (2=cedente)
     "2",                                              // 062: Distribuicao (2=cedente)
-    padLeft(titulo.nossoNumero, 15),                  // 063-077: Numero do documento
+    padRight(titulo.nossoNumero.substring(0, 15), 15), // 063-077: Numero do documento (15 chars)
     formatarDataCNAB(titulo.dataVencimento),          // 078-085: Data de vencimento
     formatarValorCNAB(titulo.valorNominal),           // 086-098: Valor nominal
-    "00000",                                          // 099-103: Agencia cobradora
-    " ",                                              // 104: Digito agencia cobradora
-    titulo.especieDocumento?.substring(0, 2).padStart(2, "0") || "12", // 105-106: Especie (12=DD)
-    titulo.aceite?.substring(0, 1) || "N",            // 107: Aceite
+    "30000",                                          // 099-103: Agencia cobradora BTG
+    "0",                                              // 104: Digito agencia cobradora
+    "0 ",                                             // 105-106: Especie documento (BTG usa '0 ')
+    "2",                                              // 107: Aceite (BTG usa '2')
     formatarDataCNAB(titulo.dataEmissao),             // 108-115: Data de emissao
-    titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "3" : "0", // 116: Cod juros (3=taxa diaria, 0=isento)
-    formatarDataCNAB(titulo.dataVencimento),          // 117-124: Data de inicio juros
+    titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "2" : "0", // 116: Cod juros (2=taxa diaria, 0=isento)
+    formatarDataCNAB(titulo.dataVencimento),          // 117-124: Data de inicio juros (apos vencimento)
     padLeft(titulo.taxaJurosDia ?? 0, 13),            // 125-137: Taxa de juros diaria em centavos
     "0",                                              // 138: Codigo de desconto
     "00000000",                                       // 139-146: Data de desconto
     padLeft(0, 13),                                   // 147-159: Valor de desconto
     padLeft(0, 13),                                   // 160-172: Valor IOF
     padLeft(0, 13),                                   // 173-185: Abatimento
-    padLeft(titulo.cobrancaId, 25),                   // 186-210: Identificacao do titulo na empresa
-    titulo.enviarProtesto ? "1" : "3",                // 211: Protesto (1=protestar, 3=nao protestar)
-    titulo.enviarProtesto ? "10" : "00",              // 212-213: Prazo para protesto (10 dias)
-    "3",                                              // 214: Baixa/devolucao (3=nao baixar)
-    padLeft(0, 3),                                    // 215-217: Prazo para baixa
-    "09",                                             // 218-219: Moeda (09=real)
-    padLeft(0, 10),                                   // 220-229: Numero contrato
+    padRight(String(titulo.cobrancaId), 25),          // 186-210: Identificacao do titulo na empresa
+    " ",                                              // 211: Protesto (branco = sem instrucao BTG)
+    "  ",                                             // 212-213: Prazo para protesto
+    " ",                                              // 214: Baixa/devolucao
+    "   ",                                            // 215-217: Prazo para baixa
+    "  ",                                             // 218-219: Moeda (brancos no BTG)
+    padLeft(titulo.nossoNumero.replace(/\D/g, "").substring(0, 10), 10), // 220-229: Numero contrato
     " ",                                              // 230: Brancos
     " ".repeat(10),                                   // 231-240: Brancos
   ].join("");
@@ -252,16 +252,16 @@ export function gerarSegmentoRCNAB240(
     "00000000",                                       // 019-026: Data desconto 2
     padLeft(0, 13),                                   // 027-039: Valor desconto 2
     "0",                                              // 040: Cod. desconto 3 (0=sem desconto)
-    "00000000",                                       // 041-048: Data desconto 3
-    padLeft(0, 13),                                   // 049-061: Valor desconto 3
+    "0       ",                                       // 041-048: Data desconto 3 (BTG: '0       ')
+    " ".repeat(13),                                   // 049-061: Valor desconto 3 (brancos no BTG)
     codMulta,                                         // 062: Cod. multa (0=isento, 2=%)
     formatarDataCNAB(dataMulta),                      // 063-070: Data multa
     padLeft(valorMulta, 13),                          // 071-083: Valor/% multa (centavos)
     padRight(limparTexto(titulo.instrucao1 || ""), 40),// 084-123: Informacao sacado 3
     padRight(limparTexto(titulo.instrucao2 || ""), 40),// 124-163: Informacao sacado 4
-    padRight(" ", 40),                                // 164-203: Informacao sacado 5
+    " ".repeat(40),                                   // 164-203: Informacao sacado 5 (brancos)
     " ".repeat(10),                                   // 204-213: Uso exclusivo FEBRABAN
-    "0",                                              // 214: Cod. ocorrencia do sacado
+    " ",                                              // 214: Cod. ocorrencia do sacado (branco BTG)
     " ".repeat(16),                                   // 215-230: Brancos
     " ".repeat(10),                                   // 231-240: Ocorrencias
   ].join("");
