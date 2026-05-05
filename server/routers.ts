@@ -1560,6 +1560,15 @@ export const appRouter = router({
 
         if (!dadosBanco) throw new Error("Dados bancarios nao configurados. Configure o portador bancario antes de gerar remessa.");
 
+        // Validar CNPJ do beneficiario — obrigatorio para o BTG aceitar o arquivo
+        const cnpjLimpo = dadosBanco.cnpjCedente?.replace(/[.\-\/]/g, "").trim();
+        if (!cnpjLimpo || cnpjLimpo === "00000000000000" || cnpjLimpo.length < 11) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "CNPJ/CPF do beneficiario nao configurado. Acesse Banco > Configuracao de Boleto, aba Portador, e preencha o campo CNPJ/CPF Beneficiario antes de gerar a remessa.",
+          });
+        }
+
         const cobList = await db.select().from(cobrancas)
           .where(and(inArray(cobrancas.id, input.cobrancaIds), eq(cobrancas.condominioId, condId)));
 
@@ -1762,6 +1771,15 @@ export const appRouter = router({
 
         const [cond] = await db.select().from(condominios).where(eq(condominios.id, condId)).limit(1);
         const dadosBanco = configParaDadosBanco(configBoleto, cond?.name || "CONDOMINIO");
+
+        // Validar CNPJ do beneficiario — obrigatorio para o BTG aceitar o arquivo
+        const cnpjLimpoParcelas = dadosBanco.cnpjCedente?.replace(/[.\-\/]/g, "").trim();
+        if (!cnpjLimpoParcelas || cnpjLimpoParcelas === "00000000000000" || cnpjLimpoParcelas.length < 11) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "CNPJ/CPF do beneficiario nao configurado. Acesse Banco > Configuracao de Boleto, aba Portador, e preencha o campo CNPJ/CPF Beneficiario antes de gerar a remessa.",
+          });
+        }
 
         // Buscar parcelas selecionadas com dados do devedor
         const rows = await db

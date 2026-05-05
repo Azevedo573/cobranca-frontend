@@ -1550,3 +1550,12 @@
 - [x] Segmento R: campo desconto 3 [041-048] corrigido para "0       " (BTG)
 - [x] Segmento R: valor desconto 3 [049-061] corrigido para brancos (BTG)
 - [x] Segmento R: código ocorrência sacado [214] corrigido para branco (BTG)
+
+## Correção CNPJ Beneficiário no CNAB 240
+
+- [x] Campo `cnpjBeneficiario` já existia na tabela `configuracaoBoleto` (não precisou migração)
+- [x] Header Arquivo e Header Lote já usam `banco.cnpjCedente` corretamente
+- [x] Problema era campo vazio no cadastro — fallback era "00000000000000" (inválido)
+- [x] CNPJ/CPF movido para aba Portador com destaque visual de obrigatoriedade
+- [x] Validação adicionada no procedure gerarRemessa: bloqueia arquivo se CNPJ vazio
+- [x] Validação adicionada no procedure gerarRemessaAcordos também

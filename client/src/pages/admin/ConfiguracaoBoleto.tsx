@@ -421,6 +421,42 @@ export default function ConfiguracaoBoleto() {
                 </div>
               </div>
 
+              {/* CNPJ / CPF do Beneficiário — obrigatório para o arquivo CNAB ser aceito pelo banco */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm font-semibold">Dados do Beneficiário — obrigatório para o BTG</span>
+                </div>
+                <p className="text-xs text-amber-600 dark:text-amber-500">
+                  O CNPJ/CPF deve corresponder exatamente ao cadastro da conta no BTG Pactual. O banco rejeita o arquivo se houver divergência.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1">
+                      CNPJ / CPF Beneficiário
+                      <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      value={form.cnpjBeneficiario}
+                      onChange={e => update("cnpjBeneficiario", e.target.value)}
+                      placeholder="32.311.089/0001-01"
+                      className={!form.cnpjBeneficiario ? "border-amber-400 focus-visible:ring-amber-400" : ""}
+                    />
+                    {!form.cnpjBeneficiario && (
+                      <p className="text-xs text-amber-600">Campo obrigatório — sem ele o arquivo será rejeitado pelo banco</p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Nome Beneficiário</Label>
+                    <Input
+                      value={form.nomeBeneficiario}
+                      onChange={e => update("nomeBeneficiario", e.target.value)}
+                      placeholder="Nome conforme cadastro no banco"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Convênio */}
               <div className="space-y-1.5">
                 <Label>Convênio / Código do Cedente</Label>
