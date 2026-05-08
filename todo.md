@@ -209,6 +209,13 @@
 - [x] Adicionar link no menu do admin
 - [x] Testar relatório com dados reais
 
+## Correção do Gerador CNAB 240 - Segmento R
+- [x] Analisar layout real do Segmento R no arquivo BTG_27042026.txt
+- [x] Corrigir campos de multa (pos 062-083) para usar brancos conforme BTG
+- [x] Corrigir campo instrucao 3 (pos 084-123) para usar brancos conforme BTG
+- [x] Atualizar testes unitarios do Segmento R para refletir layout BTG
+- [x] Validar todos os 218 testes passando e 0 erros TypeScript
+
 ## Sistema de Cálculo Automático de Valores Devidos
 - [x] Adicionar campos no schema de condomínios: taxaJurosMensal, taxaMulta, taxaHonorarios
 - [x] Executar db:push para aplicar mudanças no banco
@@ -1559,3 +1566,14 @@
 - [x] CNPJ/CPF movido para aba Portador com destaque visual de obrigatoriedade
 - [x] Validação adicionada no procedure gerarRemessa: bloqueia arquivo se CNPJ vazio
 - [x] Validação adicionada no procedure gerarRemessaAcordos também
+
+## Correções Críticas CNAB 240 BTG (análise comparativa)
+
+- [ ] Header de Lote: tipo operação deve ser "R" (não "C"), versão layout "060"
+- [ ] Segmento P: Nosso Número no formato correto BTG (não zeros)
+- [ ] Segmento P: código carteira/modalidade "24N" (não "20")
+- [ ] Segmento P: datas na ordem correta (emissão depois vencimento)
+- [ ] Segmento Q: endereço, CEP, cidade e UF completos
+- [ ] Segmento R: multa como campo numérico (não texto livre)
+- [ ] Trailers: contagem correta de registros (lote e arquivo)
+- [ ] Nome beneficiário exatamente como cadastrado no BTG (incluindo &)

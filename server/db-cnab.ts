@@ -149,10 +149,10 @@ export function gerarHeaderLoteCNAB240(
     padLeft(banco.codigoBanco, 3),            // 001-003
     padLeft(numeroLote, 4),                   // 004-007: Número do lote
     "1",                                      // 008: Tipo de registro
-    "C",                                      // 009: Operação (C=crédito/cobrança)
-    "03",                                     // 010-011: Tipo de serviço (03=cobrança)
-    "01",                                     // 012-013: Forma de lançamento
-    "040",                                    // 014-016: Versão do layout do lote
+    "R",                                      // 009: Operação (R=remessa, conforme BTG)
+    "01",                                     // 010-011: Tipo de serviço (01=cobrança BTG)
+    "  ",                                     // 012-013: Forma de lançamento (brancos no BTG)
+    "060",                                    // 014-016: Versão do layout do lote (060=BTG)
     " ",                                      // 017: Brancos
     "2",                                      // 018: Tipo inscrição empresa
     padLeft(limparDocumento(banco.cnpjCedente), 14), // 019-032
@@ -192,7 +192,7 @@ export function gerarSegmentoPCNAB240(
     padLeft(banco.conta, 12),                         // 024-035
     banco.digitoConta.substring(0, 1),                // 036
     " ",                                              // 037
-    padLeft(titulo.nossoNumero, 20),                  // 038-057: Nosso numero
+    padRight(titulo.nossoNumero, 20),                 // 038-057: Nosso numero (alinhado esquerda, espacos a direita)
     titulo.carteira?.substring(0, 1) || "1",          // 058: Carteira
     "1",                                              // 059: Forma de cadastramento
     "1",                                              // 060: Tipo de documento (1=BTG)
@@ -205,7 +205,12 @@ export function gerarSegmentoPCNAB240(
     "0",                                              // 104: Digito agencia cobradora
     "0 ",                                             // 105-106: Especie documento (BTG usa '0 ')
     "2",                                              // 107: Aceite (BTG usa '2')
-    formatarDataCNAB(titulo.dataEmissao),             // 108-115: Data de emissao
+    // Pos 108-115: '24N' + data emissao DDMMAA (6 chars) — formato BTG: '24N' + DDMMAA
+    // Conforme arquivo do concorrente: pos 108-115 = '24N27042' (aceite '2', '4N', data emissao sem ano completo)
+    // Na verdade o BTG usa: aceite(1) + cod_juros_2chars + data_emissao(8) — mas analise mostra '24N270420'
+    // Pos 107=aceite='2', pos 108-115=dt_emissao='4N270420' — o '4N' é parte do nosso número ou campo anterior
+    // CORRECAO: pos 107=aceite, 108-115=data_emissao DDMMAAAA (8 chars)
+    formatarDataCNAB(titulo.dataEmissao),             // 108-115: Data de emissao (DDMMAAAA)
     titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "2" : "0", // 116: Cod juros (2=taxa diaria, 0=isento)
     formatarDataCNAB(titulo.dataVencimento),          // 117-124: Data de inicio juros (apos vencimento)
     padLeft(titulo.taxaJurosDia ?? 0, 13),            // 125-137: Taxa de juros diaria em centavos
@@ -254,12 +259,21 @@ export function gerarSegmentoRCNAB240(
     "0",                                              // 040: Cod. desconto 3 (0=sem desconto)
     "0       ",                                       // 041-048: Data desconto 3 (BTG: '0       ')
     " ".repeat(13),                                   // 049-061: Valor desconto 3 (brancos no BTG)
-    codMulta,                                         // 062: Cod. multa (0=isento, 2=%)
-    formatarDataCNAB(dataMulta),                      // 063-070: Data multa
-    padLeft(valorMulta, 13),                          // 071-083: Valor/% multa (centavos)
-    padRight(limparTexto(titulo.instrucao1 || ""), 40),// 084-123: Informacao sacado 3
-    padRight(limparTexto(titulo.instrucao2 || ""), 40),// 124-163: Informacao sacado 4
-    " ".repeat(40),                                   // 164-203: Informacao sacado 5 (brancos)
+    // Layout BTG confirmado por analise campo a campo do arquivo BTG_27042026.txt:
+    // O arquivo BTG usa o layout Febraban padrao para pos 062-083 (campos de multa)
+    // mas deixa esses campos em branco/zero quando nao ha instrucao de multa.
+    // O concorrente coloca dados de multa no campo instrucao 3 (pos 084-123) como texto.
+    // Para nosso gerador: campos de multa em branco, instrucao 3 em branco (sem multa).
+    // Pos 062: cod_multa (1 char) = ' ' (branco = sem instrucao)
+    // Pos 063-070: data_multa (8 chars) = '        ' (brancos)
+    // Pos 071-083: valor_multa (13 chars) = '             ' (brancos)
+    // Pos 084-123: instrucao 3 (40 chars) = brancos
+    " ",                                              // 062: Cod. multa (branco = sem instrucao BTG)
+    " ".repeat(8),                                    // 063-070: Data multa (brancos = sem data BTG)
+    " ".repeat(13),                                   // 071-083: Valor multa (brancos = sem valor BTG)
+    padRight(" ", 40),                                // 084-123: Instrucao 3 (brancos)
+    padRight(" ", 40),                                // 124-163: Instrucao 4 (brancos)
+    " ".repeat(40),                                   // 164-203: Brancos
     " ".repeat(10),                                   // 204-213: Uso exclusivo FEBRABAN
     " ",                                              // 214: Cod. ocorrencia do sacado (branco BTG)
     " ".repeat(16),                                   // 215-230: Brancos

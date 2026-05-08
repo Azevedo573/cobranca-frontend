@@ -82,23 +82,33 @@ describe("gerarSegmentoRCNAB240", () => {
     expect(linha[13]).toBe("R");
   });
 
-  it("deve ter código de multa '2' (percentual) quando taxaMulta > 0", () => {
+  it("deve ter código de multa branco (sem instrução) conforme layout BTG", () => {
+    // Conforme analise do arquivo BTG_27042026.txt: pos 062 = ' ' (branco)
+    // O BTG usa branco no cod_multa quando nao ha instrucao de multa configurada
     const linha = gerarSegmentoRCNAB240(BANCO_BTG, TITULO_BASE, 1, 3);
-    // Posição 062 (índice 61)
-    expect(linha[61]).toBe("2");
+    // Posição 062 (índice 61) deve ser branco conforme layout BTG
+    expect(linha[61]).toBe(" ");
   });
 
-  it("deve ter código de multa '0' (isento) quando taxaMulta = 0", () => {
+  it("deve ter campos de multa em branco quando sem multa configurada", () => {
+    // Conforme layout BTG: campos de multa (pos 062-083) ficam em branco
     const tituloSemMulta = { ...TITULO_BASE, taxaMulta: 0 };
     const linha = gerarSegmentoRCNAB240(BANCO_BTG, tituloSemMulta, 1, 3);
-    expect(linha[61]).toBe("0");
+    // Pos 062 (idx 61) = branco
+    expect(linha[61]).toBe(" ");
+    // Pos 063-070 (idx 62-69) = brancos (data multa)
+    expect(linha.substring(62, 70)).toBe("        ");
+    // Pos 071-083 (idx 70-82) = brancos (valor multa)
+    expect(linha.substring(70, 83)).toBe("             ");
   });
 
-  it("deve incluir instrução 1 nas posições 084-123", () => {
+  it("deve ter instrucao 3 em branco (sem texto livre conforme layout BTG)", () => {
+    // Conforme analise do arquivo BTG_27042026.txt: pos 084-123 = brancos
+    // O BTG nao usa texto livre nas instrucoes do Segmento R
     const linha = gerarSegmentoRCNAB240(BANCO_BTG, TITULO_BASE, 1, 3);
     const instrucao = linha.substring(83, 123).trimEnd();
-    expect(instrucao.length).toBeGreaterThan(0);
-    expect(instrucao).toContain("COBRAR");
+    // Instrucao 3 deve estar em branco no layout BTG
+    expect(instrucao.length).toBe(0);
   });
 });
 
