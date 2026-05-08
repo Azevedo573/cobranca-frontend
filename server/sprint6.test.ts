@@ -58,9 +58,15 @@ describe("Utilitários CNAB 240", () => {
       expect(limparTexto("condomínio")).toBe("CONDOMINIO");
     });
 
-    it("remove caracteres especiais exceto espaço, ponto, hífen e barra", () => {
+    it("remove caracteres especiais exceto espaço, ponto, hífen, barra e '&'", () => {
       // Vírgula e º (ordinal) viram espaços separados, resultando em duplo espaço
       expect(limparTexto("Rua A, nº 10")).toBe("RUA A  N  10");
+    });
+
+    it("preserva o caractere '&' conforme layout BTG", () => {
+      // O arquivo BTG usa 'GOMES & SILVA SOCIEDADE DE ADV' com '&' preservado
+      expect(limparTexto("Gomes & Silva Sociedade de Advogados")).toBe("GOMES & SILVA SOCIEDADE DE ADVOGADOS");
+      expect(limparTexto("João & Maria")).toBe("JOAO & MARIA");
     });
   });
 

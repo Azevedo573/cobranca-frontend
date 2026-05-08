@@ -39,12 +39,12 @@ export function padRight(value: string, length: number): string {
   return String(value).padEnd(length, " ").substring(0, length);
 }
 
-/** Remove acentos e caracteres especiais */
+/** Remove acentos e caracteres especiais, preservando '&' conforme layout BTG */
 export function limparTexto(texto: string): string {
   return texto
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^A-Za-z0-9 .\-\/]/g, " ")
+    .replace(/[^A-Za-z0-9 .\-\/&]/g, " ")
     .toUpperCase()
     .trim();
 }

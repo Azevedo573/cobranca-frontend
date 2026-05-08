@@ -1577,3 +1577,8 @@
 - [ ] Segmento R: multa como campo numérico (não texto livre)
 - [ ] Trailers: contagem correta de registros (lote e arquivo)
 - [ ] Nome beneficiário exatamente como cadastrado no BTG (incluindo &)
+
+## Bug - Caractere '&' removido no nome da empresa no CNAB 240
+- [x] Investigar onde o '&' é removido/substituído no gerador CNAB
+- [x] Corrigir tratamento do '&' no nome da empresa (função limparTexto em db-cnab.ts)
+- [x] Atualizar testes unitários para validar presença do '&'
