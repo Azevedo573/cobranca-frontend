@@ -1,0 +1,23 @@
+{
+  "query": "SELECT id, condominioId, banco, agencia, digitoAgencia, conta, digitoConta, convenio, carteira, nomeBeneficiario, cnpjBeneficiario FROM configuracaoBoleto;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, condominioId, banco, agencia, digitoAgencia, conta, digitoConta, convenio, carteira, nomeBeneficiario, cnpjBeneficiario FROM configuracaoBoleto;",
+  "rows": [
+    {
+      "id": "1",
+      "condominioId": "150001",
+      "banco": "208",
+      "agencia": "0050",
+      "digitoAgencia": "0",
+      "conta": "432260",
+      "digitoConta": "0",
+      "convenio": "",
+      "carteira": "1",
+      "nomeBeneficiario": "GOMES & SILVA SOCIEDADE DE ADVOGADOS",
+      "cnpjBeneficiario": "32.311.089/0001-01"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcondominioId\tbanco\tagencia\tdigitoAgencia\tconta\tdigitoConta\tconvenio\tcarteira\tnomeBeneficiario\tcnpjBeneficiario\n1\t150001\t208\t0050\t0\t432260\t0\t\t1\tGOMES & SILVA SOCIEDADE DE ADVOGADOS\t32.311.089/0001-01\n",
+  "stderr": "",
+  "execution_time_ms": 651
+}

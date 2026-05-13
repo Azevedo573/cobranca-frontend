@@ -1582,3 +1582,20 @@
 - [x] Investigar onde o '&' é removido/substituído no gerador CNAB
 - [x] Corrigir tratamento do '&' no nome da empresa (função limparTexto em db-cnab.ts)
 - [x] Atualizar testes unitários para validar presença do '&'
+
+## Correção CNAB 240 - Dados do Beneficiário (Header Arquivo e Header Lote)
+- [x] Corrigir razão social: GOMES & SILVA SOCIEDADE DE ADVOGADOS (já estava correto no BD)
+- [x] Corrigir CNPJ: 32.311.089/0001-01 (já estava correto no BD)
+- [x] Corrigir agência: 0050 (já estava correto no BD)
+- [x] Corrigir conta: 432260-0 (já estava correto no BD)
+- [x] Corrigir carteira: 1 (já estava correto no BD)
+- [x] Corrigir convênio: 11051861158 (atualizado via SQL)
+- [x] Corrigir Header Arquivo: convênio = 20 zeros, densidade = 5 espaços
+- [x] Corrigir Header Lote: CNPJ = 15 chars (zero à esq), convênio = 20 espaços, ag/conta/cedente conforme BTG
+- [x] Validado: Header Arquivo e Header Lote idênticos ao arquivo BTG_27042026.txt
+
+## Correção - Campo CPF no Cadastro de Devedor
+- [x] Campo cpfCnpj já existia na tabela devedores (schema Drizzle) - sem migração necessária
+- [x] Adicionar campo CPF/CNPJ no formulário DevedorForm com máscara automática
+- [x] Atualizar backend (create/update) para incluir cpfCnpj no schema tRPC
+- [x] Campo cpfCnpj já é usado no Segmento Q do CNAB 240

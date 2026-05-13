@@ -22,6 +22,7 @@ export default function DevedorForm() {
     name: "",
     unitNumber: "",
     bloco: "",
+    cpfCnpj: "",
     email: "",
     phone: "",
     totalDue: "",
@@ -44,6 +45,7 @@ export default function DevedorForm() {
         name: devedor.name || "",
         unitNumber: devedor.unitNumber || "",
         bloco: devedor.bloco || "",
+        cpfCnpj: devedor.cpfCnpj || "",
         email: devedor.email || "",
         phone: devedor.phone || "",
         totalDue: (devedor.totalDue / 100).toFixed(2),
@@ -106,6 +108,7 @@ export default function DevedorForm() {
         name: formData.name,
         unitNumber: formData.unitNumber,
         bloco: formData.bloco || undefined,
+        cpfCnpj: formData.cpfCnpj || undefined,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         totalDue: totalDueInCents,
@@ -116,11 +119,30 @@ export default function DevedorForm() {
         name: formData.name,
         unitNumber: formData.unitNumber,
         bloco: formData.bloco || undefined,
+        cpfCnpj: formData.cpfCnpj || undefined,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         totalDue: totalDueInCents,
       });
     }
+  };
+
+  const handleCpfCnpjChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "");
+    if (value.length <= 11) {
+      // CPF: 000.000.000-00
+      if (value.length > 9) value = value.slice(0, 9) + "-" + value.slice(9);
+      if (value.length > 6) value = value.slice(0, 6) + "." + value.slice(6);
+      if (value.length > 3) value = value.slice(0, 3) + "." + value.slice(3);
+    } else {
+      // CNPJ: 00.000.000/0000-00
+      value = value.slice(0, 14);
+      if (value.length > 12) value = value.slice(0, 12) + "-" + value.slice(12);
+      if (value.length > 8) value = value.slice(0, 8) + "/" + value.slice(8);
+      if (value.length > 5) value = value.slice(0, 5) + "." + value.slice(5);
+      if (value.length > 2) value = value.slice(0, 2) + "." + value.slice(2);
+    }
+    setFormData({ ...formData, cpfCnpj: value });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -245,6 +267,22 @@ export default function DevedorForm() {
                     placeholder="Ex: A, B, C"
                   />
                 </div>
+              </div>
+
+              {/* CPF/CNPJ */}
+              <div className="space-y-2">
+                <Label htmlFor="cpfCnpj">CPF / CNPJ</Label>
+                <Input
+                  id="cpfCnpj"
+                  name="cpfCnpj"
+                  value={formData.cpfCnpj}
+                  onChange={handleCpfCnpjChange}
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  maxLength={18}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Usado na geração do boleto CNAB 240 (Segmento Q)
+                </p>
               </div>
 
               {/* Contato */}

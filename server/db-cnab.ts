@@ -115,13 +115,13 @@ export function gerarHeaderArquivoCNAB240(
     " ".repeat(9),                            // 009-017: Brancos
     "2",                                      // 018: Tipo de inscrição (2=CNPJ)
     padLeft(limparDocumento(banco.cnpjCedente), 14), // 019-032: CNPJ
-    padLeft(banco.convenio, 20),              // 033-052: Convênio
-    padLeft(banco.agencia, 5),                // 053-057: Agência
+    "0".repeat(20),                          // 033-052: Convênio (BTG usa 20 zeros no Header Arquivo)
+    padLeft(banco.agencia, 5),                // 053-057: Agência (5 dígitos com zero à esquerda)
     banco.digitoAgencia.substring(0, 1),      // 058: Dígito agência
-    padLeft(banco.conta, 12),                 // 059-070: Conta
+    padLeft(banco.conta, 12),                 // 059-070: Conta (12 dígitos com zero à esquerda)
     banco.digitoConta.substring(0, 1),        // 071: Dígito conta
-    " ",                                      // 072: Dígito verificador ag/conta
-    padRight(limparTexto(banco.cedente), 30), // 073-102: Nome da empresa
+    " ",                                      // 072: Dígito verificador ag/conta (branco BTG)
+    padRight(limparTexto(banco.cedente), 30), // 073-102: Nome da empresa (30 chars)
     padRight("BTG PACTUAL S/A", 30),          // 103-132: Nome do banco
     " ".repeat(10),                           // 133-142: Brancos
     "1",                                      // 143: Código de remessa (1=remessa)
@@ -131,7 +131,7 @@ export function gerarHeaderArquivoCNAB240(
             dataGeracao.getSeconds().toString().padStart(2,"0"), 6), // 152-157: Hora
     padLeft(numeroRemessa, 6),                // 158-163: Número sequencial do arquivo
     "103",                                    // 164-166: Versão do layout (103 = BTG CNAB240)
-    "00000",                                  // 167-171: Densidade de gravação (BTG usa 00000)
+    " ".repeat(5),                            // 167-171: Densidade (BTG usa 5 espaços, não zeros)
     " ".repeat(20),                           // 172-191: Reservado banco
     " ".repeat(20),                           // 192-211: Reservado empresa
     " ".repeat(29),                           // 212-240: Brancos
@@ -155,14 +155,18 @@ export function gerarHeaderLoteCNAB240(
     "060",                                    // 014-016: Versão do layout do lote (060=BTG)
     " ",                                      // 017: Brancos
     "2",                                      // 018: Tipo inscrição empresa
-    padLeft(limparDocumento(banco.cnpjCedente), 14), // 019-032
-    " ".repeat(20),                          // 033-052: Convenio (brancos no BTG)
-    padLeft(banco.agencia, 5),                // 053-057
-    banco.digitoAgencia.substring(0, 1),      // 058
-    padLeft(banco.conta, 12),                 // 059-070
-    banco.digitoConta.substring(0, 1),        // 071
-    " ",                                      // 072
-    padRight(limparTexto(banco.cedente), 30), // 073-102
+    // Pos 019-033: CNPJ no Header de Lote BTG usa 15 chars (com zero à esquerda)
+    // Conforme BTG_27042026.txt: '032311089000101' (CNPJ 14 chars + zero à esquerda = 15)
+    padLeft(limparDocumento(banco.cnpjCedente), 15), // 019-033: CNPJ (15 chars BTG)
+    // Pos 034-053: Convênio no Header de Lote BTG = 20 espaços (brancos)
+    // Conforme BTG_27042026.txt: '                    ' (20 espaços)
+    " ".repeat(20),                           // 034-053: Convênio (20 espaços BTG)
+    padLeft(banco.agencia, 5),                // 054-058: Agência (5 dígitos, igual Header Arquivo)
+    banco.digitoAgencia.substring(0, 1),      // 059: Dígito agência
+    padLeft(banco.conta, 12),                 // 060-071: Conta (12 dígitos, igual Header Arquivo)
+    banco.digitoConta.substring(0, 1),        // 072: Dígito conta
+    " ",                                      // 073: Dígito verificador ag/conta (branco BTG)
+    padRight(limparTexto(banco.cedente), 30), // 074-103: Cedente (30 chars, sem espaço inicial)
     " ".repeat(40),                           // 103-142: Informação 1
     " ".repeat(40),                           // 143-182: Informação 2
     " ".repeat(29),                           // 183-211: Brancos
