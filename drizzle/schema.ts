@@ -348,3 +348,29 @@ export type RemessaCNAB = typeof remessasCNAB.$inferSelect;
 export type InsertRemessaCNAB = typeof remessasCNAB.$inferInsert;
 export type RetornoCNAB = typeof retornosCNAB.$inferSelect;
 export type InsertRetornoCNAB = typeof retornosCNAB.$inferInsert;
+
+// Itens individuais do arquivo de retorno CNAB 240
+export const retornoItens = mysqlTable("retornoItens", {
+  id: int("id").autoincrement().primaryKey(),
+  retornoId: int("retornoId").notNull(),           // FK para retornosCNAB
+  cobrancaId: int("cobrancaId"),                    // FK para cobrancas (pode ser null se não encontrado)
+  nossoNumero: varchar("nossoNumero", { length: 30 }).notNull(),
+  codMovimento: varchar("codMovimento", { length: 5 }).notNull(),
+  descMovimento: varchar("descMovimento", { length: 100 }).notNull(),
+  codOcorrencia: varchar("codOcorrencia", { length: 5 }),
+  descOcorrencia: varchar("descOcorrencia", { length: 100 }),
+  dataVencimento: timestamp("dataVencimento"),
+  valorTitulo: int("valorTitulo").default(0).notNull(),  // em centavos
+  valorPago: int("valorPago").default(0).notNull(),      // em centavos
+  dataOcorrencia: timestamp("dataOcorrencia"),
+  dataCredito: timestamp("dataCredito"),
+  cpfCnpjPagador: varchar("cpfCnpjPagador", { length: 20 }),
+  nomePagador: varchar("nomePagador", { length: 100 }),
+  statusProcessamento: mysqlEnum("statusProcessamento", ["processado", "nao_encontrado", "erro"]).default("processado").notNull(),
+  statusAnterior: varchar("statusAnterior", { length: 30 }),  // status da cobrança antes do processamento
+  statusNovo: varchar("statusNovo", { length: 30 }),          // status da cobrança após o processamento
+  observacao: text("observacao"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type RetornoItem = typeof retornoItens.$inferSelect;
+export type InsertRetornoItem = typeof retornoItens.$inferInsert;

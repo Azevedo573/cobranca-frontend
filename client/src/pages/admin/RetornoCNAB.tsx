@@ -8,39 +8,25 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
   Upload, FileText, CheckCircle2, XCircle, AlertTriangle,
-  Download, Clock, TrendingUp, Banknote, RefreshCw,
+  Clock, TrendingUp, Banknote, RefreshCw, ArrowRightLeft,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
-interface TituloRetorno {
-  nossoNumero: string;
-  cobrancaIdEmpresa: string;
-  codigoOcorrencia: string;
-  descricaoOcorrencia: string;
-  dataOcorrencia: string;
-  dataPagamento: string;
-  valorPago: number;
-  valorTarifa: number;
-  valorJuros: number;
-  devedorNome: string;
-  devedorCpfCnpj: string;
-  processado: boolean;
-  cobrancaId?: number;
-}
-
 interface ResultadoRetorno {
+  retornoId: number;
   totalTitulos: number;
+  entradas: number;
   pagos: number;
-  erros: number;
-  detalhes: TituloRetorno[];
+  cancelados: number;
+  naoEncontrados: number;
+  valorTotalPago: number;
+  dataGeracao: string;
+  horaGeracao: string;
 }
 
 export default function RetornoCNAB() {
@@ -51,7 +37,6 @@ export default function RetornoCNAB() {
   const [retornoConteudo, setRetornoConteudo] = useState("");
   const [retornoNomeArquivo, setRetornoNomeArquivo] = useState("");
   const [resultadoRetorno, setResultadoRetorno] = useState<ResultadoRetorno | null>(null);
-  const [detalheDialogOpen, setDetalheDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -64,10 +49,15 @@ export default function RetornoCNAB() {
   const processarRetornoMutation = trpc.cnab.processarRetorno.useMutation({
     onSuccess: (data) => {
       setResultadoRetorno(data);
-      setDetalheDialogOpen(true);
       utils.cnab.listarRetornos.invalidate();
       utils.cobrancas.list.invalidate();
-      toast.success(`Retorno processado: ${data.pagos} título(s) pago(s)`);
+      if (data.pagos > 0) {
+        toast.success(`Retorno processado: ${data.pagos} título(s) pago(s)`);
+      } else if (data.entradas > 0) {
+        toast.success(`Retorno processado: ${data.entradas} entrada(s) confirmada(s)`);
+      } else {
+        toast.info(`Retorno processado: ${data.totalTitulos} título(s) analisado(s)`);
+      }
     },
     onError: (err) => toast.error("Erro ao processar retorno: " + err.message),
   });
@@ -122,16 +112,9 @@ export default function RetornoCNAB() {
   const formatarMoeda = (centavos: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(centavos / 100);
 
-  const getOcorrenciaBadge = (codigo: string) => {
-    const pagos = ["06", "07", "08", "09", "15", "17"];
-    const erros = ["03", "04", "05", "10", "11", "12"];
-    if (pagos.includes(codigo)) {
-      return <Badge className="bg-green-100 text-green-700 border-green-200"><CheckCircle2 className="h-3 w-3 mr-1" />Pago</Badge>;
-    }
-    if (erros.includes(codigo)) {
-      return <Badge className="bg-red-100 text-red-700 border-red-200"><XCircle className="h-3 w-3 mr-1" />Erro</Badge>;
-    }
-    return <Badge variant="outline" className="text-blue-600 border-blue-300">{codigo}</Badge>;
+  const formatarDataGeracao = (ddmmaaaa: string) => {
+    if (!ddmmaaaa || ddmmaaaa.length < 8) return ddmmaaaa;
+    return `${ddmmaaaa.substring(0, 2)}/${ddmmaaaa.substring(2, 4)}/${ddmmaaaa.substring(4, 8)}`;
   };
 
   return (
@@ -140,7 +123,7 @@ export default function RetornoCNAB() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Download className="h-6 w-6 text-primary" />
+            <ArrowRightLeft className="h-6 w-6 text-primary" />
             Retorno CNAB 240
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -174,7 +157,6 @@ export default function RetornoCNAB() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Drop zone */}
               <div
                 className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors
                   ${retornoNomeArquivo
@@ -200,7 +182,7 @@ export default function RetornoCNAB() {
                       Clique ou arraste o arquivo de retorno aqui
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Formatos aceitos: .ret, .txt, .240 (CNAB 240 padrão Febraban)
+                      Formatos aceitos: .ret, .txt, .240 (CNAB 240 — BTG Pactual)
                     </p>
                   </div>
                 )}
@@ -243,66 +225,51 @@ export default function RetornoCNAB() {
 
           {/* Resultado do último processamento */}
           {resultadoRetorno && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card className="border-green-200 bg-green-50">
-                <CardContent className="pt-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-green-700">{resultadoRetorno.pagos}</p>
-                      <p className="text-xs text-green-600">Títulos Pagos</p>
-                    </div>
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Resultado do Processamento
+                  {resultadoRetorno.dataGeracao && (
+                    <span className="text-xs font-normal text-muted-foreground ml-2">
+                      Arquivo gerado em {formatarDataGeracao(resultadoRetorno.dataGeracao)}
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-foreground">{resultadoRetorno.totalTitulos}</p>
+                    <p className="text-xs text-muted-foreground">Total de Títulos</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-red-200 bg-red-50">
-                <CardContent className="pt-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                      <XCircle className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-red-700">{resultadoRetorno.erros}</p>
-                      <p className="text-xs text-red-600">Erros / Rejeições</p>
-                    </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{resultadoRetorno.entradas}</p>
+                    <p className="text-xs text-muted-foreground">Entradas Confirmadas</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-blue-200 bg-blue-50">
-                <CardContent className="pt-5">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                      <Banknote className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-blue-700">
-                        {formatarMoeda(
-                          resultadoRetorno.detalhes
-                            .filter(d => d.processado)
-                            .reduce((acc, d) => acc + d.valorPago, 0)
-                        )}
-                      </p>
-                      <p className="text-xs text-blue-600">Valor Total Recebido</p>
-                    </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-600">{resultadoRetorno.pagos}</p>
+                    <p className="text-xs text-muted-foreground">Títulos Pagos</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              <div className="sm:col-span-3">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setDetalheDialogOpen(true)}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Ver detalhes dos {resultadoRetorno.totalTitulos} títulos processados
-                </Button>
-              </div>
-            </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-orange-600">{resultadoRetorno.cancelados}</p>
+                    <p className="text-xs text-muted-foreground">Baixados/Cancelados</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-red-600">{resultadoRetorno.naoEncontrados}</p>
+                    <p className="text-xs text-muted-foreground">Não Encontrados</p>
+                  </div>
+                </div>
+                {resultadoRetorno.valorTotalPago > 0 && (
+                  <div className="mt-4 pt-4 border-t border-primary/20 text-center">
+                    <p className="text-sm text-muted-foreground">Valor Total Recebido</p>
+                    <p className="text-3xl font-bold text-green-600">
+                      {formatarMoeda(resultadoRetorno.valorTotalPago)}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {/* Histórico de retornos */}
@@ -330,10 +297,10 @@ export default function RetornoCNAB() {
                     <TableRow>
                       <TableHead>Arquivo</TableHead>
                       <TableHead>Data</TableHead>
+                      <TableHead className="text-center">Total</TableHead>
                       <TableHead className="text-center">Pagos</TableHead>
-                      <TableHead className="text-center">Rejeitados</TableHead>
+                      <TableHead className="text-center">Não Encontrados</TableHead>
                       <TableHead className="text-right">Valor Recebido</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -342,6 +309,9 @@ export default function RetornoCNAB() {
                         <TableCell className="font-medium text-sm">{r.nomeArquivo}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {formatarData(r.createdAt)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline">{r.totalTitulos}</Badge>
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge className="bg-green-100 text-green-700 border-green-200">
@@ -360,12 +330,6 @@ export default function RetornoCNAB() {
                         <TableCell className="text-right font-semibold text-green-700">
                           {formatarMoeda(r.valorTotalPago)}
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Processado
-                          </Badge>
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -375,85 +339,6 @@ export default function RetornoCNAB() {
           </Card>
         </>
       )}
-
-      {/* Dialog: Detalhes do retorno */}
-      <Dialog open={detalheDialogOpen} onOpenChange={setDetalheDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Detalhes do Retorno — {retornoNomeArquivo}
-            </DialogTitle>
-          </DialogHeader>
-          {resultadoRetorno && (
-            <div className="space-y-4">
-              <div className="flex gap-4 text-sm">
-                <span className="text-green-600 font-medium">
-                  <CheckCircle2 className="inline h-4 w-4 mr-1" />
-                  {resultadoRetorno.pagos} pagos
-                </span>
-                <span className="text-red-600 font-medium">
-                  <XCircle className="inline h-4 w-4 mr-1" />
-                  {resultadoRetorno.erros} erros
-                </span>
-                <span className="text-muted-foreground">
-                  {resultadoRetorno.totalTitulos} total
-                </span>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nosso Nº</TableHead>
-                    <TableHead>Devedor</TableHead>
-                    <TableHead>Ocorrência</TableHead>
-                    <TableHead>Data Pgto</TableHead>
-                    <TableHead className="text-right">Valor Pago</TableHead>
-                    <TableHead className="text-right">Tarifa</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {resultadoRetorno.detalhes.map((t, i) => (
-                    <TableRow key={i} className={t.processado ? "" : "opacity-60"}>
-                      <TableCell className="font-mono text-xs">{t.nossoNumero}</TableCell>
-                      <TableCell className="text-sm">{t.devedorNome || "—"}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          {getOcorrenciaBadge(t.codigoOcorrencia)}
-                          <span className="text-xs text-muted-foreground">{t.descricaoOcorrencia}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {t.dataPagamento && t.dataPagamento !== "00000000"
-                          ? t.dataPagamento
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {t.valorPago > 0 ? formatarMoeda(t.valorPago) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground text-sm">
-                        {t.valorTarifa > 0 ? formatarMoeda(t.valorTarifa) : "—"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {t.processado ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Baixado
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-amber-600 border-amber-300">
-                            Não encontrado
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

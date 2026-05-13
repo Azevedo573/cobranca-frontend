@@ -1673,30 +1673,189 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
-        const { parsearRetornoCNAB240, processarTitulosRetorno, criarRetornoCNAB } = await import("./db-cnab");
+        const { parseRetornoCNAB240, determinarNovoStatus } = await import("./db-cnab-retorno");
+        const { criarRetornoCNAB } = await import("./db-cnab");
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { cobrancas, parcelasAcordo, acordos, retornoItens, retornosCNAB } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
 
-        const titulos = parsearRetornoCNAB240(input.conteudo);
-        const resultado = await processarTitulosRetorno(titulos, condId);
+        // Parsear o arquivo de retorno com o layout real do BTG (Segmentos T e U)
+        const retorno = parseRetornoCNAB240(input.conteudo);
 
-        await criarRetornoCNAB({
+        let pagos = 0;
+        let entradas = 0;
+        let cancelados = 0;
+        let naoEncontrados = 0;
+        let valorTotalPago = 0;
+
+        // Criar registro do retorno no banco
+        const [retornoResult] = await db.insert(retornosCNAB).values({
           condominioId: condId,
           usuarioId: ctx.user.id,
           banco: "BTG",
           nomeArquivo: input.nomeArquivo,
-          totalTitulos: titulos.length,
-          titulosPagos: resultado.pagos,
-          titulosRejeitados: resultado.erros,
-          valorTotalPago: resultado.detalhes
-            .filter(t => t.processado && t.cobrancaId)
-            .reduce((s, t) => s + (t.valorPago || 0), 0),
-          detalhes: JSON.stringify(resultado.detalhes),
+          totalTitulos: retorno.pares.length,
+          titulosPagos: 0, // será atualizado ao final
+          titulosRejeitados: 0,
+          valorTotalPago: 0,
+          detalhes: "{}",
         });
+        const retornoId = (retornoResult as any).insertId as number;
+
+        const itensParaInserir: any[] = [];
+
+        for (const par of retorno.pares) {
+          const { segmentoT, segmentoU } = par;
+          const nossoNumero = segmentoT.nossoNumero;
+          const novoStatus = determinarNovoStatus(segmentoT.codMovimento, segmentoT.codOcorrencia);
+          const valorPago = segmentoU.valorPago || 0;
+          const dataVencimento = segmentoT.dataVencimento ? new Date(segmentoT.dataVencimento) : null;
+          const dataOcorrencia = segmentoU.dataOcorrencia ? new Date(segmentoU.dataOcorrencia) : null;
+          const dataCredito = segmentoU.dataCredito ? new Date(segmentoU.dataCredito) : null;
+
+          let cobrancaId: number | null = null;
+          let statusAnterior: string | null = null;
+          let statusProcessamento: "processado" | "nao_encontrado" | "erro" = "nao_encontrado";
+          let observacao = "";
+
+          // 1. Buscar cobrança avulsa pelo nosso número
+          const [cobranca] = await db
+            .select()
+            .from(cobrancas)
+            .where(and(
+              eq(cobrancas.nossoNumero, nossoNumero),
+              eq(cobrancas.condominioId, condId)
+            ))
+            .limit(1);
+
+          if (cobranca) {
+            cobrancaId = cobranca.id;
+            statusAnterior = cobranca.status;
+
+            if (novoStatus && cobranca.status !== novoStatus) {
+              const updateData: Record<string, any> = { status: novoStatus };
+              if (novoStatus === "pago") {
+                updateData.paidAt = dataCredito || dataOcorrencia || new Date();
+                updateData.paidAmount = valorPago || cobranca.amount;
+                valorTotalPago += valorPago;
+                pagos++;
+              } else if (novoStatus === "em_cobranca") {
+                entradas++;
+              } else if (novoStatus === "cancelado") {
+                cancelados++;
+              }
+              await db.update(cobrancas).set(updateData).where(eq(cobrancas.id, cobranca.id));
+              statusProcessamento = "processado";
+              observacao = `Status alterado de '${statusAnterior}' para '${novoStatus}'`;
+            } else if (cobranca.status === novoStatus) {
+              statusProcessamento = "processado";
+              observacao = `Status já era '${novoStatus}' — sem alteração`;
+            } else {
+              statusProcessamento = "processado";
+              observacao = `Ocorrência '${segmentoT.descOcorrencia}' registrada`;
+            }
+          } else {
+            // 2. Buscar parcela de acordo pelo nosso número
+            const [parcela] = await db
+              .select({
+                id: parcelasAcordo.id,
+                acordoId: parcelasAcordo.acordoId,
+                amount: parcelasAcordo.amount,
+                status: parcelasAcordo.status,
+              })
+              .from(parcelasAcordo)
+              .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+              .where(and(
+                eq(parcelasAcordo.nossoNumero, nossoNumero),
+                eq(acordos.condominioId, condId)
+              ))
+              .limit(1);
+
+            if (parcela) {
+              statusAnterior = parcela.status;
+              if (novoStatus === "pago" && parcela.status !== "pago") {
+                const dataPag = dataCredito || dataOcorrencia || new Date();
+                await db.update(parcelasAcordo).set({
+                  status: "pago",
+                  paymentDate: dataPag,
+                  statusRemessa: "retorno_recebido",
+                }).where(eq(parcelasAcordo.id, parcela.id));
+
+                // Verificar se todas as parcelas do acordo foram pagas
+                const todasParcelas = await db
+                  .select({ status: parcelasAcordo.status })
+                  .from(parcelasAcordo)
+                  .where(eq(parcelasAcordo.acordoId, parcela.acordoId));
+                if (todasParcelas.every(p => p.status === "pago")) {
+                  await db.update(acordos).set({ status: "pago" }).where(eq(acordos.id, parcela.acordoId));
+                }
+
+                valorTotalPago += valorPago;
+                pagos++;
+                statusProcessamento = "processado";
+                observacao = "Parcela de acordo baixada";
+              } else if (novoStatus === "em_cobranca") {
+                await db.update(parcelasAcordo).set({ statusRemessa: "enviado" }).where(eq(parcelasAcordo.id, parcela.id));
+                entradas++;
+                statusProcessamento = "processado";
+                observacao = "Entrada confirmada para parcela de acordo";
+              } else {
+                statusProcessamento = "processado";
+                observacao = `Ocorrência '${segmentoT.descOcorrencia}' registrada para parcela de acordo`;
+              }
+            } else {
+              naoEncontrados++;
+              statusProcessamento = "nao_encontrado";
+              observacao = `Título com nosso número '${nossoNumero}' não encontrado no sistema`;
+            }
+          }
+
+          itensParaInserir.push({
+            retornoId,
+            cobrancaId,
+            nossoNumero,
+            codMovimento: segmentoT.codMovimento,
+            descMovimento: segmentoT.descMovimento,
+            codOcorrencia: segmentoT.codOcorrencia || null,
+            descOcorrencia: segmentoT.descOcorrencia || null,
+            dataVencimento,
+            valorTitulo: segmentoT.valorTitulo,
+            valorPago,
+            dataOcorrencia,
+            dataCredito,
+            cpfCnpjPagador: segmentoT.cpfCnpjPagador || null,
+            nomePagador: segmentoT.nomePagador || null,
+            statusProcessamento,
+            statusAnterior,
+            statusNovo: novoStatus,
+            observacao,
+          });
+        }
+
+        // Inserir todos os itens
+        if (itensParaInserir.length > 0) {
+          await db.insert(retornoItens).values(itensParaInserir);
+        }
+
+        // Atualizar totais do retorno
+        await db.update(retornosCNAB).set({
+          titulosPagos: pagos,
+          titulosRejeitados: naoEncontrados,
+          valorTotalPago,
+          detalhes: JSON.stringify({ entradas, pagos, cancelados, naoEncontrados }),
+        }).where(eq(retornosCNAB.id, retornoId));
 
         return {
-          totalTitulos: titulos.length,
-          pagos: resultado.pagos,
-          erros: resultado.erros,
-          detalhes: resultado.detalhes,
+          retornoId,
+          totalTitulos: retorno.pares.length,
+          entradas,
+          pagos,
+          cancelados,
+          naoEncontrados,
+          valorTotalPago,
+          dataGeracao: retorno.header.dataGeracao,
+          horaGeracao: retorno.header.horaGeracao,
         };
       }),
 

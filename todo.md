@@ -1599,3 +1599,14 @@
 - [x] Adicionar campo CPF/CNPJ no formulário DevedorForm com máscara automática
 - [x] Atualizar backend (create/update) para incluir cpfCnpj no schema tRPC
 - [x] Campo cpfCnpj já é usado no Segmento Q do CNAB 240
+
+## Módulo de Processamento de Arquivo de Retorno CNAB 240 BTG
+- [x] Analisar layout do arquivo de retorno BTG (segmentos T, U, Header Retorno, Trailer)
+- [x] Criar parser do arquivo de retorno CNAB 240 (db-cnab-retorno.ts) com offsets validados no arquivo real
+- [x] Criar tabela retornoItens no schema Drizzle e executar db:push
+- [x] Atualizar procedure processarRetorno no router tRPC para usar novo parser (Segmentos T/U)
+- [x] Atualizar status das cobranças conforme código de movimento (02=em_cobranca, 06/07=pago, 09/10=cancelado, 03=pendente)
+- [x] Gravar itens individuais na tabela retornoItens com status de processamento
+- [x] Atualizar página RetornoCNAB.tsx com novo formato de resultado (entradas, pagos, cancelados, naoEncontrados)
+- [x] Atualizar página CNAB240.tsx com novo formato de resultado do retorno
+- [x] Escrever testes unitários para o parser de retorno (232 testes passando)

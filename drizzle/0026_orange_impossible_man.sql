@@ -1,0 +1,23 @@
+CREATE TABLE `retornoItens` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`retornoId` int NOT NULL,
+	`cobrancaId` int,
+	`nossoNumero` varchar(30) NOT NULL,
+	`codMovimento` varchar(5) NOT NULL,
+	`descMovimento` varchar(100) NOT NULL,
+	`codOcorrencia` varchar(5),
+	`descOcorrencia` varchar(100),
+	`dataVencimento` timestamp,
+	`valorTitulo` int NOT NULL DEFAULT 0,
+	`valorPago` int NOT NULL DEFAULT 0,
+	`dataOcorrencia` timestamp,
+	`dataCredito` timestamp,
+	`cpfCnpjPagador` varchar(20),
+	`nomePagador` varchar(100),
+	`statusProcessamento` enum('processado','nao_encontrado','erro') NOT NULL DEFAULT 'processado',
+	`statusAnterior` varchar(30),
+	`statusNovo` varchar(30),
+	`observacao` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `retornoItens_id` PRIMARY KEY(`id`)
+);

@@ -176,6 +176,13 @@
       "when": 1777382886232,
       "tag": "0025_funny_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1778634153114,
+      "tag": "0026_orange_impossible_man",
+      "breakpoints": true
     }
   ]
 }

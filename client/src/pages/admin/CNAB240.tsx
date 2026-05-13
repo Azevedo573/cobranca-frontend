@@ -34,6 +34,18 @@ interface DadosBanco {
   cnpjCedente: string;
 }
 
+interface ResultadoRetornoNovo {
+  retornoId: number;
+  totalTitulos: number;
+  entradas: number;
+  pagos: number;
+  cancelados: number;
+  naoEncontrados: number;
+  valorTotalPago: number;
+  dataGeracao: string;
+  horaGeracao: string;
+}
+
 interface TituloRetorno {
   nossoNumero: string;
   cobrancaIdEmpresa: string;
@@ -69,7 +81,7 @@ export default function CNAB240() {
   const [dadosBanco, setDadosBanco] = useState<DadosBanco>(DEFAULT_BANCO);
   const [cobrancasSelecionadas, setCobrancasSelecionadas] = useState<number[]>([]);
   const [resultadoRemessa, setResultadoRemessa] = useState<{ nomeArquivo: string; conteudo: string; totalTitulos: number; valorTotal: number } | null>(null);
-  const [resultadoRetorno, setResultadoRetorno] = useState<{ totalTitulos: number; pagos: number; erros: number; detalhes: TituloRetorno[] } | null>(null);
+  const [resultadoRetorno, setResultadoRetorno] = useState<ResultadoRetornoNovo | null>(null);
   const [retornoConteudo, setRetornoConteudo] = useState("");
   const [retornoNomeArquivo, setRetornoNomeArquivo] = useState("");
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -886,49 +898,32 @@ export default function CNAB240() {
           </DialogHeader>
           {resultadoRetorno && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Card className="p-4 text-center">
-                  <p className="text-sm text-muted-foreground">Total</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
                   <p className="text-2xl font-bold">{resultadoRetorno.totalTitulos}</p>
                 </Card>
+                <Card className="p-4 text-center bg-blue-50 border-blue-200">
+                  <p className="text-xs text-blue-600">Entradas</p>
+                  <p className="text-2xl font-bold text-blue-700">{resultadoRetorno.entradas}</p>
+                </Card>
                 <Card className="p-4 text-center bg-green-50 border-green-200">
-                  <p className="text-sm text-green-600">Pagos</p>
+                  <p className="text-xs text-green-600">Pagos</p>
                   <p className="text-2xl font-bold text-green-700">{resultadoRetorno.pagos}</p>
                 </Card>
                 <Card className="p-4 text-center bg-red-50 border-red-200">
-                  <p className="text-sm text-red-600">Não processados</p>
-                  <p className="text-2xl font-bold text-red-700">{resultadoRetorno.erros}</p>
+                  <p className="text-xs text-red-600">Não encontrados</p>
+                  <p className="text-2xl font-bold text-red-700">{resultadoRetorno.naoEncontrados}</p>
                 </Card>
               </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Títulos processados:</h4>
-                <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {resultadoRetorno.detalhes.map((t, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-start gap-2 text-sm p-2 rounded ${
-                        t.processado && t.cobrancaId ? "bg-green-50" : "bg-muted/30"
-                      }`}
-                    >
-                      {t.processado && t.cobrancaId ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                      )}
-                      <div>
-                        <span className="font-medium">{t.devedorNome || `Nosso nº ${t.nossoNumero}`}</span>
-                        <span className="text-muted-foreground ml-2">— {t.descricaoOcorrencia}</span>
-                        {t.valorPago > 0 && (
-                          <span className="text-green-600 ml-2 font-medium">
-                            R$ {(t.valorPago / 100).toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              {resultadoRetorno.valorTotalPago > 0 && (
+                <div className="text-center py-2">
+                  <p className="text-sm text-muted-foreground">Valor Total Recebido</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resultadoRetorno.valorTotalPago / 100)}
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
           )}
           <DialogFooter>
