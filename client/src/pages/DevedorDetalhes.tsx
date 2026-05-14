@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2 } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2 } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -33,6 +33,19 @@ export default function DevedorDetalhes() {
   const devedorId = params?.id ? parseInt(params.id) : null;
   const [modalDividaOpen, setModalDividaOpen] = useState(false);
   const [modalTentativaOpen, setModalTentativaOpen] = useState(false);
+  const [gerandoBoleto, setGerandoBoleto] = useState<number | null>(null);
+
+  const gerarBoletoPDFMutation = trpc.cobrancas.gerarBoletoPDF.useMutation({
+    onSuccess: (data) => {
+      setGerandoBoleto(null);
+      window.open(data.url, "_blank");
+      toast.success(`Boleto gerado! Linha digitável: ${data.linhaDigitavel}`);
+    },
+    onError: (err) => {
+      setGerandoBoleto(null);
+      toast.error("Erro ao gerar boleto: " + err.message);
+    },
+  });
 
   const { data: devedor, isLoading } = trpc.devedores.getById.useQuery(
     { id: devedorId! },
@@ -305,6 +318,7 @@ export default function DevedorDetalhes() {
                         <TableHead>Correção</TableHead>
                         <TableHead>Valor Atualizado</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Boleto</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -332,6 +346,29 @@ export default function DevedorDetalhes() {
                               <Badge variant={cob.status === "pago" ? "outline" : "default"} className="text-xs">
                                 {cob.status}
                               </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {cob.nossoNumero ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs"
+                                  disabled={gerandoBoleto === cob.id}
+                                  onClick={() => {
+                                    setGerandoBoleto(cob.id);
+                                    gerarBoletoPDFMutation.mutate({ cobrancaId: cob.id });
+                                  }}
+                                >
+                                  {gerandoBoleto === cob.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <FileDown className="h-3 w-3 mr-1" />
+                                  )}
+                                  PDF
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Sem remessa</span>
+                              )}
                             </TableCell>
                           </TableRow>
                         );

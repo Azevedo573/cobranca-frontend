@@ -392,6 +392,97 @@ export const appRouter = router({
       const { importarCobrancasPlanilha } = await import("./db-cobrancas");
       return await importarCobrancasPlanilha(input.devedorId, input.condominioId, input.fileBase64);
     }),
+
+    // Gerar PDF do boleto para uma cobrança específica
+    gerarBoletoPDF: protectedProcedure
+      .input(z.object({ cobrancaId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { getCobrancaById } = await import("./db-cobrancas");
+        const { getDevedorById } = await import("./db-devedores");
+        const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+        const { getCondominioById } = await import("./db-condominios");
+        const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
+        const { storagePut } = await import("./storage");
+
+        const cobranca = await getCobrancaById(input.cobrancaId);
+        if (!cobranca) throw new TRPCError({ code: "NOT_FOUND", message: "Cobrança não encontrada" });
+        if (!cobranca.nossoNumero) throw new TRPCError({ code: "BAD_REQUEST", message: "Cobrança sem nosso número — envie a remessa CNAB primeiro" });
+
+        const devedor = await getDevedorById(cobranca.devedorId);
+        if (!devedor) throw new TRPCError({ code: "NOT_FOUND", message: "Devedor não encontrado" });
+
+        const config = await getConfiguracaoBoleto(cobranca.condominioId);
+        if (!config) throw new TRPCError({ code: "NOT_FOUND", message: "Configuração de boleto não encontrada" });
+
+        const condominio = await getCondominioById(cobranca.condominioId);
+        if (!condominio) throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado" });
+
+        const dataVencimento = cobranca.dueDate ? new Date(cobranca.dueDate) : new Date();
+        const dataEmissao = new Date();
+
+        const instrucoes: string[] = [];
+        if (config.instrucoesCaixa) {
+          const taxa = parseFloat(config.taxaJurosDia || "0") * 30;
+          const multa = parseFloat(config.taxaMulta || "0");
+          instrucoes.push(
+            config.instrucoesCaixa
+              .replace(/#MULTA#/g, `${multa.toFixed(2)}%`)
+              .replace(/#JUROS#/g, `${taxa.toFixed(4)}% ao dia`)
+          );
+        }
+        instrucoes.push("Não receber após 30 dias do vencimento.");
+
+        const nomeSacado = devedor.name ||
+          `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
+
+        const dados = {
+          nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+          cnpjBeneficiario: config.cnpjBeneficiario || condominio.cnpj || "",
+          enderecoBeneficiario: config.enderecoBeneficiario || condominio.address || "",
+          banco: config.banco,
+          nomeBanco: config.nomeBanco,
+          agencia: config.agencia,
+          digitoAgencia: config.digitoAgencia,
+          conta: config.conta,
+          digitoConta: config.digitoConta,
+          carteira: config.carteira,
+          convenio: config.convenio,
+          nossoNumero: cobranca.nossoNumero,
+          dataVencimento,
+          dataEmissao,
+          valor: cobranca.amount,
+          especieDocumento: config.especieDocumento,
+          aceite: config.aceite,
+          nomeSacado,
+          cpfCnpjSacado: devedor.cpfCnpj || "",
+          enderecoSacado: condominio.address || "",
+          cidadeSacado: condominio.city || "",
+          ufSacado: condominio.state || "",
+          cepSacado: condominio.zipCode || "",
+          localPagamento: config.localPagamento,
+          instrucoes,
+          seuNumero: cobranca.nossoNumero,
+        };
+
+        const pdfBuffer = await gerarBoletoPDF(dados);
+
+        // Salvar no S3
+        const fileKey = `boletos/${cobranca.condominioId}/${cobranca.nossoNumero}-${Date.now()}.pdf`;
+        const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+
+        // Calcular linha digitável para retornar ao frontend
+        const codigoBarras = calcularCodigoBarras(dados);
+        const linhaDigitavel = formatarLinhaDigitavel(calcularLinhaDigitavel(codigoBarras));
+
+        return {
+          url,
+          linhaDigitavel,
+          codigoBarras,
+          nossoNumero: cobranca.nossoNumero,
+          valor: cobranca.amount,
+          vencimento: dataVencimento.toISOString(),
+        };
+      }),
   }),
 
   // Tentativas de Cobrança

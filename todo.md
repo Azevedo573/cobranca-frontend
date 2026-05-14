@@ -1610,3 +1610,14 @@
 - [x] Atualizar página RetornoCNAB.tsx com novo formato de resultado (entradas, pagos, cancelados, naoEncontrados)
 - [x] Atualizar página CNAB240.tsx com novo formato de resultado do retorno
 - [x] Escrever testes unitários para o parser de retorno (232 testes passando)
+
+## Gerador de PDF do Boleto Bancário BTG Pactual
+- [x] Calcular código de barras (44 dígitos) e linha digitável (47 dígitos) conforme FEBRABAN
+- [x] Implementar fator de vencimento com suporte à nova data base FEBRABAN (22/02/2025)
+- [x] Implementar dígito verificador do código de barras (módulo 11)
+- [x] Implementar dígitos verificadores dos campos da linha digitável (módulo 10)
+- [x] Criar gerador de PDF do boleto com layout padrão FEBRABAN (pdfkit)
+- [x] Incluir no PDF: código de barras I25, linha digitável, recibo do sacado, dados beneficiário, dados sacado, instruções
+- [x] Criar endpoint tRPC gerarBoletoPDF (protectedProcedure) com upload para S3
+- [x] Adicionar botão "PDF" na tabela de cobranças do DevedorDetalhes (só para cobranças com nossoNumero)
+- [x] Escrever 15 testes unitários para cálculo da linha digitável e código de barras (249 testes passando)
