@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2 } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -34,12 +34,38 @@ export default function DevedorDetalhes() {
   const [modalDividaOpen, setModalDividaOpen] = useState(false);
   const [modalTentativaOpen, setModalTentativaOpen] = useState(false);
   const [gerandoBoleto, setGerandoBoleto] = useState<number | null>(null);
+  const [copiadoLinhaId, setCopiadoLinhaId] = useState<number | null>(null);
+  const [copiadoPixId, setCopiadoPixId] = useState<number | null>(null);
+  // Cache dos dados do boleto gerado por cobrancaId
+  const [dadosBoleto, setDadosBoleto] = useState<Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>>({});
+
+  const copiarTexto = (texto: string, tipo: "linha" | "pix", cobrancaId: number) => {
+    navigator.clipboard.writeText(texto).then(() => {
+      if (tipo === "linha") {
+        setCopiadoLinhaId(cobrancaId);
+        setTimeout(() => setCopiadoLinhaId(null), 2000);
+        toast.success("Linha digitável copiada!");
+      } else {
+        setCopiadoPixId(cobrancaId);
+        setTimeout(() => setCopiadoPixId(null), 2000);
+        toast.success("Código Pix copiado!");
+      }
+    });
+  };
 
   const gerarBoletoPDFMutation = trpc.cobrancas.gerarBoletoPDF.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       setGerandoBoleto(null);
+      setDadosBoleto(prev => ({
+        ...prev,
+        [variables.cobrancaId]: {
+          linhaDigitavel: data.linhaDigitavel,
+          pixCopiaCola: data.pixCopiaCola ?? null,
+          url: data.url,
+        },
+      }));
       window.open(data.url, "_blank");
-      toast.success(`Boleto gerado! Linha digitável: ${data.linhaDigitavel}`);
+      toast.success("Boleto gerado com sucesso!");
     },
     onError: (err) => {
       setGerandoBoleto(null);
@@ -349,23 +375,71 @@ export default function DevedorDetalhes() {
                             </TableCell>
                             <TableCell>
                               {cob.nossoNumero ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-xs"
-                                  disabled={gerandoBoleto === cob.id}
-                                  onClick={() => {
-                                    setGerandoBoleto(cob.id);
-                                    gerarBoletoPDFMutation.mutate({ cobrancaId: cob.id });
-                                  }}
-                                >
-                                  {gerandoBoleto === cob.id ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <FileDown className="h-3 w-3 mr-1" />
+                                <div className="flex flex-col gap-1">
+                                  {/* Botão PDF */}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs w-full"
+                                    disabled={gerandoBoleto === cob.id}
+                                    onClick={() => {
+                                      if (dadosBoleto[cob.id]) {
+                                        window.open(dadosBoleto[cob.id].url, "_blank");
+                                      } else {
+                                        setGerandoBoleto(cob.id);
+                                        gerarBoletoPDFMutation.mutate({ cobrancaId: cob.id });
+                                      }
+                                    }}
+                                  >
+                                    {gerandoBoleto === cob.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                    ) : (
+                                      <FileDown className="h-3 w-3 mr-1" />
+                                    )}
+                                    {dadosBoleto[cob.id] ? "Abrir PDF" : "Gerar PDF"}
+                                  </Button>
+
+                                  {/* Botão Copiar Linha Digitável */}
+                                  {dadosBoleto[cob.id] ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                                      onClick={() => copiarTexto(dadosBoleto[cob.id].linhaDigitavel, "linha", cob.id)}
+                                    >
+                                      {copiadoLinhaId === cob.id ? (
+                                        <Check className="h-3 w-3 mr-1 text-green-600" />
+                                      ) : (
+                                        <Copy className="h-3 w-3 mr-1" />
+                                      )}
+                                      {copiadoLinhaId === cob.id ? "Copiado!" : "Copiar Linha"}
+                                    </Button>
+                                  ) : null}
+
+                                  {/* Botão Copiar Pix */}
+                                  {dadosBoleto[cob.id]?.pixCopiaCola ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50"
+                                      onClick={() => copiarTexto(dadosBoleto[cob.id].pixCopiaCola!, "pix", cob.id)}
+                                    >
+                                      {copiadoPixId === cob.id ? (
+                                        <Check className="h-3 w-3 mr-1 text-green-600" />
+                                      ) : (
+                                        <QrCode className="h-3 w-3 mr-1" />
+                                      )}
+                                      {copiadoPixId === cob.id ? "Copiado!" : "Copiar Pix"}
+                                    </Button>
+                                  ) : null}
+
+                                  {/* Gerar pela primeira vez mostra apenas o botão PDF */}
+                                  {!dadosBoleto[cob.id] && (
+                                    <span className="text-xs text-muted-foreground text-center">
+                                      Gere o PDF para copiar
+                                    </span>
                                   )}
-                                  PDF
-                                </Button>
+                                </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">Sem remessa</span>
                               )}

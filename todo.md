@@ -1621,3 +1621,13 @@
 - [x] Criar endpoint tRPC gerarBoletoPDF (protectedProcedure) com upload para S3
 - [x] Adicionar botão "PDF" na tabela de cobranças do DevedorDetalhes (só para cobranças com nossoNumero)
 - [x] Escrever 15 testes unitários para cálculo da linha digitável e código de barras (249 testes passando)
+
+## Botões de Copiar - Linha Digitável e Pix Copia e Cola
+- [x] Endpoint gerarBoletoPDF já retornava linhaDigitavel; adicionado pixCopiaCola ao retorno
+- [x] Implementar geração do código Pix copia e cola (EMV QR Code) no backend (pix-emv.ts)
+- [x] Adicionar campos chavePix e tipoChavePix na tabela configuracaoBoleto (db:push executado)
+- [x] Adicionar botão "Copiar Linha" na tabela de cobranças (DevedorDetalhes) - azul
+- [x] Adicionar botão "Copiar Pix" na tabela de cobranças (DevedorDetalhes) - verde
+- [x] Feedback visual ao copiar: ícone Check + toast de sucesso por 2 segundos
+- [x] Botão PDF alterna entre "Gerar PDF" e "Abrir PDF" após geração (cache local)
+- [x] 21 testes unitários para geração do código Pix EMV (270 testes passando)

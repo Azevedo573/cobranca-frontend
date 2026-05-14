@@ -1,0 +1,2 @@
+ALTER TABLE `configuracaoBoleto` ADD `chavePix` varchar(100) DEFAULT '';--> statement-breakpoint
+ALTER TABLE `configuracaoBoleto` ADD `tipoChavePix` enum('CPF','CNPJ','EMAIL','TELEFONE','ALEATORIA') DEFAULT 'CNPJ';

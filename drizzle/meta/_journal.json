@@ -183,6 +183,13 @@
       "when": 1778634153114,
       "tag": "0026_orange_impossible_man",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1778772165158,
+      "tag": "0027_futuristic_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

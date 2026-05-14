@@ -331,6 +331,9 @@ export const configuracaoBoleto = mysqlTable("configuracaoBoleto", {
   taxaCobrancaPercentual: varchar("taxaCobrancaPercentual", { length: 10 }).default("0.00").notNull(),
   despesaValor: varchar("despesaValor", { length: 15 }).default("0.00").notNull(),
   despesaPercentual: varchar("despesaPercentual", { length: 10 }).default("0.00").notNull(),
+  // === Pix ===
+  chavePix: varchar("chavePix", { length: 100 }).default(""),           // Chave Pix do beneficiário
+  tipoChavePix: mysqlEnum("tipoChavePix", ["CPF", "CNPJ", "EMAIL", "TELEFONE", "ALEATORIA"]).default("CNPJ"),
   // === Nosso Número ===
   nossoNumeroAtual: int("nossoNumeroAtual").default(1000000001).notNull(), // Sequencial por condomínio
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

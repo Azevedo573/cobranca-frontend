@@ -402,6 +402,7 @@ export const appRouter = router({
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         const { getCondominioById } = await import("./db-condominios");
         const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
+        const { gerarPixCopiaCola } = await import("./pix-emv");
         const { storagePut } = await import("./storage");
 
         const cobranca = await getCobrancaById(input.cobrancaId);
@@ -474,10 +475,24 @@ export const appRouter = router({
         const codigoBarras = calcularCodigoBarras(dados);
         const linhaDigitavel = formatarLinhaDigitavel(calcularLinhaDigitavel(codigoBarras));
 
+        // Gerar Pix copia e cola (se a configuração tiver chave Pix)
+        let pixCopiaCola: string | null = null;
+        if (config.habilitarPix && config.chavePix) {
+          pixCopiaCola = gerarPixCopiaCola({
+            chavePix: config.chavePix,
+            nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+            cidade: "SAO PAULO",
+            valor: cobranca.amount,
+            txid: cobranca.nossoNumero || undefined,
+            descricao: `Cobranca ${cobranca.nossoNumero}`,
+          });
+        }
+
         return {
           url,
           linhaDigitavel,
           codigoBarras,
+          pixCopiaCola,
           nossoNumero: cobranca.nossoNumero,
           valor: cobranca.amount,
           vencimento: dataVencimento.toISOString(),
