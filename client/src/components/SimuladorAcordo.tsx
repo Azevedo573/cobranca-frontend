@@ -91,15 +91,15 @@ export function SimuladorAcordo({
       cobrancaIds: [cobrancaId], // Agora aceita array, mas mantém compatibilidade com uso atual
       devedorId,
       condominioId,
-      totalAmount: valorTotal,
-      agreedAmount: planoAcordo.valorTotal,
+      totalAmount: valorTotal / 100,         // centavos → reais para o banco
+      agreedAmount: planoAcordo.valorTotal / 100, // centavos → reais para o banco
       installments: numeroParcelas,
       firstPaymentDate: planoAcordo.parcelas[0]?.dataVencimento || new Date(),
       paymentFrequency: "mensal",
       notes: `Entrada: ${formatarMoedaAcordo(valorEntrada)} + ${numeroParcelas}x de ${formatarMoedaAcordo(planoAcordo.valorParcela)}`,
       parcelas: planoAcordo.parcelas.map((p) => ({
         installmentNumber: p.numeroParcela,
-        amount: p.valor,
+        amount: p.valor / 100, // centavos → reais para o banco
         dueDate: p.dataVencimento,
       })),
     });

@@ -1,0 +1,153 @@
+{
+  "query": "DESCRIBE cobrancas; SELECT id, amount, status FROM cobrancas LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute DESCRIBE cobrancas; SELECT id, amount, status FROM cobrancas LIMIT 5;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "devedorId",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "condominioId",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "tipoCobranca",
+      "Type": "enum('condominio','salao_jogos','churrasqueira','cota_extra','multa','outros')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "condominio",
+      "Extra": ""
+    },
+    {
+      "Field": "description",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "amount",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "dueDate",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "monthReference",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "status",
+      "Type": "enum('pendente','em_cobranca','pago','acordo','em_acordo','acordo_atrasado','em_negociacao','suspenso','judicial','cancelado')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "pendente",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "Field": "custasJudiciais",
+      "Type": "int",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "paidAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "paidAmount",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "nossoNumero",
+      "Type": "varchar(30)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "statusRemessa",
+      "Type": "enum('nao_enviado','remessa_gerada','enviado','retorno_recebido')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "nao_enviado",
+      "Extra": ""
+    },
+    {
+      "Field": "remessaId",
+      "Type": "int",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [
+    "id\tamount\tstatus",
+    "570002\t351860\tem_acordo",
+    "600001\t200332\tem_acordo",
+    "600002\t361478\tem_acordo",
+    "600003\t208032\tem_acordo",
+    "600004\t105229\tpendente"
+  ],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint\tNO\tPRI\tNULL\tauto_increment\ndevedorId\tint\tNO\t\tNULL\t\ncondominioId\tint\tNO\t\tNULL\t\ntipoCobranca\tenum('condominio','salao_jogos','churrasqueira','cota_extra','multa','outros')\tNO\t\tcondominio\t\ndescription\ttext\tYES\t\tNULL\t\namount\tint\tNO\t\tNULL\t\ndueDate\ttimestamp\tYES\t\tNULL\t\nmonthReference\tvarchar(20)\tYES\t\tNULL\t\nstatus\tenum('pendente','em_cobranca','pago','acordo','em_acordo','acordo_atrasado','em_negociacao','suspenso','judicial','cancelado')\tNO\t\tpendente\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\ncustasJudiciais\tint\tNO\t\t0\t\npaidAt\ttimestamp\tYES\t\tNULL\t\npaidAmount\tint\tYES\t\tNULL\t\nnossoNumero\tvarchar(30)\tYES\t\tNULL\t\nstatusRemessa\tenum('nao_enviado','remessa_gerada','enviado','retorno_recebido')\tYES\t\tnao_enviado\t\nremessaId\tint\tYES\t\tNULL\t\nid\tamount\tstatus\n570002\t351860\tem_acordo\n600001\t200332\tem_acordo\n600002\t361478\tem_acordo\n600003\t208032\tem_acordo\n600004\t105229\tpendente\n",
+  "stderr": "",
+  "execution_time_ms": 618
+}

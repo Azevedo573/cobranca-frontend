@@ -1,0 +1,24 @@
+{
+  "query": "SELECT id, amount, nossoNumero, statusRemessa, installmentNumber FROM parcelasAcordo WHERE nossoNumero IN ('1000000084', '1000000085');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, amount, nossoNumero, statusRemessa, installmentNumber FROM parcelasAcordo WHERE nossoNumero IN ('1000000084', '1000000085');",
+  "rows": [
+    {
+      "id": "630001",
+      "amount": "20653.00",
+      "nossoNumero": "1000000084",
+      "statusRemessa": "enviado",
+      "installmentNumber": "1"
+    },
+    {
+      "id": "630002",
+      "amount": "20653.00",
+      "nossoNumero": "1000000085",
+      "statusRemessa": "enviado",
+      "installmentNumber": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tamount\tnossoNumero\tstatusRemessa\tinstallmentNumber\n630001\t20653.00\t1000000084\tenviado\t1\n630002\t20653.00\t1000000085\tenviado\t2\n",
+  "stderr": "",
+  "execution_time_ms": 572
+}

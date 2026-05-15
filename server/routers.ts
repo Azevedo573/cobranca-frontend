@@ -2225,7 +2225,7 @@ export const appRouter = router({
           devedorCidade: '',
           devedorUF: '',
           devedorCEP: '',
-          valorNominal: r.amount,
+          valorNominal: Math.round(Number(r.amount) * 100), // reais → centavos para o CNAB
           dataVencimento: new Date(r.dueDate),
           dataEmissao: hoje,
           instrucao1: instrucoesCaixa,

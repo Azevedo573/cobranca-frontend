@@ -1639,3 +1639,12 @@
 - [x] Criar endpoint tRPC gerarBoletoPDFParcela para parcelas de acordo
 - [x] Adicionar botões PDF, Copiar Linha e Copiar Pix na tabela de parcelas do AcordoDetalhes
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Bug Crítico - Valor incorreto no CNAB 240 (R$206,53 → R$20.653,00)
+- [x] Investigar: tabela cobrancas usa int (centavos), tabela parcelasAcordo usa decimal(10,2) (reais)
+- [x] Identificar raiz: SimuladorAcordo enviava p.valor (centavos) sem dividir por 100 ao salvar no banco
+- [x] Corrigir SimuladorAcordo: amount: p.valor / 100, totalAmount / 100, agreedAmount / 100
+- [x] Corrigir remessa de parcelas de acordo: valorNominal = Math.round(r.amount * 100) (reais → centavos)
+- [x] Remessa de cobranças avulsas: já estava correta (cob.amount já em centavos)
+- [x] PDF do boleto: já estava correto (Number(parcela.amount) * 100 para parcelas)
+- [x] 270 testes passando, 0 erros TypeScript

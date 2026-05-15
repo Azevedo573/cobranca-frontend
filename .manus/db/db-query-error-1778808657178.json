@@ -1,0 +1,8 @@
+{
+  "query": "SELECT pa.id, pa.amount, pa.nosso_numero, pa.status_remessa, a.devedor_id FROM parcelas_acordo pa JOIN acordos a ON pa.acordo_id = a.id LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT pa.id, pa.amount, pa.nosso_numero, pa.status_remessa, a.devedor_id FROM parcelas_acordo pa JOIN acordos a ON pa.acordo_id = a.id LIMIT 10;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '7b8ey9dz5tvd9qwuurviln.parcelas_acordo' doesn't exist"
+  ]
+}
