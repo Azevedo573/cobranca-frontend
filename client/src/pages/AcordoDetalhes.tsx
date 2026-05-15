@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -26,13 +26,19 @@ import {
   TrendingUp,
   FileText,
   MailCheck,
+  Copy,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
 
 export default function AcordoDetalhes() {
   const { user } = useAuth();
   const [, params] = useRoute("/acordos/:id");
   const acordoId = Number(params?.id);
+  const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola: string | null }>>({});
+  const [copiandoParcela, setCopiandoParcela] = useState<Record<number, 'linha' | 'pix' | null>>({});
 
   const utils = trpc.useUtils();
 
@@ -47,6 +53,40 @@ export default function AcordoDetalhes() {
     { acordoId },
     { enabled: !!acordoId }
   );
+
+  // Mutation para gerar PDF de parcela
+  const gerarPDFParcelaMutation = trpc.acordos.gerarBoletoPDFParcela.useMutation({
+    onSuccess: (data, variables) => {
+      setBoletoParcelas(prev => ({
+        ...prev,
+        [variables.parcelaId]: {
+          url: data.url,
+          linhaDigitavel: data.linhaDigitavel,
+          pixCopiaCola: data.pixCopiaCola ?? null,
+        },
+      }));
+      window.open(data.url, '_blank');
+    },
+    onError: (err) => toast.error('Erro ao gerar PDF: ' + err.message),
+  });
+
+  const copiarLinhaParcela = async (parcelaId: number) => {
+    const boleto = boletoParcelas[parcelaId];
+    if (!boleto) return;
+    await navigator.clipboard.writeText(boleto.linhaDigitavel);
+    setCopiandoParcela(prev => ({ ...prev, [parcelaId]: 'linha' }));
+    toast.success('Linha digitável copiada!');
+    setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcelaId]: null })), 2000);
+  };
+
+  const copiarPixParcela = async (parcelaId: number) => {
+    const boleto = boletoParcelas[parcelaId];
+    if (!boleto?.pixCopiaCola) return;
+    await navigator.clipboard.writeText(boleto.pixCopiaCola);
+    setCopiandoParcela(prev => ({ ...prev, [parcelaId]: 'pix' }));
+    toast.success('Pix copia e cola copiado!');
+    setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcelaId]: null })), 2000);
+  };
 
   // Mutation para marcar parcela como paga
   const marcarPagaMutation = trpc.acordos.updateParcela.useMutation({
@@ -320,27 +360,90 @@ export default function AcordoDetalhes() {
                         </TableCell>
                         <TableCell>{getStatusBadge(parcela.status)}</TableCell>
                         <TableCell>
-                          {(parcela as any).statusRemessa === "remessa_gerada" && (
-                            <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs gap-1">
-                              <FileText className="h-3 w-3" />Remessa Gerada
-                            </Badge>
-                          )}
-                          {(parcela as any).statusRemessa === "enviado" && (
-                            <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs gap-1">
-                              <MailCheck className="h-3 w-3" />Enviado
-                            </Badge>
-                          )}
-                          {(parcela as any).statusRemessa === "retorno_recebido" && (
-                            <Badge className="bg-green-100 text-green-700 border-green-200 text-xs gap-1">
-                              <CheckCircle2 className="h-3 w-3" />Confirmado
-                            </Badge>
-                          )}
-                          {(parcela as any).nossoNumero && (
-                            <p className="text-xs font-mono text-muted-foreground mt-1">{(parcela as any).nossoNumero}</p>
-                          )}
-                          {!(parcela as any).statusRemessa && (
-                            <span className="text-xs text-muted-foreground italic">Aguardando remessa</span>
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {(parcela as any).statusRemessa === "remessa_gerada" && (
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs gap-1">
+                                <FileText className="h-3 w-3" />Remessa Gerada
+                              </Badge>
+                            )}
+                            {(parcela as any).statusRemessa === "enviado" && (
+                              <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs gap-1">
+                                <MailCheck className="h-3 w-3" />Enviado
+                              </Badge>
+                            )}
+                            {(parcela as any).statusRemessa === "retorno_recebido" && (
+                              <Badge className="bg-green-100 text-green-700 border-green-200 text-xs gap-1">
+                                <CheckCircle2 className="h-3 w-3" />Confirmado
+                              </Badge>
+                            )}
+                            {(parcela as any).nossoNumero && (
+                              <p className="text-xs font-mono text-muted-foreground">{(parcela as any).nossoNumero}</p>
+                            )}
+                            {!(parcela as any).statusRemessa && (
+                              <span className="text-xs text-muted-foreground italic">Aguardando remessa</span>
+                            )}
+                            {/* Botões de boleto — só para parcelas com nossoNumero */}
+                            {(parcela as any).nossoNumero && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {!boletoParcelas[parcela.id] ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs px-2"
+                                    onClick={() => gerarPDFParcelaMutation.mutate({ parcelaId: parcela.id })}
+                                    disabled={gerarPDFParcelaMutation.isPending}
+                                  >
+                                    {gerarPDFParcelaMutation.isPending ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <FileText className="h-3 w-3" />
+                                    )}
+                                    <span className="ml-1">PDF</span>
+                                  </Button>
+                                ) : (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-xs px-2"
+                                      onClick={() => window.open(boletoParcelas[parcela.id].url, '_blank')}
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      <span className="ml-1">Abrir</span>
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-xs px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                                      onClick={() => copiarLinhaParcela(parcela.id)}
+                                    >
+                                      {copiandoParcela[parcela.id] === 'linha' ? (
+                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
+                                      <span className="ml-1">Linha</span>
+                                    </Button>
+                                    {boletoParcelas[parcela.id].pixCopiaCola && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-xs px-2 border-green-300 text-green-700 hover:bg-green-50"
+                                        onClick={() => copiarPixParcela(parcela.id)}
+                                      >
+                                        {copiandoParcela[parcela.id] === 'pix' ? (
+                                          <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                        ) : (
+                                          <Copy className="h-3 w-3" />
+                                        )}
+                                        <span className="ml-1">Pix</span>
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           {parcela.status !== "pago" && (

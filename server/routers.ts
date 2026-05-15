@@ -762,6 +762,124 @@ export const appRouter = router({
       const { verificarParcelasAtrasadas } = await import("./verificar-atrasos");
       return await verificarParcelasAtrasadas();
     }),
+
+    // Gerar PDF do boleto para uma parcela de acordo
+    gerarBoletoPDFParcela: protectedProcedure
+      .input(z.object({ parcelaId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
+
+        const { parcelasAcordo, acordos } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const { getDevedorById } = await import("./db-devedores");
+        const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+        const { getCondominioById } = await import("./db-condominios");
+        const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
+        const { gerarPixCopiaCola } = await import("./pix-emv");
+        const { storagePut } = await import("./storage");
+
+        // Buscar parcela com dados do acordo
+        const rows = await db
+          .select()
+          .from(parcelasAcordo)
+          .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+          .where(eq(parcelasAcordo.id, input.parcelaId))
+          .limit(1);
+
+        if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Parcela não encontrada" });
+        const parcela = rows[0].parcelasAcordo;
+        const acordo = rows[0].acordos;
+
+        if (!parcela.nossoNumero) throw new TRPCError({ code: "BAD_REQUEST", message: "Parcela sem nosso número — envie a remessa CNAB primeiro" });
+
+        const devedor = await getDevedorById(acordo.devedorId);
+        if (!devedor) throw new TRPCError({ code: "NOT_FOUND", message: "Devedor não encontrado" });
+
+        const config = await getConfiguracaoBoleto(acordo.condominioId);
+        if (!config) throw new TRPCError({ code: "NOT_FOUND", message: "Configuração de boleto não encontrada" });
+
+        const condominio = await getCondominioById(acordo.condominioId);
+        if (!condominio) throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado" });
+
+        const dataVencimento = parcela.dueDate ? new Date(parcela.dueDate) : new Date();
+        const dataEmissao = new Date();
+
+        const instrucoes: string[] = [];
+        if (config.instrucoesCaixa) {
+          const taxa = parseFloat(config.taxaJurosDia || "0") * 30;
+          const multa = parseFloat(config.taxaMulta || "0");
+          instrucoes.push(
+            config.instrucoesCaixa
+              .replace(/#MULTA#/g, `${multa.toFixed(2)}%`)
+              .replace(/#JUROS#/g, `${taxa.toFixed(4)}% ao dia`)
+          );
+        }
+        instrucoes.push("Não receber após 30 dias do vencimento.");
+
+        const nomeSacado = devedor.name ||
+          `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
+
+        const dados = {
+          nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+          cnpjBeneficiario: config.cnpjBeneficiario || condominio.cnpj || "",
+          enderecoBeneficiario: config.enderecoBeneficiario || condominio.address || "",
+          banco: config.banco,
+          nomeBanco: config.nomeBanco,
+          agencia: config.agencia,
+          digitoAgencia: config.digitoAgencia,
+          conta: config.conta,
+          digitoConta: config.digitoConta,
+          carteira: config.carteira,
+          convenio: config.convenio,
+          nossoNumero: parcela.nossoNumero,
+          dataVencimento,
+          dataEmissao,
+          valor: Number(parcela.amount) * 100, // parcela.amount está em reais, converter para centavos
+          especieDocumento: config.especieDocumento,
+          aceite: config.aceite,
+          nomeSacado,
+          cpfCnpjSacado: devedor.cpfCnpj || "",
+          enderecoSacado: condominio.address || "",
+          cidadeSacado: condominio.city || "",
+          ufSacado: condominio.state || "",
+          cepSacado: condominio.zipCode || "",
+          localPagamento: config.localPagamento,
+          instrucoes,
+          seuNumero: parcela.nossoNumero,
+        };
+
+        const pdfBuffer = await gerarBoletoPDF(dados);
+
+        const fileKey = `boletos/${acordo.condominioId}/${parcela.nossoNumero}-${Date.now()}.pdf`;
+        const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+
+        const codigoBarras = calcularCodigoBarras(dados);
+        const linhaDigitavel = formatarLinhaDigitavel(calcularLinhaDigitavel(codigoBarras));
+
+        let pixCopiaCola: string | null = null;
+        if (config.habilitarPix && config.chavePix) {
+          pixCopiaCola = gerarPixCopiaCola({
+            chavePix: config.chavePix,
+            nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+            cidade: "SAO PAULO",
+            valor: Number(parcela.amount) * 100,
+            txid: parcela.nossoNumero || undefined,
+            descricao: `Parcela ${parcela.nossoNumero}`,
+          });
+        }
+
+        return {
+          url,
+          linhaDigitavel,
+          codigoBarras,
+          pixCopiaCola,
+          nossoNumero: parcela.nossoNumero,
+          valor: Number(parcela.amount) * 100,
+          vencimento: dataVencimento.toISOString(),
+        };
+      }),
     getVencimentosProximos: condominioAccessProcedure.input(z.object({
       condominioId: z.number().optional(),
       dias: z.number().default(7), // próximos 7, 15 ou 30 dias
@@ -1756,11 +1874,16 @@ export const appRouter = router({
           status: "gerado",
         });
 
-        // Marcar cobranças incluidas como "remessa_gerada" automaticamente
-        if (input.cobrancaIds.length > 0) {
+        // Salvar nossoNumero e marcar cobranças como "remessa_gerada"
+        // IMPORTANTE: salvar o nossoNumero individualmente para cada cobrança
+        // pois é necessário para gerar o PDF do boleto e processar o arquivo de retorno
+        for (const titulo of titulos) {
           await db.update(cobrancas)
-            .set({ statusRemessa: "remessa_gerada" })
-            .where(inArray(cobrancas.id, input.cobrancaIds));
+            .set({
+              nossoNumero: titulo.nossoNumero,
+              statusRemessa: "remessa_gerada",
+            })
+            .where(eq(cobrancas.id, titulo.cobrancaId));
         }
 
         return {

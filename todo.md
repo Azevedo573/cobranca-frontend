@@ -1631,3 +1631,11 @@
 - [x] Feedback visual ao copiar: ícone Check + toast de sucesso por 2 segundos
 - [x] Botão PDF alterna entre "Gerar PDF" e "Abrir PDF" após geração (cache local)
 - [x] 21 testes unitários para geração do código Pix EMV (270 testes passando)
+
+## Bug - PDF do Boleto não gerado após processamento do arquivo de retorno
+- [x] Investigar: campo nossoNumero não era salvo na tabela cobrancas durante geração da remessa
+- [x] Corrigir procedure gerarRemessa para salvar nossoNumero em cada cobrança após gerar o arquivo CNAB
+- [x] Identificar que os nosós números 1000000084/85 pertencem a parcelasAcordo, não a cobranças avulsas
+- [x] Criar endpoint tRPC gerarBoletoPDFParcela para parcelas de acordo
+- [x] Adicionar botões PDF, Copiar Linha e Copiar Pix na tabela de parcelas do AcordoDetalhes
+- [x] 270 testes passando, 0 erros TypeScript

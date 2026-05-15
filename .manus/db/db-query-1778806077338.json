@@ -1,0 +1,110 @@
+{
+  "query": "SELECT id, condominioId, nomeArquivo, totalTitulos, nossoNumeroInicio, nossoNumeroFim, status, createdAt FROM remessasCNAB ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, condominioId, nomeArquivo, totalTitulos, nossoNumeroInicio, nossoNumeroFim, status, createdAt FROM remessasCNAB ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "450001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_14052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000085",
+      "nossoNumeroFim": "1000000085",
+      "status": "gerado",
+      "createdAt": "2026-05-14 19:27:18"
+    },
+    {
+      "id": "420001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_12052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000084",
+      "nossoNumeroFim": "1000000084",
+      "status": "gerado",
+      "createdAt": "2026-05-13 00:53:55"
+    },
+    {
+      "id": "390001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_12052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000077",
+      "nossoNumeroFim": "1000000077",
+      "status": "gerado",
+      "createdAt": "2026-05-13 00:17:17"
+    },
+    {
+      "id": "360001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_12052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000076",
+      "nossoNumeroFim": "1000000076",
+      "status": "gerado",
+      "createdAt": "2026-05-12 19:22:02"
+    },
+    {
+      "id": "330002",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_07052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000075",
+      "nossoNumeroFim": "1000000075",
+      "status": "gerado",
+      "createdAt": "2026-05-08 01:45:11"
+    },
+    {
+      "id": "330001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_07052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000074",
+      "nossoNumeroFim": "1000000074",
+      "status": "gerado",
+      "createdAt": "2026-05-08 01:41:06"
+    },
+    {
+      "id": "300001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_07052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000073",
+      "nossoNumeroFim": "1000000073",
+      "status": "gerado",
+      "createdAt": "2026-05-07 16:21:43"
+    },
+    {
+      "id": "270002",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_07052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000052",
+      "nossoNumeroFim": "1000000052",
+      "status": "gerado",
+      "createdAt": "2026-05-07 12:48:09"
+    },
+    {
+      "id": "270001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_07052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000041",
+      "nossoNumeroFim": "1000000041",
+      "status": "gerado",
+      "createdAt": "2026-05-07 12:46:16"
+    },
+    {
+      "id": "240001",
+      "condominioId": "150001",
+      "nomeArquivo": "BTG_05052026.rem",
+      "totalTitulos": "1",
+      "nossoNumeroInicio": "1000000040",
+      "nossoNumeroFim": "1000000040",
+      "status": "gerado",
+      "createdAt": "2026-05-06 00:54:04"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcondominioId\tnomeArquivo\ttotalTitulos\tnossoNumeroInicio\tnossoNumeroFim\tstatus\tcreatedAt\n450001\t150001\tBTG_14052026.rem\t1\t1000000085\t1000000085\tgerado\t2026-05-14 19:27:18\n420001\t150001\tBTG_12052026.rem\t1\t1000000084\t1000000084\tgerado\t2026-05-13 00:53:55\n390001\t150001\tBTG_12052026.rem\t1\t1000000077\t1000000077\tgerado\t2026-05-13 00:17:17\n360001\t150001\tBTG_12052026.rem\t1\t1000000076\t1000000076\tgerado\t2026-05-12 19:22:02\n330002\t150001\tBTG_07052026.rem\t1\t1000000075\t1000000075\tgerado\t2026-05-08 01:45:11\n330001\t150001\tBTG_07052026.rem\t1\t1000000074\t1000000074\tgerado\t2026-05-08 01:41:06\n300001\t150001\tBTG_07052026.rem\t1\t1000000073\t1000000073\tgerado\t2026-05-07 16:21:43\n270002\t150001\tBTG_07052026.rem\t1\t1000000052\t1000000052\tgerado\t2026-05-07 12:48:09\n270001\t150001\tBTG_07052026.rem\t1\t1000000041\t1000000041\tgerado\t2026-05-07 12:46:16\n240001\t150001\tBTG_05052026.rem\t1\t1000000040\t1000000040\tgerado\t2026-05-06 00:54:04\n",
+  "stderr": "",
+  "execution_time_ms": 562
+}

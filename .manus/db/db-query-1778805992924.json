@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, devedorId, condominioId, nossoNumero, status, amount, dueDate FROM cobrancas ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, devedorId, condominioId, nossoNumero, status, amount, dueDate FROM cobrancas ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "750001",
+      "devedorId": "330001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "em_acordo",
+      "amount": "50000",
+      "dueDate": "2020-05-10 00:00:00"
+    },
+    {
+      "id": "720001",
+      "devedorId": "300001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "em_acordo",
+      "amount": "200000",
+      "dueDate": "2026-03-10 00:00:00"
+    },
+    {
+      "id": "690001",
+      "devedorId": "300001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "em_acordo",
+      "amount": "10000",
+      "dueDate": "2026-01-10 00:00:00"
+    },
+    {
+      "id": "660001",
+      "devedorId": "300001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "em_acordo",
+      "amount": "50000",
+      "dueDate": "2025-02-03 00:00:00"
+    },
+    {
+      "id": "630001",
+      "devedorId": "300001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "em_acordo",
+      "amount": "20000",
+      "dueDate": "2026-01-10 00:00:00"
+    },
+    {
+      "id": "600032",
+      "devedorId": "210001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "pendente",
+      "amount": "172703",
+      "dueDate": "2026-02-10 05:00:00"
+    },
+    {
+      "id": "600031",
+      "devedorId": "210001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "pendente",
+      "amount": "183967",
+      "dueDate": "2026-01-10 05:00:00"
+    },
+    {
+      "id": "600030",
+      "devedorId": "210001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "pendente",
+      "amount": "192786",
+      "dueDate": "2025-12-10 05:00:00"
+    },
+    {
+      "id": "600029",
+      "devedorId": "210001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "pendente",
+      "amount": "211924",
+      "dueDate": "2025-11-10 05:00:00"
+    },
+    {
+      "id": "600028",
+      "devedorId": "210001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "pendente",
+      "amount": "214652",
+      "dueDate": "2025-10-10 05:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdevedorId\tcondominioId\tnossoNumero\tstatus\tamount\tdueDate\n750001\t330001\t150001\tNULL\tem_acordo\t50000\t2020-05-10 00:00:00\n720001\t300001\t150001\tNULL\tem_acordo\t200000\t2026-03-10 00:00:00\n690001\t300001\t150001\tNULL\tem_acordo\t10000\t2026-01-10 00:00:00\n660001\t300001\t150001\tNULL\tem_acordo\t50000\t2025-02-03 00:00:00\n630001\t300001\t150001\tNULL\tem_acordo\t20000\t2026-01-10 00:00:00\n600032\t210001\t150001\tNULL\tpendente\t172703\t2026-02-10 05:00:00\n600031\t210001\t150001\tNULL\tpendente\t183967\t2026-01-10 05:00:00\n600030\t210001\t150001\tNULL\tpendente\t192786\t2025-12-10 05:00:00\n600029\t210001\t150001\tNULL\tpendente\t211924\t2025-11-10 05:00:00\n600028\t210001\t150001\tNULL\tpendente\t214652\t2025-10-10 05:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 738
+}

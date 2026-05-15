@@ -1,0 +1,50 @@
+{
+  "query": "SELECT ri.id, ri.nossoNumero, ri.codMovimento, ri.descMovimento, ri.statusProcessamento, ri.statusNovo, ri.observacao, ri.cobrancaId FROM retornoItens ri ORDER BY ri.id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT ri.id, ri.nossoNumero, ri.codMovimento, ri.descMovimento, ri.statusProcessamento, ri.statusNovo, ri.observacao, ri.cobrancaId FROM retornoItens ri ORDER BY ri.id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "30002",
+      "nossoNumero": "1000000085",
+      "codMovimento": "02",
+      "descMovimento": "Entrada Confirmada",
+      "statusProcessamento": "processado",
+      "statusNovo": "em_cobranca",
+      "observacao": "Entrada confirmada para parcela de acordo",
+      "cobrancaId": "NULL"
+    },
+    {
+      "id": "30001",
+      "nossoNumero": "1000000085",
+      "codMovimento": "02",
+      "descMovimento": "Entrada Confirmada",
+      "statusProcessamento": "processado",
+      "statusNovo": "em_cobranca",
+      "observacao": "Entrada confirmada para parcela de acordo",
+      "cobrancaId": "NULL"
+    },
+    {
+      "id": "2",
+      "nossoNumero": "1000000084",
+      "codMovimento": "02",
+      "descMovimento": "Entrada Confirmada",
+      "statusProcessamento": "processado",
+      "statusNovo": "em_cobranca",
+      "observacao": "Entrada confirmada para parcela de acordo",
+      "cobrancaId": "NULL"
+    },
+    {
+      "id": "1",
+      "nossoNumero": "1000000084",
+      "codMovimento": "02",
+      "descMovimento": "Entrada Confirmada",
+      "statusProcessamento": "processado",
+      "statusNovo": "em_cobranca",
+      "observacao": "Entrada confirmada para parcela de acordo",
+      "cobrancaId": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnossoNumero\tcodMovimento\tdescMovimento\tstatusProcessamento\tstatusNovo\tobservacao\tcobrancaId\n30002\t1000000085\t02\tEntrada Confirmada\tprocessado\tem_cobranca\tEntrada confirmada para parcela de acordo\tNULL\n30001\t1000000085\t02\tEntrada Confirmada\tprocessado\tem_cobranca\tEntrada confirmada para parcela de acordo\tNULL\n2\t1000000084\t02\tEntrada Confirmada\tprocessado\tem_cobranca\tEntrada confirmada para parcela de acordo\tNULL\n1\t1000000084\t02\tEntrada Confirmada\tprocessado\tem_cobranca\tEntrada confirmada para parcela de acordo\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 584
+}

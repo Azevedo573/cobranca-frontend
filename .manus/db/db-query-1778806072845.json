@@ -1,0 +1,21 @@
+{
+  "query": "SELECT c.id, c.devedorId, c.condominioId, c.nossoNumero, c.status, c.statusRemessa, c.amount, c.dueDate, d.name as devedorNome FROM cobrancas c LEFT JOIN devedores d ON c.devedorId = d.id WHERE c.statusRemessa = 'remessa_gerada' OR c.status = 'em_cobranca' ORDER BY c.id DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT c.id, c.devedorId, c.condominioId, c.nossoNumero, c.status, c.statusRemessa, c.amount, c.dueDate, d.name as devedorNome FROM cobrancas c LEFT JOIN devedores d ON c.devedorId = d.id WHERE c.statusRemessa = 'remessa_gerada' OR c.status = 'em_cobranca' ORDER BY c.id DESC LIMIT 20;",
+  "rows": [
+    {
+      "id": "600004",
+      "devedorId": "210001",
+      "condominioId": "150001",
+      "nossoNumero": "NULL",
+      "status": "pendente",
+      "statusRemessa": "remessa_gerada",
+      "amount": "105229",
+      "dueDate": "2024-02-25 00:00:00",
+      "devedorNome": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tdevedorId\tcondominioId\tnossoNumero\tstatus\tstatusRemessa\tamount\tdueDate\tdevedorNome\n600004\t210001\t150001\tNULL\tpendente\tremessa_gerada\t105229\t2024-02-25 00:00:00\t\n",
+  "stderr": "",
+  "execution_time_ms": 591
+}
