@@ -1648,3 +1648,12 @@
 - [x] Remessa de cobranças avulsas: já estava correta (cob.amount já em centavos)
 - [x] PDF do boleto: já estava correto (Number(parcela.amount) * 100 para parcelas)
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Novo Layout do Boleto PDF - Máscara BTG Pactual
+- [x] Reescrever boleto-pdf.ts com layout exato da máscara BTG Pactual
+- [x] Seção 1: Recibo do Pagador com logo BTG, linha digitável, grid de campos
+- [x] Seção 2: Ficha de Compensação com todos os campos do padrão BTG
+- [x] Código de barras I25 na largura total da página
+- [x] Logo BTG Pactual em ambas as seções
+- [x] Linha pontilhada de corte entre as seções
+- [x] 270 testes passando, 0 erros TypeScript
