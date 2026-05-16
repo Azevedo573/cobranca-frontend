@@ -1664,3 +1664,11 @@
 - [x] Adicionar chavePix e tipoChavePix no schema tRPC (z.enum para tipoChavePix)
 - [x] Feedback visual: mensagem verde quando chave preenchida, cinza quando vazia
 - [x] 270 testes passando, 0 erros TypeScript
+
+## QR Code Pix no PDF do Boleto BTG Pactual
+- [x] Instalar biblioteca qrcode para geração de QR Code em Node.js
+- [x] Gerar QR Code como imagem PNG a partir do código Pix EMV
+- [x] Adicionar seção Pix no PDF: QR Code + string copia e cola
+- [x] Exibir seção Pix apenas quando chavePix estiver configurada
+- [x] Corrigir ordem de geração: pixCopiaCola gerado ANTES de chamar gerarBoletoPDF nos dois endpoints (cobranças avulsas e parcelas de acordo)
+- [x] 270 testes passando, 0 erros TypeScript

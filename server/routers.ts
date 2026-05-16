@@ -436,6 +436,19 @@ export const appRouter = router({
         const nomeSacado = devedor.name ||
           `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
 
+        // Gerar Pix copia e cola ANTES de montar dados (para incluir no PDF)
+        let pixCopiaCola: string | undefined = undefined;
+        if (config.habilitarPix && config.chavePix) {
+          pixCopiaCola = gerarPixCopiaCola({
+            chavePix: config.chavePix,
+            nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+            cidade: "SAO PAULO",
+            valor: cobranca.amount,
+            txid: cobranca.nossoNumero || undefined,
+            descricao: `Cobranca ${cobranca.nossoNumero}`,
+          }) || undefined;
+        }
+
         const dados = {
           nomeBeneficiario: config.nomeBeneficiario || condominio.name,
           cnpjBeneficiario: config.cnpjBeneficiario || condominio.cnpj || "",
@@ -463,6 +476,7 @@ export const appRouter = router({
           localPagamento: config.localPagamento,
           instrucoes,
           seuNumero: cobranca.nossoNumero,
+          pixCopiaCola,
         };
 
         const pdfBuffer = await gerarBoletoPDF(dados);
@@ -474,19 +488,6 @@ export const appRouter = router({
         // Calcular linha digitável para retornar ao frontend
         const codigoBarras = calcularCodigoBarras(dados);
         const linhaDigitavel = formatarLinhaDigitavel(calcularLinhaDigitavel(codigoBarras));
-
-        // Gerar Pix copia e cola (se a configuração tiver chave Pix)
-        let pixCopiaCola: string | null = null;
-        if (config.habilitarPix && config.chavePix) {
-          pixCopiaCola = gerarPixCopiaCola({
-            chavePix: config.chavePix,
-            nomeBeneficiario: config.nomeBeneficiario || condominio.name,
-            cidade: "SAO PAULO",
-            valor: cobranca.amount,
-            txid: cobranca.nossoNumero || undefined,
-            descricao: `Cobranca ${cobranca.nossoNumero}`,
-          });
-        }
 
         return {
           url,
@@ -821,6 +822,19 @@ export const appRouter = router({
         const nomeSacado = devedor.name ||
           `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
 
+        // Gerar Pix copia e cola ANTES de montar dados (para incluir no PDF)
+        let pixCopiaCola: string | undefined = undefined;
+        if (config.habilitarPix && config.chavePix) {
+          pixCopiaCola = gerarPixCopiaCola({
+            chavePix: config.chavePix,
+            nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+            cidade: "SAO PAULO",
+            valor: Number(parcela.amount) * 100,
+            txid: parcela.nossoNumero || undefined,
+            descricao: `Parcela ${parcela.nossoNumero}`,
+          }) || undefined;
+        }
+
         const dados = {
           nomeBeneficiario: config.nomeBeneficiario || condominio.name,
           cnpjBeneficiario: config.cnpjBeneficiario || condominio.cnpj || "",
@@ -848,6 +862,7 @@ export const appRouter = router({
           localPagamento: config.localPagamento,
           instrucoes,
           seuNumero: parcela.nossoNumero,
+          pixCopiaCola,
         };
 
         const pdfBuffer = await gerarBoletoPDF(dados);
@@ -857,18 +872,6 @@ export const appRouter = router({
 
         const codigoBarras = calcularCodigoBarras(dados);
         const linhaDigitavel = formatarLinhaDigitavel(calcularLinhaDigitavel(codigoBarras));
-
-        let pixCopiaCola: string | null = null;
-        if (config.habilitarPix && config.chavePix) {
-          pixCopiaCola = gerarPixCopiaCola({
-            chavePix: config.chavePix,
-            nomeBeneficiario: config.nomeBeneficiario || condominio.name,
-            cidade: "SAO PAULO",
-            valor: Number(parcela.amount) * 100,
-            txid: parcela.nossoNumero || undefined,
-            descricao: `Parcela ${parcela.nossoNumero}`,
-          });
-        }
 
         return {
           url,

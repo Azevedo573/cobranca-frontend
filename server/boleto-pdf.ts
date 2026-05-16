@@ -11,6 +11,7 @@
 import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
+import QRCode from "qrcode";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,8 @@ export interface DadosBoleto {
   instrucoes: string[];
   // Referência
   seuNumero: string;     // número do documento
+  // Pix (opcional)
+  pixCopiaCola?: string; // código EMV do Pix copia e cola
 }
 
 // ─── Cálculos FEBRABAN ────────────────────────────────────────────────────────
@@ -209,6 +212,18 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
   const codigoBarras = calcularCodigoBarras(dados);
   const linhaDigitavel = calcularLinhaDigitavel(codigoBarras);
   const linhaFormatada = formatarLinhaDigitavel(linhaDigitavel);
+
+  // Gerar QR Code Pix como PNG buffer (se houver pixCopiaCola)
+  let qrCodeBuffer: Buffer | null = null;
+  if (dados.pixCopiaCola) {
+    qrCodeBuffer = await QRCode.toBuffer(dados.pixCopiaCola, {
+      errorCorrectionLevel: "M",
+      type: "png",
+      margin: 1,
+      width: 150,
+      color: { dark: "#000000", light: "#ffffff" },
+    }) as Buffer;
+  }
 
   // Nosso número formatado: carteira/nossoNumero-dv
   const nossoNumFormatado = `${dados.carteira}/${dados.nossoNumero}`;
@@ -579,6 +594,61 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     });
 
     y += alturaBarras + 8;
+
+    // ── Seção Pix (QR Code + copia e cola) ──
+    if (qrCodeBuffer && dados.pixCopiaCola) {
+      hLine(y);
+      y += 6;
+
+      // Título da seção Pix
+      const PIX_VERDE = "#32BCAD";
+      doc.font(FONTE_BOLD).fontSize(9).fillColor(PIX_VERDE)
+        .text("Pix", ML + 3, y + 4);
+      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
+        .text("Pague também via Pix usando o QR Code ou o código Copia e Cola abaixo:", ML + 30, y + 5, { width: W - 33 });
+
+      y += 18;
+
+      // QR Code à esquerda
+      const QR_SIZE = 90;
+      const QR_X = ML + 3;
+      const QR_Y = y;
+
+      // Borda ao redor do QR Code
+      doc.rect(QR_X - 2, QR_Y - 2, QR_SIZE + 4, QR_SIZE + 4)
+        .strokeColor(PIX_VERDE).lineWidth(1).stroke();
+
+      doc.image(qrCodeBuffer, QR_X, QR_Y, { width: QR_SIZE, height: QR_SIZE });
+
+      // Código copia e cola à direita do QR Code
+      const PIX_TEXT_X = QR_X + QR_SIZE + 10;
+      const PIX_TEXT_W = MR - PIX_TEXT_X;
+
+      doc.font(FONTE_BOLD).fontSize(7).fillColor(CINZA_LABEL)
+        .text("Código Pix Copia e Cola:", PIX_TEXT_X, QR_Y + 2, { width: PIX_TEXT_W });
+
+      // Quebrar o código em linhas de ~55 chars para caber na largura
+      const pixStr = dados.pixCopiaCola;
+      const chunkSize = 55;
+      const linhas: string[] = [];
+      for (let i = 0; i < pixStr.length; i += chunkSize) {
+        linhas.push(pixStr.substring(i, i + chunkSize));
+      }
+
+      doc.font(FONTE).fontSize(6).fillColor(PRETO);
+      linhas.forEach((linha, idx) => {
+        doc.text(linha, PIX_TEXT_X, QR_Y + 14 + idx * 9, { width: PIX_TEXT_W, lineBreak: false });
+      });
+
+      // Aviso abaixo do QR Code
+      doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
+        .text("Escaneie o QR Code com o app do seu banco para pagar via Pix.",
+          QR_X, QR_Y + QR_SIZE + 5, { width: QR_SIZE + PIX_TEXT_W + 10 });
+
+      y += QR_SIZE + 20;
+      hLine(y);
+      y += 6;
+    }
 
     // ── Linha de corte final ──
     doc.moveTo(ML, y).lineTo(MR, y).dash(3, { space: 3 }).strokeColor(CINZA_BORDA).lineWidth(0.5).stroke();
