@@ -1657,3 +1657,10 @@
 - [x] Logo BTG Pactual em ambas as seções
 - [x] Linha pontilhada de corte entre as seções
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Campo Chave Pix no Formulário de Configuração de Boleto
+- [x] Localizar formulário de configuração de boleto (ConfiguracaoBoleto.tsx)
+- [x] Adicionar campos chavePix e tipoChavePix na aba "Forma de Pagamento" com Select de tipo e Input de chave
+- [x] Adicionar chavePix e tipoChavePix no schema tRPC (z.enum para tipoChavePix)
+- [x] Feedback visual: mensagem verde quando chave preenchida, cinza quando vazia
+- [x] 270 testes passando, 0 erros TypeScript

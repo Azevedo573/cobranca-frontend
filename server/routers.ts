@@ -1607,6 +1607,8 @@ export const appRouter = router({
         // Forma de pagamento
         habilitarBoleto: z.number().default(1),
         habilitarPix: z.number().default(1),
+        chavePix: z.string().optional(),
+        tipoChavePix: z.enum(["CPF", "CNPJ", "EMAIL", "TELEFONE", "ALEATORIA"]).optional(),
         taxaCobrancaValor: z.string().default("3.50"),
         taxaCobrancaPercentual: z.string().default("0.00"),
         despesaValor: z.string().default("0.00"),

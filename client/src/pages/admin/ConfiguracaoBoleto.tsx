@@ -58,6 +58,8 @@ interface FormState {
   // Forma de pagamento
   habilitarBoleto: boolean;
   habilitarPix: boolean;
+  chavePix: string;
+  tipoChavePix: "CPF" | "CNPJ" | "EMAIL" | "TELEFONE" | "ALEATORIA";
   taxaCobrancaValor: string;
   taxaCobrancaPercentual: string;
   despesaValor: string;
@@ -93,6 +95,8 @@ const DEFAULT_FORM: FormState = {
   enviarInstrucoesProtesto: false,
   habilitarBoleto: true,
   habilitarPix: true,
+  chavePix: "",
+  tipoChavePix: "CNPJ",
   taxaCobrancaValor: "3.50",
   taxaCobrancaPercentual: "0.00",
   despesaValor: "0.00",
@@ -165,6 +169,8 @@ export default function ConfiguracaoBoleto() {
         enviarInstrucoesProtesto: configExistente.enviarInstrucoesProtesto === 1,
         habilitarBoleto: configExistente.habilitarBoleto === 1,
         habilitarPix: configExistente.habilitarPix === 1,
+        chavePix: configExistente.chavePix || "",
+        tipoChavePix: configExistente.tipoChavePix || "CNPJ",
         taxaCobrancaValor: configExistente.taxaCobrancaValor,
         taxaCobrancaPercentual: configExistente.taxaCobrancaPercentual,
         despesaValor: configExistente.despesaValor,
@@ -227,6 +233,8 @@ export default function ConfiguracaoBoleto() {
       enviarInstrucoesProtesto: form.enviarInstrucoesProtesto ? 1 : 0,
       habilitarBoleto: form.habilitarBoleto ? 1 : 0,
       habilitarPix: form.habilitarPix ? 1 : 0,
+      chavePix: form.chavePix || undefined,
+      tipoChavePix: form.tipoChavePix || undefined,
       taxaCobrancaValor: form.taxaCobrancaValor,
       taxaCobrancaPercentual: form.taxaCobrancaPercentual,
       despesaValor: form.despesaValor,
@@ -846,6 +854,60 @@ export default function ConfiguracaoBoleto() {
                   </div>
                 </div>
               </div>
+
+              {/* Chave Pix */}
+              {form.habilitarPix && (
+                <div className="space-y-3 rounded-lg border border-dashed border-green-300 bg-green-50/50 p-4">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-green-600" />
+                    <Label className="text-sm font-semibold text-green-700">Configuração da Chave Pix</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Tipo de Chave</Label>
+                      <Select
+                        value={form.tipoChavePix}
+                        onValueChange={v => update("tipoChavePix", v as FormState["tipoChavePix"])}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CNPJ">CNPJ</SelectItem>
+                          <SelectItem value="CPF">CPF</SelectItem>
+                          <SelectItem value="EMAIL">E-mail</SelectItem>
+                          <SelectItem value="TELEFONE">Telefone</SelectItem>
+                          <SelectItem value="ALEATORIA">Chave Aleatória</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Chave Pix</Label>
+                      <Input
+                        value={form.chavePix}
+                        onChange={e => update("chavePix", e.target.value)}
+                        placeholder={
+                          form.tipoChavePix === "CNPJ" ? "00.000.000/0000-00" :
+                          form.tipoChavePix === "CPF" ? "000.000.000-00" :
+                          form.tipoChavePix === "EMAIL" ? "email@exemplo.com" :
+                          form.tipoChavePix === "TELEFONE" ? "+55 (11) 99999-9999" :
+                          "Chave aleatória (UUID)"
+                        }
+                      />
+                    </div>
+                  </div>
+                  {form.chavePix && (
+                    <p className="text-xs text-green-600">
+                      ✓ Botão "Copiar Pix" ficará disponível nos boletos gerados
+                    </p>
+                  )}
+                  {!form.chavePix && (
+                    <p className="text-xs text-muted-foreground">
+                      Preencha a chave Pix para habilitar o botão "Copiar Pix" nos boletos
+                    </p>
+                  )}
+                </div>
+              )}
 
               <Separator />
 
