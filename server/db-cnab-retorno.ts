@@ -8,6 +8,7 @@
  *   - Header de Lote   (tipo 1)
  *   - Detalhe Segmento T (tipo 3, seg T) — dados do título
  *   - Detalhe Segmento U (tipo 3, seg U) — valores e datas complementares
+ *   - Detalhe Segmento Y-04 (tipo 3, seg Y, id 03) — dados do Bolepix (opcional)
  *   - Trailer de Lote  (tipo 5)
  *   - Trailer de Arquivo (tipo 9)
  *
@@ -51,6 +52,23 @@
  *   133-137  outros acréscimos (5)
  *   138-145  data da ocorrência DDMMAAAA (8)
  *   146-153  data do crédito DDMMAAAA (8) — pode ser 00000000 para entrada confirmada
+ *
+ * Segmento Y-04 (Bolepix) — layout FEBRABAN V10.11:
+ *   001-003  banco (3)
+ *   004-007  lote (4)
+ *   008      tipo registro = '3' (1)
+ *   009-013  nº sequencial (5)
+ *   014      segmento = 'Y' (1)
+ *   015      branco (1)
+ *   016-017  código de movimento (2)
+ *   018-019  identificação registro opcional = '03' para Pix (2)
+ *   020-069  e-mail (50) — geralmente brancos no BTG
+ *   070-071  DDD (2)
+ *   072-080  número celular (9)
+ *   081      tipo de chave Pix: 1=CPF, 2=CNPJ, 3=Telefone, 4=E-mail, 5=Aleatória (1)
+ *   082-158  chave Pix / URL do QRCode (77)
+ *   159-193  TXID — código de identificação do QRCode (35)
+ *   194-240  brancos (47)
  */
 
 // Códigos de movimento retorno BTG CNAB 240
@@ -139,9 +157,29 @@ export interface RetornoSegmentoU {
   dataCredito: string; // DDMMAAAA
 }
 
+export interface RetornoSegmentoY04 {
+  lote: string;
+  sequencial: string;
+  codMovimento: string;
+  idRegistro: string; // '03' = Pix/Bolepix
+  tipoChavePix: string; // '1'=CPF, '2'=CNPJ, '3'=Telefone, '4'=E-mail, '5'=Aleatória
+  descTipoChavePix: string;
+  chavePix: string; // Chave Pix ou URL do QRCode
+  txid: string; // Código de identificação do QRCode (35 chars)
+}
+
+export const TIPOS_CHAVE_PIX: Record<string, string> = {
+  "1": "CPF",
+  "2": "CNPJ",
+  "3": "Telefone",
+  "4": "E-mail",
+  "5": "Chave Aleatória",
+};
+
 export interface RetornoPar {
   segmentoT: RetornoSegmentoT;
   segmentoU: RetornoSegmentoU;
+  segmentoY04?: RetornoSegmentoY04; // Opcional — presente apenas para Bolepix
 }
 
 export interface RetornoArquivo {
@@ -149,6 +187,7 @@ export interface RetornoArquivo {
   pares: RetornoPar[];
   totalRegistros: number;
   totalLotes: number;
+  temBolepix: boolean; // true se algum par tiver Segmento Y-04
 }
 
 function parseDateDDMMAAAA(s: string): string {
@@ -174,6 +213,8 @@ export function parseRetornoCNAB240(conteudo: string): RetornoArquivo {
 
   // Mapa temporário: sequencial do lote → segmento T pendente
   const pendentesT = new Map<string, RetornoSegmentoT>();
+  // Mapa temporário: chave do par (lote-seqT) → segmento Y-04 pendente
+  const pendentesY04 = new Map<string, RetornoSegmentoY04>();
 
   for (const linha of linhas) {
     if (linha.length < 240) continue;
@@ -271,17 +312,67 @@ export function parseRetornoCNAB240(conteudo: string): RetornoArquivo {
       }
       continue;
     }
+
+    // Detalhe Segmento Y-04 (tipo 3, segmento Y, identificação '03' = Bolepix)
+    if (tipoReg === "3" && segmento === "Y") {
+      const idRegistro = linha.substring(17, 19).trim();
+      // Apenas processar registros Y-04 (Pix/Bolepix)
+      if (idRegistro !== "03") continue;
+
+      const lote = linha.substring(3, 7);
+      const sequencial = linha.substring(8, 13);
+      const codMovimento = linha.substring(15, 17).trim();
+
+      // O Segmento Y-04 segue o par T+U: sequencial do T = sequencial do Y - 2
+      // (T=seq, U=seq+1, Y-04=seq+2)
+      const seqT = String(parseInt(sequencial, 10) - 2).padStart(5, "0");
+      const chaveT = `${lote}-${seqT}`;
+
+      const tipoChavePix = linha.substring(80, 81).trim();
+      const segY04: RetornoSegmentoY04 = {
+        lote,
+        sequencial,
+        codMovimento,
+        idRegistro,
+        tipoChavePix,
+        descTipoChavePix: TIPOS_CHAVE_PIX[tipoChavePix] || `Tipo ${tipoChavePix}`,
+        chavePix: linha.substring(81, 158).trim(),
+        txid: linha.substring(158, 193).trim(),
+      };
+
+      // Associar ao par já criado (busca pelo chaveT)
+      const parExistente = pares.findLast(p => p.segmentoT.lote === lote && p.segmentoT.sequencial === seqT);
+      if (parExistente) {
+        parExistente.segmentoY04 = segY04;
+      } else {
+        // Guardar para associar quando o par for criado (caso Y-04 venha antes do U)
+        pendentesY04.set(chaveT, segY04);
+      }
+      continue;
+    }
   }
+
+  // Associar Y-04 pendentes a pares já criados
+  pendentesY04.forEach((segY04, chaveT) => {
+    const dashIdx = chaveT.indexOf("-");
+    const lote = chaveT.substring(0, dashIdx);
+    const seqT = chaveT.substring(dashIdx + 1);
+    const par = pares.findLast(p => p.segmentoT.lote === lote && p.segmentoT.sequencial === seqT);
+    if (par) par.segmentoY04 = segY04;
+  });
 
   if (!header) {
     throw new Error("Arquivo de retorno inválido: Header de Arquivo não encontrado");
   }
+
+  const temBolepix = pares.some(p => p.segmentoY04 !== undefined);
 
   return {
     header,
     pares,
     totalRegistros,
     totalLotes,
+    temBolepix,
   };
 }
 

@@ -8,10 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
   Upload, FileText, CheckCircle2, XCircle, AlertTriangle,
-  Clock, TrendingUp, Banknote, RefreshCw, ArrowRightLeft,
+  Clock, TrendingUp, RefreshCw, ArrowRightLeft, Eye, QrCode,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -37,6 +40,7 @@ export default function RetornoCNAB() {
   const [retornoConteudo, setRetornoConteudo] = useState("");
   const [retornoNomeArquivo, setRetornoNomeArquivo] = useState("");
   const [resultadoRetorno, setResultadoRetorno] = useState<ResultadoRetorno | null>(null);
+  const [detalhesRetornoId, setDetalhesRetornoId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -44,6 +48,11 @@ export default function RetornoCNAB() {
   const { data: retornos, isLoading: loadingRetornos } = trpc.cnab.listarRetornos.useQuery(
     { condominioId: effectiveCondominioId ?? 0 },
     { enabled: !!effectiveCondominioId }
+  );
+
+  const { data: itensDetalhes, isLoading: loadingItens } = trpc.cnab.listarItensRetorno.useQuery(
+    { retornoId: detalhesRetornoId ?? 0, condominioId: effectiveCondominioId ?? 0 },
+    { enabled: !!detalhesRetornoId && !!effectiveCondominioId }
   );
 
   const processarRetornoMutation = trpc.cnab.processarRetorno.useMutation({
@@ -116,6 +125,21 @@ export default function RetornoCNAB() {
     if (!ddmmaaaa || ddmmaaaa.length < 8) return ddmmaaaa;
     return `${ddmmaaaa.substring(0, 2)}/${ddmmaaaa.substring(2, 4)}/${ddmmaaaa.substring(4, 8)}`;
   };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "processado":
+        return <Badge className="bg-green-100 text-green-700 border-green-200">Processado</Badge>;
+      case "nao_encontrado":
+        return <Badge className="bg-red-100 text-red-700 border-red-200">Não Encontrado</Badge>;
+      case "erro":
+        return <Badge className="bg-orange-100 text-orange-700 border-orange-200">Erro</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const temBolepix = itensDetalhes?.some(i => i.pixChave || i.pixTxid);
 
   return (
     <div className="p-6 space-y-6">
@@ -268,6 +292,16 @@ export default function RetornoCNAB() {
                     </p>
                   </div>
                 )}
+                <div className="mt-4 flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDetalhesRetornoId(resultadoRetorno.retornoId)}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Ver Detalhes dos Títulos
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -301,6 +335,7 @@ export default function RetornoCNAB() {
                       <TableHead className="text-center">Pagos</TableHead>
                       <TableHead className="text-center">Não Encontrados</TableHead>
                       <TableHead className="text-right">Valor Recebido</TableHead>
+                      <TableHead className="text-center">Detalhes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -330,6 +365,15 @@ export default function RetornoCNAB() {
                         <TableCell className="text-right font-semibold text-green-700">
                           {formatarMoeda(r.valorTotalPago)}
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDetalhesRetornoId(r.id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -339,6 +383,104 @@ export default function RetornoCNAB() {
           </Card>
         </>
       )}
+
+      {/* Dialog de detalhes dos títulos */}
+      <Dialog open={!!detalhesRetornoId} onOpenChange={(open) => !open && setDetalhesRetornoId(null)}>
+        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Detalhes dos Títulos do Retorno
+            </DialogTitle>
+            <DialogDescription>
+              Lista de todos os títulos processados neste arquivo de retorno
+              {temBolepix && (
+                <span className="ml-2 inline-flex items-center gap-1 text-green-600 font-medium">
+                  <QrCode className="h-4 w-4" />
+                  Contém dados Bolepix (Segmento Y-04)
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingItens ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+            </div>
+          ) : !itensDetalhes || itensDetalhes.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <XCircle className="h-8 w-8 mx-auto mb-2" />
+              <p>Nenhum item encontrado</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nosso Número</TableHead>
+                    <TableHead>Ocorrência</TableHead>
+                    <TableHead className="text-right">Valor Título</TableHead>
+                    <TableHead className="text-right">Valor Pago</TableHead>
+                    <TableHead>Data Crédito</TableHead>
+                    <TableHead>Status</TableHead>
+                    {temBolepix && <TableHead>Bolepix</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {itensDetalhes.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-mono text-xs">{item.nossoNumero}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="font-medium">{item.descMovimento}</div>
+                        {item.descOcorrencia && item.descOcorrencia !== item.descMovimento && (
+                          <div className="text-xs text-muted-foreground">{item.descOcorrencia}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {formatarMoeda(item.valorTitulo)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-semibold">
+                        {item.valorPago > 0 ? (
+                          <span className="text-green-700">{formatarMoeda(item.valorPago)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {item.dataCredito
+                          ? format(new Date(item.dataCredito), "dd/MM/yyyy", { locale: ptBR })
+                          : "—"}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(item.statusProcessamento)}</TableCell>
+                      {temBolepix && (
+                        <TableCell>
+                          {item.pixChave ? (
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1">
+                                <QrCode className="h-3 w-3 text-green-600 shrink-0" />
+                                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
+                                  {item.pixTipoChave || "Pix"}
+                                </Badge>
+                              </div>
+                              {item.pixTxid && (
+                                <span className="font-mono text-xs text-muted-foreground truncate max-w-[120px]" title={item.pixTxid}>
+                                  TXID: {item.pixTxid}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

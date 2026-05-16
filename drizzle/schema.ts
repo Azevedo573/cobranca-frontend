@@ -373,6 +373,10 @@ export const retornoItens = mysqlTable("retornoItens", {
   statusAnterior: varchar("statusAnterior", { length: 30 }),  // status da cobrança antes do processamento
   statusNovo: varchar("statusNovo", { length: 30 }),          // status da cobrança após o processamento
   observacao: text("observacao"),
+  // Dados do Bolepix (Segmento Y-04) — preenchidos apenas quando o BTG retorna dados Pix
+  pixTipoChave: varchar("pixTipoChave", { length: 20 }),      // CPF, CNPJ, Telefone, E-mail, Chave Aleatória
+  pixChave: varchar("pixChave", { length: 100 }),             // Chave Pix ou URL do QRCode
+  pixTxid: varchar("pixTxid", { length: 35 }),               // TXID do QRCode
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type RetornoItem = typeof retornoItens.$inferSelect;

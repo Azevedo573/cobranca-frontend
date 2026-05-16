@@ -2045,6 +2045,9 @@ export const appRouter = router({
             }
           }
 
+          // Extrair dados do Bolepix (Segmento Y-04), se presente
+          const segY04 = par.segmentoY04;
+
           itensParaInserir.push({
             retornoId,
             cobrancaId,
@@ -2064,6 +2067,10 @@ export const appRouter = router({
             statusAnterior,
             statusNovo: novoStatus,
             observacao,
+            // Dados do Bolepix (Segmento Y-04)
+            pixTipoChave: segY04?.descTipoChavePix || null,
+            pixChave: segY04?.chavePix || null,
+            pixTxid: segY04?.txid || null,
           });
         }
 
@@ -2091,6 +2098,26 @@ export const appRouter = router({
           dataGeracao: retorno.header.dataGeracao,
           horaGeracao: retorno.header.horaGeracao,
         };
+      }),
+
+    listarItensRetorno: condominioAccessProcedure
+      .input(z.object({ retornoId: z.number(), condominioId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { retornoItens, retornosCNAB } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+
+        // Verificar que o retorno pertence ao condomínio
+        const [retorno] = await db.select().from(retornosCNAB)
+          .where(and(eq(retornosCNAB.id, input.retornoId), eq(retornosCNAB.condominioId, condId)))
+          .limit(1);
+        if (!retorno) throw new TRPCError({ code: "NOT_FOUND", message: "Retorno não encontrado" });
+
+        return db.select().from(retornoItens)
+          .where(eq(retornoItens.retornoId, input.retornoId))
+          .orderBy(retornoItens.id);
       }),
 
     // Lista parcelas de acordo pendentes de remessa (statusRemessa = nao_enviado)

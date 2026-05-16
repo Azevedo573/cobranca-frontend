@@ -1672,3 +1672,13 @@
 - [x] Exibir seção Pix apenas quando chavePix estiver configurada
 - [x] Corrigir ordem de geração: pixCopiaCola gerado ANTES de chamar gerarBoletoPDF nos dois endpoints (cobranças avulsas e parcelas de acordo)
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Suporte ao Segmento Y-04 (Bolepix) no Retorno CNAB 240 BTG
+- [x] Adicionar interface RetornoSegmentoY04 no parser db-cnab-retorno.ts
+- [x] Implementar parsing do Segmento Y-04 (tipo 3, segmento Y, identificação 03)
+- [x] Associar Segmento Y-04 ao par T+U correspondente (mesmo lote, sequencial T+2)
+- [x] Adicionar campos pixTipoChave, pixChave e pixTxid na tabela retornoItens (db:push)
+- [x] Atualizar procedure processarRetorno para salvar dados do Bolepix
+- [x] Exibir dados do Bolepix na página RetornoCNAB (coluna/badge Pix + dialog de detalhes)
+- [x] Adicionar procedure listarItensRetorno para buscar itens de um retorno específico
+- [x] 270 testes passando, 0 erros TypeScript
