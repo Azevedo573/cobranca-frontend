@@ -332,7 +332,7 @@ export default function AdminDashboard() {
               </div>
             ) : tentativasFiltradas && tentativasFiltradas.length > 0 ? (
               <div className="space-y-3">
-                {tentativasFiltradas.slice(0, 20).map((tentativa) => {
+                {tentativasFiltradas.slice(0, 5).map((tentativa) => {
                   const condominio = condominios?.find(c => c.id === tentativa.condominioId);
                   const contactBadge = getContactTypeBadge(tentativa.contactType);
                   const resultBadge = getResultBadge(tentativa.result);
@@ -391,7 +391,7 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
-                {tentativasFiltradas.length > 20 && (
+                {tentativasFiltradas.length > 5 && (
                   <div className="pt-2 border-t text-center">
                     <Link href="/tentativas">
                       <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
