@@ -512,6 +512,64 @@ export const appRouter = router({
       const { getAllTentativas } = await import("./db-acordos");
       return await getAllTentativas();
     }),
+
+    listAllFiltrada: adminProcedure
+      .input(z.object({
+        dataInicio: z.date().optional(),
+        dataFim: z.date().optional(),
+        colaboradorId: z.number().optional(), // userId do colaborador
+        condominioId: z.number().optional(),
+        limite: z.number().min(1).max(500).default(50),
+      }))
+      .query(async ({ input }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) return [];
+        const { tentativasCobranca, users } = await import("../drizzle/schema");
+        const { eq, and, gte, lte, desc } = await import("drizzle-orm");
+
+        const conditions: any[] = [];
+        if (input.dataInicio) conditions.push(gte(tentativasCobranca.attemptDate, input.dataInicio));
+        if (input.dataFim) {
+          // Incluir o dia inteiro da data final
+          const fimDia = new Date(input.dataFim);
+          fimDia.setHours(23, 59, 59, 999);
+          conditions.push(lte(tentativasCobranca.attemptDate, fimDia));
+        }
+        if (input.colaboradorId) conditions.push(eq(tentativasCobranca.userId, input.colaboradorId));
+        if (input.condominioId) conditions.push(eq(tentativasCobranca.condominioId, input.condominioId));
+
+        return db
+          .select({
+            id: tentativasCobranca.id,
+            cobrancaId: tentativasCobranca.cobrancaId,
+            devedorId: tentativasCobranca.devedorId,
+            condominioId: tentativasCobranca.condominioId,
+            userId: tentativasCobranca.userId,
+            contactType: tentativasCobranca.contactType,
+            notes: tentativasCobranca.notes,
+            result: tentativasCobranca.result,
+            attemptDate: tentativasCobranca.attemptDate,
+            nextAttemptDate: tentativasCobranca.nextAttemptDate,
+            createdAt: tentativasCobranca.createdAt,
+            userName: users.name,
+            userEmail: users.email,
+          })
+          .from(tentativasCobranca)
+          .leftJoin(users, eq(tentativasCobranca.userId, users.id))
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(tentativasCobranca.attemptDate))
+          .limit(input.limite);
+      }),
+
+    listarColaboradores: adminProcedure.query(async () => {
+      const db = await (await import("./db")).getDb();
+      if (!db) return [];
+      const { users } = await import("../drizzle/schema");
+      const { ne } = await import("drizzle-orm");
+      return db.select({ id: users.id, name: users.name, email: users.email, role: users.role })
+        .from(users)
+        .where(ne(users.role, "admin" as any));
+    }),
     getByDevedor: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
       const { getTentativasByDevedor } = await import("./db-tentativas");
       return await getTentativasByDevedor(input.devedorId);

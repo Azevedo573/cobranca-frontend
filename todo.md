@@ -1682,3 +1682,12 @@
 - [x] Exibir dados do Bolepix na página RetornoCNAB (coluna/badge Pix + dialog de detalhes)
 - [x] Adicionar procedure listarItensRetorno para buscar itens de um retorno específico
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Filtros no Dashboard Admin
+- [x] Adicionar filtros de data (de/até) e colaborador nas tentativas de cobrança do Dashboard Admin
+- [x] Adicionar procedure listAllFiltrada com filtros de dataInicio, dataFim, colaboradorId e condominioId
+- [x] Adicionar procedure listarColaboradores para popular o select de colaboradores
+- [x] Adicionar painel de filtros com DatePicker (inicio/fim), Select de colaborador e Select de condomínio
+- [x] KPIs (total, promessas, sem resposta) calculados dinamicamente a partir dos filtros aplicados
+- [x] Botão 'Limpar filtros' e badge 'Filtro ativo' para feedback visual
+- [x] 270 testes passando, 0 erros TypeScript
