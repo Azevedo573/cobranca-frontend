@@ -1,18 +1,20 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import { useAdminCondominio } from "@/hooks/useAdminCondominio";
 import { toast } from "sonner";
 import {
   Phone, MessageSquare, Mail, User, CheckCircle2, XCircle,
   Search, PhoneOff, HandshakeIcon, ChevronRight, RefreshCw,
-  Inbox, DollarSign, Clock, Building2, ChevronDown, ChevronUp
+  Inbox, Clock, Building2, ChevronDown, ChevronUp,
+  Users, ChevronLeft, Filter, X
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -51,6 +53,29 @@ export default function CobrancaPassiva() {
   const [notes, setNotes] = useState("");
   const [atendimentosHoje, setAtendimentosHoje] = useState(0);
   const [expandirCobrancas, setExpandirCobrancas] = useState(false);
+
+  // Estados da listagem de devedores
+  const [listaCondominioId, setListaCondominioId] = useState<number | undefined>(undefined);
+  const [listaBusca, setListaBusca] = useState("");
+  const [listaBuscaAtiva, setListaBuscaAtiva] = useState("");
+  const [listaStatus, setListaStatus] = useState<"ativo" | "pago" | "acordo" | undefined>(undefined);
+  const [listaPagina, setListaPagina] = useState(1);
+  const [listaPorPagina, setListaPorPagina] = useState<10 | 20 | 30>(10);
+
+  const listaInput = useMemo(() => ({
+    condominioId: listaCondominioId,
+    busca: listaBuscaAtiva || undefined,
+    status: listaStatus,
+    pagina: listaPagina,
+    porPagina: listaPorPagina,
+  }), [listaCondominioId, listaBuscaAtiva, listaStatus, listaPagina, listaPorPagina]);
+
+  const { data: listaDevedores, isLoading: carregandoLista } = trpc.devedores.listarTodos.useQuery(
+    listaInput,
+    { enabled: isAdmin }
+  );
+
+  const totalPaginas = Math.ceil((listaDevedores?.total ?? 0) / listaPorPagina);
 
   const condIdQuery = isAdmin ? (condominioId ?? undefined) : undefined;
 
@@ -446,6 +471,241 @@ export default function CobrancaPassiva() {
           )}
         </div>
       </div>
+
+      {/* ── Listagem de Todos os Devedores (somente admin) ── */}
+      {isAdmin && (
+        <Card className="mt-6">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Todos os Devedores
+                  {listaDevedores && (
+                    <Badge variant="outline" className="text-xs font-normal">
+                      {listaDevedores.total} no total
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>Consulte e filtre todos os devedores cadastrados no sistema</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Filtros */}
+            <div className="flex flex-wrap gap-3 items-end">
+              {/* Busca */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium">Buscar</span>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nome, CPF, unidade ou e-mail..."
+                    value={listaBusca}
+                    onChange={(e) => setListaBusca(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        setListaBuscaAtiva(listaBusca);
+                        setListaPagina(1);
+                      }
+                    }}
+                    className="w-56 h-9 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => { setListaBuscaAtiva(listaBusca); setListaPagina(1); }}
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Condomínio */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium">Condomínio</span>
+                <Select
+                  value={listaCondominioId ? String(listaCondominioId) : "todos"}
+                  onValueChange={(v) => { setListaCondominioId(v === "todos" ? undefined : Number(v)); setListaPagina(1); }}
+                >
+                  <SelectTrigger className="w-52 h-9 text-sm">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os condomínios</SelectItem>
+                    {condominios?.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium">Status</span>
+                <Select
+                  value={listaStatus ?? "todos"}
+                  onValueChange={(v) => { setListaStatus(v === "todos" ? undefined : v as any); setListaPagina(1); }}
+                >
+                  <SelectTrigger className="w-36 h-9 text-sm">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="ativo">Ativo</SelectItem>
+                    <SelectItem value="pago">Pago</SelectItem>
+                    <SelectItem value="acordo">Acordo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Itens por página */}
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground font-medium">Por página</span>
+                <Select
+                  value={String(listaPorPagina)}
+                  onValueChange={(v) => { setListaPorPagina(Number(v) as 10 | 20 | 30); setListaPagina(1); }}
+                >
+                  <SelectTrigger className="w-24 h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="30">30</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Limpar filtros */}
+              {(listaCondominioId || listaBuscaAtiva || listaStatus) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 text-muted-foreground hover:text-destructive self-end"
+                  onClick={() => {
+                    setListaCondominioId(undefined);
+                    setListaBusca("");
+                    setListaBuscaAtiva("");
+                    setListaStatus(undefined);
+                    setListaPagina(1);
+                  }}
+                >
+                  <X className="mr-1 h-3.5 w-3.5" />
+                  Limpar
+                </Button>
+              )}
+            </div>
+
+            {/* Tabela */}
+            {carregandoLista ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />
+                ))}
+              </div>
+            ) : !listaDevedores || listaDevedores.itens.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <Users className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">Nenhum devedor encontrado com os filtros aplicados.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Nome</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground hidden md:table-cell">CPF/CNPJ</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Condomínio</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground hidden sm:table-cell">Unidade</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground hidden lg:table-cell">Bloco</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Status</th>
+                      <th className="text-right px-3 py-2.5 font-medium text-muted-foreground">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {listaDevedores.itens.map((dev) => (
+                      <tr key={dev.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-3 py-2.5">
+                          <p className="font-medium truncate max-w-[180px]">{dev.name || `Unid. ${dev.unitNumber}`}</p>
+                          {dev.phone && <p className="text-xs text-muted-foreground">{dev.phone}</p>}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground hidden md:table-cell">
+                          {dev.cpfCnpj || "—"}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="text-xs text-muted-foreground">{dev.condominioNome || "—"}</span>
+                        </td>
+                        <td className="px-3 py-2.5 hidden sm:table-cell">
+                          <span className="text-xs">{dev.unitNumber}</span>
+                        </td>
+                        <td className="px-3 py-2.5 hidden lg:table-cell">
+                          <span className="text-xs text-muted-foreground">{dev.bloco || "—"}</span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <Badge
+                            variant="outline"
+                            className={
+                              dev.status === "pago"
+                                ? "bg-green-500/10 text-green-600 border-green-200"
+                                : dev.status === "acordo"
+                                ? "bg-blue-500/10 text-blue-600 border-blue-200"
+                                : "bg-orange-500/10 text-orange-600 border-orange-200"
+                            }
+                          >
+                            {dev.status === "pago" ? "Pago" : dev.status === "acordo" ? "Acordo" : "Ativo"}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <Link href={`/devedores/${dev.id}`}>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs">
+                              Ver
+                            </Button>
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Paginação */}
+            {listaDevedores && listaDevedores.total > listaPorPagina && (
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Exibindo {((listaPagina - 1) * listaPorPagina) + 1}–{Math.min(listaPagina * listaPorPagina, listaDevedores.total)} de {listaDevedores.total}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={listaPagina <= 1}
+                    onClick={() => setListaPagina(p => p - 1)}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    Anterior
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Pág. {listaPagina} / {totalPaginas}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    disabled={listaPagina >= totalPaginas}
+                    onClick={() => setListaPagina(p => p + 1)}
+                  >
+                    Próxima
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

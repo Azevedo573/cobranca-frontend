@@ -1691,3 +1691,12 @@
 - [x] KPIs (total, promessas, sem resposta) calculados dinamicamente a partir dos filtros aplicados
 - [x] Botão 'Limpar filtros' e badge 'Filtro ativo' para feedback visual
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Listagem de Devedores na Página Cobrança Passiva
+- [x] Criar procedure listarTodos com filtro de condominioId, busca, status e paginação (offset/limit)
+- [x] Adicionar componente de tabela de devedores na página /operacoes/cobranca-passiva
+- [x] Filtros: busca por nome/CPF/unidade/e-mail, select de condomínio, select de status
+- [x] Seletor de itens por página (10, 20, 30) com paginação (anterior/próxima) e contador
+- [x] Colunas: Nome, CPF/CNPJ, Condomínio, Unidade, Bloco, Status, botão Ver
+- [x] Componente visível apenas para admin
+- [x] 270 testes passando, 0 erros TypeScript

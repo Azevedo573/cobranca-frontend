@@ -334,6 +334,64 @@ export const appRouter = router({
       await deleteDevedor(input.id);
       return { success: true };
     }),
+
+    listarTodos: adminProcedure
+      .input(z.object({
+        condominioId: z.number().optional(),
+        busca: z.string().optional(),
+        status: z.enum(["ativo", "pago", "acordo"]).optional(),
+        pagina: z.number().min(1).default(1),
+        porPagina: z.number().min(10).max(30).default(10),
+      }))
+      .query(async ({ input }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) return { itens: [], total: 0 };
+        const { devedores, condominios } = await import("../drizzle/schema");
+        const { eq, and, like, or, count, desc } = await import("drizzle-orm");
+
+        const conditions: any[] = [];
+        if (input.condominioId) conditions.push(eq(devedores.condominioId, input.condominioId));
+        if (input.status) conditions.push(eq(devedores.status, input.status));
+        if (input.busca && input.busca.trim().length >= 2) {
+          const termo = `%${input.busca.trim()}%`;
+          conditions.push(
+            or(
+              like(devedores.name, termo),
+              like(devedores.cpfCnpj, termo),
+              like(devedores.unitNumber, termo),
+              like(devedores.email, termo),
+            )
+          );
+        }
+
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+        const offset = (input.pagina - 1) * input.porPagina;
+
+        const [totalResult, itens] = await Promise.all([
+          db.select({ total: count() }).from(devedores).where(where),
+          db.select({
+            id: devedores.id,
+            name: devedores.name,
+            unitNumber: devedores.unitNumber,
+            bloco: devedores.bloco,
+            cpfCnpj: devedores.cpfCnpj,
+            email: devedores.email,
+            phone: devedores.phone,
+            status: devedores.status,
+            totalDue: devedores.totalDue,
+            condominioId: devedores.condominioId,
+            condominioNome: condominios.name,
+          })
+          .from(devedores)
+          .leftJoin(condominios, eq(devedores.condominioId, condominios.id))
+          .where(where)
+          .orderBy(desc(devedores.id))
+          .limit(input.porPagina)
+          .offset(offset),
+        ]);
+
+        return { itens, total: totalResult[0]?.total ?? 0 };
+      }),
   }),
 
   // Cobranças
