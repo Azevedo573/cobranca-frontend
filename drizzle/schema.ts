@@ -44,6 +44,9 @@ export const condominios = mysqlTable("condominios", {
   correcaoMonetaria: decimal("correcaoMonetaria", { precision: 5, scale: 2 }).default("0.00"),
   indiceCorrecao: mysqlEnum("indiceCorrecao", ["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).default("NENHUM"),
   aplicarCorrecaoAuto: int("aplicarCorrecaoAuto").default(0).notNull(),
+  // Emissor de Cobrança: define quem emite os boletos deste condomínio
+  billingIssuer: mysqlEnum("billingIssuer", ["emissao_propria", "administradora", "outro"]).default("administradora").notNull(),
+  customBillingIssuer: varchar("customBillingIssuer", { length: 255 }), // preenchido quando billingIssuer = 'outro'
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

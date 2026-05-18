@@ -1700,3 +1700,17 @@
 - [x] Colunas: Nome, CPF/CNPJ, Condomínio, Unidade, Bloco, Status, botão Ver
 - [x] Componente visível apenas para admin
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Emissor de Cobrança no Cadastro do Condomínio
+- [x] Adicionar campos billingIssuer (enum) e customBillingIssuer (text) na tabela condominios
+- [x] Executar db:push para aplicar migration segura (sem remover colunas existentes)
+- [x] Atualizar procedures create/update/getById do router condominios com os novos campos
+- [x] Validação backend: customBillingIssuer obrigatório quando billingIssuer = 'outro'
+- [x] Procedure gerarRelatorioAdministradora: gera PDF com dados do acordo para envio externo
+- [x] Procedure bloqueia geração de relatório se emissor for emissao_propria
+- [x] Seção "Emissor de Cobrança" no formulário com Select (Emissão própria / Administradora / Outro)
+- [x] Campo adicional "Informe o emissor" visível apenas quando Outro for selecionado
+- [x] Visualização somente-leitura para usuários não-admin (badge com cadeado)
+- [x] Card informativo contextual que muda conforme o emissor selecionado
+- [x] Default "administradora" para condomínios sem emissor definido (migration segura)
+- [x] 270 testes passando, 0 erros TypeScript

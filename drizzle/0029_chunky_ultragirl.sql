@@ -1,0 +1,2 @@
+ALTER TABLE `condominios` ADD `billingIssuer` enum('emissao_propria','administradora','outro') DEFAULT 'administradora' NOT NULL;--> statement-breakpoint
+ALTER TABLE `condominios` ADD `customBillingIssuer` varchar(255);

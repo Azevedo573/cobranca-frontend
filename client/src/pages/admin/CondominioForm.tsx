@@ -4,8 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Building2, Receipt, Info, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -35,6 +37,8 @@ export default function CondominioForm() {
     taxaHonorarios: "10.00",
     correcaoMonetaria: "0.00",
     descontoMaximo: "0.00",
+    billingIssuer: "administradora" as "emissao_propria" | "administradora" | "outro",
+    customBillingIssuer: "",
   });
 
   const { data: condominio } = trpc.condominios.getById.useQuery(
@@ -64,6 +68,8 @@ export default function CondominioForm() {
         taxaHonorarios: condominio.taxaHonorarios || "10.00",
         correcaoMonetaria: condominio.correcaoMonetaria || "0.00",
         descontoMaximo: condominio.descontoMaximo || "0.00",
+        billingIssuer: (condominio.billingIssuer as "emissao_propria" | "administradora" | "outro") || "administradora",
+        customBillingIssuer: condominio.customBillingIssuer || "",
       });
     }
   }, [condominio]);
@@ -98,11 +104,20 @@ export default function CondominioForm() {
       toast.error("Nome do condomínio é obrigatório");
       return;
     }
+    if (formData.billingIssuer === "outro" && !formData.customBillingIssuer.trim()) {
+      toast.error("Informe o nome do emissor personalizado.");
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      customBillingIssuer: formData.billingIssuer === "outro" ? formData.customBillingIssuer : undefined,
+    };
 
     if (isEdit && condominioId) {
-      updateMutation.mutate({ id: condominioId, ...formData });
+      updateMutation.mutate({ id: condominioId, ...payload });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload);
     }
   };
 
@@ -402,6 +417,133 @@ export default function CondominioForm() {
                       placeholder="0.00"
                     />
                     <p className="text-xs text-muted-foreground">Limite de desconto para acordos de cobrança</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Emissor de Cobrança */}
+              <div className="border-t pt-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Receipt className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Emissor de Cobrança</h3>
+                  <Badge variant="outline" className="text-xs font-normal text-primary border-primary/30 bg-primary/5">
+                    Obrigatório
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Define quem será o responsável pela emissão dos boletos bancários deste condomínio.
+                  Quando <strong>Emissão própria</strong> for selecionado, o sistema gera o boleto automaticamente ao fechar um acordo.
+                  Para <strong>Administradora</strong> ou <strong>Outro</strong>, um relatório PDF será gerado para envio externo.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Select de emissor */}
+                  <div className="space-y-2">
+                    <Label htmlFor="billingIssuer" className="flex items-center gap-1.5">
+                      Emissor do boleto *
+                    </Label>
+                    {user?.role === "admin" ? (
+                      <Select
+                        value={formData.billingIssuer}
+                        onValueChange={(v) =>
+                          setFormData({
+                            ...formData,
+                            billingIssuer: v as "emissao_propria" | "administradora" | "outro",
+                            customBillingIssuer: v !== "outro" ? "" : formData.customBillingIssuer,
+                          })
+                        }
+                      >
+                        <SelectTrigger id="billingIssuer">
+                          <SelectValue placeholder="Selecione o emissor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="emissao_propria">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-green-600" />
+                              Emissão própria
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="administradora">
+                            <div className="flex items-center gap-2">
+                              <Receipt className="h-4 w-4 text-blue-600" />
+                              Administradora
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="outro">
+                            <div className="flex items-center gap-2">
+                              <Info className="h-4 w-4 text-amber-600" />
+                              Outro
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-muted/50 text-sm text-muted-foreground">
+                        <Lock className="h-3.5 w-3.5" />
+                        {formData.billingIssuer === "emissao_propria" ? "Emissão própria"
+                          : formData.billingIssuer === "administradora" ? "Administradora"
+                          : "Outro"}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {formData.billingIssuer === "emissao_propria"
+                        ? "Boleto gerado automaticamente pelo sistema ao fechar um acordo."
+                        : formData.billingIssuer === "administradora"
+                        ? "Relatório PDF gerado para envio à administradora ao fechar um acordo."
+                        : "Relatório PDF gerado para envio ao emissor informado abaixo."}
+                    </p>
+                  </div>
+
+                  {/* Campo personalizado — visível apenas quando 'outro' */}
+                  {formData.billingIssuer === "outro" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="customBillingIssuer">
+                        Informe o emissor *
+                      </Label>
+                      {user?.role === "admin" ? (
+                        <Input
+                          id="customBillingIssuer"
+                          name="customBillingIssuer"
+                          value={formData.customBillingIssuer}
+                          onChange={handleChange}
+                          placeholder="Ex: Imobiliária Exemplo Ltda"
+                          maxLength={255}
+                          required
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2 h-10 px-3 rounded-md border bg-muted/50 text-sm text-muted-foreground">
+                          <Lock className="h-3.5 w-3.5" />
+                          {formData.customBillingIssuer || "—"}
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">Nome completo do emissor externo</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card informativo sobre o comportamento */}
+                <div className="mt-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <div className="text-sm text-blue-800 dark:text-blue-300">
+                      {formData.billingIssuer === "emissao_propria" ? (
+                        <>
+                          <strong>Emissão própria ativada:</strong> ao fechar um acordo, o sistema gerará automaticamente
+                          o boleto bancário (BTG Pactual) com código de barras, linha digitável e QR Code Pix.
+                        </>
+                      ) : formData.billingIssuer === "administradora" ? (
+                        <>
+                          <strong>Administradora como emissora:</strong> ao fechar um acordo, o sistema gerará um
+                          relatório PDF com os dados do devedor, parcelas e valores para envio à administradora.
+                          A administradora será responsável pela emissão dos boletos.
+                        </>
+                      ) : (
+                        <>
+                          <strong>Emissor personalizado:</strong> ao fechar um acordo, o sistema gerará um
+                          relatório PDF identificado com o nome do emissor informado acima para envio externo.
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

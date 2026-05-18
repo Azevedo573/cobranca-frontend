@@ -108,7 +108,13 @@ export const appRouter = router({
       taxaMulta: z.string().optional(),
       taxaHonorarios: z.string().optional(),
       descontoMaximo: z.string().optional(),
+      billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).default("administradora"),
+      customBillingIssuer: z.string().max(255).optional(),
     })).mutation(async ({ input }) => {
+      // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
+      if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o nome do emissor personalizado." });
+      }
       const { createCondominio } = await import("./db-condominios");
       return await createCondominio(input);
     }),
@@ -130,7 +136,13 @@ export const appRouter = router({
       managerEmail: z.string().optional(),
       username: z.string().optional(),
       password: z.string().optional(),
+      billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).optional(),
+      customBillingIssuer: z.string().max(255).optional().nullable(),
     })).mutation(async ({ input }) => {
+      // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
+      if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o nome do emissor personalizado." });
+      }
       const { id, ...data } = input;
       const { updateCondominio } = await import("./db-condominios");
       return await updateCondominio(id, data);
@@ -1097,6 +1109,151 @@ export const appRouter = router({
       
       return parcelas;
     }),
+
+    // Gerar relatório PDF do acordo para envio à administradora
+    gerarRelatorioAdministradora: protectedProcedure
+      .input(z.object({ acordoId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
+
+        const { acordos, parcelasAcordo, devedores, condominios } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const { storagePut } = await import("./storage");
+
+        // Buscar acordo com devedor e condomínio
+        const acordoRows = await db
+          .select({
+            acordo: acordos,
+            devedor: devedores,
+            condominio: condominios,
+          })
+          .from(acordos)
+          .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+          .innerJoin(condominios, eq(acordos.condominioId, condominios.id))
+          .where(eq(acordos.id, input.acordoId))
+          .limit(1);
+
+        if (!acordoRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Acordo não encontrado" });
+        const { acordo, devedor, condominio } = acordoRows[0];
+
+        // Verificar se o emissor é administradora ou outro (não emissão própria)
+        const issuer = condominio.billingIssuer ?? "administradora";
+        if (issuer === "emissao_propria") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Este condomínio usa emissão própria — gere o boleto diretamente." });
+        }
+
+        const nomeEmissor = issuer === "outro" && condominio.customBillingIssuer
+          ? condominio.customBillingIssuer
+          : "Administradora";
+
+        // Buscar parcelas do acordo
+        const parcelas = await db
+          .select()
+          .from(parcelasAcordo)
+          .where(eq(parcelasAcordo.acordoId, input.acordoId))
+          .orderBy(parcelasAcordo.installmentNumber);
+
+        // Gerar PDF simples com dados do acordo
+        const PDFDocument = (await import("pdfkit")).default;
+        const chunks: Buffer[] = [];
+        const doc = new PDFDocument({ margin: 50, size: "A4" });
+        doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+        await new Promise<void>((resolve, reject) => {
+          doc.on("end", resolve);
+          doc.on("error", reject);
+
+          const fmt = (v: number) =>
+            new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
+          const fmtDate = (d: Date | null | undefined) =>
+            d ? new Date(d).toLocaleDateString("pt-BR") : "—";
+
+          // Cabeçalho
+          doc.fontSize(18).font("Helvetica-Bold").text("Relatório de Acordo de Cobrança", { align: "center" });
+          doc.fontSize(11).font("Helvetica").text(`Emissor: ${nomeEmissor}`, { align: "center" });
+          doc.moveDown(0.5);
+          doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+          doc.moveDown(0.5);
+
+          // Dados do condomínio
+          doc.fontSize(12).font("Helvetica-Bold").text("Condomínio");
+          doc.fontSize(10).font("Helvetica")
+            .text(`Nome: ${condominio.name}`)
+            .text(`CNPJ: ${condominio.cnpj || "—"}`)
+            .text(`Endereço: ${condominio.address || "—"}`);
+          doc.moveDown(0.5);
+
+          // Dados do devedor
+          doc.fontSize(12).font("Helvetica-Bold").text("Devedor / Unidade");
+          doc.fontSize(10).font("Helvetica")
+            .text(`Nome: ${devedor.name || `Unidade ${devedor.unitNumber}`}`)
+            .text(`CPF/CNPJ: ${devedor.cpfCnpj || "—"}`)
+            .text(`Unidade: ${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}${devedor.unitNumber}`)
+            .text(`E-mail: ${devedor.email || "—"}`)
+            .text(`Telefone: ${devedor.phone || "—"}`);
+          doc.moveDown(0.5);
+
+          // Dados do acordo
+          doc.fontSize(12).font("Helvetica-Bold").text("Dados do Acordo");
+          doc.fontSize(10).font("Helvetica")
+            .text(`Acordo Nº: ${acordo.id}`)
+            .text(`Data de criação: ${fmtDate(acordo.createdAt)}`)
+            .text(`Valor total original: ${fmt(Number(acordo.totalAmount))}`)
+            .text(`Valor acordado: ${fmt(Number(acordo.agreedAmount))}`)
+            .text(`Número de parcelas: ${acordo.installments}`)
+            .text(`Frequência: ${acordo.paymentFrequency}`)
+            .text(`Status: ${acordo.status}`);
+          if (acordo.notes) doc.text(`Observações: ${acordo.notes}`);
+          doc.moveDown(0.5);
+
+          // Tabela de parcelas
+          doc.fontSize(12).font("Helvetica-Bold").text("Parcelas");
+          doc.moveDown(0.3);
+
+          // Cabeçalho da tabela
+          const colX = [50, 120, 230, 340, 450];
+          doc.fontSize(9).font("Helvetica-Bold");
+          doc.text("Parc.", colX[0], doc.y, { continued: false });
+          const headerY = doc.y - 12;
+          doc.text("Parc.", colX[0], headerY);
+          doc.text("Vencimento", colX[1], headerY);
+          doc.text("Valor", colX[2], headerY);
+          doc.text("Status", colX[3], headerY);
+          doc.text("Pago em", colX[4], headerY);
+          doc.moveDown(0.3);
+          doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+          doc.moveDown(0.2);
+
+          doc.fontSize(9).font("Helvetica");
+          for (const p of parcelas) {
+            const rowY = doc.y;
+            doc.text(String(p.installmentNumber), colX[0], rowY);
+            doc.text(fmtDate(p.dueDate), colX[1], rowY);
+            doc.text(fmt(Number(p.amount)), colX[2], rowY);
+            doc.text(p.status, colX[3], rowY);
+            doc.text(p.paymentDate ? fmtDate(p.paymentDate) : "—", colX[4], rowY);
+            doc.moveDown(0.6);
+          }
+
+          doc.moveDown(0.5);
+          doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+          doc.moveDown(0.5);
+
+          // Rodapé
+          doc.fontSize(9).font("Helvetica").fillColor("gray")
+            .text(`Gerado em: ${new Date().toLocaleString("pt-BR")} — Sistema de Gestão de Cobranças`, { align: "center" });
+
+          doc.end();
+        });
+
+        const pdfBuffer = Buffer.concat(chunks);
+        const fileKey = `relatorios-acordo/acordo-${input.acordoId}-${Date.now()}.pdf`;
+        const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+
+        return { url, nomeEmissor };
+      }),
   }),
 
   // Usuários (apenas admin)

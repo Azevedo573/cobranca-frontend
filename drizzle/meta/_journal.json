@@ -197,6 +197,13 @@
       "when": 1778935932717,
       "tag": "0028_green_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1779148036579,
+      "tag": "0029_chunky_ultragirl",
+      "breakpoints": true
     }
   ]
 }
