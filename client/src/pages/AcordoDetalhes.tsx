@@ -29,6 +29,8 @@ import {
   Copy,
   ExternalLink,
   Loader2,
+  Download,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
@@ -41,12 +43,35 @@ export default function AcordoDetalhes() {
   const [copiandoParcela, setCopiandoParcela] = useState<Record<number, 'linha' | 'pix' | null>>({});
 
   const utils = trpc.useUtils();
+  const [relatorioUrl, setRelatorioUrl] = useState<string | null>(null);
 
   // Buscar dados do acordo
   const { data: acordo, isLoading: loadingAcordo } = trpc.acordos.getById.useQuery(
     { id: acordoId },
     { enabled: !!acordoId }
   );
+
+  // Buscar dados do condomínio para verificar o billingIssuer
+  const { data: condominio } = trpc.condominios.getById.useQuery(
+    { id: acordo?.condominioId ?? 0 },
+    { enabled: !!acordo?.condominioId }
+  );
+
+  // Mutation para gerar relatório para administradora
+  const gerarRelatorioMutation = trpc.acordos.gerarRelatorioAdministradora.useMutation({
+    onSuccess: (data) => {
+      setRelatorioUrl(data.url);
+      window.open(data.url, '_blank');
+      toast.success(`Relatório gerado para ${data.nomeEmissor}!`);
+    },
+    onError: (err) => toast.error('Erro ao gerar relatório: ' + err.message),
+  });
+
+  // Derivar se o emissor é administradora/outro (não emissão própria)
+  const isAdministradora = condominio?.billingIssuer !== 'emissao_propria';
+  const nomeEmissor = condominio?.billingIssuer === 'outro' && condominio?.customBillingIssuer
+    ? condominio.customBillingIssuer
+    : 'Administradora';
 
   // Buscar parcelas do acordo
   const { data: parcelas, isLoading: loadingParcelas } = trpc.acordos.getParcelas.useQuery(
@@ -197,7 +222,38 @@ export default function AcordoDetalhes() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Botão Gerar Relatório — visível apenas quando o emissor não é emissão própria */}
+            {isAdministradora && (
+              <div className="flex items-center gap-2">
+                {relatorioUrl ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/30"
+                    onClick={() => window.open(relatorioUrl, '_blank')}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Baixar Relatório
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/30"
+                    onClick={() => gerarRelatorioMutation.mutate({ acordoId })}
+                    disabled={gerarRelatorioMutation.isPending}
+                  >
+                    {gerarRelatorioMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Building2 className="h-4 w-4 mr-2" />
+                    )}
+                    {gerarRelatorioMutation.isPending ? 'Gerando...' : `Relatório para ${nomeEmissor}`}
+                  </Button>
+                )}
+              </div>
+            )}
             <span className="text-sm text-muted-foreground">{user?.name}</span>
             <Badge variant="outline" className="capitalize">
               {user?.role}
