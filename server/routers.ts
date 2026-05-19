@@ -1274,6 +1274,41 @@ export const appRouter = router({
       const result = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
       return result[0] || null;
     }),
+    // Listar usuários de um condomínio específico
+    listByCondominio: adminProcedure
+      .input(z.object({ condominioId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { users } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        return await db.select().from(users).where(eq(users.condominioId, input.condominioId));
+      }),
+
+    // Definir administrador principal do condomínio
+    definirAdminPrincipal: adminProcedure
+      .input(z.object({ userId: z.number(), condominioId: z.number() }))
+      .mutation(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+        const { users } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+
+        // Verificar se o usuário pertence ao condomínio
+        const target = await db.select().from(users)
+          .where(and(eq(users.id, input.userId), eq(users.condominioId, input.condominioId)))
+          .limit(1);
+        if (!target.length) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado neste condomínio" });
+
+        // Remover isPrimaryAdmin de todos os usuários do condomínio
+        await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, input.condominioId));
+        // Definir o novo admin principal
+        await db.update(users).set({ isPrimaryAdmin: 1 }).where(eq(users.id, input.userId));
+        return { success: true };
+      }),
+
     create: adminProcedure.input(z.object({
       name: z.string(),
       email: z.string().email(),
@@ -1281,26 +1316,37 @@ export const appRouter = router({
       role: z.enum(["admin", "sindico", "cobrador"]),
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
+      isPrimaryAdmin: z.number().optional(),
     })).mutation(async ({ input }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      
+
+      // Verificar duplicidade de email
+      const { users } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1);
+      if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
+
       // Gerar hash da senha
       const bcrypt = await import("bcryptjs");
       const hashedPassword = await bcrypt.default.hash(input.password, 10);
-      
-      // Gerar openId único baseado no email e timestamp
-      const openId = hashedPassword;
-      
-      const { users } = await import("../drizzle/schema");
+      const openId = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+      // Se isPrimaryAdmin, remover flag dos demais do mesmo condomínio
+      if (input.isPrimaryAdmin && input.condominioId) {
+        await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, input.condominioId));
+      }
+
       return await db.insert(users).values({
         openId,
         name: input.name,
         email: input.email,
         passwordHash: hashedPassword,
+        loginMethod: "custom",
         role: input.role,
         condominioId: input.condominioId,
+        isPrimaryAdmin: input.isPrimaryAdmin ?? 0,
         isActive: input.isActive ?? 1,
       });
     }),
@@ -1312,22 +1358,31 @@ export const appRouter = router({
       role: z.enum(["admin", "sindico", "cobrador"]).optional(),
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
+      isPrimaryAdmin: z.number().optional(),
     })).mutation(async ({ input }) => {
-      const { id, password, ...data } = input;
-      
-      // Se tem senha, gerar hash
+      const { id, password, isPrimaryAdmin, condominioId, ...data } = input;
+
       let updateData: any = { ...data };
+      if (condominioId !== undefined) updateData.condominioId = condominioId;
+      if (isPrimaryAdmin !== undefined) updateData.isPrimaryAdmin = isPrimaryAdmin;
+
       if (password) {
         const bcrypt = await import("bcryptjs");
         const hashedPassword = await bcrypt.default.hash(password, 10);
-        updateData.openId = hashedPassword;
         updateData.passwordHash = hashedPassword;
       }
+
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
+
+      // Se definindo como admin principal, remover flag dos demais do condomínio
+      if (isPrimaryAdmin === 1 && condominioId) {
+        await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, condominioId));
+      }
+
       await db.update(users).set(updateData).where(eq(users.id, id));
       return { success: true };
     }),
@@ -1337,6 +1392,16 @@ export const appRouter = router({
       if (!db) throw new Error("Database not available");
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
+
+      // Proteger admin principal: não permitir exclusão sem substituição
+      const target = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
+      if (target.length && target[0].isPrimaryAdmin === 1) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Não é possível excluir o administrador principal. Defina outro usuário como administrador principal antes de excluir este.",
+        });
+      }
+
       await db.delete(users).where(eq(users.id, input.id));
       return { success: true };
     }),

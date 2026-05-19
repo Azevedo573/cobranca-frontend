@@ -14,6 +14,7 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["admin", "sindico", "cobrador"]).default("cobrador").notNull(),
   condominioId: int("condominioId"),
+  isPrimaryAdmin: int("isPrimaryAdmin").default(0).notNull(), // 1 = administrador principal do condomínio
   isActive: int("isActive").default(1).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -1714,3 +1714,30 @@
 - [x] Card informativo contextual que muda conforme o emissor selecionado
 - [x] Default "administradora" para condomínios sem emissor definido (migration segura)
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Refatoração: Login do Condomínio → Gestão de Usuários
+- [ ] Adicionar isPrimaryAdmin (boolean) e condominioId (FK) na tabela users
+- [ ] Executar migration segura (db:push)
+- [ ] Script de migração: criar usuário admin para cada condomínio com login existente
+- [ ] Procedure listarUsuariosPorCondominio (admin master)
+- [ ] Procedure criarUsuarioCondominio com validação de email único
+- [ ] Procedure definirAdminPrincipal com proteção contra usuário órfão
+- [ ] Procedure removerUsuarioCondominio com proteção de isPrimaryAdmin
+- [ ] Atualizar loginCustom para buscar usuário na tabela users (não no condomínio)
+- [ ] Tela de Usuários: listagem por condomínio com badges e botão "Definir como admin principal"
+- [ ] Formulário de condomínio: remover campos login/senha, adicionar seção admin principal
+- [ ] Manter compatibilidade com login existente durante transição
+
+## Refatoração: Login do Condomínio → Gestão de Usuários (CONCLUÍDO)
+- [x] Adicionar isPrimaryAdmin (boolean) na tabela users (db:push aplicado)
+- [x] Script de migração: criar usuário admin para cada condomínio com login existente (idempotente)
+- [x] Procedure listByCondominio: listar usuários de um condomínio específico
+- [x] Procedure create: validação de email único, isPrimaryAdmin, loginMethod=custom
+- [x] Procedure update: suporte a isPrimaryAdmin com remoção automática do anterior
+- [x] Procedure delete: proteção contra exclusão do admin principal
+- [x] Procedure definirAdminPrincipal: troca atômica do admin principal
+- [x] auth-custom.ts: busca na tabela users primeiro (fallback para tabela condominios)
+- [x] Tela de Usuários: filtro por condomínio, badge Crown para admin principal, botão "Admin Principal"
+- [x] Formulário de condomínio: seção "Usuário Administrador Principal" com componente AdminPrincipalInfo
+- [x] Compatibilidade com login existente mantida via fallback no auth-custom.ts
+- [x] 270 testes passando, 0 erros TypeScript

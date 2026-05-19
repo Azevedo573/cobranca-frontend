@@ -7,10 +7,59 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Save, Building2, Receipt, Info, Lock } from "lucide-react";
+import { ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
+
+// Componente inline: exibe o admin principal do condomínio e link para gerenciar usuários
+function AdminPrincipalInfo({ condominioId }: { condominioId: number }) {
+  const { data: usersData, isLoading } = trpc.users.listByCondominio.useQuery({ condominioId });
+  const adminPrincipal = usersData?.find(u => u.isPrimaryAdmin === 1);
+  const totalUsers = usersData?.length ?? 0;
+
+  if (isLoading) {
+    return (
+      <div className="rounded-lg border p-4 text-sm text-muted-foreground animate-pulse">
+        Carregando usuários...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border p-4 flex items-start gap-3">
+        <Crown className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+        <div className="flex-1 min-w-0">
+          {adminPrincipal ? (
+            <>
+              <p className="font-medium text-sm">{adminPrincipal.name || "Sem nome"}</p>
+              <p className="text-xs text-muted-foreground font-mono">{adminPrincipal.email || "—"}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
+                  Admin Principal
+                </Badge>
+                <Badge variant={adminPrincipal.isActive ? "default" : "outline"} className={adminPrincipal.isActive ? "text-xs bg-green-100 text-green-700 border-green-200" : "text-xs"}>
+                  {adminPrincipal.isActive ? "Ativo" : "Inativo"}
+                </Badge>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">Nenhum administrador principal definido</p>
+          )}
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xs text-muted-foreground">{totalUsers} usuário(s)</p>
+        </div>
+      </div>
+      <a href="/admin/usuarios" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+        <Users className="h-4 w-4" />
+        Gerenciar usuários deste condomínio
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    </div>
+  );
+}
 
 export default function CondominioForm() {
   const { user, logout } = useAuth();
@@ -307,35 +356,31 @@ export default function CondominioForm() {
                 </div>
               </div>
 
-              {/* Credenciais de Acesso */}
+              {/* Usuário Administrador Principal */}
               <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold mb-4">Credenciais de Acesso</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Defina usuário e senha para acesso do condomínio ao sistema
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Usuário</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      value={formData.username}
-                      onChange={handleChange}
-                      placeholder="usuario.condominio"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder={isEdit ? "Deixe em branco para manter" : "Digite a senha"}
-                    />
-                  </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Crown className="h-5 w-5 text-amber-500" />
+                  <h3 className="text-lg font-semibold">Usuário Administrador Principal</h3>
                 </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  O acesso ao condomínio é gerenciado pela <strong>tela de usuários</strong>.
+                  Cada condomínio pode ter múltiplos usuários, sendo um deles o administrador principal.
+                </p>
+
+                {isEdit && condominioId ? (
+                  <AdminPrincipalInfo condominioId={condominioId} />
+                ) : (
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4">
+                    <div className="flex items-start gap-3">
+                      <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div className="text-sm text-amber-800 dark:text-amber-300">
+                        <strong>Novo condomínio:</strong> após salvar, acesse a{" "}
+                        <strong>tela de Usuários</strong> para cadastrar o administrador principal deste condomínio
+                        e definir suas credenciais de acesso.
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Taxas e Encargos */}
