@@ -73,10 +73,10 @@ export function SimuladorAcordo({
       valorTotal: valorComDesconto,
       valorEntrada,
       numeroParcelas,
-      taxaJurosMensal,
+      taxaJurosMensal: 0, // Sem juros adicionais: encargos já aplicados no valor original
       dataInicio: new Date(),
     });
-  }, [valorTotal, valorEntrada, numeroParcelas, taxaJurosMensal, percentualDesconto]);
+  }, [valorTotal, valorEntrada, numeroParcelas, percentualDesconto]);
 
   const handleCopiarTexto = () => {
     const texto = gerarTextoAcordo(planoAcordo, devedorNome, condominioNome);
@@ -287,7 +287,7 @@ export function SimuladorAcordo({
       </div>
 
       <p className="text-xs text-muted-foreground mt-4">
-        💡 Taxa de juros aplicada: {taxaJurosMensal}% ao mês
+        💡 O valor do acordo é parcelado sem acréscimo de juros. Os encargos já estão incluídos no valor negociado.
       </p>
     </Card>
   );
