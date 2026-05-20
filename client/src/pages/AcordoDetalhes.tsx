@@ -502,7 +502,7 @@ export default function AcordoDetalhes() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          {parcela.status !== "pago" && (
+                          {parcela.status !== "pago" && user?.role !== "sindico" && (
                             <Button
                               size="sm"
                               variant="outline"
