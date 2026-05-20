@@ -27,9 +27,13 @@ import {
   PhoneCall,
   PhoneIncoming,
   Download,
+  Sun,
+  Moon,
+  LogOut,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
+import { useTheme } from "@/contexts/ThemeContext";
 import { useState, useEffect } from "react";
 
 interface MenuItem {
@@ -141,9 +145,10 @@ const dashboardItems: MenuItem[] = [
 ];
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [location] = useLocation();
   const { collapsed, setCollapsed } = useSidebarContext();
+  const { theme, toggleTheme } = useTheme();
 
   // Estado de abertura de cada grupo — persiste no localStorage
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -327,9 +332,32 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* User Info */}
-      <div className="border-t border-border p-4">
-        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+      {/* User Info + Theme Toggle + Logout */}
+      <div className="border-t border-border p-3 space-y-2">
+        {/* Botão de tema */}
+        <button
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Mudar para Light Mode" : "Mudar para Dark Mode"}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm",
+            "hover:bg-accent hover:text-accent-foreground text-muted-foreground",
+            collapsed && "justify-center"
+          )}
+        >
+          {theme === "dark" ? (
+            <Sun className="h-4 w-4 flex-shrink-0 text-amber-400" />
+          ) : (
+            <Moon className="h-4 w-4 flex-shrink-0 text-slate-500" />
+          )}
+          {!collapsed && (
+            <span className="font-medium">
+              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            </span>
+          )}
+        </button>
+
+        {/* Usuário + Logout */}
+        <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
             <span className="text-sm font-medium text-primary">
               {user.name?.charAt(0).toUpperCase() || "U"}
@@ -338,23 +366,41 @@ export default function Sidebar() {
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user.name}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span
-                  className={cn(
-                    "text-xs px-2 py-0.5 rounded-full font-medium",
-                    user.role === "admin" && "bg-red-500/10 text-red-500",
-                    user.role === "sindico" && "bg-blue-500/10 text-blue-500",
-                    user.role === "cobrador" && "bg-green-500/10 text-green-500"
-                  )}
-                >
-                  {user.role === "admin" && "Administrador"}
-                  {user.role === "sindico" && "Síndico"}
-                  {user.role === "cobrador" && "Colaborador"}
-                </span>
-              </div>
+              <span
+                className={cn(
+                  "text-xs px-2 py-0.5 rounded-full font-medium",
+                  user.role === "admin" && "bg-red-500/10 text-red-500",
+                  user.role === "sindico" && "bg-blue-500/10 text-blue-500",
+                  user.role === "cobrador" && "bg-green-500/10 text-green-500"
+                )}
+              >
+                {user.role === "admin" && "Administrador"}
+                {user.role === "sindico" && "Síndico"}
+                {user.role === "cobrador" && "Colaborador"}
+              </span>
             </div>
           )}
+          {!collapsed && (
+            <button
+              onClick={logout}
+              title="Sair"
+              className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors flex-shrink-0"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
         </div>
+
+        {/* Logout no modo colapsado */}
+        {collapsed && (
+          <button
+            onClick={logout}
+            title="Sair"
+            className="w-full flex items-center justify-center px-3 py-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors text-muted-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </aside>
   );

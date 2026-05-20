@@ -1806,3 +1806,22 @@
 - [x] Botão "Centro de Inteligência Operacional" destacado nas ações rápidas do AdminDashboard
 - [x] Rota /admin/executivo registrada no App.tsx
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Dark Mode e Light Mode (Clean Mode) em Todo o Sistema
+- [ ] Atualizar variáveis CSS no index.css para dark e light mode completos
+- [ ] Atualizar ThemeContext para persistir preferência no localStorage
+- [ ] Adicionar botão alternador Sol/Lua no DashboardLayout (header)
+- [ ] Adicionar botão alternador nas telas de login (LoginAdmin, LoginCondominio, LoginColaborador)
+- [ ] Ajustar ExecutivoDashboard (cores hardcoded slate-950/900) para usar variáveis CSS
+- [ ] Ajustar SindicoDashboard, SindicoPipeline, SindicoAcordos para responder ao tema
+- [ ] Garantir que todas as páginas admin respondam ao tema via classe .dark no html
+- [ ] Verificar TypeScript e executar testes
+
+## Dark Mode e Light Mode (Clean Mode)
+- [x] Analisar ThemeContext, index.css e Sidebar para mapear estado do tema
+- [x] Atualizar variáveis CSS .dark no index.css com paleta calibrada (background, card, border, muted, foreground)
+- [x] Habilitar switchable=true e defaultTheme="light" no ThemeProvider do App.tsx
+- [x] Adicionar botão alternador Sol/Lua no rodapé da Sidebar com tooltip
+- [x] Refatorar ExecutivoDashboard: substituir todas as cores hardcoded (slate-900, slate-950, slate-400, slate-500, slate-800) por variáveis CSS (bg-card, bg-muted, text-foreground, text-muted-foreground, border-border)
+- [x] Insights de IA e cards coloridos usam opacidade /10 e /20 para funcionar em ambos os modos
+- [x] 270 testes passando, 0 erros TypeScript
