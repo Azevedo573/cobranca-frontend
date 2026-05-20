@@ -400,3 +400,44 @@ export const passwordResetTokens = mysqlTable("passwordResetTokens", {
 });
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+// ─── Módulo de Auditoria ──────────────────────────────────────────────────────
+// Registra TODAS as ações relevantes do sistema para rastreabilidade e compliance.
+// Imutável por design: nunca atualizar ou deletar registros de auditoria.
+// Severidade: info | warning | critical
+// Ação: login_success | login_failed | logout | create | update | delete |
+//        export | generate_boleto | generate_remessa | process_retorno |
+//        password_reset_request | password_reset_success | role_change |
+//        bulk_action | access_denied
+export const auditLogs = mysqlTable("auditLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  // Quem fez a ação
+  userId: int("userId"),                                        // null = ação anônima (ex: login falho)
+  userName: varchar("userName", { length: 255 }),               // snapshot do nome no momento
+  userRole: varchar("userRole", { length: 50 }),                // admin | user | colaborador | sindico
+  userEmail: varchar("userEmail", { length: 255 }),             // snapshot do email
+  // O que foi feito
+  action: varchar("action", { length: 100 }).notNull(),         // ex: "create", "login_success"
+  entity: varchar("entity", { length: 100 }),                   // ex: "devedor", "cobranca", "acordo"
+  entityId: varchar("entityId", { length: 100 }),               // ID do registro afetado
+  entityLabel: varchar("entityLabel", { length: 255 }),         // ex: "João Silva - Apto 101"
+  // Contexto
+  condominioId: int("condominioId"),                            // condomínio afetado
+  condominioNome: varchar("condominioNome", { length: 255 }),   // snapshot do nome
+  // Dados de auditoria
+  beforeData: text("beforeData"),                               // JSON do estado anterior
+  afterData: text("afterData"),                                 // JSON do estado posterior
+  metadata: text("metadata"),                                   // JSON com dados extras
+  // Segurança
+  ipAddress: varchar("ipAddress", { length: 45 }).notNull().default("unknown"),
+  userAgent: varchar("userAgent", { length: 500 }),
+  sessionId: varchar("sessionId", { length: 100 }),
+  // Classificação
+  severity: mysqlEnum("severity", ["info", "warning", "critical"]).notNull().default("info"),
+  success: int("success").notNull().default(1),                 // 1=sucesso, 0=falha
+  errorMessage: varchar("errorMessage", { length: 500 }),       // mensagem de erro se falhou
+  // Timestamp imutável
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;

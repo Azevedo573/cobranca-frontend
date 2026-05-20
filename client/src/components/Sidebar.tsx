@@ -30,6 +30,8 @@ import {
   Sun,
   Moon,
   LogOut,
+  Shield,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -133,6 +135,8 @@ const menuGroups: MenuGroup[] = [
     roles: ["admin"],
     items: [
       { label: "Produtividade", href: "/admin/relatorios/produtividade", icon: BarChart3, roles: ["admin"] },
+      { label: "Centro de Inteligência", href: "/admin/executivo", icon: TrendingUp, roles: ["admin"] },
+      { label: "Auditoria do Sistema", href: "/admin/auditoria", icon: Shield, roles: ["admin"] },
     ],
   },
 ];

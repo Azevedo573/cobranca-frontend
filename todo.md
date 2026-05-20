@@ -1825,3 +1825,13 @@
 - [x] Refatorar ExecutivoDashboard: substituir todas as cores hardcoded (slate-900, slate-950, slate-400, slate-500, slate-800) por variáveis CSS (bg-card, bg-muted, text-foreground, text-muted-foreground, border-border)
 - [x] Insights de IA e cards coloridos usam opacidade /10 e /20 para funcionar em ambos os modos
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Módulo de Logs e Auditoria de Usuários
+- [x] Tabela auditLogs criada no schema (id, userId, userName, userRole, action, entity, entityId, entityLabel, condominioId, ipAddress, userAgent, beforeData, afterData, success, errorMessage, severity, createdAt)
+- [x] db:push aplicado com sucesso (campo success como int para compatibilidade MySQL)
+- [x] Helper logAudit() em server/audit.ts com funções de conveniência: auditLoginSuccess, auditLoginFailed, auditLogout, auditCreate, auditUpdate, auditDelete, auditAction
+- [x] Instrumentação: login (todos os tipos), logout, create/update/delete de condomínios, devedores, cobranças, acordos, usuários, baixa de parcela
+- [x] Router auditoria com procedures: listarLogs (filtros avançados + paginação), estatisticas, logsUsuario
+- [x] Página /admin/auditoria com KPIs (total, 24h, críticos, falhas), filtros (busca, ação, entidade, severidade, resultado), tabela paginada, dialog de detalhes com before/after, exportação CSV
+- [x] Links "Auditoria do Sistema" e "Centro de Inteligência" adicionados no grupo Relatórios do Sidebar
+- [x] 270 testes passando, 0 erros TypeScript

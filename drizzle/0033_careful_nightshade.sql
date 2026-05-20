@@ -1,0 +1,1 @@
+ALTER TABLE `auditLogs` MODIFY COLUMN `success` int NOT NULL DEFAULT 1;

@@ -6,13 +6,15 @@ import { adminProcedure, condominioAccessProcedure } from "./middleware";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
+import { logAudit, auditLoginSuccess, auditLoginFailed, auditLogout } from "./audit";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      await auditLogout(ctx);
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return {
@@ -29,12 +31,14 @@ export const appRouter = router({
         const result = await authenticateCondominio(input.username, input.password);
         
         if (result.success && result.token) {
-          // Definir cookie com o token
           const cookieOptions = getSessionCookieOptions(ctx.req);
           ctx.res.cookie(COOKIE_NAME, result.token, {
             ...cookieOptions,
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+            maxAge: 7 * 24 * 60 * 60 * 1000,
           });
+          await auditLoginSuccess(ctx, { condominioId: result.user?.condominioId, condominioNome: result.user?.condominioName });
+        } else {
+          await auditLoginFailed(ctx, input.username, result.error || "Credenciais inválidas");
         }
         
         return result;
@@ -49,12 +53,14 @@ export const appRouter = router({
         const result = await authenticateColaborador(input.username, input.password);
         
         if (result.success && result.token) {
-          // Definir cookie com o token
           const cookieOptions = getSessionCookieOptions(ctx.req);
           ctx.res.cookie(COOKIE_NAME, result.token, {
             ...cookieOptions,
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+            maxAge: 7 * 24 * 60 * 60 * 1000,
           });
+          await auditLoginSuccess(ctx, { condominioId: result.user?.condominioId ?? undefined });
+        } else {
+          await auditLoginFailed(ctx, input.username, result.message || "Credenciais inválidas");
         }
         
         return result;
@@ -69,12 +75,14 @@ export const appRouter = router({
         const result = await authenticateAdmin(input.email, input.password);
         
         if (result.success && result.token) {
-          // Definir cookie com o token
           const cookieOptions = getSessionCookieOptions(ctx.req);
           ctx.res.cookie(COOKIE_NAME, result.token, {
             ...cookieOptions,
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+            maxAge: 7 * 24 * 60 * 60 * 1000,
           });
+          await auditLoginSuccess(ctx);
+        } else {
+          await auditLoginFailed(ctx, input.email, result.message || "Credenciais inválidas");
         }
         
         return result;
@@ -268,13 +276,15 @@ export const appRouter = router({
       descontoMaximo: z.string().optional(),
       billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).default("administradora"),
       customBillingIssuer: z.string().max(255).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o nome do emissor personalizado." });
       }
       const { createCondominio } = await import("./db-condominios");
-      return await createCondominio(input);
+      const result = await createCondominio(input);
+      await logAudit(ctx, { action: "create", entity: "condominio", entityLabel: input.name, afterData: { name: input.name, cnpj: input.cnpj }, severity: "info" });
+      return result;
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
@@ -296,18 +306,21 @@ export const appRouter = router({
       password: z.string().optional(),
       billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).optional(),
       customBillingIssuer: z.string().max(255).optional().nullable(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o nome do emissor personalizado." });
       }
       const { id, ...data } = input;
       const { updateCondominio } = await import("./db-condominios");
-      return await updateCondominio(id, data);
+      const result = await updateCondominio(id, data);
+      await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(id), entityLabel: input.name, afterData: data as Record<string, unknown>, severity: "info" });
+      return result;
     }),
-     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { deleteCondominio } = await import("./db-condominios");
       await deleteCondominio(input.id);
+      await logAudit(ctx, { action: "delete", entity: "condominio", entityId: String(input.id), severity: "warning" });
       return { success: true };
     }),
 
@@ -480,9 +493,11 @@ export const appRouter = router({
       email: z.string().optional(),
       phone: z.string().optional(),
       totalDue: z.number().default(0),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { createDevedor } = await import("./db-devedores");
-      return await createDevedor(input);
+      const result = await createDevedor(input);
+      await logAudit(ctx, { action: "create", entity: "devedor", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, cpfCnpj: input.cpfCnpj, unitNumber: input.unitNumber }, severity: "info" });
+      return result;
     }),
     update: protectedProcedure.input(z.object({
       id: z.number(),
@@ -494,14 +509,17 @@ export const appRouter = router({
       phone: z.string().optional(),
       totalDue: z.number().optional(),
       status: z.enum(["ativo", "pago", "acordo"]).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       const { updateDevedor } = await import("./db-devedores");
-      return await updateDevedor(id, data);
+      const result = await updateDevedor(id, data);
+      await logAudit(ctx, { action: "update", entity: "devedor", entityId: String(id), afterData: data as Record<string, unknown>, severity: "info" });
+      return result;
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { deleteDevedor } = await import("./db-devedores");
       await deleteDevedor(input.id);
+      await logAudit(ctx, { action: "delete", entity: "devedor", entityId: String(input.id), severity: "warning" });
       return { success: true };
     }),
 
@@ -592,9 +610,11 @@ export const appRouter = router({
       custasJudiciais: z.number().optional(),
       dueDate: z.date().optional(),
       monthReference: z.string().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { createCobranca } = await import("./db-cobrancas");
-      return await createCobranca(input);
+      const result = await createCobranca(input);
+      await logAudit(ctx, { action: "create", entity: "cobranca", condominioId: input.condominioId, afterData: { devedorId: input.devedorId, amount: input.amount, tipoCobranca: input.tipoCobranca }, severity: "info" });
+      return result;
     }),
     update: protectedProcedure.input(z.object({
       id: z.number(),
@@ -602,14 +622,17 @@ export const appRouter = router({
       amount: z.number().optional(),
       dueDate: z.date().optional(),
       status: z.enum(["pendente", "em_cobranca", "pago", "acordo"]).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       const { updateCobranca } = await import("./db-cobrancas");
-      return await updateCobranca(id, data);
+      const result = await updateCobranca(id, data);
+      await logAudit(ctx, { action: "update", entity: "cobranca", entityId: String(id), afterData: data as Record<string, unknown>, severity: "info" });
+      return result;
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { deleteCobranca } = await import("./db-cobrancas");
       await deleteCobranca(input.id);
+      await logAudit(ctx, { action: "delete", entity: "cobranca", entityId: String(input.id), severity: "warning" });
       return { success: true };
     }),
     importarPlanilha: condominioAccessProcedure.input(z.object({
@@ -897,7 +920,7 @@ export const appRouter = router({
         amount: z.number(),
         dueDate: z.date(),
       })),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { createAcordo, createParcelas, createAcordoCobrancas, getAcordosAtivosComParcelas, updateAcordo } = await import("./db-acordos");
       
       // Verificar se há acordos ativos e cancelar (se for consolidação)
@@ -972,6 +995,7 @@ export const appRouter = router({
         await updateCobranca(cobrancaId, { status: "em_acordo" });
       }
       
+      await logAudit(ctx, { action: "create", entity: "acordo", entityId: String(acordoId), condominioId: input.condominioId, afterData: { devedorId: input.devedorId, totalAmount: input.totalAmount, agreedAmount: input.agreedAmount, installments: input.installments }, severity: "info" });
       return { success: true, acordoId };
     }),
     getParcelas: protectedProcedure.input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
@@ -989,7 +1013,7 @@ export const appRouter = router({
     darBaixaParcela: protectedProcedure.input(z.object({
       parcelaId: z.number(),
       dataPagamento: z.date().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database connection failed");
@@ -1039,6 +1063,7 @@ export const appRouter = router({
         })
         .where(eq(acordos.id, parcela[0].acordoId));
       
+      await logAudit(ctx, { action: "pay_parcela", entity: "parcela", entityId: String(input.parcelaId), afterData: { acordoId: parcela[0].acordoId, valorPago: valorPagoTotal, statusAcordo: todasPagas ? "pago" : "ativo" }, severity: "info" });
       return { 
         success: true, 
         valorPagoTotal,
@@ -1475,7 +1500,7 @@ export const appRouter = router({
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
       isPrimaryAdmin: z.number().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -1496,7 +1521,7 @@ export const appRouter = router({
         await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, input.condominioId));
       }
 
-      return await db.insert(users).values({
+      const insertResult = await db.insert(users).values({
         openId,
         name: input.name,
         email: input.email,
@@ -1507,6 +1532,8 @@ export const appRouter = router({
         isPrimaryAdmin: input.isPrimaryAdmin ?? 0,
         isActive: input.isActive ?? 1,
       });
+      await logAudit(ctx, { action: "create", entity: "user", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, email: input.email, role: input.role }, severity: "info" });
+      return insertResult;
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
@@ -1517,7 +1544,7 @@ export const appRouter = router({
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
       isPrimaryAdmin: z.number().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { id, password, isPrimaryAdmin, condominioId, ...data } = input;
 
       let updateData: any = { ...data };
@@ -1542,9 +1569,10 @@ export const appRouter = router({
       }
 
       await db.update(users).set(updateData).where(eq(users.id, id));
+      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), afterData: { name: input.name, role: input.role, isActive: input.isActive, isPrimaryAdmin: input.isPrimaryAdmin }, severity: isPrimaryAdmin === 1 ? "warning" : "info" });
       return { success: true };
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -1561,6 +1589,7 @@ export const appRouter = router({
       }
 
       await db.delete(users).where(eq(users.id, input.id));
+      await logAudit(ctx, { action: "delete", entity: "user", entityId: String(input.id), severity: "critical" });
       return { success: true };
     }),
   }),
@@ -3687,6 +3716,115 @@ export const appRouter = router({
         }));
 
         return resultado.sort((a, b) => b.receita - a.receita);
+      }),
+  }),
+
+  // ─── Auditoria ────────────────────────────────────────────────────────────────
+  auditoria: router({
+    // Listar logs com filtros avançados
+    listarLogs: adminProcedure
+      .input(z.object({
+        page: z.number().default(1),
+        limit: z.number().min(10).max(100).default(20),
+        action: z.string().optional(),
+        entity: z.string().optional(),
+        userId: z.number().optional(),
+        condominioId: z.number().optional(),
+        severity: z.enum(["info", "warning", "critical"]).optional(),
+        success: z.boolean().optional(),
+        search: z.string().optional(),
+        dataInicio: z.date().optional(),
+        dataFim: z.date().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { auditLogs } = await import("../drizzle/schema");
+        const { eq, and, gte, lte, like, desc, count, or } = await import("drizzle-orm");
+
+        const conditions: ReturnType<typeof eq>[] = [];
+        if (input.action) conditions.push(eq(auditLogs.action, input.action as any));
+        if (input.entity) conditions.push(eq(auditLogs.entity, input.entity as any));
+        if (input.userId) conditions.push(eq(auditLogs.userId, input.userId));
+        if (input.condominioId) conditions.push(eq(auditLogs.condominioId, input.condominioId));
+        if (input.severity) conditions.push(eq(auditLogs.severity, input.severity));
+        if (input.success !== undefined) conditions.push(eq(auditLogs.success, input.success ? 1 : 0));
+        if (input.dataInicio) conditions.push(gte(auditLogs.createdAt, input.dataInicio));
+        if (input.dataFim) conditions.push(lte(auditLogs.createdAt, input.dataFim));
+        if (input.search) {
+          conditions.push(or(
+            like(auditLogs.userName, `%${input.search}%`),
+            like(auditLogs.entityLabel, `%${input.search}%`),
+            like(auditLogs.ipAddress, `%${input.search}%`),
+            like(auditLogs.errorMessage, `%${input.search}%`),
+          ) as any);
+        }
+
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+        const offset = (input.page - 1) * input.limit;
+
+        const [logs, totalResult] = await Promise.all([
+          db.select().from(auditLogs)
+            .where(where)
+            .orderBy(desc(auditLogs.createdAt))
+            .limit(input.limit)
+            .offset(offset),
+          db.select({ total: count() }).from(auditLogs).where(where),
+        ]);
+
+        return {
+          logs,
+          total: Number(totalResult[0]?.total ?? 0),
+          page: input.page,
+          totalPages: Math.ceil(Number(totalResult[0]?.total ?? 0) / input.limit),
+        };
+      }),
+
+    // Estatísticas de auditoria
+    estatisticas: adminProcedure.query(async () => {
+      const db = await (await import("./db")).getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+      const { auditLogs } = await import("../drizzle/schema");
+      const { eq, gte, count, sql } = await import("drizzle-orm");
+
+      const agora = new Date();
+      const inicio24h = new Date(agora.getTime() - 24 * 60 * 60 * 1000);
+      const inicio7d = new Date(agora.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      const [total, ultimas24h, criticos, falhas, porAcao] = await Promise.all([
+        db.select({ total: count() }).from(auditLogs),
+        db.select({ total: count() }).from(auditLogs).where(gte(auditLogs.createdAt, inicio24h)),
+        db.select({ total: count() }).from(auditLogs).where(eq(auditLogs.severity, "critical")),
+        db.select({ total: count() }).from(auditLogs).where(eq(auditLogs.success, 0)),
+        db.select({ action: auditLogs.action, total: count() })
+          .from(auditLogs)
+          .where(gte(auditLogs.createdAt, inicio7d))
+          .groupBy(auditLogs.action)
+          .orderBy(sql`count(*) DESC`)
+          .limit(10),
+      ]);
+
+      return {
+        total: Number(total[0]?.total ?? 0),
+        ultimas24h: Number(ultimas24h[0]?.total ?? 0),
+        criticos: Number(criticos[0]?.total ?? 0),
+        falhas: Number(falhas[0]?.total ?? 0),
+        porAcao,
+      };
+    }),
+
+    // Logs de um usuário específico (para painel de detalhes do usuário)
+    logsUsuario: adminProcedure
+      .input(z.object({ userId: z.number(), limit: z.number().default(10) }))
+      .query(async ({ input }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) return [];
+        const { auditLogs } = await import("../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        return db.select().from(auditLogs)
+          .where(eq(auditLogs.userId, input.userId))
+          .orderBy(desc(auditLogs.createdAt))
+          .limit(input.limit);
       }),
   }),
 });

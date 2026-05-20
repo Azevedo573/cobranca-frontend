@@ -48,6 +48,7 @@ import ResetPassword from "./pages/ResetPassword";
 import SindicoPipeline from "./pages/SindicoPipeline";
 import SindicoAcordos from "./pages/SindicoAcordos";
 import ExecutivoDashboard from "./pages/admin/ExecutivoDashboard";
+import Auditoria from "./pages/admin/Auditoria";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -154,6 +155,11 @@ function Router() {
       {/* Dashboard Executivo - Centro de Inteligência Operacional */}
       <Route path="/admin/executivo">
         {() => <ProtectedRoute component={ExecutivoDashboard} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Auditoria do Sistema */}
+      <Route path="/admin/auditoria">
+        {() => <ProtectedRoute component={Auditoria} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas de Relatórios (Admin) */}
