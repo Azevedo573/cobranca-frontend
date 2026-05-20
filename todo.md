@@ -1866,3 +1866,11 @@
 - [x] Código de barras I25 com largura adaptada (55% se Pix, 100% se sem Pix)
 - [x] Seção Pix integrada ao rodapé: CNPJ, Vencimento, Valor + QR Code ao lado do código de barras
 - [x] TypeScript: 0 erros
+
+## Regra de Negócio — Acordo sem Juros Adicionais
+
+- [x] Parcelamento do acordo não aplica novos juros sobre o valor negociado
+- [x] calcularPlanoAcordo chamado com taxaJurosMensal=0 em todos os cenários do SimuladorAcordoMultiplo
+- [x] Removidos toggles de encargos (Juros/Multa/Correção) da UI do simulador
+- [x] Adicionada nota informativa explicando que encargos já foram aplicados previamente
+- [x] TypeScript: 0 erros

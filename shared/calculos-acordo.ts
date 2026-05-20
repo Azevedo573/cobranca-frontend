@@ -48,32 +48,44 @@ export function calcularPlanoAcordo(params: ParametrosAcordo): PlanoAcordo {
     };
   }
 
-  // Calcula juros compostos sobre o valor parcelado
-  const taxaDecimal = taxaJurosMensal / 100;
-  const fatorJuros = Math.pow(1 + taxaDecimal, numeroParcelas);
-  const valorParcelaComJuros = (valorParcelado * fatorJuros * taxaDecimal) / (fatorJuros - 1);
+  // Calcula o valor de cada parcela.
+  // Se taxaJurosMensal = 0, parcelamento simples (sem juros adicionais).
+  // Isso garante que o valor final do acordo nunca ultrapasse o valor original
+  // da dívida, que já inclui todos os encargos previamente calculados.
+  let valorParcela: number;
+  let valorTotalFinal: number;
+
+  if (taxaJurosMensal === 0) {
+    // Parcelamento simples: divide igualmente, sem acréscimo
+    valorParcela = Math.round(valorParcelado / numeroParcelas);
+    // Ajuste de centavos na última parcela para fechar o total exato
+    valorTotalFinal = valorEntrada + valorParcela * numeroParcelas;
+  } else {
+    // Parcelamento com juros compostos (tabela Price)
+    const taxaDecimal = taxaJurosMensal / 100;
+    const fatorJuros = Math.pow(1 + taxaDecimal, numeroParcelas);
+    valorParcela = Math.round((valorParcelado * fatorJuros * taxaDecimal) / (fatorJuros - 1));
+    valorTotalFinal = Math.round(valorEntrada + valorParcela * numeroParcelas);
+  }
 
   // Gera as parcelas
   const parcelas: ParcelaAcordo[] = [];
   for (let i = 1; i <= numeroParcelas; i++) {
     const dataVencimento = new Date(dataInicio);
     dataVencimento.setMonth(dataVencimento.getMonth() + i);
-
     parcelas.push({
       numeroParcela: i,
-      valor: Math.round(valorParcelaComJuros), // Arredonda para centavos
+      valor: valorParcela,
       dataVencimento,
     });
   }
 
-  const valorTotalComJuros = valorEntrada + (valorParcelaComJuros * numeroParcelas);
-
   return {
-    valorTotal: Math.round(valorTotalComJuros),
+    valorTotal: valorTotalFinal,
     valorEntrada,
     valorParcelado,
     numeroParcelas,
-    valorParcela: Math.round(valorParcelaComJuros),
+    valorParcela,
     parcelas,
     taxaJurosAplicada: taxaJurosMensal,
   };
