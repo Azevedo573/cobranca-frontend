@@ -74,11 +74,12 @@ export function SimuladorAcordoMultiplo({
   const [consolidarAcordo, setConsolidarAcordo] = useState(false);
   const [opcaoConsolidacao, setOpcaoConsolidacao] = useState<'somar' | 'diluir'>('diluir');
   
-  // Encargos desativados no acordo: o valor negociado já inclui todos os encargos
-  // aplicados previamente — não devem ser recalculados no momento da negociação.
-  const incluirJuros = false;
-  const incluirMulta = false;
-  const incluirCorrecao = false;
+  // Controles de encargos: permitem isentar o devedor de juros/multa/correção
+  // já acumulados como parte da negociação do acordo.
+  // O parcelamento em si não adiciona novos juros (taxaJurosMensal=0).
+  const [incluirJuros, setIncluirJuros] = useState(true);
+  const [incluirMulta, setIncluirMulta] = useState(true);
+  const [incluirCorrecao, setIncluirCorrecao] = useState(true);
 
   // Buscar desconto máximo do condomínio
   const { data: condominio } = trpc.condominios.getById.useQuery({ id: condominioId });
@@ -92,13 +93,19 @@ export function SimuladorAcordoMultiplo({
   // Usar valor atualizado de cada cobrança (já calculado pelo backend com correção BCB)
   const cobrancasComValorAtualizado: CobrancaComValorAtualizado[] = useMemo(() => {
     return cobrancasDisponiveis.map(c => {
-      // Usar apenas o valor original da cobrança (amount em centavos).
-      // Juros, multa, correção e honorários NÃO são recalculados no acordo —
-      // todos os encargos já foram aplicados previamente no valor negociado.
+      // Usar o valor da cobrança considerando os toggles de isenção.
+      // Os toggles permitem isentar encargos já acumulados (ex: dar desconto de juros).
+      // O parcelamento em si não adiciona novos juros sobre o valor negociado.
       if (c.breakdown) {
+        let valorCalculado = c.breakdown.valorOriginal;
+        if (incluirJuros) valorCalculado += c.breakdown.juros;
+        if (incluirMulta) valorCalculado += c.breakdown.multa;
+        if (incluirCorrecao) valorCalculado += c.breakdown.correcaoMonetaria;
+        // Honorários sempre incluídos
+        valorCalculado += c.breakdown.honorarios;
         return {
           ...c,
-          valorAtualizado: Math.round(c.breakdown.valorOriginal * 100), // apenas valor original em centavos
+          valorAtualizado: Math.round(valorCalculado * 100),
         };
       }
       
@@ -472,10 +479,57 @@ export function SimuladorAcordoMultiplo({
             </div>
           </div>
           
-          {/* Nota informativa sobre encargos */}
-          <div className="mb-6 p-3 border rounded-lg bg-blue-50 dark:bg-blue-950/30">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              ℹ️ O valor apresentado já inclui todos os encargos (juros, multa, honorários e correção monetária) aplicados previamente. O acordo será parcelado sem acréscimo de novos juros.
+          {/* Controles de Encargos */}
+          <div className="mb-6">
+            <Label className="mb-3 block">Encargos a Incluir no Acordo</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/30">
+              {/* Toggle Juros */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-juros"
+                  checked={incluirJuros}
+                  onCheckedChange={(checked) => setIncluirJuros(checked as boolean)}
+                />
+                <label
+                  htmlFor="incluir-juros"
+                  className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Juros
+                </label>
+              </div>
+
+              {/* Toggle Multa */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-multa"
+                  checked={incluirMulta}
+                  onCheckedChange={(checked) => setIncluirMulta(checked as boolean)}
+                />
+                <label
+                  htmlFor="incluir-multa"
+                  className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Multa
+                </label>
+              </div>
+
+              {/* Toggle Correção Monetária */}
+              <div className="flex items-center space-x-3">
+                <Checkbox
+                  id="incluir-correcao"
+                  checked={incluirCorrecao}
+                  onCheckedChange={(checked) => setIncluirCorrecao(checked as boolean)}
+                />
+                <label
+                  htmlFor="incluir-correcao"
+                  className="text-sm font-medium leading-none cursor-pointer peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Correção Monetária
+                </label>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              💡 Desmarque para isentar o devedor do encargo na negociação. Honorários são sempre incluídos. O parcelamento não adiciona novos juros sobre o valor negociado.
             </p>
           </div>
           
