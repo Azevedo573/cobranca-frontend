@@ -2904,5 +2904,349 @@ export const appRouter = router({
         return { ok: true };
       }),
   }),
+
+  // ===== PORTAL DE TRANSPARÊNCIA (SÍNDICO) =====
+  portal: router({
+    // KPIs executivos do condomínio
+    kpis: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob, acordos: ac, parcelasAcordo: pa, tentativasCobranca: tc } = await import("../drizzle/schema");
+        const { eq, and, gte, lt, sql, count, sum } = await import("drizzle-orm");
+
+        const condId = ctx.user.role === "admin"
+          ? (input.condominioId ?? ctx.user.condominioId ?? 0)
+          : (ctx.user.condominioId ?? 0);
+
+        const agora = new Date();
+        const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+        const inicioMesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
+        const fimMesAnterior = new Date(agora.getFullYear(), agora.getMonth(), 0);
+
+        // Total em aberto (cobranças ativas)
+        const cobAberto = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "em_cobranca")));
+        const valorEmAberto = Number(cobAberto[0]?.total ?? 0);
+
+        // Cobranças pagas este mês
+        const cobPagoMes = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "pago"), gte(cob.updatedAt, inicioMes)));
+        const valorRecuperadoMes = Number(cobPagoMes[0]?.total ?? 0);
+
+        // Cobranças pagas mês anterior
+        const cobPagoMesAnt = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "pago"), gte(cob.updatedAt, inicioMesAnterior), lt(cob.updatedAt, inicioMes)));
+        const valorRecuperadoMesAnterior = Number(cobPagoMesAnt[0]?.total ?? 0);
+
+        // Total inadimplentes (devedores ativos)
+        const devAtivos = await db.select({ total: count() })
+          .from(dev).where(and(eq(dev.condominioId, condId), eq(dev.status, "ativo")));
+        const totalInadimplentes = Number(devAtivos[0]?.total ?? 0);
+
+        // Acordos ativos
+        const acAtivos = await db.select({ total: count() })
+          .from(ac).where(and(eq(ac.condominioId, condId), eq(ac.status, "ativo")));
+        const acordosAtivos = Number(acAtivos[0]?.total ?? 0);
+
+        // Acordos cancelados ("quebrados")
+        const acQuebrados = await db.select({ total: count() })
+          .from(ac).where(and(eq(ac.condominioId, condId), eq(ac.status, "cancelado")));
+        const acordosQuebrados = Number(acQuebrados[0]?.total ?? 0);
+
+        // Parcelas de acordo em atraso (vencidas e não pagas)
+        const parcelasAtrasadas = await db.select({ total: count() })
+          .from(pa)
+          .where(and(eq(pa.status, "pendente"), lt(pa.dueDate, agora)));
+        const acordosEmRisco = Number(parcelasAtrasadas[0]?.total ?? 0);
+
+        // Cobranças em jurídico
+        const cobJuridico = await db.select({ total: count() })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "judicial")));
+        const casosJuridico = Number(cobJuridico[0]?.total ?? 0);
+
+        // Taxa de recuperação
+        const totalCob = await db.select({ total: count() })
+          .from(cob).where(eq(cob.condominioId, condId));
+        const cobPagas = await db.select({ total: count() })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "pago")));
+        const taxaRecuperacao = Number(totalCob[0]?.total ?? 0) > 0
+          ? Math.round((Number(cobPagas[0]?.total ?? 0) / Number(totalCob[0]?.total ?? 0)) * 100)
+          : 0;
+
+        // Variação mês a mês
+        const variacaoRecuperacao = valorRecuperadoMesAnterior > 0
+          ? Math.round(((valorRecuperadoMes - valorRecuperadoMesAnterior) / valorRecuperadoMesAnterior) * 100)
+          : 0;
+
+        // Tentativas últimos 30 dias
+        const trintaDiasAtras = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const tentativas30d = await db.select({ total: count() })
+          .from(tc).where(and(eq(tc.condominioId, condId), gte(tc.attemptDate, trintaDiasAtras)));
+        const tentativasUltimos30Dias = Number(tentativas30d[0]?.total ?? 0);
+
+        return {
+          valorEmAberto,
+          valorRecuperadoMes,
+          valorRecuperadoMesAnterior,
+          variacaoRecuperacao,
+          taxaRecuperacao,
+          totalInadimplentes,
+          acordosAtivos,
+          acordosQuebrados,
+          acordosEmRisco,
+          casosJuridico,
+          tentativasUltimos30Dias,
+        };
+      }),
+
+    // Score de saúde financeira (0-100)
+    score: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob, acordos: ac, parcelasAcordo: pa, tentativasCobranca: tc } = await import("../drizzle/schema");
+        const { eq, and, gte, lt, sql, count } = await import("drizzle-orm");
+
+        const condId = ctx.user.role === "admin"
+          ? (input.condominioId ?? ctx.user.condominioId ?? 0)
+          : (ctx.user.condominioId ?? 0);
+
+        const agora = new Date();
+        const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+
+        // Critério 1: Taxa de recuperação (peso 30)
+        const totalCob = await db.select({ total: count() }).from(cob).where(eq(cob.condominioId, condId));
+        const cobPagas = await db.select({ total: count() }).from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "pago")));
+        const taxaRec = Number(totalCob[0]?.total ?? 0) > 0
+          ? (Number(cobPagas[0]?.total ?? 0) / Number(totalCob[0]?.total ?? 0))
+          : 0;
+        const pontoRecuperacao = Math.round(taxaRec * 30);
+
+        // Critério 2: Acordos ativos vs cancelados (peso 20)
+        const acAtivos = await db.select({ total: count() }).from(ac).where(and(eq(ac.condominioId, condId), eq(ac.status, "ativo")));
+        const acQuebrados = await db.select({ total: count() }).from(ac).where(and(eq(ac.condominioId, condId), eq(ac.status, "cancelado")));
+        const totalAc = Number(acAtivos[0]?.total ?? 0) + Number(acQuebrados[0]?.total ?? 0);
+        const taxaAcordos = totalAc > 0 ? (Number(acAtivos[0]?.total ?? 0) / totalAc) : 0.5;
+        const pontoAcordos = Math.round(taxaAcordos * 20);
+
+        // Critério 3: Engajamento (tentativas nos últimos 30 dias) (peso 20)
+        const trintaDiasAtras = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const tentativas30d = await db.select({ total: count() }).from(tc).where(and(eq(tc.condominioId, condId), gte(tc.attemptDate, trintaDiasAtras)));
+        const engajamento = Math.min(Number(tentativas30d[0]?.total ?? 0) / 20, 1);
+        const pontoEngajamento = Math.round(engajamento * 20);
+
+        // Critério 4: Inadimplência relativa (peso 30) — menos inadimplentes = melhor
+        const devAtivos = await db.select({ total: count() }).from(dev).where(and(eq(dev.condominioId, condId), eq(dev.status, "ativo")));
+        const devTotal = await db.select({ total: count() }).from(dev).where(eq(dev.condominioId, condId));
+        const taxaInad = Number(devTotal[0]?.total ?? 0) > 0
+          ? (Number(devAtivos[0]?.total ?? 0) / Number(devTotal[0]?.total ?? 0))
+          : 0;
+        const pontoInadimplencia = Math.round((1 - taxaInad) * 30);
+
+        const score = pontoRecuperacao + pontoAcordos + pontoEngajamento + pontoInadimplencia;
+        const scoreLabel = score >= 80 ? "Excelente" : score >= 60 ? "Bom" : score >= 40 ? "Moderado" : "Crítico";
+        const scoreColor = score >= 80 ? "green" : score >= 60 ? "blue" : score >= 40 ? "yellow" : "red";
+
+        return {
+          score: Math.min(score, 100),
+          label: scoreLabel,
+          color: scoreColor,
+          breakdown: {
+            recuperacao: pontoRecuperacao,
+            acordos: pontoAcordos,
+            engajamento: pontoEngajamento,
+            inadimplencia: pontoInadimplencia,
+          },
+          insights: [
+            taxaRec < 0.3 ? "Taxa de recuperação abaixo do ideal — intensifique as ações de cobrança" : null,
+            taxaAcordos < 0.5 ? "Muitos acordos quebrados — revise as condições de negociação" : null,
+            engajamento < 0.5 ? "Baixo engajamento de cobrança nos últimos 30 dias" : null,
+            taxaInad > 0.5 ? "Alta taxa de inadimplência — considere ação jurídica para casos críticos" : null,
+          ].filter(Boolean) as string[],
+        };
+      }),
+
+    // Alertas inteligentes automáticos
+    alertas: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob, acordos: ac, parcelasAcordo: pa, tentativasCobranca: tc } = await import("../drizzle/schema");
+        const { eq, and, gte, lt, sql, count, inArray } = await import("drizzle-orm");
+
+        const condId = ctx.user.role === "admin"
+          ? (input.condominioId ?? ctx.user.condominioId ?? 0)
+          : (ctx.user.condominioId ?? 0);
+
+        const agora = new Date();
+        const trintaDiasAtras = new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const seteDiasAtras = new Date(agora.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+        const inicioMesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
+
+        const alertas: Array<{ tipo: string; nivel: "critico" | "atencao" | "info"; mensagem: string; icone: string }> = [];
+
+        // Alerta 1: Devedores sem contato há 30+ dias
+        const devsAtivos = await db.select({ id: dev.id }).from(dev).where(and(eq(dev.condominioId, condId), eq(dev.status, "ativo")));
+        const devsIds = devsAtivos.map(d => d.id);
+        if (devsIds.length > 0) {
+          const { inArray: inArr } = await import("drizzle-orm");
+          const devsComContato = await db.select({ devedorId: tc.devedorId })
+            .from(tc).where(and(inArr(tc.devedorId, devsIds), gte(tc.attemptDate, trintaDiasAtras)));
+          const devsComContatoIds = new Set(devsComContato.map(d => d.devedorId));
+          const semContato = devsIds.filter(id => !devsComContatoIds.has(id)).length;
+          if (semContato > 0) {
+            alertas.push({ tipo: "sem_contato", nivel: "atencao", mensagem: `${semContato} devedor(es) sem contato há mais de 30 dias`, icone: "⚠️" });
+          }
+        }
+
+        // Alerta 2: Parcelas de acordo vencendo nos próximos 7 dias
+        const seteDiasAFrente = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const parcelasVencendo = await db.select({ total: count() })
+          .from(pa).where(and(eq(pa.status, "pendente"), gte(pa.dueDate, agora), lt(pa.dueDate, seteDiasAFrente)));
+        if (Number(parcelasVencendo[0]?.total ?? 0) > 0) {
+          alertas.push({ tipo: "parcelas_vencendo", nivel: "atencao", mensagem: `${parcelasVencendo[0]?.total} parcela(s) de acordo vencendo nos próximos 7 dias`, icone: "📅" });
+        }
+
+        // Alerta 3: Parcelas de acordo em atraso
+        const parcelasAtrasadas2 = await db.select({ total: count() })
+          .from(pa).where(and(eq(pa.status, "pendente"), lt(pa.dueDate, agora)));
+        if (Number(parcelasAtrasadas2[0]?.total ?? 0) > 0) {
+          alertas.push({ tipo: "acordo_risco", nivel: "critico", mensagem: `${parcelasAtrasadas2[0]?.total} parcela(s) de acordo em atraso — acordos em risco`, icone: "🚨" });
+        }
+
+        // Alerta 4: Casos em jurídico
+        const juridico = await db.select({ total: count() })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "judicial")));
+        if (Number(juridico[0]?.total ?? 0) > 0) {
+          alertas.push({ tipo: "juridico", nivel: "critico", mensagem: `${juridico[0]?.total} caso(s) em fase jurídica`, icone: "⚖️" });
+        }
+
+        // Alerta 5: Comparativo de recuperação mês a mês
+        const cobPagoMes = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "pago"), gte(cob.updatedAt, inicioMes)));
+        const cobPagoMesAnt = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+          .from(cob).where(and(eq(cob.condominioId, condId), eq(cob.status, "pago"), gte(cob.updatedAt, inicioMesAnterior), lt(cob.updatedAt, inicioMes)));
+        const recMes = Number(cobPagoMes[0]?.total ?? 0);
+        const recAnt = Number(cobPagoMesAnt[0]?.total ?? 0);
+        if (recAnt > 0 && recMes < recAnt * 0.8) {
+          const queda = Math.round(((recAnt - recMes) / recAnt) * 100);
+          alertas.push({ tipo: "queda_recuperacao", nivel: "atencao", mensagem: `Taxa de recuperação caiu ${queda}% em relação ao mês anterior`, icone: "📉" });
+        } else if (recMes > recAnt * 1.1 && recAnt > 0) {
+          const alta = Math.round(((recMes - recAnt) / recAnt) * 100);
+          alertas.push({ tipo: "alta_recuperacao", nivel: "info", mensagem: `Recuperação aumentou ${alta}% em relação ao mês anterior`, icone: "📈" });
+        }
+
+        return alertas;
+      }),
+
+    // Pipeline de devedores por status
+    pipeline: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob, tentativasCobranca: tc, acordos: ac } = await import("../drizzle/schema");
+        const { eq, and, sql, count, max, desc } = await import("drizzle-orm");
+
+        const condId = ctx.user.role === "admin"
+          ? (input.condominioId ?? ctx.user.condominioId ?? 0)
+          : (ctx.user.condominioId ?? 0);
+
+        const devedoresList = await db.select({
+          id: dev.id,
+          name: dev.name,
+          cpfCnpj: dev.cpfCnpj,
+          unitNumber: dev.unitNumber,
+          bloco: dev.bloco,
+          status: dev.status,
+          createdAt: dev.createdAt,
+        }).from(dev).where(eq(dev.condominioId, condId));
+
+        const result = await Promise.all(devedoresList.map(async (d) => {
+          // Valor total em aberto
+          const cobAtivas = await db.select({ total: sql<number>`COALESCE(SUM(amount), 0)` })
+            .from(cob).where(and(eq(cob.devedorId, d.id), eq(cob.status, "em_cobranca")));
+          const valorDevido = Number(cobAtivas[0]?.total ?? 0);
+
+          // Dias em atraso (desde a primeira cobrança ativa)
+          const primeiraCob = await db.select({ dueDate: cob.dueDate })
+            .from(cob).where(and(eq(cob.devedorId, d.id), eq(cob.status, "em_cobranca")))
+            .orderBy(cob.dueDate).limit(1);
+          const diasAtraso = primeiraCob[0]?.dueDate
+            ? Math.floor((Date.now() - new Date(primeiraCob[0].dueDate).getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+
+          // Último contato
+          const ultimoContato = await db.select({ attemptDate: tc.attemptDate })
+            .from(tc).where(eq(tc.devedorId, d.id))
+            .orderBy(desc(tc.attemptDate)).limit(1);
+
+          // Score de recuperação (0-100 baseado em dias atraso e tentativas)
+          const tentativasCount = await db.select({ total: count() }).from(tc).where(eq(tc.devedorId, d.id));
+          const numTentativas = Number(tentativasCount[0]?.total ?? 0);
+          const scoreBase = Math.max(0, 100 - Math.floor(diasAtraso / 3) - (numTentativas > 5 ? 20 : 0));
+
+          // Status no pipeline
+          const acordoAtivo = await db.select({ id: ac.id }).from(ac)
+            .where(and(eq(ac.devedorId, d.id), eq(ac.status, "ativo"))).limit(1);
+          const cobJuridico = await db.select({ id: cob.id }).from(cob)
+            .where(and(eq(cob.devedorId, d.id), eq(cob.status, "judicial"))).limit(1);
+
+          let pipelineStatus: string;
+          if (d.status === "pago") pipelineStatus = "quitado";
+          else if (cobJuridico.length > 0) pipelineStatus = "juridico";
+          else if (acordoAtivo.length > 0) pipelineStatus = "acordo_fechado";
+          else if (diasAtraso > 90) pipelineStatus = "inadimplente_critico";
+          else if (numTentativas > 0) pipelineStatus = "em_negociacao";
+          else pipelineStatus = "em_atraso_recente";
+
+          return {
+            id: d.id,
+            name: d.name,
+            cpfCnpj: d.cpfCnpj,
+            unitNumber: d.unitNumber,
+            bloco: d.bloco,
+            status: d.status,
+            createdAt: d.createdAt,
+            valorDevido,
+            diasAtraso,
+            ultimoContato: ultimoContato[0]?.attemptDate ?? null,
+            scoreRecuperacao: Math.min(Math.max(scoreBase, 0), 100),
+            pipelineStatus,
+          };
+        }));
+
+        return result;
+      }),
+
+    // Atualizar status do pipeline (drag-and-drop)
+    atualizarPipelineStatus: protectedProcedure
+      .input(z.object({
+        devedorId: z.number(),
+        novoStatus: z.enum(["em_atraso_recente", "em_negociacao", "acordo_fechado", "inadimplente_critico", "juridico", "quitado"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+
+        // Mapear status do pipeline para status do devedor
+        const statusDevedor: "pago" | "ativo" | "acordo" = input.novoStatus === "quitado" ? "pago" : "ativo";
+        await db.update(dev).set({ status: statusDevedor, updatedAt: new Date() }).where(eq(dev.id, input.devedorId));
+
+        // Se juridico, atualizar cobranças
+        if (input.novoStatus === "juridico") {
+          await db.update(cob).set({ status: "judicial", updatedAt: new Date() }).where(eq(cob.devedorId, input.devedorId));
+        }
+
+        return { ok: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

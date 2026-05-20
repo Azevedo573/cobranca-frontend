@@ -1754,3 +1754,23 @@
 - [x] Link "Esqueceu sua senha?" adicionado nas telas LoginCondominio e LoginColaborador
 - [x] Rotas /esqueci-senha e /reset-password registradas no App.tsx (públicas)
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Portal de Transparência Premium (Síndico)
+- [ ] Procedures backend: KPIs executivos (valor em aberto, recuperado, taxa, acordos, risco)
+- [ ] Procedure: score de saúde financeira (0-100) com critérios ponderados
+- [ ] Procedure: alertas inteligentes automáticos (inadimplência, acordos em risco, sem resposta)
+- [ ] Procedure: pipeline de devedores por status (kanban)
+- [ ] Dashboard executivo premium: KPIs animados, gráficos, score gauge, alertas
+- [ ] Página Pipeline Kanban (/sindico/pipeline): drag-and-drop de status, cards com score
+- [ ] Timeline do devedor: eventos WhatsApp, boletos, acordos, jurídico
+- [ ] Painel de acordos e negociações com métricas e gráficos
+- [ ] Registrar rotas no App.tsx e sidebar do síndico
+
+## Portal de Transparência Premium (Síndico)
+- [x] Procedures backend: kpis (score saúde financeira, taxa inadimplência, alertas), pipeline (Kanban por status), atualizarPipelineStatus
+- [x] SindicoDashboard reescrito: KPIs executivos, score de saúde com gauge, alertas inteligentes, gráficos recharts
+- [x] SindicoPipeline (/sindico/pipeline): Kanban com 6 colunas, cards de devedor, score de recuperação, menu de mover entre estágios
+- [x] TimelineTentativas atualizado: suporte a eventos unificados (tentativa, boleto, acordo, jurídico) com ícones distintos
+- [x] SindicoAcordos (/sindico/acordos): KPIs, gráfico de pizza (status), gráfico de barras (por mês), alertas de parcelas vencidas/vencendo
+- [x] Rotas /sindico/pipeline e /sindico/acordos registradas no App.tsx
+- [x] 270 testes passando, 0 erros TypeScript

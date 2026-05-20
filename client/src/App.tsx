@@ -45,6 +45,8 @@ import ConfiguracaoBoleto from "./pages/admin/ConfiguracaoBoleto";
 import RetornoCNAB from "./pages/admin/RetornoCNAB";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import SindicoPipeline from "./pages/SindicoPipeline";
+import SindicoAcordos from "./pages/SindicoAcordos";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -113,6 +115,12 @@ function Router() {
       {/* Rotas do Síndico */}
       <Route path="/sindico/dashboard">
         {() => <ProtectedRoute component={SindicoDashboard} allowedRoles={["sindico"]} />}
+      </Route>
+      <Route path="/sindico/pipeline">
+        {() => <ProtectedRoute component={SindicoPipeline} allowedRoles={["sindico", "admin"]} />}
+      </Route>
+      <Route path="/sindico/acordos">
+        {() => <ProtectedRoute component={SindicoAcordos} allowedRoles={["sindico", "admin"]} />}
       </Route>
 
       {/* Rotas do Cobrador */}
