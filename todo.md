@@ -1855,3 +1855,14 @@
 - [x] Atualizar DevedorDetalhes para mostrar botão "Copiar Pix" diretamente da cobrança (sem precisar gerar PDF)
 - [x] Atualizar AcordoDetalhes para mostrar botão "Pix" diretamente da parcela (sem precisar gerar PDF)
 - [x] TypeScript: 0 erros
+
+## Layout do Boleto PDF — Máscara Padrão BTG Pactual
+
+- [x] Reescrever boleto-pdf.ts com layout fiel à máscara oficial BTG Pactual
+- [x] Estrutura correta: Instruções de impressão → Recibo do Pagador → Linha de corte → Ficha de Compensação
+- [x] Cabeçalho: logo BTG | |208-1| | linha digitável (alinhada à direita)
+- [x] Recibo: Beneficiário, Nosso Número, Nº Documento, Espécie, Vencimento, Valor, Desconto/Multa, Pagador
+- [x] Ficha: Local de pagamento, Beneficiário, Data doc., Nº doc., Espécie, Aceite, Data proc., Carteira/Nosso nº, Uso do banco, CIP, Carteira, Espécie, Qtd, Valor, Instruções, Pagador, Avalista
+- [x] Código de barras I25 com largura adaptada (55% se Pix, 100% se sem Pix)
+- [x] Seção Pix integrada ao rodapé: CNPJ, Vencimento, Valor + QR Code ao lado do código de barras
+- [x] TypeScript: 0 erros

@@ -1,11 +1,12 @@
 /**
  * Gerador de Boleto Bancário PDF — BTG Pactual (Banco 208)
- * Layout baseado na Máscara Oficial BTG Pactual
+ * Layout fiel à Máscara Oficial BTG Pactual
  *
  * Estrutura:
- *  1. Recibo do Pagador (topo, destacável)
- *  2. Linha pontilhada de corte
- *  3. Ficha de Compensação (baixo, com código de barras)
+ *  1. Instruções de impressão
+ *  2. Recibo do Pagador (destacável)
+ *  3. Linha pontilhada de corte
+ *  4. Ficha de Compensação (com código de barras + Pix)
  */
 
 import PDFDocument from "pdfkit";
@@ -27,7 +28,7 @@ export interface DadosBoleto {
   digitoAgencia: string; // "0"
   conta: string;         // "432260"
   digitoConta: string;   // "0"
-  carteira: string;      // "1"
+  carteira: string;      // "001"
   convenio: string;      // "11051861158"
   // Título
   nossoNumero: string;   // "1000000084" (10 dígitos)
@@ -48,7 +49,7 @@ export interface DadosBoleto {
   instrucoes: string[];
   // Referência
   seuNumero: string;     // número do documento
-  // Pix (opcional)
+  // Pix (opcional — Bolepix BTG)
   pixCopiaCola?: string; // código EMV do Pix copia e cola
 }
 
@@ -225,11 +226,11 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     }) as Buffer;
   }
 
-  // Nosso número formatado: carteira/nossoNumero-dv
+  // Nosso número formatado: carteira/nossoNumero
   const nossoNumFormatado = `${dados.carteira}/${dados.nossoNumero}`;
 
-  // Agência/Código do Beneficiário
-  const agenciaCodigo = `${dados.agencia}/${dados.conta}-${dados.digitoConta}`;
+  // Agência/Código do Beneficiário: agência / conta-dígito
+  const agenciaCodigo = `${dados.agencia} / ${dados.conta}-${dados.digitoConta}`;
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -248,95 +249,107 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
 
     // ── Constantes de layout ──
     const PAGE_W = 595.28; // A4 largura em pontos
-    const ML = 28;         // margem esquerda
-    const MR = PAGE_W - 28; // margem direita
-    const W = MR - ML;     // largura útil
+    const ML = 30;          // margem esquerda
+    const MR = PAGE_W - 30; // margem direita
+    const W = MR - ML;      // largura útil
 
     const PRETO = "#000000";
-    const CINZA_LABEL = "#555555";
-    const CINZA_BORDA = "#999999";
+    const CINZA_LABEL = "#666666";
+    const CINZA_BORDA = "#aaaaaa";
+    const AZUL_BTG = "#003087";
     const FONTE = "Helvetica";
     const FONTE_BOLD = "Helvetica-Bold";
 
     // ── Helpers ──
-    const hLine = (y: number, x1 = ML, x2 = MR) => {
-      doc.moveTo(x1, y).lineTo(x2, y).strokeColor(CINZA_BORDA).lineWidth(0.4).stroke();
+    const hLine = (y: number, x1 = ML, x2 = MR, cor = CINZA_BORDA) => {
+      doc.moveTo(x1, y).lineTo(x2, y).strokeColor(cor).lineWidth(0.4).stroke();
     };
 
     const vLine = (x: number, y1: number, y2: number) => {
       doc.moveTo(x, y1).lineTo(x, y2).strokeColor(CINZA_BORDA).lineWidth(0.4).stroke();
     };
 
-    // Célula: label pequeno em cima, valor em baixo
+    /**
+     * Célula padrão: label pequeno no topo, valor maior abaixo
+     */
     const cell = (
       x: number, y: number, w: number, h: number,
       label: string, valor: string,
-      opts?: { bold?: boolean; fontSize?: number; align?: "left" | "right" | "center" }
+      opts?: { bold?: boolean; fontSize?: number; align?: "left" | "right" | "center"; labelSize?: number }
     ) => {
-      const fs = opts?.fontSize ?? 8;
+      const fz = opts?.fontSize ?? 8;
+      const lz = opts?.labelSize ?? 6;
       const align = opts?.align ?? "left";
-      doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
+      doc.font(FONTE).fontSize(lz).fillColor(CINZA_LABEL)
         .text(label, x + 3, y + 2, { width: w - 6, lineBreak: false });
       doc.font(opts?.bold ? FONTE_BOLD : FONTE)
-        .fontSize(fs).fillColor(PRETO)
-        .text(valor, x + 3, y + h - fs - 4, { width: w - 6, align, lineBreak: false });
+        .fontSize(fz).fillColor(PRETO)
+        .text(valor, x + 3, y + h - fz - 4, { width: w - 6, align, lineBreak: false });
     };
 
     // Logo BTG Pactual
     const logoPath = path.join(process.cwd(), "client/public/btg-logo.png");
     const logoExists = fs.existsSync(logoPath);
 
-    // Cabeçalho BTG: logo | |208-1| | linha digitável
+    /**
+     * Cabeçalho padrão BTG: [logo] | |208-1| | linha digitável
+     * Retorna o Y após o cabeçalho (incluindo hLine inferior)
+     */
     const desenharCabecalho = (y: number): number => {
-      const H = 34;
-      const xSep1 = ML + 95;  // fim do logo
-      const xSep2 = xSep1 + 42; // fim do código banco
+      const H = 36;
+      const xSep1 = ML + 100; // fim do logo
+      const xSep2 = xSep1 + 46; // fim do código banco
+
+      // Borda superior do cabeçalho
+      hLine(y);
 
       // Logo BTG
       if (logoExists) {
-        doc.image(logoPath, ML + 2, y + 4, { height: 24, fit: [90, 24] });
+        doc.image(logoPath, ML + 4, y + 5, { height: 26, fit: [92, 26] });
       } else {
-        doc.font(FONTE_BOLD).fontSize(11).fillColor("#003087")
-          .text("btg pactual", ML + 2, y + 10, { width: 90 });
+        doc.font(FONTE_BOLD).fontSize(12).fillColor(AZUL_BTG)
+          .text("btg pactual", ML + 4, y + 12, { width: 92, lineBreak: false });
+        doc.font(FONTE).fontSize(7).fillColor(AZUL_BTG)
+          .text("empresas", ML + 4, y + 24, { width: 92, lineBreak: false });
       }
 
-      // Separador vertical
+      // Separador vertical logo | código banco
       vLine(xSep1, y, y + H);
 
       // Código do banco |208-1|
       doc.font(FONTE_BOLD).fontSize(13).fillColor(PRETO)
-        .text("|208-1|", xSep1 + 2, y + 10, { width: 40, align: "center", lineBreak: false });
+        .text("|208-1|", xSep1 + 2, y + 11, { width: 44, align: "center", lineBreak: false });
 
-      // Separador vertical
+      // Separador vertical código banco | linha digitável
       vLine(xSep2, y, y + H);
 
-      // Linha digitável
+      // Linha digitável (alinhada à direita)
       doc.font(FONTE_BOLD).fontSize(9.5).fillColor(PRETO)
-        .text(linhaFormatada, xSep2 + 6, y + 12, { width: MR - xSep2 - 8, align: "right", lineBreak: false });
+        .text(linhaFormatada, xSep2 + 6, y + 13, { width: MR - xSep2 - 8, align: "right", lineBreak: false });
 
       hLine(y + H);
       return y + H;
     };
 
     // ════════════════════════════════════════════════════════════
-    // INSTRUÇÕES DE IMPRESSÃO (topo)
+    // INSTRUÇÕES DE IMPRESSÃO (topo da página)
     // ════════════════════════════════════════════════════════════
-    let y = 14;
+    let y = 12;
     doc.font(FONTE_BOLD).fontSize(7).fillColor(PRETO)
       .text("Instruções de Impressão", ML, y, { width: W, align: "center" });
     y += 10;
     doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
-      .text("Imprimir em impressora jato de tinta (ink jet) ou laser em qualidade normal.", ML, y, { width: W, align: "center" });
-    y += 8;
+      .text("Imprimir em impressora jato de tinta (ink jet) ou laser em qualidade normal ou alta.", ML, y, { width: W, align: "center" });
+    y += 7;
     doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
-      .text("Utilize folha A4 (210 x 297 mm) ou Carta (216 x 279 mm) - Corte na linha indicada", ML, y, { width: W, align: "center" });
-    y += 12;
+      .text("Utilize folha A4 (210 x 297 mm) ou Carta (216 x 279 mm) — Corte na linha indicada.", ML, y, { width: W, align: "center" });
+    y += 10;
 
-    // Linha pontilhada superior
+    // Linha pontilhada superior (acima do recibo)
     doc.moveTo(ML, y).lineTo(MR, y).dash(3, { space: 3 }).strokeColor(CINZA_BORDA).lineWidth(0.5).stroke();
     doc.undash();
-    doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
-      .text("Recibo do Pagador", MR - 80, y + 2, { width: 80, align: "right", lineBreak: false });
+    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
+      .text("Recibo do Pagador", MR - 85, y + 2, { width: 85, align: "right", lineBreak: false });
     y += 12;
 
     // ════════════════════════════════════════════════════════════
@@ -345,97 +358,92 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
 
     y = desenharCabecalho(y);
 
-    // Linha 1: Beneficiário | Agência/Cód. Beneficiário | Espécie | Quantidade | Carteira/Nosso número
     const ROW_H = 22;
-    const y1 = y;
-    const xBenef = ML;
-    const wBenef = W * 0.42;
-    const xAgCod = xBenef + wBenef;
-    const wAgCod = W * 0.20;
-    const xEsp = xAgCod + wAgCod;
-    const wEsp = W * 0.08;
-    const xQtd = xEsp + wEsp;
-    const wQtd = W * 0.10;
-    const xCart = xQtd + wQtd;
-    const wCart = MR - xCart;
 
-    cell(xBenef, y, wBenef, ROW_H, "Beneficiário", dados.nomeBeneficiario);
-    cell(xAgCod, y, wAgCod, ROW_H, "Agência / Código do Beneficiário", agenciaCodigo);
-    cell(xEsp, y, wEsp, ROW_H, "Espécie", "R$");
-    cell(xQtd, y, wQtd, ROW_H, "Quantidade", "");
-    cell(xCart, y, wCart, ROW_H, "Carteira / Nosso número", nossoNumFormatado, { bold: true, align: "right" });
+    // ── Linha R1: Beneficiário | Agência/Cód. Beneficiário ──
+    {
+      const yR = y;
+      const wL = W * 0.72;
+      cell(ML, y, wL, ROW_H, "Beneficiário", `${dados.nomeBeneficiario} — CNPJ: ${formatarCNPJ(dados.cnpjBeneficiario)}`);
+      cell(ML + wL, y, W - wL, ROW_H, "Agência / Cód. Beneficiário", agenciaCodigo, { align: "right" });
+      y += ROW_H;
+      hLine(y);
+      vLine(ML + wL, yR, y);
+    }
 
-    y += ROW_H;
-    hLine(y);
-    vLine(xAgCod, y1, y);
-    vLine(xEsp, y1, y);
-    vLine(xQtd, y1, y);
-    vLine(xCart, y1, y);
+    // ── Linha R2: Nosso número | Nº documento | Espécie | Vencimento | Valor ──
+    {
+      const yR = y;
+      const wNN = W * 0.24;
+      const wND = W * 0.18;
+      const wES = W * 0.10;
+      const wVC = W * 0.16;
+      const wVL = MR - (ML + wNN + wND + wES + wVC);
 
-    // Linha 2: Número do documento | CPF/CNPJ | Vencimento | Valor documento
-    const y2 = y;
-    const xNumDoc = ML;
-    const wNumDoc = W * 0.22;
-    const xCpf = xNumDoc + wNumDoc;
-    const wCpf = W * 0.20;
-    const xVenc = xCpf + wCpf;
-    const wVenc = W * 0.18;
-    const xValDoc = xVenc + wVenc;
-    const wValDoc = MR - xValDoc;
+      cell(ML, y, wNN, ROW_H, "Carteira / Nosso número", nossoNumFormatado, { bold: true });
+      cell(ML + wNN, y, wND, ROW_H, "Nº do documento", dados.seuNumero);
+      cell(ML + wNN + wND, y, wES, ROW_H, "Espécie doc.", dados.especieDocumento);
+      cell(ML + wNN + wND + wES, y, wVC, ROW_H, "Vencimento", formatarData(dados.dataVencimento), { bold: true });
+      cell(ML + wNN + wND + wES + wVC, y, wVL, ROW_H, "Valor do documento",
+        formatarValorReais(dados.valor), { bold: true, align: "right" });
 
-    cell(xNumDoc, y, wNumDoc, ROW_H, "Número do documento", dados.seuNumero);
-    cell(xCpf, y, wCpf, ROW_H, "CPF/CNPJ", formatarCNPJ(dados.cnpjBeneficiario));
-    cell(xVenc, y, wVenc, ROW_H, "Vencimento", formatarData(dados.dataVencimento));
-    cell(xValDoc, y, wValDoc, ROW_H, "Valor documento", formatarValorReais(dados.valor), { bold: true, align: "right" });
+      y += ROW_H;
+      hLine(y);
+      let xv = ML;
+      for (const w of [wNN, wND, wES, wVC]) { xv += w; vLine(xv, yR, y); }
+    }
 
-    y += ROW_H;
-    hLine(y);
-    vLine(xCpf, y2, y);
-    vLine(xVenc, y2, y);
-    vLine(xValDoc, y2, y);
+    // ── Linha R3: Desconto | Outras deduções | Mora/Multa | Outros acréscimos | Valor cobrado ──
+    {
+      const yR = y;
+      const wC = W / 5;
+      const campos = [
+        "(-) Desconto / Abatimentos",
+        "(-) Outras deduções",
+        "(+) Mora / Multa",
+        "(+) Outros acréscimos",
+        "(=) Valor cobrado",
+      ];
+      campos.forEach((label, i) => {
+        cell(ML + wC * i, y, wC, ROW_H, label, "");
+      });
+      y += ROW_H;
+      hLine(y);
+      for (let i = 1; i < 5; i++) vLine(ML + wC * i, yR, y);
+    }
 
-    // Linha 3: Desconto | Outras deduções | Mora/Multa | Outros acréscimos | Valor cobrado
-    const y3 = y;
-    const wCols5 = W / 5;
-    cell(ML, y, wCols5, ROW_H, "(-) Desconto / Abatimentos", "");
-    cell(ML + wCols5, y, wCols5, ROW_H, "(-) Outras deduções", "");
-    cell(ML + wCols5 * 2, y, wCols5, ROW_H, "(+) Mora / Multa", "");
-    cell(ML + wCols5 * 3, y, wCols5, ROW_H, "(+) Outros acréscimos", "");
-    cell(ML + wCols5 * 4, y, wCols5, ROW_H, "(=) Valor cobrado", "");
+    // ── Linha R4: Pagador ──
+    {
+      const ROW_PAG = 34;
+      doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL).text("Pagador", ML + 3, y + 2);
+      doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
+        .text(dados.nomeSacado, ML + 3, y + 10, { width: W * 0.75, lineBreak: false });
+      doc.font(FONTE).fontSize(7.5).fillColor(PRETO)
+        .text(`${dados.enderecoSacado}`, ML + 3, y + 20, { width: W * 0.75, lineBreak: false });
+      doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
+        .text("Autenticação mecânica", MR - 110, y + ROW_PAG - 12, { width: 110, align: "right", lineBreak: false });
+      y += ROW_PAG;
+      hLine(y);
+    }
 
-    y += ROW_H;
-    hLine(y);
-    for (let i = 1; i < 5; i++) vLine(ML + wCols5 * i, y3, y);
-
-    // Linha 4: Pagador (nome + endereço)
-    const y4 = y;
-    const ROW_PAGADOR = 36;
-    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL).text("Pagador", ML + 3, y + 2);
-    doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
-      .text(`${dados.nomeSacado} - CPF/CNPJ: ${formatarCNPJ(dados.cpfCnpjSacado)}`, ML + 3, y + 10, { width: W - 6 });
-    doc.font(FONTE).fontSize(8).fillColor(PRETO)
-      .text(`${dados.enderecoSacado} - ${dados.cidadeSacado}/${dados.ufSacado} - CEP: ${dados.cepSacado}`, ML + 3, y + 20, { width: W * 0.75 });
-
-    // Autenticação mecânica (canto direito)
-    doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
-      .text("Autenticação mecânica", MR - 100, y + ROW_PAGADOR - 12, { width: 100, align: "right" });
-
-    y += ROW_PAGADOR;
-    hLine(y);
-
-    // Instruções no recibo
-    const y5 = y;
-    const ROW_INSTR = 18;
-    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL).text("Instruções", ML + 3, y + 4);
-    y += ROW_INSTR;
-    hLine(y);
+    // ── Linha R5: Instruções resumidas ──
+    {
+      const ROW_INSTR = 16;
+      doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL).text("Instruções", ML + 3, y + 3);
+      if (dados.instrucoes.length > 0) {
+        doc.font(FONTE).fontSize(7).fillColor(PRETO)
+          .text(dados.instrucoes[0], ML + 50, y + 3, { width: W - 60, lineBreak: false });
+      }
+      y += ROW_INSTR;
+      hLine(y);
+    }
 
     // ── Linha de corte entre recibo e ficha ──
     y += 6;
     doc.moveTo(ML, y).lineTo(MR, y).dash(3, { space: 3 }).strokeColor(CINZA_BORDA).lineWidth(0.5).stroke();
     doc.undash();
-    doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
-      .text("Corte na linha pontilhada", MR - 110, y + 2, { width: 110, align: "right", lineBreak: false });
+    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
+      .text("Corte na linha pontilhada", MR - 115, y + 2, { width: 115, align: "right", lineBreak: false });
     y += 14;
 
     // ════════════════════════════════════════════════════════════
@@ -444,217 +452,221 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
 
     y = desenharCabecalho(y);
 
-    // Local de pagamento | Vencimento
-    const yLocal = y;
-    const wLocal = W * 0.72;
-    cell(ML, y, wLocal, ROW_H, "Local de pagamento", dados.localPagamento);
-    cell(ML + wLocal, y, W - wLocal, ROW_H, "Vencimento", formatarData(dados.dataVencimento), { bold: true, fontSize: 10, align: "right" });
-
-    y += ROW_H;
-    hLine(y);
-    vLine(ML + wLocal, yLocal, y);
-
-    // Beneficiário | Agência/Código Beneficiário
-    const yBenef2 = y;
-    cell(ML, y, wLocal, ROW_H + 6, "Beneficiário",
-      `${dados.nomeBeneficiario} - ${formatarCNPJ(dados.cnpjBeneficiario)}`);
-    cell(ML + wLocal, y, W - wLocal, ROW_H + 6, "Agência / Código Beneficiário", agenciaCodigo, { align: "right" });
-
-    y += ROW_H + 6;
-    hLine(y);
-    vLine(ML + wLocal, yBenef2, y);
-
-    // Data do documento | No documento | Espécie doc. | Aceite | Data processamento | Carteira/Nosso número
-    const yDados = y;
-    const wD1 = W * 0.14;
-    const wD2 = W * 0.18;
-    const wD3 = W * 0.10;
-    const wD4 = W * 0.08;
-    const wD5 = W * 0.16;
-    const wD6 = MR - (ML + wD1 + wD2 + wD3 + wD4 + wD5);
-
-    cell(ML, y, wD1, ROW_H, "Data do documento", formatarData(dados.dataEmissao));
-    cell(ML + wD1, y, wD2, ROW_H, "No documento", dados.seuNumero);
-    cell(ML + wD1 + wD2, y, wD3, ROW_H, "Espécie doc.", dados.especieDocumento);
-    cell(ML + wD1 + wD2 + wD3, y, wD4, ROW_H, "Aceite", dados.aceite);
-    cell(ML + wD1 + wD2 + wD3 + wD4, y, wD5, ROW_H, "Data processamento", formatarData(dados.dataEmissao));
-    cell(ML + wD1 + wD2 + wD3 + wD4 + wD5, y, wD6, ROW_H, "Carteira / Nosso número", nossoNumFormatado, { bold: true, align: "right" });
-
-    y += ROW_H;
-    hLine(y);
-    let xv = ML;
-    for (const w of [wD1, wD2, wD3, wD4, wD5]) {
-      xv += w;
-      vLine(xv, yDados, y);
+    // ── FC Linha 1: Local de pagamento | Vencimento ──
+    {
+      const yR = y;
+      const wL = W * 0.72;
+      cell(ML, y, wL, ROW_H, "Local de pagamento", dados.localPagamento);
+      cell(ML + wL, y, W - wL, ROW_H, "Vencimento",
+        formatarData(dados.dataVencimento), { bold: true, fontSize: 10, align: "right" });
+      y += ROW_H;
+      hLine(y);
+      vLine(ML + wL, yR, y);
     }
 
-    // Uso do banco | CIP | Carteira | Espécie | Quantidade | (x) Valor | (=) Valor documento
-    const yUso = y;
-    const wU1 = W * 0.12;
-    const wU2 = W * 0.08;
-    const wU3 = W * 0.10;
-    const wU4 = W * 0.10;
-    const wU5 = W * 0.12;
-    const wU6 = W * 0.10;
-    const wU7 = MR - (ML + wU1 + wU2 + wU3 + wU4 + wU5 + wU6);
-
-    cell(ML, y, wU1, ROW_H, "Uso do banco", "");
-    cell(ML + wU1, y, wU2, ROW_H, "CIP", "");
-    cell(ML + wU1 + wU2, y, wU3, ROW_H, "Carteira", dados.carteira);
-    cell(ML + wU1 + wU2 + wU3, y, wU4, ROW_H, "Espécie", "R$");
-    cell(ML + wU1 + wU2 + wU3 + wU4, y, wU5, ROW_H, "Quantidade", "");
-    cell(ML + wU1 + wU2 + wU3 + wU4 + wU5, y, wU6, ROW_H, "(x) Valor", "");
-    cell(ML + wU1 + wU2 + wU3 + wU4 + wU5 + wU6, y, wU7, ROW_H, "(=) Valor documento",
-      formatarValorReais(dados.valor), { bold: true, align: "right" });
-
-    y += ROW_H;
-    hLine(y);
-    let xu = ML;
-    for (const w of [wU1, wU2, wU3, wU4, wU5, wU6]) {
-      xu += w;
-      vLine(xu, yUso, y);
+    // ── FC Linha 2: Beneficiário | Agência/Código Beneficiário ──
+    {
+      const yR = y;
+      const wL = W * 0.72;
+      cell(ML, y, wL, ROW_H + 4, "Beneficiário",
+        `${dados.nomeBeneficiario} — CNPJ: ${formatarCNPJ(dados.cnpjBeneficiario)}`);
+      cell(ML + wL, y, W - wL, ROW_H + 4, "Agência / Código Beneficiário",
+        agenciaCodigo, { align: "right" });
+      y += ROW_H + 4;
+      hLine(y);
+      vLine(ML + wL, yR, y);
     }
 
-    // ── Área de instruções (esquerda) + Valores (direita) ──
-    const yInstrFicha = y;
-    const wInstrArea = W * 0.65;
-    const xValores = ML + wInstrArea;
-    const wValores = MR - xValores;
-    const ROW_VALOR = 16;
-    const INSTR_H = ROW_VALOR * 5; // 5 linhas de valores = altura total
+    // ── FC Linha 3: Data doc. | Nº doc. | Espécie doc. | Aceite | Data proc. | Carteira/Nosso nº ──
+    {
+      const yR = y;
+      const wD1 = W * 0.14;
+      const wD2 = W * 0.16;
+      const wD3 = W * 0.10;
+      const wD4 = W * 0.08;
+      const wD5 = W * 0.16;
+      const wD6 = MR - (ML + wD1 + wD2 + wD3 + wD4 + wD5);
 
-    // Label instruções
-    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
-      .text("Instruções (Texto de responsabilidade do beneficiário)", ML + 3, y + 3, { width: wInstrArea - 6 });
+      cell(ML, y, wD1, ROW_H, "Data do documento", formatarData(dados.dataEmissao));
+      cell(ML + wD1, y, wD2, ROW_H, "No documento", dados.seuNumero);
+      cell(ML + wD1 + wD2, y, wD3, ROW_H, "Espécie doc.", dados.especieDocumento);
+      cell(ML + wD1 + wD2 + wD3, y, wD4, ROW_H, "Aceite", dados.aceite);
+      cell(ML + wD1 + wD2 + wD3 + wD4, y, wD5, ROW_H, "Data processamento", formatarData(dados.dataEmissao));
+      cell(ML + wD1 + wD2 + wD3 + wD4 + wD5, y, wD6, ROW_H,
+        "Carteira / Nosso número", nossoNumFormatado, { bold: true, align: "right" });
 
-    // Texto das instruções
-    dados.instrucoes.forEach((instr, idx) => {
-      doc.font(FONTE).fontSize(7.5).fillColor(PRETO)
-        .text(`${instr}`, ML + 5, y + 13 + idx * 11, { width: wInstrArea - 10 });
-    });
+      y += ROW_H;
+      hLine(y);
+      let xv = ML;
+      for (const w of [wD1, wD2, wD3, wD4, wD5]) { xv += w; vLine(xv, yR, y); }
+    }
 
-    // Coluna de valores à direita
-    const valoresCampos = [
-      "(-) Desconto / Abatimentos",
-      "(-) Outras deduções",
-      "(+) Mora / Multa",
-      "(+) Outros acréscimos",
-      "(=) Valor cobrado",
-    ];
-    valoresCampos.forEach((label, idx) => {
-      const yv = y + idx * ROW_VALOR;
+    // ── FC Linha 4: Uso do banco | CIP | Carteira | Espécie | Quantidade | (x) Valor | (=) Valor doc. ──
+    {
+      const yR = y;
+      const wU1 = W * 0.12;
+      const wU2 = W * 0.08;
+      const wU3 = W * 0.10;
+      const wU4 = W * 0.10;
+      const wU5 = W * 0.12;
+      const wU6 = W * 0.10;
+      const wU7 = MR - (ML + wU1 + wU2 + wU3 + wU4 + wU5 + wU6);
+
+      cell(ML, y, wU1, ROW_H, "Uso do banco", "");
+      cell(ML + wU1, y, wU2, ROW_H, "CIP", "");
+      cell(ML + wU1 + wU2, y, wU3, ROW_H, "Carteira", dados.carteira.padStart(3, "0"));
+      cell(ML + wU1 + wU2 + wU3, y, wU4, ROW_H, "Espécie", "R$");
+      cell(ML + wU1 + wU2 + wU3 + wU4, y, wU5, ROW_H, "Quantidade", "");
+      cell(ML + wU1 + wU2 + wU3 + wU4 + wU5, y, wU6, ROW_H, "(x) Valor", "");
+      cell(ML + wU1 + wU2 + wU3 + wU4 + wU5 + wU6, y, wU7, ROW_H,
+        "(=) Valor documento", formatarValorReais(dados.valor), { bold: true, align: "right" });
+
+      y += ROW_H;
+      hLine(y);
+      let xu = ML;
+      for (const w of [wU1, wU2, wU3, wU4, wU5, wU6]) { xu += w; vLine(xu, yR, y); }
+    }
+
+    // ── FC Linha 5: Instruções (esquerda) | Descontos/Multas (direita) ──
+    {
+      const yInstr = y;
+      const wInstr = W * 0.65;
+      const xVal = ML + wInstr;
+      const wVal = MR - xVal;
+      const ROW_V = 16;
+      const INSTR_H = ROW_V * 5;
+
+      // Label instruções
       doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
-        .text(label, xValores + 3, yv + 3, { width: wValores - 6 });
-      if (idx < valoresCampos.length - 1) {
-        hLine(yv + ROW_VALOR, xValores, MR);
+        .text("Instruções (Texto de responsabilidade do beneficiário)", ML + 3, y + 3, { width: wInstr - 6 });
+
+      // Texto das instruções
+      dados.instrucoes.forEach((instr, idx) => {
+        doc.font(FONTE).fontSize(7.5).fillColor(PRETO)
+          .text(instr, ML + 5, y + 13 + idx * 11, { width: wInstr - 10 });
+      });
+
+      // Coluna de valores à direita
+      const valoresCampos = [
+        "(-) Desconto / Abatimentos",
+        "(-) Outras deduções",
+        "(+) Mora / Multa",
+        "(+) Outros acréscimos",
+        "(=) Valor cobrado",
+      ];
+      valoresCampos.forEach((label, idx) => {
+        const yv = y + idx * ROW_V;
+        doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
+          .text(label, xVal + 3, yv + 3, { width: wVal - 6 });
+        if (idx < valoresCampos.length - 1) hLine(yv + ROW_V, xVal, MR);
+      });
+
+      y += INSTR_H;
+      hLine(y);
+      vLine(xVal, yInstr, y);
+    }
+
+    // ── FC Linha 6: Pagador ──
+    {
+      const ROW_PAG = 38;
+      doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL).text("Pagador", ML + 3, y + 2);
+      doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
+        .text(dados.nomeSacado, ML + 3, y + 10, { width: W * 0.75, lineBreak: false });
+      doc.font(FONTE).fontSize(7.5).fillColor(PRETO)
+        .text(`${dados.enderecoSacado}`, ML + 3, y + 20, { width: W * 0.75, lineBreak: false });
+      if (dados.cidadeSacado) {
+        doc.font(FONTE).fontSize(7.5).fillColor(PRETO)
+          .text(`${dados.cidadeSacado}/${dados.ufSacado}${dados.cepSacado ? " — CEP: " + dados.cepSacado : ""}`,
+            ML + 3, y + 29, { width: W * 0.75, lineBreak: false });
       }
-    });
+      // Código de Baixa (canto direito)
+      doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
+        .text("Código de Baixa", MR - 110, y + 10, { width: 110, align: "right", lineBreak: false });
+      y += ROW_PAG;
+      hLine(y);
+    }
 
-    y += INSTR_H;
-    hLine(y);
-    vLine(xValores, yInstrFicha, y);
-
-    // ── Pagador ──
-    const ROW_PAG = 36;
-    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL).text("Pagador", ML + 3, y + 2);
-    doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
-      .text(`${dados.nomeSacado} - CPF/CNPJ: ${formatarCNPJ(dados.cpfCnpjSacado)}`, ML + 3, y + 10, { width: W - 6 });
-    doc.font(FONTE).fontSize(8).fillColor(PRETO)
-      .text(`${dados.enderecoSacado} - ${dados.cidadeSacado}/${dados.ufSacado} - CEP: ${dados.cepSacado}`, ML + 3, y + 20, { width: W * 0.75 });
-
-    // Código de Baixa (canto direito)
-    doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
-      .text("Código de Baixa", MR - 100, y + 10, { width: 100, align: "right" });
-
-    y += ROW_PAG;
-    hLine(y);
-
-    // ── Sacador / Avalista | Autenticação mecânica ──
-    const ySac = y;
-    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL).text("Sacador / Avalista", ML + 3, y + 4);
-    doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
-      .text("Autenticação mecânica - Ficha de Compensação", MR - 200, y + 4, { width: 200, align: "right" });
-
-    y += 18;
-    hLine(y);
+    // ── FC Linha 7: Pagador/Avalista | Autenticação mecânica — Ficha de Compensação ──
+    {
+      doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
+        .text("Pagador / Avalista", ML + 3, y + 4, { lineBreak: false });
+      doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
+        .text("Autenticação mecânica — Ficha de Compensação", MR - 210, y + 4, { width: 210, align: "right", lineBreak: false });
+      y += 18;
+      hLine(y);
+    }
 
     // ── Código de barras I25 ──
     y += 8;
     const barras = gerarBarrasI25(codigoBarras);
-    const alturaBarras = 42;
+    const alturaBarras = 44;
     const larguraTotal = barras.reduce((acc, b) => acc + b.largura, 0);
-    const escala = W / larguraTotal;
-    let xBar = ML;
 
-    barras.forEach((b) => {
-      if (b.tipo === "barra") {
-        doc.rect(xBar, y, b.largura * escala, alturaBarras).fillColor(PRETO).fill();
-      }
-      xBar += b.largura * escala;
-    });
-
-    y += alturaBarras + 8;
-
-    // ── Seção Pix (QR Code + copia e cola) ──
-    if (qrCodeBuffer && dados.pixCopiaCola) {
-      hLine(y);
-      y += 6;
-
-      // Título da seção Pix
-      const PIX_VERDE = "#32BCAD";
-      doc.font(FONTE_BOLD).fontSize(9).fillColor(PIX_VERDE)
-        .text("Pix", ML + 3, y + 4);
-      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
-        .text("Pague também via Pix usando o QR Code ou o código Copia e Cola abaixo:", ML + 30, y + 5, { width: W - 33 });
-
-      y += 18;
-
-      // QR Code à esquerda
-      const QR_SIZE = 90;
-      const QR_X = ML + 3;
-      const QR_Y = y;
-
-      // Borda ao redor do QR Code
-      doc.rect(QR_X - 2, QR_Y - 2, QR_SIZE + 4, QR_SIZE + 4)
-        .strokeColor(PIX_VERDE).lineWidth(1).stroke();
-
-      doc.image(qrCodeBuffer, QR_X, QR_Y, { width: QR_SIZE, height: QR_SIZE });
-
-      // Código copia e cola à direita do QR Code
-      const PIX_TEXT_X = QR_X + QR_SIZE + 10;
-      const PIX_TEXT_W = MR - PIX_TEXT_X;
-
-      doc.font(FONTE_BOLD).fontSize(7).fillColor(CINZA_LABEL)
-        .text("Código Pix Copia e Cola:", PIX_TEXT_X, QR_Y + 2, { width: PIX_TEXT_W });
-
-      // Quebrar o código em linhas de ~55 chars para caber na largura
-      const pixStr = dados.pixCopiaCola;
-      const chunkSize = 55;
-      const linhas: string[] = [];
-      for (let i = 0; i < pixStr.length; i += chunkSize) {
-        linhas.push(pixStr.substring(i, i + chunkSize));
-      }
-
-      doc.font(FONTE).fontSize(6).fillColor(PRETO);
-      linhas.forEach((linha, idx) => {
-        doc.text(linha, PIX_TEXT_X, QR_Y + 14 + idx * 9, { width: PIX_TEXT_W, lineBreak: false });
+    if (qrCodeBuffer) {
+      // Com Pix: código de barras ocupa ~55% da largura, QR Code à direita
+      const wBarras = W * 0.55;
+      const escala = wBarras / larguraTotal;
+      let xBar = ML;
+      barras.forEach((b) => {
+        if (b.tipo === "barra") {
+          doc.rect(xBar, y, b.largura * escala, alturaBarras).fillColor(PRETO).fill();
+        }
+        xBar += b.largura * escala;
       });
 
-      // Aviso abaixo do QR Code
-      doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
-        .text("Escaneie o QR Code com o app do seu banco para pagar via Pix.",
-          QR_X, QR_Y + QR_SIZE + 5, { width: QR_SIZE + PIX_TEXT_W + 10 });
+      // Seção "Pague com o PIX" à direita
+      const PIX_VERDE = "#32BCAD";
+      const xPix = ML + wBarras + 12;
+      const wPix = MR - xPix;
+      const QR_SIZE = alturaBarras + 20;
 
-      y += QR_SIZE + 20;
-      hLine(y);
-      y += 6;
+      // Título "Pague com o PIX"
+      doc.font(FONTE_BOLD).fontSize(8.5).fillColor(PIX_VERDE)
+        .text("Pague com o PIX", xPix, y, { width: wPix - QR_SIZE - 6, lineBreak: false });
+
+      // Dados do Pix
+      const pixInfoY = y + 12;
+      const wPixInfo = wPix - QR_SIZE - 6;
+      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
+        .text("CNPJ:", xPix, pixInfoY, { width: wPixInfo, lineBreak: false });
+      doc.font(FONTE).fontSize(7).fillColor(PRETO)
+        .text(formatarCNPJ(dados.cnpjBeneficiario), xPix + 28, pixInfoY, { width: wPixInfo - 28, lineBreak: false });
+
+      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
+        .text("Vencimento:", xPix, pixInfoY + 11, { width: wPixInfo, lineBreak: false });
+      doc.font(FONTE).fontSize(7).fillColor(PRETO)
+        .text(formatarData(dados.dataVencimento), xPix + 50, pixInfoY + 11, { width: wPixInfo - 50, lineBreak: false });
+
+      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
+        .text("Valor:", xPix, pixInfoY + 22, { width: wPixInfo, lineBreak: false });
+      doc.font(FONTE_BOLD).fontSize(7).fillColor(PRETO)
+        .text(formatarValorReais(dados.valor), xPix + 28, pixInfoY + 22, { width: wPixInfo - 28, lineBreak: false });
+
+      // QR Code
+      const xQR = MR - QR_SIZE;
+      doc.rect(xQR - 2, y - 2, QR_SIZE + 4, QR_SIZE + 4)
+        .strokeColor(PIX_VERDE).lineWidth(1).stroke();
+      doc.image(qrCodeBuffer, xQR, y, { width: QR_SIZE, height: QR_SIZE });
+
+      y += QR_SIZE + 8;
+    } else {
+      // Sem Pix: código de barras ocupa largura total
+      const escala = W / larguraTotal;
+      let xBar = ML;
+      barras.forEach((b) => {
+        if (b.tipo === "barra") {
+          doc.rect(xBar, y, b.largura * escala, alturaBarras).fillColor(PRETO).fill();
+        }
+        xBar += b.largura * escala;
+      });
+      y += alturaBarras + 8;
     }
 
     // ── Linha de corte final ──
     doc.moveTo(ML, y).lineTo(MR, y).dash(3, { space: 3 }).strokeColor(CINZA_BORDA).lineWidth(0.5).stroke();
     doc.undash();
-    doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
-      .text("Corte na linha pontilhada", MR - 110, y + 2, { width: 110, align: "right", lineBreak: false });
+    doc.font(FONTE).fontSize(6).fillColor(CINZA_LABEL)
+      .text("Corte na linha pontilhada", MR - 115, y + 2, { width: 115, align: "right", lineBreak: false });
 
     doc.end();
   });
