@@ -84,7 +84,6 @@ const menuGroups: MenuGroup[] = [
     icon: Briefcase,
     roles: ["admin", "sindico", "cobrador"],
     items: [
-      { label: "Casos Prioritários", href: "/casos-prioritarios", icon: AlertCircle, roles: ["admin", "sindico", "cobrador"] },
       { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador"] },
       { label: "Dívidas", href: "/processos", icon: FileText, roles: ["admin", "sindico", "cobrador"] },
       { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador"] },
