@@ -1140,7 +1140,7 @@ export const appRouter = router({
             chavePix: config.chavePix,
             nomeBeneficiario: config.nomeBeneficiario || condominio.name,
             cidade: "SAO PAULO",
-            valor: Number(parcela.amount) * 100,
+            valor: parcela.amount, // já em centavos no banco (int)
             txid: parcela.nossoNumero || undefined,
             descricao: `Parcela ${parcela.nossoNumero}`,
           }) || undefined;
@@ -1161,7 +1161,7 @@ export const appRouter = router({
           nossoNumero: parcela.nossoNumero,
           dataVencimento,
           dataEmissao,
-          valor: Number(parcela.amount) * 100, // parcela.amount está em reais, converter para centavos
+          valor: parcela.amount, // já em centavos no banco (int)
           especieDocumento: config.especieDocumento,
           aceite: config.aceite,
           nomeSacado,
@@ -1190,7 +1190,7 @@ export const appRouter = router({
           codigoBarras,
           pixCopiaCola,
           nossoNumero: parcela.nossoNumero,
-          valor: Number(parcela.amount) * 100,
+          valor: parcela.amount, // já em centavos no banco (int)
           vencimento: dataVencimento.toISOString(),
         };
       }),
@@ -2782,7 +2782,7 @@ export const appRouter = router({
           devedorCidade: '',
           devedorUF: '',
           devedorCEP: '',
-          valorNominal: Math.round(Number(r.amount) * 100), // reais → centavos para o CNAB
+          valorNominal: r.amount, // já em centavos no banco (int)
           dataVencimento: new Date(r.dueDate),
           dataEmissao: hoje,
           instrucao1: instrucoesCaixa,
