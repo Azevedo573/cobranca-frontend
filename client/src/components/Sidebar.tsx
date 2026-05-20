@@ -108,11 +108,11 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Banco",
     icon: Landmark,
-    roles: ["admin", "sindico"],
+    roles: ["admin"],
     items: [
-      { label: "Configuração de Boleto", href: "/admin/configuracao-boleto", icon: Settings, roles: ["admin", "sindico"] },
-      { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin", "sindico"] },
-      { label: "Retorno CNAB 240", href: "/admin/retorno-cnab", icon: Download, roles: ["admin", "sindico"] },
+      { label: "Configuração de Boleto", href: "/admin/configuracao-boleto", icon: Settings, roles: ["admin"] },
+      { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin"] },
+      { label: "Retorno CNAB 240", href: "/admin/retorno-cnab", icon: Download, roles: ["admin"] },
     ],
   },
 
