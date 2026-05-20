@@ -84,6 +84,7 @@ export const cobrancas = mysqlTable("cobrancas", {
   paidAt: timestamp("paidAt"),
   paidAmount: int("paidAmount"),
   nossoNumero: varchar("nossoNumero", { length: 30 }), // Número do boleto/título para CNAB
+  pixCopiaCola: text("pixCopiaCola"),                   // Pix copia e cola (EMV) retornado pelo banco no retorno D+1 (Bolepix)
   statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "remessa_gerada", "enviado", "retorno_recebido"]).default("nao_enviado"),
   remessaId: int("remessaId"), // ID da remessa CNAB que gerou este boleto
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -139,6 +140,7 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   status: mysqlEnum("status", ["pendente", "pago", "atrasado"]).default("pendente").notNull(),
   // Campos de boleto CNAB 240
   nossoNumero: varchar("nossoNumero", { length: 30 }), // Nosso número BTG atribuído ao criar o acordo
+  pixCopiaCola: text("pixCopiaCola"),                   // Pix copia e cola (EMV) retornado pelo banco no retorno D+1 (Bolepix)
   statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "remessa_gerada", "enviado", "retorno_recebido"]).default("nao_enviado"),
   remessaId: int("remessaId"), // ID da remessa CNAB que incluiu esta parcela
   createdAt: timestamp("createdAt").defaultNow().notNull(),

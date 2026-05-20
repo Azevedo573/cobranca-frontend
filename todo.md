@@ -1843,3 +1843,15 @@
 - [x] Remover botão "Nova Dívida" para o síndico em ProcessosCobranca.tsx
 - [x] Remover botão "Nova Dívida" para o síndico em DevedorDetalhes.tsx
 - [x] Remover botão "Importar Dívidas" para o síndico em DevedorDetalhes.tsx
+
+## Suporte Completo ao Bolepix BTG (Pix por Boleto)
+
+- [x] Adicionar campo pixCopiaCola (TEXT) nas tabelas cobrancas e parcelasAcordo no schema
+- [x] Executar db:push para aplicar migração no banco
+- [x] Atualizar processarRetorno para gerar e salvar pixCopiaCola a partir do Segmento Y-04 (chave Pix + TXID retornados pelo banco)
+- [x] Atualizar gerarBoletoPDF (cobranças avulsas) para usar pixCopiaCola do banco com prioridade (fallback: chave estática)
+- [x] Atualizar gerarBoletoPDFParcela (parcelas de acordo) para usar pixCopiaCola do banco com prioridade
+- [x] Adicionar campo nossoNumero, pixCopiaCola e statusRemessa na interface CobrancaComCalculos
+- [x] Atualizar DevedorDetalhes para mostrar botão "Copiar Pix" diretamente da cobrança (sem precisar gerar PDF)
+- [x] Atualizar AcordoDetalhes para mostrar botão "Pix" diretamente da parcela (sem precisar gerar PDF)
+- [x] TypeScript: 0 erros

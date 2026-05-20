@@ -420,13 +420,17 @@ export default function DevedorDetalhes() {
                                     </Button>
                                   ) : null}
 
-                                  {/* Botão Copiar Pix */}
-                                  {dadosBoleto[cob.id]?.pixCopiaCola ? (
+                                  {/* Botão Copiar Pix — usa o Bolepix do banco (retorno D+1) ou o gerado ao criar PDF */}
+                                  {(dadosBoleto[cob.id]?.pixCopiaCola || (cob as any).pixCopiaCola) ? (
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50"
-                                      onClick={() => copiarTexto(dadosBoleto[cob.id].pixCopiaCola!, "pix", cob.id)}
+                                      onClick={() => copiarTexto(
+                                        dadosBoleto[cob.id]?.pixCopiaCola || (cob as any).pixCopiaCola,
+                                        "pix",
+                                        cob.id
+                                      )}
                                     >
                                       {copiadoPixId === cob.id ? (
                                         <Check className="h-3 w-3 mr-1 text-green-600" />
@@ -438,7 +442,7 @@ export default function DevedorDetalhes() {
                                   ) : null}
 
                                   {/* Gerar pela primeira vez mostra apenas o botão PDF */}
-                                  {!dadosBoleto[cob.id] && (
+                                  {!dadosBoleto[cob.id] && !(cob as any).pixCopiaCola && (
                                     <span className="text-xs text-muted-foreground text-center">
                                       Gere o PDF para copiar
                                     </span>

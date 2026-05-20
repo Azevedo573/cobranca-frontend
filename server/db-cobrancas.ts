@@ -54,6 +54,9 @@ export interface CobrancaComCalculos {
   monthReference: string | null;
   status: string;
   custasJudiciais: number | null;
+  nossoNumero: string | null;
+  pixCopiaCola: string | null;
+  statusRemessa: string | null;
   createdAt: Date;
   updatedAt: Date | null;
   // Campos calculados

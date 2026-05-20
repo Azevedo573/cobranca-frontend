@@ -687,13 +687,14 @@ export const appRouter = router({
         const nomeSacado = devedor.name ||
           `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
 
-        // Gerar Pix copia e cola ANTES de montar dados (para incluir no PDF)
-        let pixCopiaCola: string | undefined = undefined;
-        if (config.habilitarPix && config.chavePix) {
+        // Pix copia e cola: prioridade para o Bolepix retornado pelo banco (campo pixCopiaCola)
+        // Fallback: gerar a partir da chave estática configurada (se habilitarPix e chavePix preenchidos)
+        let pixCopiaCola: string | undefined = cobranca.pixCopiaCola || undefined;
+        if (!pixCopiaCola && config.habilitarPix && config.chavePix) {
           pixCopiaCola = gerarPixCopiaCola({
             chavePix: config.chavePix,
             nomeBeneficiario: config.nomeBeneficiario || condominio.name,
-            cidade: "SAO PAULO",
+            cidade: condominio.city || "SAO PAULO",
             valor: cobranca.amount,
             txid: cobranca.nossoNumero || undefined,
             descricao: `Cobranca ${cobranca.nossoNumero}`,
@@ -1133,13 +1134,14 @@ export const appRouter = router({
         const nomeSacado = devedor.name ||
           `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
 
-        // Gerar Pix copia e cola ANTES de montar dados (para incluir no PDF)
-        let pixCopiaCola: string | undefined = undefined;
-        if (config.habilitarPix && config.chavePix) {
+        // Pix copia e cola: prioridade para o Bolepix retornado pelo banco (campo pixCopiaCola)
+        // Fallback: gerar a partir da chave estática configurada (se habilitarPix e chavePix preenchidos)
+        let pixCopiaCola: string | undefined = parcela.pixCopiaCola || undefined;
+        if (!pixCopiaCola && config.habilitarPix && config.chavePix) {
           pixCopiaCola = gerarPixCopiaCola({
             chavePix: config.chavePix,
             nomeBeneficiario: config.nomeBeneficiario || condominio.name,
-            cidade: "SAO PAULO",
+            cidade: condominio.city || "SAO PAULO",
             valor: parcela.amount, // já em centavos no banco (int)
             txid: parcela.nossoNumero || undefined,
             descricao: `Parcela ${parcela.nossoNumero}`,
@@ -2434,6 +2436,9 @@ export const appRouter = router({
         const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
         const { parseRetornoCNAB240, determinarNovoStatus } = await import("./db-cnab-retorno");
         const { criarRetornoCNAB } = await import("./db-cnab");
+        const { gerarPixCopiaCola } = await import("./pix-emv");
+        const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+        const { getCondominioById } = await import("./db-condominios");
         const db = await (await import("./db")).getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
         const { cobrancas, parcelasAcordo, acordos, retornoItens, retornosCNAB } = await import("../drizzle/schema");
@@ -2504,10 +2509,38 @@ export const appRouter = router({
               } else if (novoStatus === "cancelado") {
                 cancelados++;
               }
+              // Salvar Pix copia e cola do Bolepix (Segmento Y-04) se presente
+              if (par.segmentoY04?.chavePix) {
+                const configBoleto = await getConfiguracaoBoleto(condId);
+                const condominio = await getCondominioById(condId);
+                const nomeBenef = configBoleto?.nomeBeneficiario || condominio?.name || "Beneficiario";
+                const pixEMV = gerarPixCopiaCola({
+                  chavePix: par.segmentoY04.chavePix,
+                  nomeBeneficiario: nomeBenef,
+                  cidade: condominio?.city || "SAO PAULO",
+                  valor: cobranca.amount,
+                  txid: par.segmentoY04.txid || cobranca.nossoNumero || undefined,
+                });
+                updateData.pixCopiaCola = pixEMV;
+              }
               await db.update(cobrancas).set(updateData).where(eq(cobrancas.id, cobranca.id));
               statusProcessamento = "processado";
               observacao = `Status alterado de '${statusAnterior}' para '${novoStatus}'`;
             } else if (cobranca.status === novoStatus) {
+              // Mesmo sem mudar status, salvar Pix copia e cola se vier no retorno
+              if (par.segmentoY04?.chavePix && !cobranca.pixCopiaCola) {
+                const configBoleto = await getConfiguracaoBoleto(condId);
+                const condominio = await getCondominioById(condId);
+                const nomeBenef = configBoleto?.nomeBeneficiario || condominio?.name || "Beneficiario";
+                const pixEMV = gerarPixCopiaCola({
+                  chavePix: par.segmentoY04.chavePix,
+                  nomeBeneficiario: nomeBenef,
+                  cidade: condominio?.city || "SAO PAULO",
+                  valor: cobranca.amount,
+                  txid: par.segmentoY04.txid || cobranca.nossoNumero || undefined,
+                });
+                await db.update(cobrancas).set({ pixCopiaCola: pixEMV }).where(eq(cobrancas.id, cobranca.id));
+              }
               statusProcessamento = "processado";
               observacao = `Status já era '${novoStatus}' — sem alteração`;
             } else {
@@ -2533,12 +2566,29 @@ export const appRouter = router({
 
             if (parcela) {
               statusAnterior = parcela.status;
+
+              // Gerar e salvar Pix copia e cola do Bolepix (Segmento Y-04) se presente
+              let pixEMVParcela: string | undefined;
+              if (par.segmentoY04?.chavePix) {
+                const configBoleto = await getConfiguracaoBoleto(condId);
+                const condominio = await getCondominioById(condId);
+                const nomeBenef = configBoleto?.nomeBeneficiario || condominio?.name || "Beneficiario";
+                pixEMVParcela = gerarPixCopiaCola({
+                  chavePix: par.segmentoY04.chavePix,
+                  nomeBeneficiario: nomeBenef,
+                  cidade: condominio?.city || "SAO PAULO",
+                  valor: parcela.amount,
+                  txid: par.segmentoY04.txid || nossoNumero || undefined,
+                });
+              }
+
               if (novoStatus === "pago" && parcela.status !== "pago") {
                 const dataPag = dataCredito || dataOcorrencia || new Date();
                 await db.update(parcelasAcordo).set({
                   status: "pago",
                   paymentDate: dataPag,
                   statusRemessa: "retorno_recebido",
+                  ...(pixEMVParcela ? { pixCopiaCola: pixEMVParcela } : {}),
                 }).where(eq(parcelasAcordo.id, parcela.id));
 
                 // Verificar se todas as parcelas do acordo foram pagas
@@ -2555,11 +2605,17 @@ export const appRouter = router({
                 statusProcessamento = "processado";
                 observacao = "Parcela de acordo baixada";
               } else if (novoStatus === "em_cobranca") {
-                await db.update(parcelasAcordo).set({ statusRemessa: "enviado" }).where(eq(parcelasAcordo.id, parcela.id));
+                await db.update(parcelasAcordo).set({
+                  statusRemessa: "enviado",
+                  ...(pixEMVParcela ? { pixCopiaCola: pixEMVParcela } : {}),
+                }).where(eq(parcelasAcordo.id, parcela.id));
                 entradas++;
                 statusProcessamento = "processado";
                 observacao = "Entrada confirmada para parcela de acordo";
               } else {
+                if (pixEMVParcela) {
+                  await db.update(parcelasAcordo).set({ pixCopiaCola: pixEMVParcela }).where(eq(parcelasAcordo.id, parcela.id));
+                }
                 statusProcessamento = "processado";
                 observacao = `Ocorrência '${segmentoT.descOcorrencia}' registrada para parcela de acordo`;
               }

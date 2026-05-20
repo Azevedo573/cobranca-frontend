@@ -480,22 +480,29 @@ export default function AcordoDetalhes() {
                                       )}
                                       <span className="ml-1">Linha</span>
                                     </Button>
-                                    {boletoParcelas[parcela.id].pixCopiaCola && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-6 text-xs px-2 border-green-300 text-green-700 hover:bg-green-50"
-                                        onClick={() => copiarPixParcela(parcela.id)}
-                                      >
-                                        {copiandoParcela[parcela.id] === 'pix' ? (
-                                          <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                        ) : (
-                                          <Copy className="h-3 w-3" />
-                                        )}
-                                        <span className="ml-1">Pix</span>
-                                      </Button>
-                                    )}
                                   </>
+                                )}
+                                {/* Botão Pix — visível assim que o retorno D+1 for processado (Bolepix) */}
+                                {(boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs px-2 border-green-300 text-green-700 hover:bg-green-50"
+                                    onClick={async () => {
+                                      const pix = boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola;
+                                      await navigator.clipboard.writeText(pix);
+                                      setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'pix' }));
+                                      toast.success('Pix copia e cola copiado!');
+                                      setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
+                                    }}
+                                  >
+                                    {copiandoParcela[parcela.id] === 'pix' ? (
+                                      <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                    <span className="ml-1">Pix</span>
+                                  </Button>
                                 )}
                               </div>
                             )}

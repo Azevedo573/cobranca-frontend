@@ -232,6 +232,13 @@
       "when": 1779239819088,
       "tag": "0033_careful_nightshade",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1779292570002,
+      "tag": "0034_faithful_famine",
+      "breakpoints": true
     }
   ]
 }
