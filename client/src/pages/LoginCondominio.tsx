@@ -110,7 +110,14 @@ export default function LoginCondominio() {
               {loginMutation.isPending ? "Entrando..." : "Entrar"}
             </Button>
 
-            <div className="text-center text-sm text-muted-foreground pt-4">
+            <div className="text-center text-sm text-muted-foreground pt-4 space-y-2">
+              <button
+                type="button"
+                onClick={() => setLocation("/esqueci-senha")}
+                className="text-primary text-sm hover:underline"
+              >
+                Esqueceu sua senha?
+              </button>
               <p>Sistema de Gestão de Cobranças Condominiais</p>
             </div>
           </form>

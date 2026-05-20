@@ -211,6 +211,13 @@
       "when": 1779149753995,
       "tag": "0030_goofy_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1779236368839,
+      "tag": "0031_redundant_silver_fox",
+      "breakpoints": true
     }
   ]
 }

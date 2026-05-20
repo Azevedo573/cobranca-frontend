@@ -1741,3 +1741,16 @@
 - [x] Formulário de condomínio: seção "Usuário Administrador Principal" com componente AdminPrincipalInfo
 - [x] Compatibilidade com login existente mantida via fallback no auth-custom.ts
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Módulo de Recuperação de Senha
+- [x] Criar tabela passwordResetTokens (tokenHash SHA-256, expiresAt, usedAt, ipAddress) — db:push aplicado
+- [x] Procedure requestPasswordReset: rate limit 3/hora por IP, busca por e-mail ou username, token 32 bytes hex, expira em 15 min
+- [x] Procedure resetPassword: valida token (não expirado, não usado), hash bcryptjs rounds=12, marca token como usado
+- [x] Procedure validateResetToken: query pública para checar validade do token antes de exibir o formulário
+- [x] Template de e-mail HTML profissional com branding Gomes & Silva (gradiente azul, CTA, aviso de segurança)
+- [x] Envio via API integrada Manus com fallback para console (desenvolvimento)
+- [x] Página ForgotPassword (/esqueci-senha): formulário de e-mail/usuário, estado de sucesso genérico, link de retorno
+- [x] Página ResetPassword (/reset-password?token=): indicador de força com 4 níveis, checklist de requisitos, confirmação de senha, estados de token inválido/expirado/usado
+- [x] Link "Esqueceu sua senha?" adicionado nas telas LoginCondominio e LoginColaborador
+- [x] Rotas /esqueci-senha e /reset-password registradas no App.tsx (públicas)
+- [x] 270 testes passando, 0 erros TypeScript

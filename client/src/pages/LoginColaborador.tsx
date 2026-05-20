@@ -111,6 +111,13 @@ export default function LoginColaborador() {
           </form>
 
           <div className="mt-6 text-center space-y-2">
+            <button
+              type="button"
+              onClick={() => navigate("/esqueci-senha")}
+              className="text-primary text-sm hover:underline block w-full"
+            >
+              Esqueceu sua senha?
+            </button>
             <p className="text-sm text-muted-foreground">
               Outros acessos:
             </p>

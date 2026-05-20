@@ -79,6 +79,164 @@ export const appRouter = router({
         
         return result;
       }),
+
+    // ── Recuperação de Senha ──────────────────────────────────────────────
+    requestPasswordReset: publicProcedure
+      .input(z.object({
+        identifier: z.string().min(1), // e-mail ou username
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const crypto = await import("crypto");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível" });
+        const { users, passwordResetTokens } = await import("../drizzle/schema");
+        const { eq, and, gt } = await import("drizzle-orm");
+
+        // Rate limit: máx 3 solicitações por hora por IP
+        const ip = (ctx.req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+          || ctx.req.socket?.remoteAddress
+          || "unknown";
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        const recentRequests = await db
+          .select({ id: passwordResetTokens.id })
+          .from(passwordResetTokens)
+          .where(and(
+            eq(passwordResetTokens.ipAddress, ip),
+            gt(passwordResetTokens.createdAt, oneHourAgo)
+          ));
+        if (recentRequests.length >= 3) {
+          // Retornar sucesso genérico para não revelar rate limit
+          return { success: true };
+        }
+
+        // Buscar usuário por e-mail ou username
+        const identifier = input.identifier.trim().toLowerCase();
+        const allUsers = await db.select().from(users);
+        const user = allUsers.find(u =>
+          (u.email?.toLowerCase() === identifier) ||
+          (u.openId?.toLowerCase() === identifier)
+        );
+
+        // Sempre retornar sucesso genérico (evitar enumeração)
+        if (!user || !user.email) {
+          return { success: true };
+        }
+
+        // Invalidar tokens anteriores do usuário
+        await db.delete(passwordResetTokens).where(
+          and(
+            eq(passwordResetTokens.userId, user.id),
+            // só invalida os não usados
+          )
+        );
+
+        // Gerar token criptograficamente seguro
+        const rawToken = crypto.randomBytes(32).toString("hex"); // 64 chars hex
+        const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+
+        await db.insert(passwordResetTokens).values({
+          userId: user.id,
+          tokenHash,
+          expiresAt,
+          ipAddress: ip,
+        });
+
+        // Enviar e-mail
+        const { sendPasswordResetEmail } = await import("./email-password-reset");
+        await sendPasswordResetEmail({
+          to: user.email,
+          name: user.name || user.openId || "Usuário",
+          token: rawToken,
+          ip,
+        });
+
+        return { success: true };
+      }),
+
+    resetPassword: publicProcedure
+      .input(z.object({
+        token: z.string().min(1),
+        newPassword: z.string()
+          .min(8, "Mínimo 8 caracteres")
+          .regex(/[A-Z]/, "Deve conter letra maiúscula")
+          .regex(/[0-9]/, "Deve conter número")
+          .regex(/[^A-Za-z0-9]/, "Deve conter caractere especial"),
+      }))
+      .mutation(async ({ input }) => {
+        const crypto = await import("crypto");
+        const bcrypt = await import("bcryptjs");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível" });
+        const { users, passwordResetTokens } = await import("../drizzle/schema");
+        const { eq, and, isNull, gt } = await import("drizzle-orm");
+
+        const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
+        const now = new Date();
+
+        // Buscar token válido
+        const [resetToken] = await db
+          .select()
+          .from(passwordResetTokens)
+          .where(and(
+            eq(passwordResetTokens.tokenHash, tokenHash),
+            isNull(passwordResetTokens.usedAt),
+            gt(passwordResetTokens.expiresAt, now)
+          ))
+          .limit(1);
+
+        if (!resetToken) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "TOKEN_INVALID", // código para o frontend distinguir o erro
+          });
+        }
+
+        // Verificar se o token já expirou (extra safety)
+        if (resetToken.expiresAt < now) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "TOKEN_EXPIRED" });
+        }
+
+        // Hash da nova senha
+        const passwordHash = await bcrypt.hash(input.newPassword, 12);
+
+        // Atualizar senha do usuário
+        await db.update(users)
+          .set({ passwordHash, updatedAt: now })
+          .where(eq(users.id, resetToken.userId));
+
+        // Marcar token como usado
+        await db.update(passwordResetTokens)
+          .set({ usedAt: now })
+          .where(eq(passwordResetTokens.id, resetToken.id));
+
+        return { success: true };
+      }),
+
+    validateResetToken: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ input }) => {
+        const crypto = await import("crypto");
+        const db = await getDb();
+        if (!db) return { valid: false, reason: "TOKEN_INVALID" as const };
+        const { passwordResetTokens } = await import("../drizzle/schema");
+        const { eq, and, isNull, gt } = await import("drizzle-orm");
+
+        const tokenHash = crypto.createHash("sha256").update(input.token).digest("hex");
+        const now = new Date();
+
+        const [resetToken] = await db
+          .select({ id: passwordResetTokens.id, expiresAt: passwordResetTokens.expiresAt, usedAt: passwordResetTokens.usedAt })
+          .from(passwordResetTokens)
+          .where(eq(passwordResetTokens.tokenHash, tokenHash))
+          .limit(1);
+
+        if (!resetToken) return { valid: false, reason: "TOKEN_INVALID" as const };
+        if (resetToken.usedAt) return { valid: false, reason: "TOKEN_USED" as const };
+        if (resetToken.expiresAt < now) return { valid: false, reason: "TOKEN_EXPIRED" as const };
+
+        return { valid: true, reason: null };
+      }),
   }),
 
   // Condominios (apenas admin)

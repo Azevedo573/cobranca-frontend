@@ -385,3 +385,18 @@ export const retornoItens = mysqlTable("retornoItens", {
 });
 export type RetornoItem = typeof retornoItens.$inferSelect;
 export type InsertRetornoItem = typeof retornoItens.$inferInsert;
+
+// ─── Recuperação de Senha ──────────────────────────────────────────────────
+// Tokens temporários para fluxo "Esqueci minha senha"
+// tokenHash = SHA-256 do token enviado por e-mail (nunca armazenar o token bruto)
+export const passwordResetTokens = mysqlTable("passwordResetTokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(), // SHA-256 hex
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  ipAddress: varchar("ipAddress", { length: 45 }), // IPv4 ou IPv6
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;

@@ -43,6 +43,8 @@ import CobrancaAtiva from "./pages/operacoes/CobrancaAtiva";
 import CobrancaPassiva from "./pages/operacoes/CobrancaPassiva";
 import ConfiguracaoBoleto from "./pages/admin/ConfiguracaoBoleto";
 import RetornoCNAB from "./pages/admin/RetornoCNAB";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -89,6 +91,8 @@ function Router() {
       <Route path="/login-condominio" component={LoginCondominio} />
       <Route path="/login-colaborador" component={LoginColaborador} />
       <Route path="/login-admin" component={LoginAdmin} />
+      <Route path="/esqueci-senha" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       
       {/* Rota raiz redireciona baseado no role */}
       <Route path="/">
