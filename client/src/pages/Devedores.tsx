@@ -266,16 +266,8 @@ export default function Devedores() {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          {(user?.role === "admin" || user?.role === "sindico") && (
+                          {user?.role === "admin" && (
                             <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Editar"
-                                onClick={() => setLocation(`/devedores/${dev.id}/editar`)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
