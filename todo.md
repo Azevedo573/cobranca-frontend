@@ -1835,3 +1835,11 @@
 - [x] Página /admin/auditoria com KPIs (total, 24h, críticos, falhas), filtros (busca, ação, entidade, severidade, resultado), tabela paginada, dialog de detalhes com before/after, exportação CSV
 - [x] Links "Auditoria do Sistema" e "Centro de Inteligência" adicionados no grupo Relatórios do Sidebar
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Restrições de Acesso para Síndico (somente-leitura)
+- [x] Remover menu "Banco" para o síndico no Sidebar
+- [x] Remover botão "Novo Devedor" para o síndico na página Devedores
+- [x] Remover botão "Marcar como Paga" nas parcelas do acordo para o síndico
+- [x] Remover botão "Nova Dívida" para o síndico em ProcessosCobranca.tsx
+- [x] Remover botão "Nova Dívida" para o síndico em DevedorDetalhes.tsx
+- [x] Remover botão "Importar Dívidas" para o síndico em DevedorDetalhes.tsx

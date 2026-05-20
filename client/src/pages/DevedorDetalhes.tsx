@@ -225,16 +225,20 @@ export default function DevedorDetalhes() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setModalDividaOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Dívida
-              </Button>
-              <Link href={`/devedores/${devedor.id}/importar-dividas`}>
-                <Button variant="outline" size="sm">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Importar Dívidas
+              {user?.role !== "sindico" && (
+                <Button variant="outline" size="sm" onClick={() => setModalDividaOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Dívida
                 </Button>
-              </Link>
+              )}
+              {user?.role !== "sindico" && (
+                <Link href={`/devedores/${devedor.id}/importar-dividas`}>
+                  <Button variant="outline" size="sm">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Importar Dívidas
+                  </Button>
+                </Link>
+              )}
               <Button variant="outline" size="sm" onClick={() => setModalTentativaOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Nova Tentativa

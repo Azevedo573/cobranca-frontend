@@ -221,7 +221,7 @@ export default function ProcessosCobranca() {
                   }}
                   label="Exportar Excel"
                 />
-                {(user?.role === "admin" || user?.role === "sindico") && (
+                {user?.role === "admin" && (
                   <Link href="/processos/novo">
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                       <Plus className="mr-2 h-4 w-4" />
