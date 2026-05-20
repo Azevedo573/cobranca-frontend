@@ -3248,5 +3248,446 @@ export const appRouter = router({
         return { ok: true };
       }),
   }),
+
+  // ============================================================
+  // ROUTER EXECUTIVO — Plataforma de Performance de Recuperação
+  // ============================================================
+  executivo: router({
+    // KPIs estratégicos do dono da operação
+    kpisEstrategicos: protectedProcedure
+      .input(z.object({
+        periodo: z.enum(["hoje", "semana", "mes", "trimestre"]).default("mes"),
+      }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob, acordos: ac, parcelasAcordo: pa, tentativasCobranca: tc, users } = await import("../drizzle/schema");
+        const { eq, and, gte, lte, count, sum, avg, sql, inArray, isNotNull } = await import("drizzle-orm");
+
+        const now = new Date();
+        let dataInicio: Date;
+        let dataInicioAnterior: Date;
+        let dataFimAnterior: Date;
+
+        if (input.periodo === "hoje") {
+          dataInicio = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          dataInicioAnterior = new Date(dataInicio.getTime() - 86400000);
+          dataFimAnterior = new Date(dataInicio.getTime() - 1);
+        } else if (input.periodo === "semana") {
+          const day = now.getDay();
+          dataInicio = new Date(now.getTime() - day * 86400000);
+          dataInicio.setHours(0, 0, 0, 0);
+          dataInicioAnterior = new Date(dataInicio.getTime() - 7 * 86400000);
+          dataFimAnterior = new Date(dataInicio.getTime() - 1);
+        } else if (input.periodo === "trimestre") {
+          const mesAtual = now.getMonth();
+          const inicioTrimestre = Math.floor(mesAtual / 3) * 3;
+          dataInicio = new Date(now.getFullYear(), inicioTrimestre, 1);
+          dataInicioAnterior = new Date(now.getFullYear(), inicioTrimestre - 3, 1);
+          dataFimAnterior = new Date(dataInicio.getTime() - 1);
+        } else {
+          // mes
+          dataInicio = new Date(now.getFullYear(), now.getMonth(), 1);
+          dataInicioAnterior = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          dataFimAnterior = new Date(dataInicio.getTime() - 1);
+        }
+
+        // Parcelas pagas no período atual
+        const parcelasPagas = await db.select({ total: sum(pa.amount), qtd: count(pa.id) })
+          .from(pa)
+          .where(and(eq(pa.status, "pago"), gte(pa.createdAt, dataInicio)));
+        const valorRecuperado = Number(parcelasPagas[0]?.total ?? 0);
+        const qtdParcelas = Number(parcelasPagas[0]?.qtd ?? 0);
+
+        // Período anterior para comparação
+        const parcelasPagasAnt = await db.select({ total: sum(pa.amount) })
+          .from(pa)
+          .where(and(eq(pa.status, "pago"), gte(pa.createdAt, dataInicioAnterior), lte(pa.createdAt, dataFimAnterior)));
+        const valorRecuperadoAnt = Number(parcelasPagasAnt[0]?.total ?? 0);
+        const variacaoRecuperacao = valorRecuperadoAnt > 0
+          ? Math.round(((valorRecuperado - valorRecuperadoAnt) / valorRecuperadoAnt) * 100)
+          : 0;
+
+        // Acordos fechados no período
+        const acordosFechados = await db.select({ qtd: count(ac.id), total: sum(ac.agreedAmount) })
+          .from(ac)
+          .where(gte(ac.createdAt, dataInicio));
+        const qtdAcordos = Number(acordosFechados[0]?.qtd ?? 0);
+        const ticketMedio = qtdAcordos > 0 ? Math.round(Number(acordosFechados[0]?.total ?? 0) / qtdAcordos) : 0;
+
+        // Acordos fechados período anterior
+        const acordosFechadosAnt = await db.select({ qtd: count(ac.id) })
+          .from(ac)
+          .where(and(gte(ac.createdAt, dataInicioAnterior), lte(ac.createdAt, dataFimAnterior)));
+        const variacaoAcordos = Number(acordosFechadosAnt[0]?.qtd ?? 0) > 0
+          ? Math.round(((qtdAcordos - Number(acordosFechadosAnt[0]?.qtd ?? 0)) / Number(acordosFechadosAnt[0]?.qtd ?? 0)) * 100)
+          : 0;
+
+        // Total de devedores ativos
+        const totalDevedores = await db.select({ qtd: count(dev.id) }).from(dev).where(eq(dev.status, "ativo"));
+        const totalInadimplentes = Number(totalDevedores[0]?.qtd ?? 0);
+
+        // Devedores pagos no período
+        const devedoresPagos = await db.select({ qtd: count(dev.id) })
+          .from(dev)
+          .where(and(eq(dev.status, "pago"), gte(dev.updatedAt, dataInicio)));
+        const qtdPagos = Number(devedoresPagos[0]?.qtd ?? 0);
+        const taxaRecuperacao = totalInadimplentes + qtdPagos > 0
+          ? Math.round((qtdPagos / (totalInadimplentes + qtdPagos)) * 100)
+          : 0;
+
+        // Tentativas no período
+        const tentativas = await db.select({ qtd: count(tc.id) })
+          .from(tc)
+          .where(gte(tc.attemptDate, dataInicio));
+        const qtdTentativas = Number(tentativas[0]?.qtd ?? 0);
+
+        // Previsão de receita: parcelas pendentes de acordos ativos
+        const parcelasPendentes = await db.select({ total: sum(pa.amount), qtd: count(pa.id) })
+          .from(pa)
+          .where(eq(pa.status, "pendente"));
+        const previsaoReceita = Number(parcelasPendentes[0]?.total ?? 0);
+        const qtdParcelasPendentes = Number(parcelasPendentes[0]?.qtd ?? 0);
+
+        // Acordos em risco (atrasados)
+        const acordosAtrasados = await db.select({ qtd: count(ac.id) })
+          .from(ac)
+          .where(eq(ac.status, "ativo"));
+        // Parcelas atrasadas
+        const parcelasAtrasadas = await db.select({ qtd: count(pa.id), total: sum(pa.amount) })
+          .from(pa)
+          .where(and(eq(pa.status, "atrasado")));
+        const qtdParcelasAtrasadas = Number(parcelasAtrasadas[0]?.qtd ?? 0);
+        const valorParcelasAtrasadas = Number(parcelasAtrasadas[0]?.total ?? 0);
+
+        // Série histórica dos últimos 6 meses para mini gráfico
+        const historico: { mes: string; valor: number }[] = [];
+        for (let i = 5; i >= 0; i--) {
+          const mesInicio = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const mesFim = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+          const res = await db.select({ total: sum(pa.amount) })
+            .from(pa)
+            .where(and(eq(pa.status, "pago"), gte(pa.createdAt, mesInicio), lte(pa.createdAt, mesFim)));
+          historico.push({
+            mes: mesInicio.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+            valor: Number(res[0]?.total ?? 0),
+          });
+        }
+
+        return {
+          valorRecuperado,
+          variacaoRecuperacao,
+          qtdAcordos,
+          variacaoAcordos,
+          ticketMedio,
+          taxaRecuperacao,
+          totalInadimplentes,
+          qtdTentativas,
+          previsaoReceita,
+          qtdParcelasPendentes,
+          qtdParcelasAtrasadas,
+          valorParcelasAtrasadas,
+          historico,
+          periodo: input.periodo,
+        };
+      }),
+
+    // Funil de cobrança
+    funilCobranca: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob, acordos: ac, tentativasCobranca: tc } = await import("../drizzle/schema");
+        const { eq, and, count, inArray, sql } = await import("drizzle-orm");
+
+        const whereCondominio = input.condominioId ? eq(dev.condominioId, input.condominioId) : undefined;
+
+        const totalDevedores = await db.select({ qtd: count(dev.id) }).from(dev)
+          .where(whereCondominio);
+        const total = Number(totalDevedores[0]?.qtd ?? 0);
+
+        // Contatados: pelo menos 1 tentativa
+        const contatados = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${tc.devedorId})` })
+          .from(tc)
+          .innerJoin(dev, eq(tc.devedorId, dev.id))
+          .where(whereCondominio ? eq(dev.condominioId, input.condominioId!) : sql`1=1`);
+        const qtdContatados = Number(contatados[0]?.qtd ?? 0);
+
+        // Em negociação: tentativa com resultado deseja_acordo
+        const emNegociacao = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${tc.devedorId})` })
+          .from(tc)
+          .innerJoin(dev, eq(tc.devedorId, dev.id))
+          .where(and(
+            eq(tc.result, "deseja_acordo"),
+            whereCondominio ? eq(dev.condominioId, input.condominioId!) : sql`1=1`
+          ));
+        const qtdNegociacao = Number(emNegociacao[0]?.qtd ?? 0);
+
+        // Proposta enviada: cobrança em_negociacao
+        const proposta = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${cob.devedorId})` })
+          .from(cob)
+          .innerJoin(dev, eq(cob.devedorId, dev.id))
+          .where(and(
+            eq(cob.status, "em_negociacao"),
+            whereCondominio ? eq(dev.condominioId, input.condominioId!) : sql`1=1`
+          ));
+        const qtdProposta = Number(proposta[0]?.qtd ?? 0);
+
+        // Acordo fechado: acordos ativos
+        const acordoFechado = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${ac.devedorId})` })
+          .from(ac)
+          .innerJoin(dev, eq(ac.devedorId, dev.id))
+          .where(and(
+            eq(ac.status, "ativo"),
+            whereCondominio ? eq(dev.condominioId, input.condominioId!) : sql`1=1`
+          ));
+        const qtdAcordoFechado = Number(acordoFechado[0]?.qtd ?? 0);
+
+        // Pagos: devedores com status pago
+        const pagos = await db.select({ qtd: count(dev.id) }).from(dev)
+          .where(and(
+            eq(dev.status, "pago"),
+            whereCondominio ? eq(dev.condominioId, input.condominioId!) : sql`1=1`
+          ));
+        const qtdPagos = Number(pagos[0]?.qtd ?? 0);
+
+        // Perdidos: judicial
+        const perdidos = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${cob.devedorId})` })
+          .from(cob)
+          .innerJoin(dev, eq(cob.devedorId, dev.id))
+          .where(and(
+            eq(cob.status, "judicial"),
+            whereCondominio ? eq(dev.condominioId, input.condominioId!) : sql`1=1`
+          ));
+        const qtdPerdidos = Number(perdidos[0]?.qtd ?? 0);
+
+        const conv = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;
+
+        return [
+          { etapa: "Total de Devedores", qtd: total,            conv: 100,                         cor: "#6366f1" },
+          { etapa: "Contatados",         qtd: qtdContatados,   conv: conv(qtdContatados, total),   cor: "#3b82f6" },
+          { etapa: "Em Negociação",      qtd: qtdNegociacao,   conv: conv(qtdNegociacao, qtdContatados), cor: "#f59e0b" },
+          { etapa: "Proposta Enviada",   qtd: qtdProposta,     conv: conv(qtdProposta, qtdNegociacao),  cor: "#f97316" },
+          { etapa: "Acordo Fechado",     qtd: qtdAcordoFechado,conv: conv(qtdAcordoFechado, qtdProposta), cor: "#22c55e" },
+          { etapa: "Pagos",              qtd: qtdPagos,        conv: conv(qtdPagos, qtdAcordoFechado),  cor: "#10b981" },
+          { etapa: "Perdidos/Judicial",  qtd: qtdPerdidos,     conv: conv(qtdPerdidos, total),     cor: "#ef4444" },
+        ];
+      }),
+
+    // Produtividade da equipe
+    produtividadeEquipe: protectedProcedure
+      .input(z.object({
+        periodo: z.enum(["hoje", "semana", "mes"]).default("mes"),
+      }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { users, tentativasCobranca: tc, acordos: ac, parcelasAcordo: pa } = await import("../drizzle/schema");
+        const { eq, and, gte, count, sum, sql } = await import("drizzle-orm");
+
+        const now = new Date();
+        let dataInicio: Date;
+        if (input.periodo === "hoje") {
+          dataInicio = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        } else if (input.periodo === "semana") {
+          dataInicio = new Date(now.getTime() - 7 * 86400000);
+        } else {
+          dataInicio = new Date(now.getFullYear(), now.getMonth(), 1);
+        }
+
+        // Buscar colaboradores
+        const colaboradores = await db.select({ id: users.id, name: users.name, role: users.role })
+          .from(users)
+          .where(eq(users.role, "cobrador"));
+
+        const resultado = await Promise.all(colaboradores.map(async (col) => {
+          // Tentativas no período
+          const tentativas = await db.select({
+            total: count(tc.id),
+            whatsapp: sql<number>`SUM(CASE WHEN ${tc.contactType} = 'whatsapp' THEN 1 ELSE 0 END)`,
+            telefone: sql<number>`SUM(CASE WHEN ${tc.contactType} = 'telefone' THEN 1 ELSE 0 END)`,
+            email: sql<number>`SUM(CASE WHEN ${tc.contactType} = 'email' THEN 1 ELSE 0 END)`,
+            promessas: sql<number>`SUM(CASE WHEN ${tc.result} = 'promessa_pagamento' THEN 1 ELSE 0 END)`,
+            acordos_desejados: sql<number>`SUM(CASE WHEN ${tc.result} = 'deseja_acordo' THEN 1 ELSE 0 END)`,
+          })
+            .from(tc)
+            .where(and(eq(tc.userId, col.id), gte(tc.attemptDate, dataInicio)));
+
+          const t = tentativas[0];
+          const totalTentativas = Number(t?.total ?? 0);
+          const qtdWhatsapp = Number(t?.whatsapp ?? 0);
+          const qtdTelefone = Number(t?.telefone ?? 0);
+          const qtdEmail = Number(t?.email ?? 0);
+          const qtdPromessas = Number(t?.promessas ?? 0);
+          const qtdAcordosDesejados = Number(t?.acordos_desejados ?? 0);
+
+          // Acordos fechados no período
+          const acordosFechados = await db.select({ qtd: count(ac.id), total: sum(ac.agreedAmount) })
+            .from(ac)
+            .innerJoin(tc, eq(ac.devedorId, tc.devedorId))
+            .where(and(eq(tc.userId, col.id), gte(ac.createdAt, dataInicio)));
+          const qtdAcordos = Number(acordosFechados[0]?.qtd ?? 0);
+          const valorRecuperado = Number(acordosFechados[0]?.total ?? 0);
+
+          // Taxa de conversão
+          const taxaConversao = totalTentativas > 0 ? Math.round((qtdAcordos / totalTentativas) * 100) : 0;
+
+          // Score gamificado (0-100)
+          const score = Math.min(100, Math.round(
+            (taxaConversao * 0.35) +
+            (Math.min(totalTentativas / 50, 1) * 25) +
+            (Math.min(qtdAcordos / 10, 1) * 25) +
+            (Math.min(valorRecuperado / 1000000, 1) * 15)
+          ));
+
+          // Badge
+          const badge = score >= 85 ? "🏆 Top Performer" :
+            score >= 70 ? "⭐ Alta Performance" :
+            score >= 50 ? "📈 Em Crescimento" :
+            score >= 30 ? "⚠️ Precisa Melhorar" : "🔴 Baixa Produtividade";
+
+          return {
+            id: col.id,
+            nome: col.name ?? "Colaborador",
+            totalTentativas,
+            qtdWhatsapp,
+            qtdTelefone,
+            qtdEmail,
+            qtdPromessas,
+            qtdAcordosDesejados,
+            qtdAcordos,
+            valorRecuperado,
+            taxaConversao,
+            score,
+            badge,
+          };
+        }));
+
+        return resultado.sort((a, b) => b.score - a.score);
+      }),
+
+    // Painel de perdas
+    painelPerdas: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { devedores: dev, cobrancas: cob, acordos: ac, parcelasAcordo: pa, tentativasCobranca: tc } = await import("../drizzle/schema");
+        const { eq, and, count, sum, sql, lt, gte, isNull } = await import("drizzle-orm");
+
+        const whereCondominio = input.condominioId ? eq(dev.condominioId, input.condominioId) : sql`1=1`;
+        const agora = new Date();
+        const limite90dias = new Date(agora.getTime() - 90 * 86400000);
+        const limite30dias = new Date(agora.getTime() - 30 * 86400000);
+
+        // Acordos cancelados (quebrados)
+        const acordosQuebrados = await db.select({ qtd: count(ac.id), total: sum(ac.agreedAmount) })
+          .from(ac)
+          .innerJoin(dev, eq(ac.devedorId, dev.id))
+          .where(and(eq(ac.status, "cancelado"), whereCondominio));
+
+        // Parcelas atrasadas
+        const parcelasAtrasadas = await db.select({ qtd: count(pa.id), total: sum(pa.amount) })
+          .from(pa)
+          .innerJoin(ac, eq(pa.acordoId, ac.id))
+          .innerJoin(dev, eq(ac.devedorId, dev.id))
+          .where(and(eq(pa.status, "atrasado"), whereCondominio));
+
+        // Devedores sem contato nos últimos 30 dias
+        const semContato = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${dev.id})` })
+          .from(dev)
+          .where(and(eq(dev.status, "ativo"), whereCondominio));
+        // Simplificado: devedores ativos sem tentativa recente
+        const comContato = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${tc.devedorId})` })
+          .from(tc)
+          .innerJoin(dev, eq(tc.devedorId, dev.id))
+          .where(and(gte(tc.attemptDate, limite30dias), whereCondominio));
+        const qtdSemContato = Math.max(0, Number(semContato[0]?.qtd ?? 0) - Number(comContato[0]?.qtd ?? 0));
+
+        // Cobranças paradas (sem ação há mais de 90 dias)
+        const cobParadas = await db.select({ qtd: sql<number>`COUNT(DISTINCT ${cob.devedorId})` })
+          .from(cob)
+          .innerJoin(dev, eq(cob.devedorId, dev.id))
+          .where(and(
+            eq(cob.status, "em_cobranca"),
+            lt(cob.updatedAt, limite90dias),
+            whereCondominio
+          ));
+
+        // Valor total em risco (devedores ativos)
+        const valorEmRisco = await db.select({ total: sum(cob.amount) })
+          .from(cob)
+          .innerJoin(dev, eq(cob.devedorId, dev.id))
+          .where(and(
+            sql`${cob.status} IN ('em_cobranca', 'pendente', 'em_negociacao')`,
+            whereCondominio
+          ));
+
+        return {
+          acordosQuebrados: {
+            qtd: Number(acordosQuebrados[0]?.qtd ?? 0),
+            valor: Number(acordosQuebrados[0]?.total ?? 0),
+          },
+          parcelasAtrasadas: {
+            qtd: Number(parcelasAtrasadas[0]?.qtd ?? 0),
+            valor: Number(parcelasAtrasadas[0]?.total ?? 0),
+          },
+          devedoresSemContato: qtdSemContato,
+          cobParadas: Number(cobParadas[0]?.qtd ?? 0),
+          valorEmRisco: Number(valorEmRisco[0]?.total ?? 0),
+        };
+      }),
+
+    // Performance por carteira (condomínio)
+    performanceCarteira: protectedProcedure
+      .query(async ({ ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { condominios, devedores: dev, cobrancas: cob, acordos: ac, parcelasAcordo: pa } = await import("../drizzle/schema");
+        const { eq, and, count, sum, sql } = await import("drizzle-orm");
+
+        const lista = await db.select({ id: condominios.id, nome: condominios.name }).from(condominios);
+
+        const resultado = await Promise.all(lista.map(async (cond) => {
+          const totalDevedores = await db.select({ qtd: count(dev.id) }).from(dev).where(eq(dev.condominioId, cond.id));
+          const devedoresAtivos = await db.select({ qtd: count(dev.id) }).from(dev)
+            .where(and(eq(dev.condominioId, cond.id), eq(dev.status, "ativo")));
+          const devedoresPagos = await db.select({ qtd: count(dev.id) }).from(dev)
+            .where(and(eq(dev.condominioId, cond.id), eq(dev.status, "pago")));
+
+          const parcelasPagas = await db.select({ total: sum(pa.amount) })
+            .from(pa)
+            .innerJoin(ac, eq(pa.acordoId, ac.id))
+            .innerJoin(dev, eq(ac.devedorId, dev.id))
+            .where(and(eq(dev.condominioId, cond.id), eq(pa.status, "pago")));
+
+          const valorEmAberto = await db.select({ total: sum(cob.amount) })
+            .from(cob)
+            .innerJoin(dev, eq(cob.devedorId, dev.id))
+            .where(and(eq(dev.condominioId, cond.id), sql`${cob.status} NOT IN ('pago', 'cancelado')`));
+
+          const total = Number(totalDevedores[0]?.qtd ?? 0);
+          const ativos = Number(devedoresAtivos[0]?.qtd ?? 0);
+          const pagos = Number(devedoresPagos[0]?.qtd ?? 0);
+          const receita = Number(parcelasPagas[0]?.total ?? 0);
+          const emAberto = Number(valorEmAberto[0]?.total ?? 0);
+          const taxaRecuperacao = total > 0 ? Math.round((pagos / total) * 100) : 0;
+
+          return {
+            id: cond.id,
+            nome: cond.nome ?? cond.nome,
+            totalDevedores: total,
+            devedoresAtivos: ativos,
+            devedoresPagos: pagos,
+            receita,
+            emAberto,
+            taxaRecuperacao,
+          };
+        }));
+
+        return resultado.sort((a, b) => b.receita - a.receita);
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

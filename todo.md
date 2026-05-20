@@ -1774,3 +1774,35 @@
 - [x] SindicoAcordos (/sindico/acordos): KPIs, gráfico de pizza (status), gráfico de barras (por mês), alertas de parcelas vencidas/vencendo
 - [x] Rotas /sindico/pipeline e /sindico/acordos registradas no App.tsx
 - [x] 270 testes passando, 0 erros TypeScript
+
+## Plataforma de Performance de Recuperação de Crédito (Visão do Dono)
+- [ ] Procedures backend: kpisExecutivos, funilCobranca, produtividadeEquipe, performanceCarteira, previsaoReceita, painelPerdas
+- [ ] ExecutivoDashboard (/admin/executivo): cards estratégicos com mini gráficos, alertas executivos, insights de IA
+- [ ] Módulo Funil de Cobrança: 7 etapas, taxas de conversão, gargalos visuais
+- [ ] Módulo Produtividade: ranking de operadores, score gamificado, badges, metas, heatmap
+- [ ] Módulo Painel de Perdas: acordos quebrados, devedores desaparecidos, perda potencial estimada
+- [ ] Módulo Performance por Carteira: condomínio mais lucrativo, esforço vs retorno
+- [ ] Módulo Previsão de Receita: gráfico preditivo com confiança estatística
+- [ ] Módulo IA/Sugestões: insights automáticos baseados em dados reais do sistema
+- [ ] Alertas executivos premium com severidade e impacto financeiro estimado
+- [ ] Registrar rotas e links no menu admin
+
+## Plataforma de Performance — Centro de Inteligência Operacional
+- [x] Router executivo com 5 procedures: kpisEstrategicos, funilCobranca, produtividadeEquipe, painelPerdas, performanceCarteira
+- [x] kpisEstrategicos: valor recuperado, acordos, taxa de recuperação, tentativas, previsão de receita, série histórica 6 meses, comparação com período anterior
+- [x] funilCobranca: 6 etapas com qtd e taxa de conversão relativa ao total
+- [x] produtividadeEquipe: score gamificado (tentativas 40% + acordos 40% + promessas 20%), badge dinâmico por nível
+- [x] painelPerdas: acordos quebrados, parcelas atrasadas, devedores sem contato 30d, cobranças paradas 90d, valor em risco
+- [x] performanceCarteira: taxa de recuperação, devedores ativos/pagos, receita por condomínio
+- [x] Página ExecutivoDashboard (/admin/executivo): dark mode premium estilo Bloomberg/Stripe
+- [x] 8 KPI cards com mini gráfico de área, variação vs. período anterior e badge colorido
+- [x] Funil de cobrança horizontal com barras de progresso coloridas
+- [x] Painel de alertas executivos gerados dinamicamente a partir dos dados reais
+- [x] Ranking de operadores com medalhas (ouro/prata/bronze) e score colorido
+- [x] Performance por carteira com barra de progresso e taxa de recuperação
+- [x] Painel de perdas com 4 cards de risco
+- [x] Seção de Insights de IA com 6 análises contextuais automáticas
+- [x] Filtro de período (Hoje / Semana / Mês / Trimestre) com tabs
+- [x] Botão "Centro de Inteligência Operacional" destacado nas ações rápidas do AdminDashboard
+- [x] Rota /admin/executivo registrada no App.tsx
+- [x] 270 testes passando, 0 erros TypeScript

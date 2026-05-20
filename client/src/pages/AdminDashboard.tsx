@@ -439,6 +439,12 @@ export default function AdminDashboard() {
                   Gerenciar Usuários
                 </Button>
               </Link>
+              <Link href="/admin/executivo">
+                <Button className="w-full justify-start bg-indigo-600 hover:bg-indigo-700 text-white border-0">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  Centro de Inteligência Operacional
+                </Button>
+              </Link>
               <Link href="/admin/relatorios/produtividade">
                 <Button className="w-full justify-start" variant="outline">
                   <BarChart3 className="mr-2 h-4 w-4" />
