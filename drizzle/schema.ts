@@ -443,3 +443,38 @@ export const auditLogs = mysqlTable("auditLogs", {
 });
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+// ─── Modelos de Documentos ───────────────────────────────────────────────────
+export const modelosDocumento = mysqlTable("modelosDocumento", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId"), // null = modelo global (todos os condomínios)
+  nome: varchar("nome", { length: 255 }).notNull(),
+  tipo: mysqlEnum("tipo", [
+    "proposta_acordo",
+    "termo_acordo",
+    "notificacao_debito",
+    "carta_cobranca",
+    "recibo_pagamento",
+    "contrato_parcelamento",
+    "outro",
+  ]).notNull().default("outro"),
+  // Conteúdo HTML do editor TipTap (inclui variáveis {{nomeDevedor}} etc.)
+  conteudoHtml: text("conteudoHtml").notNull(),
+  // Configurações visuais
+  logoUrl: text("logoUrl"),           // URL S3 da logo do escritório
+  marcaDaguaUrl: text("marcaDaguaUrl"), // URL S3 da imagem de marca d'água
+  logoAlinhamento: mysqlEnum("logoAlinhamento", ["esquerda", "centro", "direita"]).default("esquerda"),
+  // Configurações de página
+  margemSuperior: int("margemSuperior").default(40),
+  margemInferior: int("margemInferior").default(40),
+  margemEsquerda: int("margemEsquerda").default(50),
+  margemDireita: int("margemDireita").default(50),
+  // Metadados
+  ativo: int("ativo").default(1).notNull(),
+  createdBy: int("createdBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ModeloDocumento = typeof modelosDocumento.$inferSelect;
+export type InsertModeloDocumento = typeof modelosDocumento.$inferInsert;

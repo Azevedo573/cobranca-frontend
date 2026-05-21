@@ -32,6 +32,7 @@ import {
   LogOut,
   Shield,
   TrendingUp,
+  ScrollText,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -89,6 +90,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador"] },
       { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador"] },
       { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador"] },
+      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador"] },
     ],
   },
 

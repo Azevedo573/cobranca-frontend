@@ -3883,5 +3883,142 @@ export const appRouter = router({
           .limit(input.limit);
       }),
   }),
+
+  // ─── Modelos de Documentos ─────────────────────────────────────────────────
+  modelosDocumento: router({
+    list: protectedProcedure
+      .input(z.object({ condominioId: z.number().nullable().optional() }))
+      .query(async ({ ctx, input }) => {
+        const { listModelosByCondominio } = await import("./db-modelos");
+        const condId = input?.condominioId ?? (ctx.user?.condominioId ?? null);
+        return listModelosByCondominio(condId);
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getModeloById } = await import("./db-modelos");
+        const modelo = await getModeloById(input.id);
+        if (!modelo) throw new TRPCError({ code: "NOT_FOUND", message: "Modelo não encontrado" });
+        return modelo;
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        nome: z.string().min(1),
+        tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","outro"]),
+        conteudoHtml: z.string(),
+        condominioId: z.number().nullable().optional(),
+        logoUrl: z.string().nullable().optional(),
+        marcaDaguaUrl: z.string().nullable().optional(),
+        logoAlinhamento: z.enum(["esquerda","centro","direita"]).optional(),
+        margemSuperior: z.number().optional(),
+        margemInferior: z.number().optional(),
+        margemEsquerda: z.number().optional(),
+        margemDireita: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { createModelo } = await import("./db-modelos");
+        const id = await createModelo({
+          ...input,
+          condominioId: input.condominioId ?? ctx.user?.condominioId ?? null,
+          createdBy: ctx.user?.id,
+        });
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().min(1).optional(),
+        tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","outro"]).optional(),
+        conteudoHtml: z.string().optional(),
+        logoUrl: z.string().nullable().optional(),
+        marcaDaguaUrl: z.string().nullable().optional(),
+        logoAlinhamento: z.enum(["esquerda","centro","direita"]).optional(),
+        margemSuperior: z.number().optional(),
+        margemInferior: z.number().optional(),
+        margemEsquerda: z.number().optional(),
+        margemDireita: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateModelo } = await import("./db-modelos");
+        const { id, ...data } = input;
+        await updateModelo(id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deleteModelo } = await import("./db-modelos");
+        await deleteModelo(input.id);
+        return { success: true };
+      }),
+
+    // Upload de logo ou marca d'água para S3
+    uploadImagem: protectedProcedure
+      .input(z.object({
+        nomeArquivo: z.string(),
+        mimeType: z.string(),
+        base64: z.string(), // imagem em base64
+        tipo: z.enum(["logo", "marca_dagua"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { storagePut } = await import("./storage");
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.nomeArquivo.split(".").pop() || "png";
+        const randomSuffix = Math.random().toString(36).substring(2, 10);
+        const fileKey = `modelos/${input.tipo}/${ctx.user?.id ?? "anon"}-${randomSuffix}.${ext}`;
+        const { url } = await storagePut(fileKey, buffer, input.mimeType);
+        return { url };
+      }),
+
+    // Gerar PDF de um modelo com variáveis preenchidas
+    gerarPDF: protectedProcedure
+      .input(z.object({
+        modeloId: z.number(),
+        variaveis: z.record(z.string(), z.string()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { getModeloById } = await import("./db-modelos");
+        const { gerarPDFModelo } = await import("./modelo-pdf");
+        const { storagePut } = await import("./storage");
+
+        const modelo = await getModeloById(input.modeloId);
+        if (!modelo) throw new TRPCError({ code: "NOT_FOUND", message: "Modelo não encontrado" });
+
+        // Adicionar data atual nas variáveis se não fornecida
+        const agora = new Date();
+        const variaveis = {
+          dataAtual: agora.toLocaleDateString("pt-BR"),
+          dataAtualExtenso: agora.toLocaleDateString("pt-BR", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+          ...(input.variaveis ?? {}),
+        };
+
+        const pdfBuffer = await gerarPDFModelo({
+          conteudoHtml: modelo.conteudoHtml,
+          logoUrl: modelo.logoUrl,
+          marcaDaguaUrl: modelo.marcaDaguaUrl,
+          logoAlinhamento: (modelo.logoAlinhamento as any) ?? "esquerda",
+          margemSuperior: modelo.margemSuperior ?? 40,
+          margemInferior: modelo.margemInferior ?? 40,
+          margemEsquerda: modelo.margemEsquerda ?? 50,
+          margemDireita: modelo.margemDireita ?? 50,
+          variaveis,
+        });
+
+        const randomSuffix = Math.random().toString(36).substring(2, 10);
+        const fileKey = `modelos/pdfs/doc-${input.modeloId}-${randomSuffix}.pdf`;
+        const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+        return { url };
+      }),
+
+    // Retorna lista de variáveis disponíveis para o editor
+    listarVariaveis: protectedProcedure.query(async () => {
+      const { VARIAVEIS_DISPONIVEIS } = await import("./modelo-pdf");
+      return VARIAVEIS_DISPONIVEIS;
+    }),
+  }),
 });
 export type AppRouter = typeof appRouter;

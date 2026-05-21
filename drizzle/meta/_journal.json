@@ -239,6 +239,13 @@
       "when": 1779292570002,
       "tag": "0034_faithful_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1779326276090,
+      "tag": "0035_lyrical_avengers",
+      "breakpoints": true
     }
   ]
 }

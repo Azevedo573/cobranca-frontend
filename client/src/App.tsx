@@ -49,6 +49,8 @@ import SindicoPipeline from "./pages/SindicoPipeline";
 import SindicoAcordos from "./pages/SindicoAcordos";
 import ExecutivoDashboard from "./pages/admin/ExecutivoDashboard";
 import Auditoria from "./pages/admin/Auditoria";
+import ModelosDocumento from "./pages/ModelosDocumento";
+import ModeloEditor from "./pages/ModeloEditor";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -259,6 +261,17 @@ function Router() {
       {/* Rotas de Tentativas */}
       <Route path="/tentativas">
         {() => <ProtectedRoute component={TentativasCobranca} allowedRoles={["admin", "sindico", "cobrador"]} />}
+      </Route>
+
+      {/* Rotas de Modelos de Documentos */}
+      <Route path="/modelos-documento">
+        {() => <ProtectedRoute component={ModelosDocumento} />}
+      </Route>
+      <Route path="/modelos-documento/novo">
+        {() => <ProtectedRoute component={ModeloEditor} />}
+      </Route>
+      <Route path="/modelos-documento/:id/editar">
+        {() => <ProtectedRoute component={ModeloEditor} />}
       </Route>
 
       <Route path="/404" component={NotFound} />

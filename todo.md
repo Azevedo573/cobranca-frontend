@@ -1874,3 +1874,19 @@
 - [x] Removidos toggles de encargos (Juros/Multa/Correção) da UI do simulador
 - [x] Adicionada nota informativa explicando que encargos já foram aplicados previamente
 - [x] TypeScript: 0 erros
+
+## Editor de Modelos de Documentos
+
+- [ ] Schema: tabela modelosDocumento (id, nome, tipo, conteudoHtml, logoUrl, marcaDaguaUrl, camposAssinatura, condominioId)
+- [ ] Instalar TipTap (editor rico) e dependências
+- [ ] Backend: CRUD de modelos (create, list, getById, update, delete)
+- [ ] Backend: upload de logo e marca d'água para S3
+- [ ] Backend: gerarPDFModelo — substituir variáveis e renderizar HTML → PDF com logo/marca d'água
+- [ ] Página Biblioteca de Modelos (listagem, criar, excluir)
+- [ ] Editor de modelo com TipTap: negrito, itálico, listas, tabelas
+- [ ] Painel de variáveis dinâmicas (inserção com 1 clique)
+- [ ] Upload de logo por modelo (posicionamento no cabeçalho)
+- [ ] Upload de marca d'água por modelo (diagonal no fundo)
+- [ ] Bloco de assinaturas editável no editor
+- [ ] Integrar seleção de modelo nos simuladores de acordo (gerar PDF preenchido)
+- [ ] Adicionar item "Modelos de Documentos" no menu lateral
