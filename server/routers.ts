@@ -1686,13 +1686,19 @@ export const appRouter = router({
         erros: [] as string[],
       };
       
+      const { getDevedorByCpfCnpj, getDevedorById, getDevedorByBlocoUnidade } = await import("./db-devedores");
+
       for (const dado of input.dados) {
         try {
-          // Verificar se devedor já existe (apenas se CPF/CNPJ fornecido)
-          const { getDevedorByCpfCnpj, getDevedorById } = await import("./db-devedores");
+          // 1º: tentar encontrar por CPF/CNPJ
           let devedor = null;
           if (dado.cpfCnpj) {
             devedor = await getDevedorByCpfCnpj(dado.cpfCnpj, input.condominioId);
+          }
+
+          // 2º: se não encontrou por CPF/CNPJ, tentar por Bloco + Unidade
+          if (!devedor && dado.unidade) {
+            devedor = await getDevedorByBlocoUnidade(dado.unidade, dado.bloco, input.condominioId);
           }
           
           if (!devedor) {

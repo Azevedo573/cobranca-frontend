@@ -101,3 +101,25 @@ export async function getDevedorByCpfCnpj(cpfCnpj: string, condominioId: number)
   ).limit(1);
   return result[0] || null;
 }
+
+export async function getDevedorByBlocoUnidade(
+  unitNumber: string,
+  bloco: string | undefined | null,
+  condominioId: number
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const conditions = [
+    eq(devedores.unitNumber, unitNumber),
+    eq(devedores.condominioId, condominioId),
+  ];
+  if (bloco) {
+    conditions.push(eq(devedores.bloco, bloco));
+  }
+  const result = await db
+    .select()
+    .from(devedores)
+    .where(and(...conditions))
+    .limit(1);
+  return result[0] || null;
+}
