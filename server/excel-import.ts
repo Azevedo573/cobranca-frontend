@@ -207,11 +207,15 @@ function normalizarData(valor: unknown): string {
   // É número serial do Excel
   const serial = Number(str);
   if (!isNaN(serial) && serial > 1000) {
-    // Excel usa epoch 1/1/1900 (com bug do ano 1900)
-    const date = XLSX.SSF.parse_date_code(serial);
-    const dia = String(date.d).padStart(2, "0");
-    const mes = String(date.m).padStart(2, "0");
-    const ano = String(date.y);
+    // Excel usa epoch 1/1/1900 (com bug do ano 1900 onde 1900 era tratado como bissexto)
+    // Subtrair 25569 converte de serial Excel para dias desde Unix epoch (01/01/1970)
+    // O bug do ano 1900 é compensado subtraindo 1 para seriais > 60
+    const excelEpoch = serial > 60 ? serial - 1 : serial;
+    const msFromEpoch = (excelEpoch - 25569) * 86400 * 1000;
+    const date = new Date(msFromEpoch);
+    const dia = String(date.getUTCDate()).padStart(2, "0");
+    const mes = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const ano = String(date.getUTCFullYear());
     return `${dia}/${mes}/${ano}`;
   }
   return str;
