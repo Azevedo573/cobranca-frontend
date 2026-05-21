@@ -456,12 +456,22 @@ export default function ModeloEditor() {
           nomeCondominio: "Condomínio Exemplo",
           valorOriginal: "R$ 1.493,20",
           valorAcordo: "R$ 1.493,20",
+          valorEntrada: "R$ 0,00",
           numeroParcelas: "6",
           valorParcela: "R$ 248,87",
           dataVencimentoPrimeiraParcela: "15/06/2026",
           dataAtual: new Date().toLocaleDateString("pt-BR"),
           nomeResponsavel: "Maria Oliveira",
         },
+        // Parcelas de exemplo para preencher {{tabelaParcelas}}
+        parcelas: [
+          { numero: 1, vencimento: "15/06/2026", valor: "R$ 248,87", status: "Em aberto" },
+          { numero: 2, vencimento: "15/07/2026", valor: "R$ 248,87", status: "Em aberto" },
+          { numero: 3, vencimento: "15/08/2026", valor: "R$ 248,87", status: "Em aberto" },
+          { numero: 4, vencimento: "15/09/2026", valor: "R$ 248,87", status: "Em aberto" },
+          { numero: 5, vencimento: "15/10/2026", valor: "R$ 248,87", status: "Em aberto" },
+          { numero: 6, vencimento: "15/11/2026", valor: "R$ 248,87", status: "Em aberto" },
+        ],
       });
       window.open(url, "_blank");
     } catch (err: any) {

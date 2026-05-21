@@ -3981,10 +3981,16 @@ export const appRouter = router({
       .input(z.object({
         modeloId: z.number(),
         variaveis: z.record(z.string(), z.string()).optional(),
+        parcelas: z.array(z.object({
+          numero: z.number(),
+          vencimento: z.string(),
+          valor: z.string(),
+          status: z.string().optional(),
+        })).optional(),
       }))
       .mutation(async ({ input }) => {
         const { getModeloById } = await import("./db-modelos");
-        const { gerarPDFModelo } = await import("./modelo-pdf");
+        const { gerarPDFModelo, gerarHtmlTabelaParcelas } = await import("./modelo-pdf");
         const { storagePut } = await import("./storage");
 
         const modelo = await getModeloById(input.modeloId);
@@ -3992,11 +3998,20 @@ export const appRouter = router({
 
         // Adicionar data atual nas variáveis se não fornecida
         const agora = new Date();
-        const variaveis = {
+        const variaveis: Record<string, string> = {
           dataAtual: agora.toLocaleDateString("pt-BR"),
           dataAtualExtenso: agora.toLocaleDateString("pt-BR", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
           ...(input.variaveis ?? {}),
         };
+
+        // Gerar tabela de parcelas automaticamente se fornecidas
+        if (input.parcelas && input.parcelas.length > 0) {
+          variaveis.tabelaParcelas = gerarHtmlTabelaParcelas(input.parcelas);
+          // Preencher variáveis derivadas das parcelas se não fornecidas
+          if (!variaveis.numeroParcelas) variaveis.numeroParcelas = String(input.parcelas.length);
+          if (!variaveis.valorParcela && input.parcelas[0]) variaveis.valorParcela = input.parcelas[0].valor;
+          if (!variaveis.dataVencimentoPrimeiraParcela && input.parcelas[0]) variaveis.dataVencimentoPrimeiraParcela = input.parcelas[0].vencimento;
+        }
 
         const pdfBuffer = await gerarPDFModelo({
           conteudoHtml: modelo.conteudoHtml,

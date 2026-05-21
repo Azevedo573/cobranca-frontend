@@ -120,14 +120,21 @@ function htmlParaLinhas(html: string): Array<{ texto: string; tipo: string; nive
     return "";
   });
 
-  // Tabelas — renderiza como texto tabulado simples
+  // Tabelas — renderiza como estrutura de tabela para PDFKit
   html = html.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, conteudo) => {
     const rows = [...conteudo.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+    const tableRows: Array<{ cells: string[]; isHeader: boolean }> = [];
     for (const [, row] of rows) {
-      const cells = [...row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)];
-      const cellTexts = cells.map(([, c]) => limpar(c).padEnd(20)).join(" | ");
-      linhas.push({ texto: cellTexts, tipo: "tabela" });
+      const headerCells = [...row.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)];
+      const dataCells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)];
+      if (headerCells.length > 0) {
+        tableRows.push({ cells: headerCells.map(([, c]) => limpar(c)), isHeader: true });
+      } else if (dataCells.length > 0) {
+        tableRows.push({ cells: dataCells.map(([, c]) => limpar(c)), isHeader: false });
+      }
     }
+    // Serializa como marcador especial para o renderizador
+    linhas.push({ texto: JSON.stringify(tableRows), tipo: "tabela_estruturada" });
     return "";
   });
 
@@ -139,6 +146,25 @@ function htmlParaLinhas(html: string): Array<{ texto: string; tipo: string; nive
   }
 
   return linhas;
+}
+
+// ─── Gerador de tabela HTML de parcelas ─────────────────────────────────────
+
+export interface ParcelaTabela {
+  numero: number;
+  vencimento: string; // dd/mm/aaaa
+  valor: string;      // R$ X.XXX,XX
+  status?: string;
+}
+
+export function gerarHtmlTabelaParcelas(parcelas: ParcelaTabela[]): string {
+  const linhas = parcelas
+    .map(
+      (p) =>
+        `<tr><td>${p.numero}</td><td>${p.vencimento}</td><td>${p.valor}</td><td>${p.status ?? "Em aberto"}</td></tr>`
+    )
+    .join("");
+  return `<table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table>`;
 }
 
 // ─── Gerador Principal ───────────────────────────────────────────────────────
@@ -266,6 +292,70 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
         doc.text(linha.texto, { width: larguraUtil });
         doc.moveDown(0.1);
         break;
+
+      case "tabela_estruturada": {
+        // Renderiza tabela com bordas e cabeçalho destacado
+        let tableRows: Array<{ cells: string[]; isHeader: boolean }> = [];
+        try { tableRows = JSON.parse(linha.texto); } catch { break; }
+        if (tableRows.length === 0) break;
+
+        const numCols = Math.max(...tableRows.map((r) => r.cells.length));
+        const colW = larguraUtil / numCols;
+        const cellPadH = 4;
+        const cellPadV = 5;
+        const rowH = 20;
+
+        // Verificar espaço na página
+        const tableH = tableRows.length * rowH + 4;
+        if (doc.y + tableH > doc.page.height - margemInferior - 20) {
+          doc.addPage();
+          doc.y = margemSuperior;
+        }
+
+        const startX = doc.x;
+        let rowY = doc.y;
+
+        for (const row of tableRows) {
+          // Fundo do cabeçalho
+          if (row.isHeader) {
+            doc.rect(startX, rowY, larguraUtil, rowH).fillColor("#1a1a2e").fill();
+          } else {
+            // Linha zebrada
+            const rowIndex = tableRows.indexOf(row);
+            if (rowIndex % 2 === 0) {
+              doc.rect(startX, rowY, larguraUtil, rowH).fillColor("#f5f5f5").fill();
+            }
+          }
+
+          // Bordas externas da linha
+          doc.rect(startX, rowY, larguraUtil, rowH).strokeColor("#cccccc").lineWidth(0.5).stroke();
+
+          // Texto das células
+          for (let ci = 0; ci < numCols; ci++) {
+            const cellText = row.cells[ci] ?? "";
+            const cellX = startX + ci * colW;
+            // Linha vertical entre células
+            if (ci > 0) {
+              doc.moveTo(cellX, rowY).lineTo(cellX, rowY + rowH).strokeColor("#cccccc").lineWidth(0.5).stroke();
+            }
+            doc
+              .font(row.isHeader ? "Helvetica-Bold" : "Helvetica")
+              .fontSize(9)
+              .fillColor(row.isHeader ? "#ffffff" : "#333333")
+              .text(cellText, cellX + cellPadH, rowY + cellPadV, {
+                width: colW - cellPadH * 2,
+                height: rowH - cellPadV,
+                ellipsis: true,
+                lineBreak: false,
+              });
+          }
+          rowY += rowH;
+        }
+
+        doc.y = rowY + 8;
+        doc.x = startX;
+        break;
+      }
       default: // "p"
         doc.font("Helvetica").fontSize(11).fillColor("#333333");
         // Suporte básico a negrito inline **texto**
