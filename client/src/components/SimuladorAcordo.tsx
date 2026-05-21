@@ -50,6 +50,14 @@ export function SimuladorAcordo({
   const [percentualDesconto, setPercentualDesconto] = useState(0);
   const [copiado, setCopiado] = useState(false);
 
+  // Data de vencimento da primeira parcela (padrão: 1 mês a partir de hoje)
+  const dataDefaultPrimeiraParcela = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split("T")[0];
+  }, []);
+  const [dataPrimeiraParcela, setDataPrimeiraParcela] = useState(dataDefaultPrimeiraParcela);
+
   // Buscar desconto máximo do condomínio
   const { data: condominio } = trpc.condominios.getById.useQuery({ id: condominioId });
   const descontoMaximo = parseFloat(condominio?.descontoMaximo || "0");
@@ -69,14 +77,20 @@ export function SimuladorAcordo({
     // Aplicar desconto ao valor total
     const valorComDesconto = Math.round(valorTotal * (1 - percentualDesconto / 100));
     
+    // Calcular dataInicio de forma que a primeira parcela caia na data escolhida.
+    // calcularPlanoAcordo gera parcelas com setMonth(+i), então passamos
+    // dataInicio = dataPrimeiraParcela - 1 mês para que parcela 1 = dataPrimeiraParcela.
+    const dataBase = dataPrimeiraParcela ? new Date(dataPrimeiraParcela + "T12:00:00") : new Date();
+    dataBase.setMonth(dataBase.getMonth() - 1);
+
     return calcularPlanoAcordo({
       valorTotal: valorComDesconto,
       valorEntrada,
       numeroParcelas,
       taxaJurosMensal: 0, // Sem juros adicionais: encargos já aplicados no valor original
-      dataInicio: new Date(),
+      dataInicio: dataBase,
     });
-  }, [valorTotal, valorEntrada, numeroParcelas, percentualDesconto]);
+  }, [valorTotal, valorEntrada, numeroParcelas, percentualDesconto, dataPrimeiraParcela]);
 
   const handleCopiarTexto = () => {
     const texto = gerarTextoAcordo(planoAcordo, devedorNome, condominioNome);
@@ -145,6 +159,21 @@ export function SimuladorAcordo({
           />
           <p className="text-sm text-muted-foreground mt-1">
             Quantidade de parcelas mensais
+          </p>
+        </div>
+
+        {/* Data da Primeira Parcela */}
+        <div>
+          <Label htmlFor="dataPrimeiraParcela">Vencimento da 1ª Parcela</Label>
+          <Input
+            id="dataPrimeiraParcela"
+            type="date"
+            value={dataPrimeiraParcela}
+            onChange={(e) => setDataPrimeiraParcela(e.target.value)}
+            className="mt-1"
+          />
+          <p className="text-sm text-muted-foreground mt-1">
+            As demais parcelas vencem mensalmente após essa data
           </p>
         </div>
 

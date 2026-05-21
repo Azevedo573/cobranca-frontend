@@ -73,7 +73,15 @@ export function SimuladorAcordoMultiplo({
   const [copiado, setCopiado] = useState(false);
   const [consolidarAcordo, setConsolidarAcordo] = useState(false);
   const [opcaoConsolidacao, setOpcaoConsolidacao] = useState<'somar' | 'diluir'>('diluir');
-  
+
+  // Data de vencimento da primeira parcela (padrão: 1 mês a partir de hoje)
+  const dataDefaultPrimeiraParcela = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    return d.toISOString().split("T")[0];
+  }, []);
+  const [dataPrimeiraParcela, setDataPrimeiraParcela] = useState(dataDefaultPrimeiraParcela);
+
   // Controles de encargos: permitem isentar o devedor de juros/multa/correção
   // já acumulados como parte da negociação do acordo.
   // O parcelamento em si não adiciona novos juros (taxaJurosMensal=0).
@@ -179,14 +187,17 @@ export function SimuladorAcordoMultiplo({
       valorComDesconto += acordoAtivo.valorRestante;
     }
 
+    const dataBase = dataPrimeiraParcela ? new Date(dataPrimeiraParcela + "T12:00:00") : new Date();
+    dataBase.setMonth(dataBase.getMonth() - 1);
+
     return calcularPlanoAcordo({
       valorTotal: valorComDesconto,
       valorEntrada,
       numeroParcelas,
       taxaJurosMensal: 0, // Sem juros adicionais: encargos já aplicados no valor original
-      dataInicio: new Date(),
+      dataInicio: dataBase,
     });
-  }, [valorTotalSelecionado, valorEntrada, numeroParcelas, percentualDesconto, consolidarAcordo, acordoAtivo]);
+  }, [valorTotalSelecionado, valorEntrada, numeroParcelas, percentualDesconto, consolidarAcordo, acordoAtivo, dataPrimeiraParcela]);
   
   // Calcular opção 1: Somar parcelas (manter valor da parcela)
   const planoOpcao1 = useMemo(() => {
@@ -198,14 +209,17 @@ export function SimuladorAcordoMultiplo({
     const parcelasNovas = Math.ceil(valorComDesconto / valorParcelaAtual);
     const totalParcelas = parcelasRestantes + parcelasNovas;
     
+    const dataBase1 = dataPrimeiraParcela ? new Date(dataPrimeiraParcela + "T12:00:00") : new Date();
+    dataBase1.setMonth(dataBase1.getMonth() - 1);
+
     return calcularPlanoAcordo({
       valorTotal: acordoAtivo.valorRestante + valorComDesconto,
       valorEntrada,
       numeroParcelas: totalParcelas,
       taxaJurosMensal: 0, // Sem juros adicionais no acordo
-      dataInicio: new Date(),
+      dataInicio: dataBase1,
     });
-  }, [consolidarAcordo, acordoAtivo, valorTotalSelecionado, percentualDesconto, valorEntrada]);
+  }, [consolidarAcordo, acordoAtivo, valorTotalSelecionado, percentualDesconto, valorEntrada, dataPrimeiraParcela]);
   
   // Calcular opção 2: Diluir no novo prazo (parcela maior)
   const planoOpcao2 = useMemo(() => {
@@ -214,14 +228,17 @@ export function SimuladorAcordoMultiplo({
     const valorComDesconto = Math.round(valorTotalSelecionado * (1 - percentualDesconto / 100));
     const valorTotal = acordoAtivo.valorRestante + valorComDesconto;
     
+    const dataBase2 = dataPrimeiraParcela ? new Date(dataPrimeiraParcela + "T12:00:00") : new Date();
+    dataBase2.setMonth(dataBase2.getMonth() - 1);
+
     return calcularPlanoAcordo({
       valorTotal,
       valorEntrada,
       numeroParcelas, // Usa o número de parcelas escolhido pelo usuário
       taxaJurosMensal: 0, // Sem juros adicionais no acordo
-      dataInicio: new Date(),
+      dataInicio: dataBase2,
     });
-  }, [consolidarAcordo, acordoAtivo, valorTotalSelecionado, percentualDesconto, valorEntrada, numeroParcelas]);
+  }, [consolidarAcordo, acordoAtivo, valorTotalSelecionado, percentualDesconto, valorEntrada, numeroParcelas, dataPrimeiraParcela]);
   
   // Plano final a ser usado
   const planoFinal = useMemo(() => {
@@ -450,6 +467,21 @@ export function SimuladorAcordoMultiplo({
                 className="mt-1"
               />
               <p className="text-sm text-muted-foreground mt-1">Quantidade de parcelas mensais</p>
+            </div>
+
+            {/* Data da Primeira Parcela */}
+            <div>
+              <Label htmlFor="dataPrimeiraParcela">Vencimento da 1ª Parcela</Label>
+              <Input
+                id="dataPrimeiraParcela"
+                type="date"
+                value={dataPrimeiraParcela}
+                onChange={(e) => setDataPrimeiraParcela(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                As demais parcelas vencem mensalmente após essa data
+              </p>
             </div>
 
             {/* Percentual de Desconto */}
