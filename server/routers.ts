@@ -3891,7 +3891,9 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const { listModelosByCondominio } = await import("./db-modelos");
         const condId = input?.condominioId ?? (ctx.user?.condominioId ?? null);
-        return listModelosByCondominio(condId);
+        const rows = await listModelosByCondominio(condId);
+        // Garantir que id seja number (não bigint) para serialização JSON correta
+        return rows.map(r => ({ ...r, id: Number(r.id) }));
       }),
 
     getById: protectedProcedure
