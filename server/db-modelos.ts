@@ -53,3 +53,48 @@ export async function deleteModelo(id: number): Promise<void> {
   // Soft delete
   await db.update(modelosDocumento).set({ ativo: 0 }).where(eq(modelosDocumento.id, id));
 }
+
+// ─── Anexos de Modelos ────────────────────────────────────────────────────────
+import { modeloAnexos, type ModeloAnexo, type InsertModeloAnexo } from "../drizzle/schema";
+import { asc } from "drizzle-orm";
+
+export async function listAnexosByModelo(modeloId: number): Promise<ModeloAnexo[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modeloAnexos)
+    .where(eq(modeloAnexos.modeloId, modeloId))
+    .orderBy(asc(modeloAnexos.ordem));
+}
+
+export async function createAnexo(data: InsertModeloAnexo): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const result = await db.insert(modeloAnexos).values(data);
+  return (result as any).insertId as number;
+}
+
+export async function updateAnexo(id: number, data: Partial<InsertModeloAnexo>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.update(modeloAnexos).set(data).where(eq(modeloAnexos.id, id));
+}
+
+export async function deleteAnexo(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await db.delete(modeloAnexos).where(eq(modeloAnexos.id, id));
+}
+
+export async function reordenarAnexos(modeloId: number, ids: number[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  // Atualizar ordem de cada anexo em sequência
+  for (let i = 0; i < ids.length; i++) {
+    await db
+      .update(modeloAnexos)
+      .set({ ordem: i })
+      .where(and(eq(modeloAnexos.id, ids[i]), eq(modeloAnexos.modeloId, modeloId)));
+  }
+}

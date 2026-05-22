@@ -3945,8 +3945,12 @@ export const appRouter = router({
         conteudoHtml: z.string(),
         condominioId: z.number().nullable().optional(),
         logoUrl: z.string().nullable().optional(),
-        marcaDaguaUrl: z.string().nullable().optional(),
         logoAlinhamento: z.enum(["esquerda","centro","direita"]).optional(),
+        logoPosicaoVertical: z.enum(["topo","rodape"]).optional(),
+        logoLargura: z.number().min(40).max(400).optional(),
+        marcaDaguaUrl: z.string().nullable().optional(),
+        marcaDaguaOpacidade: z.number().min(1).max(50).optional(),
+        marcaDaguaPosicao: z.enum(["diagonal","centro","topo","rodape"]).optional(),
         margemSuperior: z.number().optional(),
         margemInferior: z.number().optional(),
         margemEsquerda: z.number().optional(),
@@ -3969,8 +3973,12 @@ export const appRouter = router({
         tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","outro"]).optional(),
         conteudoHtml: z.string().optional(),
         logoUrl: z.string().nullable().optional(),
-        marcaDaguaUrl: z.string().nullable().optional(),
         logoAlinhamento: z.enum(["esquerda","centro","direita"]).optional(),
+        logoPosicaoVertical: z.enum(["topo","rodape"]).optional(),
+        logoLargura: z.number().min(40).max(400).optional(),
+        marcaDaguaUrl: z.string().nullable().optional(),
+        marcaDaguaOpacidade: z.number().min(1).max(50).optional(),
+        marcaDaguaPosicao: z.enum(["diagonal","centro","topo","rodape"]).optional(),
         margemSuperior: z.number().optional(),
         margemInferior: z.number().optional(),
         margemEsquerda: z.number().optional(),
@@ -4046,16 +4054,25 @@ export const appRouter = router({
           if (!variaveis.dataVencimentoPrimeiraParcela && input.parcelas[0]) variaveis.dataVencimentoPrimeiraParcela = input.parcelas[0].vencimento;
         }
 
+        // Buscar anexos do modelo
+        const { listAnexosByModelo } = await import("./db-modelos");
+        const anexos = await listAnexosByModelo(input.modeloId);
+
         const pdfBuffer = await gerarPDFModelo({
           conteudoHtml: modelo.conteudoHtml,
           logoUrl: modelo.logoUrl,
           marcaDaguaUrl: modelo.marcaDaguaUrl,
           logoAlinhamento: (modelo.logoAlinhamento as any) ?? "esquerda",
+          logoPosicaoVertical: (modelo.logoPosicaoVertical as any) ?? "topo",
+          logoLargura: modelo.logoLargura ?? 120,
+          marcaDaguaOpacidade: modelo.marcaDaguaOpacidade ?? 8,
+          marcaDaguaPosicao: (modelo.marcaDaguaPosicao as any) ?? "diagonal",
           margemSuperior: modelo.margemSuperior ?? 40,
           margemInferior: modelo.margemInferior ?? 40,
           margemEsquerda: modelo.margemEsquerda ?? 50,
           margemDireita: modelo.margemDireita ?? 50,
           variaveis,
+          anexos: anexos.map(a => ({ url: a.url, largura: a.largura ?? 400, alinhamento: (a.alinhamento as any) ?? "centro", legenda: a.legenda ?? undefined })),
         });
 
         const randomSuffix = Math.random().toString(36).substring(2, 10);
@@ -4069,6 +4086,85 @@ export const appRouter = router({
       const { VARIAVEIS_DISPONIVEIS } = await import("./modelo-pdf");
       return VARIAVEIS_DISPONIVEIS;
     }),
+
+    // ─── Gerenciamento de Anexos ────────────────────────────────────────────
+    listAnexos: protectedProcedure
+      .input(z.object({ modeloId: z.number() }))
+      .query(async ({ input }) => {
+        const { listAnexosByModelo } = await import("./db-modelos");
+        const rows = await listAnexosByModelo(input.modeloId);
+        return rows.map(r => ({ ...r, id: Number(r.id), modeloId: Number(r.modeloId) }));
+      }),
+
+    addAnexo: protectedProcedure
+      .input(z.object({
+        modeloId: z.number(),
+        nomeArquivo: z.string(),
+        mimeType: z.string(),
+        base64: z.string(),
+        legenda: z.string().optional(),
+        largura: z.number().min(40).max(800).optional(),
+        alinhamento: z.enum(["esquerda","centro","direita"]).optional(),
+        ordem: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { storagePut } = await import("./storage");
+        const { createAnexo, listAnexosByModelo } = await import("./db-modelos");
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.nomeArquivo.split(".").pop() || "jpg";
+        const randomSuffix = Math.random().toString(36).substring(2, 10);
+        const fileKey = `modelos/anexos/${input.modeloId}-${randomSuffix}.${ext}`;
+        const { url } = await storagePut(fileKey, buffer, input.mimeType);
+        // Calcular próxima ordem
+        const existentes = await listAnexosByModelo(input.modeloId);
+        const proximaOrdem = input.ordem ?? existentes.length;
+        const id = await createAnexo({
+          modeloId: input.modeloId,
+          url,
+          nomeOriginal: input.nomeArquivo,
+          mimeType: input.mimeType,
+          tamanhoBytes: buffer.length,
+          legenda: input.legenda,
+          largura: input.largura ?? 400,
+          alinhamento: input.alinhamento ?? "centro",
+          ordem: proximaOrdem,
+        });
+        return { id, url };
+      }),
+
+    updateAnexo: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        legenda: z.string().optional(),
+        largura: z.number().min(40).max(800).optional(),
+        alinhamento: z.enum(["esquerda","centro","direita"]).optional(),
+        ordem: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateAnexo } = await import("./db-modelos");
+        const { id, ...data } = input;
+        await updateAnexo(id, data);
+        return { success: true };
+      }),
+
+    deleteAnexo: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deleteAnexo } = await import("./db-modelos");
+        await deleteAnexo(input.id);
+        return { success: true };
+      }),
+
+    reordenarAnexos: protectedProcedure
+      .input(z.object({
+        modeloId: z.number(),
+        ids: z.array(z.number()), // IDs na nova ordem
+      }))
+      .mutation(async ({ input }) => {
+        const { reordenarAnexos } = await import("./db-modelos");
+        await reordenarAnexos(input.modeloId, input.ids);
+        return { success: true };
+      }),
   }),
 
   // ─── Módulo Jurídico ────────────────────────────────────────────────────────

@@ -464,10 +464,15 @@ export const modelosDocumento = mysqlTable("modelosDocumento", {
   ]).notNull().default("outro"),
   // Conteúdo HTML do editor TipTap (inclui variáveis {{nomeDevedor}} etc.)
   conteudoHtml: text("conteudoHtml").notNull(),
-  // Configurações visuais
+  // Configurações visuais — Logo
   logoUrl: text("logoUrl"),           // URL S3 da logo do escritório
-  marcaDaguaUrl: text("marcaDaguaUrl"), // URL S3 da imagem de marca d'água
   logoAlinhamento: mysqlEnum("logoAlinhamento", ["esquerda", "centro", "direita"]).default("esquerda"),
+  logoPosicaoVertical: mysqlEnum("logoPosicaoVertical", ["topo", "rodape"]).default("topo"),
+  logoLargura: int("logoLargura").default(120), // largura em px (max 300)
+  // Configurações visuais — Marca d'água
+  marcaDaguaUrl: text("marcaDaguaUrl"), // URL S3 da imagem de marca d'água
+  marcaDaguaOpacidade: int("marcaDaguaOpacidade").default(8), // 1-50 (%)
+  marcaDaguaPosicao: mysqlEnum("marcaDaguaPosicao", ["diagonal", "centro", "topo", "rodape"]).default("diagonal"),
   // Configurações de página
   margemSuperior: int("margemSuperior").default(40),
   margemInferior: int("margemInferior").default(40),
@@ -482,6 +487,24 @@ export const modelosDocumento = mysqlTable("modelosDocumento", {
 
 export type ModeloDocumento = typeof modelosDocumento.$inferSelect;
 export type InsertModeloDocumento = typeof modelosDocumento.$inferInsert;
+
+// Anexos de imagens vinculados a um modelo de documento
+export const modeloAnexos = mysqlTable("modeloAnexos", {
+  id: int("id").autoincrement().primaryKey(),
+  modeloId: int("modeloId").notNull(),
+  url: text("url").notNull(),           // URL S3 do arquivo
+  nomeOriginal: varchar("nomeOriginal", { length: 255 }).notNull(),
+  mimeType: varchar("mimeType", { length: 100 }).notNull(),
+  tamanhoBytes: int("tamanhoBytes").default(0),
+  ordem: int("ordem").default(0),       // ordem de exibição no documento
+  legenda: varchar("legenda", { length: 255 }),
+  largura: int("largura").default(400), // largura em px no PDF
+  alinhamento: mysqlEnum("alinhamento", ["esquerda", "centro", "direita"]).default("centro"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ModeloAnexo = typeof modeloAnexos.$inferSelect;
+export type InsertModeloAnexo = typeof modeloAnexos.$inferInsert;
 
 // ─── Módulo Jurídico ─────────────────────────────────────────────────────────
 

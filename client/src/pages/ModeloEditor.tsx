@@ -331,9 +331,137 @@ function PainelVariaveis({ onInserir }: { onInserir: (chave: string) => void }) 
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
-export default function ModeloEditor() {
-  const [, params] = useRoute("/modelos-documento/:id/editar");
+// ─── Painel de Anexos ──────────────────────────────────────────────────────────────────
+function AnexosPanel({ modeloId, isEdicao }: { modeloId: number | null; isEdicao: boolean }) {
+  const utils = trpc.useUtils();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [editandoIdx, setEditandoIdx] = useState<number | null>(null);
+  const [legendaEdit, setLegendaEdit] = useState("");
+
+  const { data: anexos = [] } = trpc.modelosDocumento.listAnexos.useQuery(
+    { modeloId: modeloId! },
+    { enabled: isEdicao }
+  );
+
+  const uploadMutation = trpc.modelosDocumento.uploadImagem.useMutation({
+    onSuccess: (data, vars) => {
+      if (!modeloId) return;
+      addAnexoMutation.mutate({
+        modeloId,
+        nomeArquivo: vars.nomeArquivo,
+        mimeType: vars.mimeType,
+        base64: vars.base64,
+        alinhamento: "centro",
+      });
+    },
+    onError: (err) => toast.error("Erro ao enviar imagem: " + err.message),
+  });
+
+  const addAnexoMutation = trpc.modelosDocumento.addAnexo.useMutation({
+    onSuccess: () => { utils.modelosDocumento.listAnexos.invalidate(); toast.success("Anexo adicionado"); },
+    onError: (err) => toast.error("Erro ao adicionar anexo: " + err.message),
+  });
+
+  const updateAnexoMutation = trpc.modelosDocumento.updateAnexo.useMutation({
+    onSuccess: () => { utils.modelosDocumento.listAnexos.invalidate(); setEditandoIdx(null); },
+  });
+
+  const removeAnexoMutation = trpc.modelosDocumento.deleteAnexo.useMutation({
+    onSuccess: () => { utils.modelosDocumento.listAnexos.invalidate(); toast.success("Anexo removido"); },
+  });
+
+  const handleFile = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = (e.target?.result as string).split(",")[1];
+      uploadMutation.mutate({ nomeArquivo: file.name, mimeType: file.type, base64, tipo: "logo" });
+    };
+    reader.readAsDataURL(file);
+  }, [uploadMutation]);
+
+  if (!isEdicao) {
+    return (
+      <div className="flex flex-col items-center justify-center h-32 text-center">
+        <p className="text-xs text-muted-foreground">Salve o modelo primeiro para adicionar anexos.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Adicione imagens ou fotos que serão incluídas ao final do documento PDF gerado.
+      </p>
+
+      {/* Botão de upload */}
+      <div
+        className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+      >
+        <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+        <p className="text-xs text-muted-foreground">
+          {uploadMutation.isPending || addAnexoMutation.isPending ? "Enviando..." : "Clique ou arraste a imagem"}
+        </p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">PNG, JPG, SVG — máx. 5MB</p>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+
+      {/* Lista de anexos */}
+      {anexos.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">Nenhum anexo adicionado.</p>
+      ) : (
+        <div className="space-y-2">
+          {anexos.map((anexo, idx) => (
+            <div key={anexo.id} className="border rounded-lg p-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <img src={anexo.url} alt={anexo.nomeOriginal ?? ""} className="h-10 w-14 object-cover rounded border bg-white shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs truncate font-medium">{anexo.nomeOriginal ?? "Imagem"}</p>
+                  {editandoIdx === idx ? (
+                    <div className="flex gap-1 mt-1">
+                      <input
+                        className="flex-1 text-xs border rounded px-1.5 py-0.5 bg-background"
+                        placeholder="Legenda..."
+                        value={legendaEdit}
+                        onChange={(e) => setLegendaEdit(e.target.value)}
+                        autoFocus
+                      />
+                      <button type="button" className="text-xs text-primary font-medium" onClick={() => { updateAnexoMutation.mutate({ id: anexo.id, legenda: legendaEdit }); }}>OK</button>
+                      <button type="button" className="text-xs text-muted-foreground" onClick={() => setEditandoIdx(null)}>X</button>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground truncate cursor-pointer hover:text-foreground" onClick={() => { setEditandoIdx(idx); setLegendaEdit(anexo.legenda ?? ""); }}>
+                      {anexo.legenda ? anexo.legenda : <span className="italic">Adicionar legenda...</span>}
+                    </p>
+                  )}
+                </div>
+                <button type="button" className="text-destructive hover:text-destructive/80 shrink-0" onClick={() => removeAnexoMutation.mutate({ id: anexo.id })}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {/* Alinhamento */}
+              <Select value={anexo.alinhamento ?? "centro"} onValueChange={(v) => updateAnexoMutation.mutate({ id: anexo.id, alinhamento: v as any })}>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="esquerda">Esquerda</SelectItem>
+                  <SelectItem value="centro">Centro</SelectItem>
+                  <SelectItem value="direita">Direita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Página principal ──────────────────────────────────────────────────────────────────
+export default function ModeloEditor() { const [, params] = useRoute("/modelos-documento/:id/editar");
   const [, paramsNovo] = useRoute("/modelos-documento/novo");
   const [, navigate] = useLocation();
 
@@ -346,6 +474,10 @@ export default function ModeloEditor() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [marcaDaguaUrl, setMarcaDaguaUrl] = useState<string | null>(null);
   const [logoAlinhamento, setLogoAlinhamento] = useState<"esquerda" | "centro" | "direita">("esquerda");
+  const [logoPosicaoVertical, setLogoPosicaoVertical] = useState<"topo" | "rodape">("topo");
+  const [logoLargura, setLogoLargura] = useState<number>(120);
+  const [marcaDaguaOpacidade, setMarcaDaguaOpacidade] = useState<number>(8);
+  const [marcaDaguaPosicao, setMarcaDaguaPosicao] = useState<"diagonal" | "centro" | "topo" | "rodape">("diagonal");
   const [salvando, setSalvando] = useState(false);
   const [gerandoPDF, setGerandoPDF] = useState(false);
 
@@ -385,6 +517,10 @@ export default function ModeloEditor() {
       setLogoUrl(modeloExistente.logoUrl ?? null);
       setMarcaDaguaUrl(modeloExistente.marcaDaguaUrl ?? null);
       setLogoAlinhamento((modeloExistente.logoAlinhamento as any) ?? "esquerda");
+      setLogoPosicaoVertical((modeloExistente.logoPosicaoVertical as any) ?? "topo");
+      setLogoLargura(modeloExistente.logoLargura ?? 120);
+      setMarcaDaguaOpacidade(modeloExistente.marcaDaguaOpacidade ?? 8);
+      setMarcaDaguaPosicao((modeloExistente.marcaDaguaPosicao as any) ?? "diagonal");
       editor.commands.setContent(modeloExistente.conteudoHtml || "<p></p>");
     }
   }, [modeloExistente, editor]);
@@ -418,6 +554,10 @@ export default function ModeloEditor() {
           logoUrl,
           marcaDaguaUrl,
           logoAlinhamento,
+          logoPosicaoVertical,
+          logoLargura,
+          marcaDaguaOpacidade,
+          marcaDaguaPosicao,
         });
         toast.success("Modelo atualizado com sucesso");
       } else {
@@ -428,6 +568,10 @@ export default function ModeloEditor() {
           logoUrl,
           marcaDaguaUrl,
           logoAlinhamento,
+          logoPosicaoVertical,
+          logoLargura,
+          marcaDaguaOpacidade,
+          marcaDaguaPosicao,
         });
         toast.success("Modelo criado com sucesso");
         navigate(`/modelos-documento/${id}/editar`);
@@ -550,14 +694,18 @@ export default function ModeloEditor() {
           {/* Painel lateral */}
           <div className="w-72 border-l bg-background flex flex-col overflow-hidden shrink-0">
             <Tabs defaultValue="variaveis" className="flex flex-col h-full">
-              <TabsList className="mx-3 mt-3 shrink-0">
-                <TabsTrigger value="variaveis" className="flex-1 gap-1.5 text-xs">
+              <TabsList className="mx-3 mt-3 shrink-0 grid grid-cols-3">
+                <TabsTrigger value="variaveis" className="gap-1 text-xs">
                   <Variable className="h-3.5 w-3.5" />
                   Variáveis
                 </TabsTrigger>
-                <TabsTrigger value="aparencia" className="flex-1 gap-1.5 text-xs">
+                <TabsTrigger value="aparencia" className="gap-1 text-xs">
                   <ImageIcon className="h-3.5 w-3.5" />
                   Aparência
+                </TabsTrigger>
+                <TabsTrigger value="anexos" className="gap-1 text-xs">
+                  <Upload className="h-3.5 w-3.5" />
+                  Anexos
                 </TabsTrigger>
               </TabsList>
 
@@ -569,44 +717,102 @@ export default function ModeloEditor() {
               </TabsContent>
 
               <TabsContent value="aparencia" className="flex-1 overflow-y-auto px-3 pb-3 mt-3 space-y-5">
-                <ImageUploadField
-                  label="Logo do Escritório"
-                  value={logoUrl}
-                  tipo="logo"
-                  onUpload={setLogoUrl}
-                  onRemove={() => setLogoUrl(null)}
-                />
-
-                {logoUrl && (
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Alinhamento da Logo</Label>
-                    <Select value={logoAlinhamento} onValueChange={(v) => setLogoAlinhamento(v as any)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="esquerda">Esquerda</SelectItem>
-                        <SelectItem value="centro">Centro</SelectItem>
-                        <SelectItem value="direita">Direita</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                {/* Logo */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Logomarca</p>
+                  <ImageUploadField
+                    label="Logo do Escritório"
+                    value={logoUrl}
+                    tipo="logo"
+                    onUpload={setLogoUrl}
+                    onRemove={() => setLogoUrl(null)}
+                  />
+                  {logoUrl && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Posição vertical</Label>
+                        <Select value={logoPosicaoVertical} onValueChange={(v) => setLogoPosicaoVertical(v as any)}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="topo">Topo do documento</SelectItem>
+                            <SelectItem value="rodape">Rodapé (todas as páginas)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Alinhamento horizontal</Label>
+                        <Select value={logoAlinhamento} onValueChange={(v) => setLogoAlinhamento(v as any)}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="esquerda">Esquerda</SelectItem>
+                            <SelectItem value="centro">Centro</SelectItem>
+                            <SelectItem value="direita">Direita</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Largura (px) — atual: {logoLargura}px</Label>
+                        <input
+                          type="range" min={60} max={300} step={10}
+                          value={logoLargura}
+                          onChange={(e) => setLogoLargura(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                          <span>60px</span><span>300px</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <Separator />
 
-                <ImageUploadField
-                  label="Marca d'Água"
-                  value={marcaDaguaUrl}
-                  tipo="marca_dagua"
-                  onUpload={setMarcaDaguaUrl}
-                  onRemove={() => setMarcaDaguaUrl(null)}
-                />
-                {marcaDaguaUrl && (
-                  <p className="text-xs text-muted-foreground">
-                    A marca d'água será exibida em diagonal no fundo de todas as páginas com 8% de opacidade.
-                  </p>
-                )}
+                {/* Marca d'água */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Marca d'Água</p>
+                  <ImageUploadField
+                    label="Imagem da marca d'água"
+                    value={marcaDaguaUrl}
+                    tipo="marca_dagua"
+                    onUpload={setMarcaDaguaUrl}
+                    onRemove={() => setMarcaDaguaUrl(null)}
+                  />
+                  {marcaDaguaUrl && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Posição</Label>
+                        <Select value={marcaDaguaPosicao} onValueChange={(v) => setMarcaDaguaPosicao(v as any)}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="diagonal">Diagonal (centro)</SelectItem>
+                            <SelectItem value="centro">Centro (horizontal)</SelectItem>
+                            <SelectItem value="topo">Topo</SelectItem>
+                            <SelectItem value="rodape">Rodapé</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Opacidade — atual: {marcaDaguaOpacidade}%</Label>
+                        <input
+                          type="range" min={3} max={40} step={1}
+                          value={marcaDaguaOpacidade}
+                          onChange={(e) => setMarcaDaguaOpacidade(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                        <div className="flex justify-between text-[10px] text-muted-foreground">
+                          <span>3% (sutil)</span><span>40% (forte)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <Separator />
 
@@ -629,6 +835,11 @@ Responsável
                     </pre>
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              {/* Aba Anexos */}
+              <TabsContent value="anexos" className="flex-1 overflow-y-auto px-3 pb-3 mt-3">
+                <AnexosPanel modeloId={modeloId} isEdicao={isEdicao} />
               </TabsContent>
             </Tabs>
           </div>

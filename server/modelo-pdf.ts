@@ -32,16 +32,28 @@ export interface VariaveisDocumento {
   [key: string]: string | undefined;
 }
 
+export interface AnexoPDF {
+  url: string;
+  largura?: number;
+  alinhamento?: "esquerda" | "centro" | "direita";
+  legenda?: string;
+}
+
 export interface OpcoesPDFModelo {
   conteudoHtml: string;
   logoUrl?: string | null;
   marcaDaguaUrl?: string | null;
   logoAlinhamento?: "esquerda" | "centro" | "direita";
+  logoPosicaoVertical?: "topo" | "rodape";
+  logoLargura?: number;
+  marcaDaguaOpacidade?: number;
+  marcaDaguaPosicao?: "diagonal" | "centro" | "topo" | "rodape";
   margemSuperior?: number;
   margemInferior?: number;
   margemEsquerda?: number;
   margemDireita?: number;
   variaveis?: VariaveisDocumento;
+  anexos?: AnexoPDF[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -175,11 +187,16 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
     logoUrl,
     marcaDaguaUrl,
     logoAlinhamento = "esquerda",
+    logoPosicaoVertical = "topo",
+    logoLargura = 120,
+    marcaDaguaOpacidade = 8,
+    marcaDaguaPosicao = "diagonal",
     margemSuperior = 40,
     margemInferior = 40,
     margemEsquerda = 50,
     margemDireita = 50,
     variaveis = {},
+    anexos = [],
   } = opcoes;
 
   // Substituir variáveis no HTML
@@ -203,40 +220,57 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
   const larguraUtil = doc.page.width - margemEsquerda - margemDireita;
 
   // ── Marca d'água (antes do conteúdo) ──────────────────────────────────────
-  if (marcaDaguaUrl) {
+  const renderizarMarcaDagua = async () => {
+    if (!marcaDaguaUrl) return;
     try {
       const imgBuffer = await baixarImagem(marcaDaguaUrl);
       const pageW = doc.page.width;
       const pageH = doc.page.height;
-      const imgW = pageW * 0.6;
-      const imgH = imgW;
+      const opacidade = (marcaDaguaOpacidade ?? 8) / 100;
       doc.save();
-      doc.opacity(0.08);
-      doc.rotate(-45, { origin: [pageW / 2, pageH / 2] });
-      doc.image(imgBuffer, (pageW - imgW) / 2, (pageH - imgH) / 2, { width: imgW, height: imgH });
+      doc.opacity(opacidade);
+      if (marcaDaguaPosicao === "diagonal") {
+        const imgW = pageW * 0.6;
+        doc.rotate(-45, { origin: [pageW / 2, pageH / 2] });
+        doc.image(imgBuffer, (pageW - imgW) / 2, (pageH - imgW) / 2, { width: imgW, height: imgW });
+      } else if (marcaDaguaPosicao === "centro") {
+        const imgW = pageW * 0.5;
+        doc.image(imgBuffer, (pageW - imgW) / 2, (pageH - imgW) / 2, { width: imgW, height: imgW });
+      } else if (marcaDaguaPosicao === "topo") {
+        const imgW = pageW * 0.4;
+        doc.image(imgBuffer, (pageW - imgW) / 2, margemSuperior, { width: imgW });
+      } else if (marcaDaguaPosicao === "rodape") {
+        const imgW = pageW * 0.4;
+        doc.image(imgBuffer, (pageW - imgW) / 2, pageH - margemInferior - imgW * 0.5, { width: imgW });
+      }
       doc.restore();
     } catch {
       // Ignora erro de marca d'água
     }
-  }
+  };
+  await renderizarMarcaDagua();
 
-  // ── Logo ──────────────────────────────────────────────────────────────────
+  // ── Logo no topo ──────────────────────────────────────────────────────────
   let yAtual = margemSuperior;
+  let logoBuffer: Buffer | null = null;
   if (logoUrl) {
     try {
-      const imgBuffer = await baixarImagem(logoUrl);
+      logoBuffer = await baixarImagem(logoUrl);
+    } catch { /* ignora */ }
+  }
+
+  if (logoBuffer && logoPosicaoVertical === "topo") {
+    try {
+      const logoW = logoLargura ?? 120;
       const logoH = 60;
-      const logoW = 180;
       let logoX = margemEsquerda;
       if (logoAlinhamento === "centro") logoX = (doc.page.width - logoW) / 2;
       if (logoAlinhamento === "direita") logoX = doc.page.width - margemDireita - logoW;
-      doc.image(imgBuffer, logoX, yAtual, { height: logoH, fit: [logoW, logoH] });
+      doc.image(logoBuffer, logoX, yAtual, { height: logoH, fit: [logoW, logoH] });
       yAtual += logoH + 16;
       doc.moveTo(margemEsquerda, yAtual).lineTo(doc.page.width - margemDireita, yAtual).strokeColor("#cccccc").lineWidth(0.5).stroke();
       yAtual += 12;
-    } catch {
-      // Ignora erro de logo
-    }
+    } catch { /* ignora */ }
   }
 
   // ── Conteúdo ──────────────────────────────────────────────────────────────
@@ -377,11 +411,57 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
         doc.moveDown(0.4);
     }
   }
+  // ── Anexos de imagens ──────────────────────────────────────────────────────────────────
+  if (anexos.length > 0) {
+    doc.moveDown(1);
+    doc.moveTo(margemEsquerda, doc.y).lineTo(doc.page.width - margemDireita, doc.y).strokeColor("#cccccc").lineWidth(0.5).stroke();
+    doc.moveDown(0.5);
+    doc.font("Helvetica-Bold").fontSize(11).fillColor("#333333").text("Anexos", { width: larguraUtil });
+    doc.moveDown(0.5);
+    for (const anexo of anexos) {
+      try {
+        const imgBuf = await baixarImagem(anexo.url);
+        const largura = Math.min(anexo.largura ?? 400, larguraUtil);
+        let imgX = margemEsquerda;
+        if (anexo.alinhamento === "centro") imgX = (doc.page.width - largura) / 2;
+        if (anexo.alinhamento === "direita") imgX = doc.page.width - margemDireita - largura;
+        // Verificar espaço na página
+        if (doc.y + 80 > doc.page.height - margemInferior - 20) {
+          doc.addPage();
+          await renderizarMarcaDagua();
+          doc.y = margemSuperior;
+        }
+        doc.image(imgBuf, imgX, doc.y, { width: largura });
+        doc.y += largura * 0.6 + 8; // estimativa de altura
+        if (anexo.legenda) {
+          doc.font("Helvetica").fontSize(9).fillColor("#666666").text(anexo.legenda, { width: larguraUtil, align: (anexo.alinhamento as any) ?? "center" });
+          doc.moveDown(0.3);
+        }
+        doc.moveDown(0.5);
+      } catch { /* ignora erro de anexo */ }
+    }
+  }
 
-  // ── Numeração de páginas ──────────────────────────────────────────────────
+  // ── Logo no rodapé ──────────────────────────────────────────────────────────────────
+  // (será aplicado na fase de numeração de páginas abaixo)
+
+  // ── Numeração de páginas e logo no rodapé ──────────────────────────────────────────────────────────────────
   const totalPaginas = (doc as any).bufferedPageRange().count;
   for (let i = 0; i < totalPaginas; i++) {
     doc.switchToPage(i);
+    // Logo no rodapé
+    if (logoBuffer && logoPosicaoVertical === "rodape") {
+      try {
+        const logoW = logoLargura ?? 120;
+        const logoH = 40;
+        let logoX = margemEsquerda;
+        if (logoAlinhamento === "centro") logoX = (doc.page.width - logoW) / 2;
+        if (logoAlinhamento === "direita") logoX = doc.page.width - margemDireita - logoW;
+        const logoY = doc.page.height - margemInferior - logoH - 12;
+        doc.image(logoBuffer, logoX, logoY, { height: logoH, fit: [logoW, logoH] });
+      } catch { /* ignora */ }
+    }
+    // Numeração
     doc
       .font("Helvetica")
       .fontSize(9)
