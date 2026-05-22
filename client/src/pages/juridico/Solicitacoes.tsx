@@ -23,6 +23,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Plus,
   Search,
@@ -33,7 +40,17 @@ import {
   XCircle,
   Scale,
   Filter,
+  UserCircle2,
 } from "lucide-react";
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+}
 
 const CATEGORIAS: Record<string, string> = {
   consultoria: "Consultoria",
@@ -347,6 +364,33 @@ export default function Solicitacoes() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Badge de responsável — visível apenas para admin */}
+                      {user?.role === "admin" && (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1.5 cursor-default">
+                                {ticket.responsavelId && ticket.responsavelNome ? (
+                                  <Avatar className="h-7 w-7 ring-2 ring-primary/20">
+                                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary font-semibold">
+                                      {getInitials(ticket.responsavelNome)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ) : (
+                                  <div className="h-7 w-7 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                                    <UserCircle2 className="h-4 w-4 text-muted-foreground/40" />
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="left">
+                              {ticket.responsavelId && ticket.responsavelNome
+                                ? `Responsável: ${ticket.responsavelNome}`
+                                : "Sem responsável"}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                       <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${statusInfo.color}`}>
                         <StatusIcon className="h-3.5 w-3.5" />
                         {statusInfo.label}

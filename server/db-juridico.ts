@@ -38,17 +38,54 @@ export async function getTicketById(id: number) {
 export async function getTicketsByCondominio(condominioId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db
-    .select()
+  const { users } = await import("../drizzle/schema");
+  const rows = await db
+    .select({
+      id: juridicoTickets.id,
+      condominioId: juridicoTickets.condominioId,
+      titulo: juridicoTickets.titulo,
+      descricao: juridicoTickets.descricao,
+      categoria: juridicoTickets.categoria,
+      prioridade: juridicoTickets.prioridade,
+      status: juridicoTickets.status,
+      responsavelId: juridicoTickets.responsavelId,
+      responsavelNome: users.name,
+      criadoPorId: juridicoTickets.criadoPorId,
+      resolvidoEm: juridicoTickets.resolvidoEm,
+      createdAt: juridicoTickets.createdAt,
+      updatedAt: juridicoTickets.updatedAt,
+    })
     .from(juridicoTickets)
+    .leftJoin(users, eq(juridicoTickets.responsavelId, users.id))
     .where(eq(juridicoTickets.condominioId, condominioId))
     .orderBy(desc(juridicoTickets.createdAt));
+  return rows;
 }
 
 export async function getAllTickets() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(juridicoTickets).orderBy(desc(juridicoTickets.createdAt));
+  const { users } = await import("../drizzle/schema");
+  const rows = await db
+    .select({
+      id: juridicoTickets.id,
+      condominioId: juridicoTickets.condominioId,
+      titulo: juridicoTickets.titulo,
+      descricao: juridicoTickets.descricao,
+      categoria: juridicoTickets.categoria,
+      prioridade: juridicoTickets.prioridade,
+      status: juridicoTickets.status,
+      responsavelId: juridicoTickets.responsavelId,
+      responsavelNome: users.name,
+      criadoPorId: juridicoTickets.criadoPorId,
+      resolvidoEm: juridicoTickets.resolvidoEm,
+      createdAt: juridicoTickets.createdAt,
+      updatedAt: juridicoTickets.updatedAt,
+    })
+    .from(juridicoTickets)
+    .leftJoin(users, eq(juridicoTickets.responsavelId, users.id))
+    .orderBy(desc(juridicoTickets.createdAt));
+  return rows;
 }
 
 export async function updateTicket(
