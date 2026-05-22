@@ -561,7 +561,7 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
         });
         toast.success("Modelo atualizado com sucesso");
       } else {
-        const { id } = await createMutation.mutateAsync({
+        const result = await createMutation.mutateAsync({
           nome,
           tipo: tipo as any,
           conteudoHtml,
@@ -573,8 +573,10 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
           marcaDaguaOpacidade,
           marcaDaguaPosicao,
         });
+        const newId = Number(result.id);
+        if (!newId || isNaN(newId)) throw new Error("ID do modelo inválido");
         toast.success("Modelo criado com sucesso");
-        navigate(`/modelos-documento/${id}/editar`);
+        navigate(`/modelos-documento/${newId}/editar`);
       }
     } catch (err: any) {
       toast.error("Erro ao salvar modelo: " + err.message);

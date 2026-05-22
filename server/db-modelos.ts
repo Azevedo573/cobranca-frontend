@@ -38,7 +38,7 @@ export async function createModelo(data: InsertModeloDocumento): Promise<number>
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const result = await db.insert(modelosDocumento).values(data);
-  return (result as any).insertId as number;
+  return Number((result as any).insertId);
 }
 
 export async function updateModelo(id: number, data: Partial<InsertModeloDocumento>): Promise<void> {
