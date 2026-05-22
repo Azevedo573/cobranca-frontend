@@ -1937,3 +1937,15 @@
 - [x] Registrar rotas no App.tsx
 - [x] Adicionar grupo "Perfis e Permissões" no menu lateral (admin only)
 - [x] Escrever testes Vitest para as procedures de perfis
+
+## Role Colaborador (Colaborador Interno do Escritório)
+- [ ] Adicionar role "colaborador" no enum da tabela users no schema
+- [ ] Migrar banco com db:push
+- [ ] Criar procedure getMyPermissions para colaborador logado
+- [ ] Criar ColaboradorLayout com sidebar filtrado por permissões RBAC
+- [ ] Criar ColaboradorDashboard.tsx com visão geral das tarefas
+- [ ] Atualizar redirecionamento de login para role "colaborador" → /colaborador/dashboard
+- [ ] Adicionar rotas /colaborador/* no App.tsx
+- [ ] Atualizar filtros de role nos selects de cadastro de usuário (admin)
+- [ ] Atualizar Sidebar.tsx para exibir menus corretos para colaborador
+- [ ] Atualizar UsersProfiles.tsx para incluir role "colaborador" nos filtros

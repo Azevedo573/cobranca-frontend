@@ -4516,6 +4516,40 @@ export const appRouter = router({
       }
       return { resultados };
     }),
+
+    // Buscar permissões do usuário logado (para colaborador filtrar o menu)
+    getMyPermissions: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { modulos: [], permissoes: {} as Record<string, Record<string, boolean>> };
+      const { users, profilePermissions, profiles } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Buscar profileId do usuário logado
+      const userRow = await db.select({ profileId: users.profileId }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      const profileId = userRow[0]?.profileId ? Number(userRow[0].profileId) : null;
+
+      if (!profileId) {
+        // Sem perfil: retorna permissões vazias
+        return { profileId: null, profileNome: null, permissoes: {} as Record<string, Record<string, boolean>> };
+      }
+
+      const perms = await db.select().from(profilePermissions).where(eq(profilePermissions.profileId, profileId));
+      const profileRow = await db.select({ nome: profiles.nome, cor: profiles.cor }).from(profiles).where(eq(profiles.id, profileId)).limit(1);
+
+      // Montar mapa { modulo: { acao: boolean } }
+      const permissoes: Record<string, Record<string, boolean>> = {};
+      for (const p of perms) {
+        if (!permissoes[p.modulo]) permissoes[p.modulo] = {};
+        permissoes[p.modulo][p.acao] = p.permitido === 1;
+      }
+
+      return {
+        profileId,
+        profileNome: profileRow[0]?.nome ?? null,
+        profileCor: profileRow[0]?.cor ?? null,
+        permissoes,
+      };
+    }),
   }),
 });
 export type AppRouter = typeof appRouter;

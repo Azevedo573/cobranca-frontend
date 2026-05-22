@@ -22,7 +22,7 @@ export default function UserForm() {
     name: "",
     email: "",
     password: "",
-    role: "cobrador" as "admin" | "sindico" | "cobrador",
+    role: "cobrador" as "admin" | "sindico" | "cobrador" | "colaborador",
     condominioId: "",
     isActive: 1,
   });
@@ -246,6 +246,7 @@ export default function UserForm() {
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="sindico">Síndico</SelectItem>
                       <SelectItem value="cobrador">Cobrador</SelectItem>
+                      <SelectItem value="colaborador">Colaborador Interno</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

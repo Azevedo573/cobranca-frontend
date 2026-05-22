@@ -79,10 +79,11 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Operações",
     icon: PhoneCall,
-    roles: ["admin", "cobrador"],
+    roles: ["admin", "cobrador", "colaborador"],
+    modulo: "cobrancas",
     items: [
-      { label: "Cobrança Ativa", href: "/operacoes/cobranca-ativa", icon: PhoneCall, roles: ["admin", "cobrador"] },
-      { label: "Cobrança Passiva", href: "/operacoes/cobranca-passiva", icon: PhoneIncoming, roles: ["admin", "cobrador"] },
+      { label: "Cobrança Ativa", href: "/operacoes/cobranca-ativa", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador"] },
+      { label: "Cobrança Passiva", href: "/operacoes/cobranca-passiva", icon: PhoneIncoming, roles: ["admin", "cobrador", "colaborador"] },
     ],
   },
 
@@ -90,15 +91,15 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Cobrança",
     icon: Briefcase,
-    roles: ["admin", "sindico", "cobrador"],
+    roles: ["admin", "sindico", "cobrador", "colaborador"],
     modulo: "cobranca",
     items: [
-      { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador"] },
-      { label: "Dívidas", href: "/processos", icon: FileText, roles: ["admin", "sindico", "cobrador"] },
-      { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador"] },
-      { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador"] },
-      { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador"] },
-      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador"] },
+      { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador"] },
+      { label: "Dívidas", href: "/processos", icon: FileText, roles: ["admin", "sindico", "cobrador", "colaborador"] },
+      { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"] },
+      { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"] },
+      { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador"] },
+      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador"] },
     ],
   },
 
@@ -106,12 +107,12 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Jurídico",
     icon: Scale,
-    roles: ["admin", "sindico"],
+    roles: ["admin", "sindico", "colaborador"],
     modulo: "juridico",
     items: [
-      { label: "Solicitações", href: "/juridico/solicitacoes", icon: MessageSquare, roles: ["admin", "sindico"] },
-      { label: "Kanban", href: "/juridico/kanban", icon: LayoutDashboard, roles: ["admin"] },
-      { label: "Novo Ticket", href: "/juridico/solicitacoes/novo", icon: Plus, roles: ["admin"] },
+      { label: "Solicitações", href: "/juridico/solicitacoes", icon: MessageSquare, roles: ["admin", "sindico", "colaborador"] },
+      { label: "Kanban", href: "/juridico/kanban", icon: LayoutDashboard, roles: ["admin", "colaborador"] },
+      { label: "Novo Ticket", href: "/juridico/solicitacoes/novo", icon: Plus, roles: ["admin", "colaborador"] },
     ],
   },
 
@@ -182,6 +183,7 @@ const dashboardItems: MenuItem[] = [
   { label: "Dashboard Admin", href: "/admin/dashboard", icon: LayoutDashboard, roles: ["admin"] },
   { label: "Dashboard Síndico", href: "/sindico/dashboard", icon: LayoutDashboard, roles: ["sindico"] },
   { label: "Dashboard Cobrador", href: "/cobrador/dashboard", icon: LayoutDashboard, roles: ["cobrador"] },
+  { label: "Meu Painel", href: "/colaborador/dashboard", icon: LayoutDashboard, roles: ["colaborador"] },
 ];
 
 export default function Sidebar() {
@@ -199,6 +201,17 @@ export default function Sidebar() {
   const modulosEfetivos = user?.role === "admin" && !user?.condominioId
     ? ["cobranca", "juridico"]
     : (modulosAtivos ?? ["cobranca"]);
+
+  // Permissões RBAC do colaborador logado
+  const { data: myPerms } = trpc.profiles.getMyPermissions.useQuery(
+    undefined,
+    { enabled: user?.role === "colaborador", staleTime: 5 * 60 * 1000 }
+  );
+  const rbacPerms = myPerms?.permissoes ?? {};
+
+  // Verifica se o colaborador tem permissão de visualizar um módulo
+  const colaboradorPodeVer = (modulo: string) =>
+    user?.role !== "colaborador" || rbacPerms[modulo]?.visualizar === true;
 
   // Estado de abertura de cada grupo — persiste no localStorage
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -310,6 +323,8 @@ export default function Sidebar() {
           {menuGroups
             .filter((group) => group.roles.includes(user.role))
             .filter((group) => !group.modulo || modulosEfetivos.includes(group.modulo))
+            // Para colaborador: filtrar grupos pelo módulo RBAC
+            .filter((group) => !group.modulo || colaboradorPodeVer(group.modulo))
             .map((group) => {
               const GroupIcon = group.icon;
               const isOpen = openGroups[group.label] ?? false;
@@ -422,12 +437,14 @@ export default function Sidebar() {
                   "text-xs px-2 py-0.5 rounded-full font-medium",
                   user.role === "admin" && "bg-red-500/10 text-red-500",
                   user.role === "sindico" && "bg-blue-500/10 text-blue-500",
-                  user.role === "cobrador" && "bg-green-500/10 text-green-500"
+                  user.role === "cobrador" && "bg-green-500/10 text-green-500",
+                  user.role === "colaborador" && "bg-violet-500/10 text-violet-500"
                 )}
               >
                 {user.role === "admin" && "Administrador"}
                 {user.role === "sindico" && "Síndico"}
-                {user.role === "cobrador" && "Colaborador"}
+                {user.role === "cobrador" && "Cobrador"}
+                {user.role === "colaborador" && (myPerms?.profileNome ?? "Colaborador")}
               </span>
             </div>
           )}

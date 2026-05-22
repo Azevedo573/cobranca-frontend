@@ -281,6 +281,13 @@
       "when": 1779457172460,
       "tag": "0040_broken_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1779475499488,
+      "tag": "0041_charming_spirit",
+      "breakpoints": true
     }
   ]
 }
