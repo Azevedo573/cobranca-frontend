@@ -1901,3 +1901,11 @@
 - [ ] Criar painel de solicitações para o condomínio (abrir, acompanhar, responder tickets)
 - [ ] Criar painel admin de atendimento jurídico (todos os tickets, responder, mudar status)
 - [ ] Notificar admin quando nova solicitação for aberta
+
+## Formulário Admin para Cadastro Manual de Tickets Jurídicos
+- [x] Criar página TicketForm.tsx em /admin com formulário completo
+- [x] Campos: condomínio (select), título, categoria, prioridade, descrição, mensagem inicial (opcional)
+- [x] Adicionar procedure createTicketAdmin no backend (adminProcedure com condominioId explícito)
+- [x] Adicionar rota /juridico/solicitacoes/novo no App.tsx (somente admin)
+- [x] Adicionar botão "Novo Ticket" na listagem de solicitações para admin
+- [x] Adicionar item "Novo Ticket" no menu lateral do grupo Jurídico para admin

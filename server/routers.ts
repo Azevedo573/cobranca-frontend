@@ -4114,6 +4114,38 @@ export const appRouter = router({
         return result;
       }),
 
+    // Criação de ticket pelo admin (escolhe o condomínio manualmente)
+    createTicketAdmin: adminProcedure
+      .input(z.object({
+        condominioId: z.number().int().positive(),
+        titulo: z.string().min(3).max(255),
+        descricao: z.string().min(10),
+        categoria: z.enum(["consultoria", "notificacao", "acao_judicial", "cobranca_judicial", "assembleia", "contrato", "outro"]),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
+        mensagemInicial: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createTicket, createMensagem } = await import("./db-juridico");
+        const ticket = await createTicket({
+          condominioId: input.condominioId,
+          titulo: input.titulo,
+          descricao: input.descricao,
+          categoria: input.categoria,
+          prioridade: input.prioridade,
+          criadoPorId: ctx.user.id,
+        });
+        // Se houver mensagem inicial, adicioná-la como primeira mensagem do escritório
+        if (input.mensagemInicial?.trim()) {
+          await createMensagem({
+            ticketId: Number(ticket.id),
+            autorId: ctx.user.id,
+            conteudo: input.mensagemInicial.trim(),
+            tipoAutor: "escritorio",
+          });
+        }
+        return { ...ticket, id: Number(ticket.id) };
+      }),
+
     updateTicket: protectedProcedure
       .input(z.object({
         id: z.number(),

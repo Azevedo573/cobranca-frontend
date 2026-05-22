@@ -128,6 +128,12 @@ export default function Solicitacoes() {
             </p>
           </div>
         </div>
+        {user?.role === "admin" && (
+          <Button className="gap-2" onClick={() => navigate("/juridico/solicitacoes/novo")}>
+            <Plus className="h-4 w-4" />
+            Novo Ticket
+          </Button>
+        )}
         {user?.role !== "admin" && (
           <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
             <DialogTrigger asChild>

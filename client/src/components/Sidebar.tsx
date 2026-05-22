@@ -35,6 +35,7 @@ import {
   ScrollText,
   Scale,
   MessageSquare,
+  Plus,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -107,6 +108,7 @@ const menuGroups: MenuGroup[] = [
     modulo: "juridico",
     items: [
       { label: "Solicitações", href: "/juridico/solicitacoes", icon: MessageSquare, roles: ["admin", "sindico"] },
+      { label: "Novo Ticket", href: "/juridico/solicitacoes/novo", icon: Plus, roles: ["admin"] },
     ],
   },
 
