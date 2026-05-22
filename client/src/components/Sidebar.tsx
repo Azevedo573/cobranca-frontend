@@ -80,7 +80,7 @@ const menuGroups: MenuGroup[] = [
     label: "Operações",
     icon: PhoneCall,
     roles: ["admin", "cobrador", "colaborador"],
-    modulo: "cobrancas",
+    modulo: "cobranca",
     items: [
       { label: "Cobrança Ativa", href: "/operacoes/cobranca-ativa", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Cobrança Passiva", href: "/operacoes/cobranca-passiva", icon: PhoneIncoming, roles: ["admin", "cobrador", "colaborador"] },
