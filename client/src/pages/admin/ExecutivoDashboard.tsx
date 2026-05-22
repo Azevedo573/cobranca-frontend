@@ -13,7 +13,112 @@ import {
   TrendingUp, TrendingDown, DollarSign, Target, Users, Zap,
   AlertTriangle, CheckCircle, Clock, BarChart2, Award, Activity,
   ArrowUpRight, ArrowDownRight, Minus, RefreshCw, Eye, Building2,
+  Scale, UserCheck, Hourglass, LayoutDashboard,
 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
+function getInitials(name: string) {
+  return name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+}
+
+function ProdutividadeAdvogados() {
+  const { data: stats = [], isLoading } = trpc.juridico.statsResponsaveis.useQuery();
+
+  const taxaCor = (t: number) =>
+    t >= 70 ? "text-emerald-400" : t >= 40 ? "text-amber-400" : "text-red-400";
+
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+          <Scale className="w-4 h-4 text-indigo-400" />
+          Produtividade dos Advogados — Jurídico
+          <Link href="/juridico/kanban">
+            <Button variant="ghost" size="sm" className="ml-auto text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/30 h-6 px-2">
+              <LayoutDashboard className="w-3 h-3 mr-1" />
+              Ver Kanban
+            </Button>
+          </Link>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
+          </div>
+        ) : stats.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <Scale className="w-8 h-8 text-muted-foreground/30 mb-2" />
+            <p className="text-sm text-muted-foreground">Nenhum ticket atribuído ainda</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Atribua responsáveis nos tickets jurídicos para ver as métricas aqui</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {stats.map((adv, i) => (
+              <div key={adv.id} className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                <div className="flex items-center gap-3 mb-2">
+                  {/* Posição */}
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    i === 0 ? "bg-amber-500 text-black" :
+                    i === 1 ? "bg-slate-400 text-black" :
+                    i === 2 ? "bg-amber-700 text-white" : "bg-slate-700 text-slate-300"
+                  }`}>{i + 1}</div>
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="text-[10px] bg-indigo-500/20 text-indigo-400 font-semibold">
+                      {getInitials(adv.nome)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{adv.nome}</p>
+                    <p className="text-xs text-muted-foreground">{adv.total} ticket{adv.total !== 1 ? "s" : ""} no total</p>
+                  </div>
+                  {/* Taxa de resolução */}
+                  <div className="text-right shrink-0">
+                    <div className={`text-lg font-bold font-mono ${taxaCor(adv.taxaResolucao)}`}>{adv.taxaResolucao}%</div>
+                    <div className="text-xs text-muted-foreground">resolvidos</div>
+                  </div>
+                </div>
+
+                {/* Barra de progresso */}
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden mb-2">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      adv.taxaResolucao >= 70 ? "bg-emerald-500" :
+                      adv.taxaResolucao >= 40 ? "bg-amber-500" : "bg-red-500"
+                    }`}
+                    style={{ width: `${adv.taxaResolucao}%` }}
+                  />
+                </div>
+
+                {/* Detalhes por status */}
+                <div className="flex gap-3 text-xs flex-wrap">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+                    <span className="text-muted-foreground">{adv.aberto} aberto{adv.aberto !== 1 ? "s" : ""}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    <span className="text-muted-foreground">{adv.emAndamento} em andamento</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-emerald-400 font-semibold">{adv.resolvido} resolvido{adv.resolvido !== 1 ? "s" : ""}</span>
+                  </span>
+                  {adv.tempoMedioDias !== null && (
+                    <span className="flex items-center gap-1 ml-auto">
+                      <Hourglass className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">~{adv.tempoMedioDias}d p/ resolver</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 import { Link } from "wouter";
 
 type Periodo = "hoje" | "semana" | "mes" | "trimestre";
@@ -497,6 +602,9 @@ export default function ExecutivoDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Produtividade dos Advogados */}
+        <ProdutividadeAdvogados />
 
         {/* Insights de IA */}
         <Card className="bg-gradient-to-r from-indigo-500/10 to-violet-500/10 border-indigo-500/20">

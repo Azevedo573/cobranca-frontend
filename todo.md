@@ -1909,3 +1909,12 @@
 - [x] Adicionar rota /juridico/solicitacoes/novo no App.tsx (somente admin)
 - [x] Adicionar botão "Novo Ticket" na listagem de solicitações para admin
 - [x] Adicionar item "Novo Ticket" no menu lateral do grupo Jurídico para admin
+
+## Kanban Jurídico e Produtividade de Advogados
+- [x] Criar página KanbanJuridico.tsx com colunas por status (Aberto, Em Andamento, Aguardando, Resolvido, Cancelado)
+- [x] Suporte a drag-and-drop para mover tickets entre colunas (atualiza status via updateTicket)
+- [x] Adicionar rota /juridico/kanban no App.tsx
+- [x] Adicionar item "Kanban" no menu lateral do grupo Jurídico para admin
+- [x] Criar procedure juridico.statsResponsaveis no backend com métricas por responsável
+- [x] Adicionar seção "Produtividade de Advogados" no Centro de Inteligência
+- [x] Exibir cards com total de tickets, abertos, resolvidos e tempo médio por responsável

@@ -108,6 +108,7 @@ const menuGroups: MenuGroup[] = [
     modulo: "juridico",
     items: [
       { label: "Solicitações", href: "/juridico/solicitacoes", icon: MessageSquare, roles: ["admin", "sindico"] },
+      { label: "Kanban", href: "/juridico/kanban", icon: LayoutDashboard, roles: ["admin"] },
       { label: "Novo Ticket", href: "/juridico/solicitacoes/novo", icon: Plus, roles: ["admin"] },
     ],
   },

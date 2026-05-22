@@ -54,6 +54,7 @@ import ModeloEditor from "./pages/ModeloEditor";
 import Solicitacoes from "./pages/juridico/Solicitacoes";
 import TicketDetalhes from "./pages/juridico/TicketDetalhes";
 import TicketForm from "./pages/admin/TicketForm";
+import KanbanJuridico from "./pages/juridico/KanbanJuridico";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -286,6 +287,9 @@ function Router() {
       </Route>
       <Route path="/juridico/solicitacoes/:id">
         {() => <ProtectedRoute component={TicketDetalhes} />}
+      </Route>
+      <Route path="/juridico/kanban">
+        {() => <ProtectedRoute component={KanbanJuridico} allowedRoles={["admin"]} />}
       </Route>
 
       <Route path="/404" component={NotFound} />

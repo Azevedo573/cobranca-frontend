@@ -4228,6 +4228,89 @@ export const appRouter = router({
         const { url } = await storagePut(key, buffer, input.mimeType);
         return { url, nome: input.fileName, tipo: input.mimeType };
       }),
+
+    // Estatísticas de produtividade por responsável (admin only)
+    statsResponsaveis: adminProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) return [];
+        const { juridicoTickets } = await import("../drizzle/schema");
+        const { users } = await import("../drizzle/schema");
+        const { eq, and, isNotNull, sql, count } = await import("drizzle-orm");
+
+        // Busca todos os tickets com responsavel
+        const rows = await db
+          .select({
+            responsavelId: juridicoTickets.responsavelId,
+            responsavelNome: users.name,
+            status: juridicoTickets.status,
+            resolvidoEm: juridicoTickets.resolvidoEm,
+            createdAt: juridicoTickets.createdAt,
+          })
+          .from(juridicoTickets)
+          .leftJoin(users, eq(juridicoTickets.responsavelId, users.id))
+          .where(isNotNull(juridicoTickets.responsavelId));
+
+        // Agrupa por responsável
+        const mapa = new Map<number, {
+          id: number;
+          nome: string;
+          total: number;
+          aberto: number;
+          emAndamento: number;
+          aguardando: number;
+          resolvido: number;
+          cancelado: number;
+          tempoMedioMs: number | null;
+          temposResolucao: number[];
+        }>();
+
+        for (const r of rows) {
+          if (!r.responsavelId) continue;
+          const id = Number(r.responsavelId);
+          if (!mapa.has(id)) {
+            mapa.set(id, {
+              id,
+              nome: r.responsavelNome ?? "Desconhecido",
+              total: 0,
+              aberto: 0,
+              emAndamento: 0,
+              aguardando: 0,
+              resolvido: 0,
+              cancelado: 0,
+              tempoMedioMs: null,
+              temposResolucao: [],
+            });
+          }
+          const entry = mapa.get(id)!;
+          entry.total++;
+          if (r.status === "aberto") entry.aberto++;
+          else if (r.status === "em_andamento") entry.emAndamento++;
+          else if (r.status === "aguardando_cliente") entry.aguardando++;
+          else if (r.status === "resolvido") entry.resolvido++;
+          else if (r.status === "cancelado") entry.cancelado++;
+
+          if (r.status === "resolvido" && r.resolvidoEm && r.createdAt) {
+            const ms = new Date(r.resolvidoEm).getTime() - new Date(r.createdAt).getTime();
+            if (ms > 0) entry.temposResolucao.push(ms);
+          }
+        }
+
+        return Array.from(mapa.values()).map((e) => ({
+          id: e.id,
+          nome: e.nome,
+          total: e.total,
+          aberto: e.aberto,
+          emAndamento: e.emAndamento,
+          aguardando: e.aguardando,
+          resolvido: e.resolvido,
+          cancelado: e.cancelado,
+          taxaResolucao: e.total > 0 ? Math.round((e.resolvido / e.total) * 100) : 0,
+          tempoMedioDias: e.temposResolucao.length > 0
+            ? Math.round(e.temposResolucao.reduce((a, b) => a + b, 0) / e.temposResolucao.length / (1000 * 60 * 60 * 24))
+            : null,
+        })).sort((a, b) => b.total - a.total);
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;
