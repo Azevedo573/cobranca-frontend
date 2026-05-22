@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -13,6 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -29,7 +35,18 @@ import {
   FileText,
   Image,
   Loader2,
+  UserCog,
+  UserCircle2,
 } from "lucide-react";
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+}
 
 const CATEGORIAS: Record<string, string> = {
   consultoria: "Consultoria",
@@ -55,6 +72,129 @@ const STATUS_OPTIONS = [
   { value: "resolvido", label: "Resolvido", icon: CheckCircle2, color: "bg-green-100 text-green-700" },
   { value: "cancelado", label: "Cancelado", icon: XCircle, color: "bg-slate-100 text-slate-500" },
 ];
+
+// ─── Componente de reatribuição de responsável ──────────────────────────────
+function ResponsavelCard({
+  ticketId,
+  responsavelId,
+  onUpdated,
+}: {
+  ticketId: number;
+  responsavelId: number | null;
+  onUpdated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const utils = trpc.useUtils();
+
+  const { data: todosUsuarios = [] } = trpc.users.list.useQuery();
+  const responsaveis = todosUsuarios.filter(
+    (u) => u.role === "admin" || u.role === "cobrador"
+  );
+
+  const responsavelAtual = responsaveis.find((u) => u.id === responsavelId);
+
+  const updateTicket = trpc.juridico.updateTicket.useMutation({
+    onSuccess: () => {
+      utils.juridico.getTicket.invalidate({ id: ticketId });
+      utils.juridico.listTickets.invalidate();
+      toast.success("Responsável atualizado!");
+      setOpen(false);
+      onUpdated();
+    },
+    onError: (err) => toast.error("Erro: " + err.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+          Responsável
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Exibição do responsável atual */}
+        {responsavelAtual ? (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+                {getInitials(responsavelAtual.name || "?")}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{responsavelAtual.name}</p>
+              <p className="text-xs text-muted-foreground capitalize">
+                {responsavelAtual.role === "admin" ? "Administrador" : "Colaborador"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <UserCircle2 className="h-8 w-8" />
+            <p className="text-sm">Sem responsável</p>
+          </div>
+        )}
+
+        {/* Botão para abrir popover de reatribuição */}
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full gap-2">
+              <UserCog className="h-4 w-4" />
+              {responsavelAtual ? "Alterar responsável" : "Atribuir responsável"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="end">
+            <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">
+              Selecionar responsável
+            </p>
+            <div className="space-y-0.5">
+              {/* Opção: remover responsável */}
+              <button
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-muted transition-colors ${
+                  !responsavelId ? "bg-muted font-medium" : ""
+                }`}
+                onClick={() =>
+                  updateTicket.mutate({ id: ticketId, responsavelId: null })
+                }
+                disabled={updateTicket.isPending}
+              >
+                <UserCircle2 className="h-5 w-5 text-muted-foreground" />
+                <span className="text-muted-foreground">Sem responsável</span>
+              </button>
+
+              {responsaveis.map((u) => (
+                <button
+                  key={u.id}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm hover:bg-muted transition-colors ${
+                    responsavelId === u.id ? "bg-muted font-medium" : ""
+                  }`}
+                  onClick={() =>
+                    updateTicket.mutate({ id: ticketId, responsavelId: u.id })
+                  }
+                  disabled={updateTicket.isPending}
+                >
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                      {getInitials(u.name || "?")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="truncate">{u.name}</p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {u.role === "admin" ? "Administrador" : "Colaborador"}
+                    </p>
+                  </div>
+                  {responsavelId === u.id && (
+                    <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function TicketDetalhes() {
   const { user } = useAuth();
@@ -428,45 +568,58 @@ export default function TicketDetalhes() {
             </CardContent>
           </Card>
 
-          {/* Admin: alterar prioridade */}
+          {/* Admin: ações */}
           {user?.role === "admin" && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  Ações Admin
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">Alterar prioridade</p>
-                  <Select
-                    value={ticket.prioridade}
-                    onValueChange={(val) => updateTicket.mutate({ id: ticket.id, prioridade: val as any })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(PRIORIDADES).map(([val, { label }]) => (
-                        <SelectItem key={val} value={val}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {!isClosed && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full text-green-600 border-green-200 hover:bg-green-50"
-                    onClick={() => updateTicket.mutate({ id: ticket.id, status: "resolvido" })}
-                    disabled={updateTicket.isPending}
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Marcar como Resolvido
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+            <>
+              {/* Card: Responsável */}
+              <ResponsavelCard
+                ticketId={ticket.id}
+                responsavelId={ticket.responsavelId ?? null}
+                onUpdated={() => {
+                  utils.juridico.getTicket.invalidate({ id: ticketId });
+                  utils.juridico.listTickets.invalidate();
+                }}
+              />
+
+              {/* Card: Ações Admin */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                    Ações Admin
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">Alterar prioridade</p>
+                    <Select
+                      value={ticket.prioridade}
+                      onValueChange={(val) => updateTicket.mutate({ id: ticket.id, prioridade: val as any })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(PRIORIDADES).map(([val, { label }]) => (
+                          <SelectItem key={val} value={val}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {!isClosed && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-green-600 border-green-200 hover:bg-green-50"
+                      onClick={() => updateTicket.mutate({ id: ticket.id, status: "resolvido" })}
+                      disabled={updateTicket.isPending}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Marcar como Resolvido
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
       </div>

@@ -83,6 +83,7 @@ export default function Solicitacoes() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todos");
+  const [filtroResponsavel, setFiltroResponsavel] = useState<string>("todos");
   const [dialogAberto, setDialogAberto] = useState(false);
 
   // Form de novo ticket
@@ -94,6 +95,15 @@ export default function Solicitacoes() {
   const utils = trpc.useUtils();
 
   const { data: tickets = [], isLoading } = trpc.juridico.listTickets.useQuery({});
+
+  // Lista de usuários para o filtro de responsável (apenas admin)
+  const { data: todosUsuarios = [] } = trpc.users.list.useQuery(
+    undefined,
+    { enabled: user?.role === "admin" }
+  );
+  const responsaveisOpcoes = todosUsuarios.filter(
+    (u) => u.role === "admin" || u.role === "cobrador"
+  );
 
   const createTicket = trpc.juridico.createTicket.useMutation({
     onSuccess: () => {
@@ -117,7 +127,12 @@ export default function Solicitacoes() {
       CATEGORIAS[t.categoria]?.toLowerCase().includes(busca.toLowerCase());
     const matchStatus = filtroStatus === "todos" || t.status === filtroStatus;
     const matchCategoria = filtroCategoria === "todos" || t.categoria === filtroCategoria;
-    return matchBusca && matchStatus && matchCategoria;
+    const matchResponsavel =
+      filtroResponsavel === "todos" ||
+      (filtroResponsavel === "sem_responsavel"
+        ? !t.responsavelId
+        : String(t.responsavelId) === filtroResponsavel);
+    return matchBusca && matchStatus && matchCategoria && matchResponsavel;
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -302,6 +317,23 @@ export default function Solicitacoes() {
             ))}
           </SelectContent>
         </Select>
+        {/* Filtro por responsável — apenas admin */}
+        {user?.role === "admin" && (
+          <Select value={filtroResponsavel} onValueChange={setFiltroResponsavel}>
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="Responsável" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os responsáveis</SelectItem>
+              <SelectItem value="sem_responsavel">Sem responsável</SelectItem>
+              {responsaveisOpcoes.map((u) => (
+                <SelectItem key={u.id} value={String(u.id)}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Lista de tickets */}
