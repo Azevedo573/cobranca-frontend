@@ -200,6 +200,7 @@ export async function logAuditRaw(
       passwordHash: null,
       isPrimaryAdmin: 0,
       isActive: 1,
+      profileId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),

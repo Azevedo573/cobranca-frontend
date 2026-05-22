@@ -1764,7 +1764,7 @@
 - [ ] Página Pipeline Kanban (/sindico/pipeline): drag-and-drop de status, cards com score
 - [ ] Timeline do devedor: eventos WhatsApp, boletos, acordos, jurídico
 - [ ] Painel de acordos e negociações com métricas e gráficos
-- [ ] Registrar rotas no App.tsx e sidebar do síndico
+- [x] Registrar rotas no App.tsx e sidebar do síndico
 
 ## Portal de Transparência Premium (Síndico)
 - [x] Procedures backend: kpis (score saúde financeira, taxa inadimplência, alertas), pipeline (Kanban por status), atualizarPipelineStatus
@@ -1924,3 +1924,16 @@
 - [x] Migração db:push aplicada para o novo enum
 - [x] Atualizar procedure updateTicket para registrar mensagem de sistema ao reatribuir responsável
 - [x] Exibir mensagens de sistema com estilo de linha divisória centralizada no chat do ticket
+
+## Módulo de Perfis e Permissões (RBAC)
+- [x] Criar tabelas profiles e profile_permissions no schema
+- [x] Adicionar campo profileId na tabela users
+- [x] Migração db:push aplicada
+- [x] Criar db-profiles.ts com helpers de banco
+- [x] Criar procedures tRPC: profiles.list, profiles.get, profiles.create, profiles.update, profiles.delete, profiles.assignToUser
+- [x] Criar página Profiles.tsx — listagem de perfis com cards e estatísticas
+- [x] Criar página ProfileEditor.tsx — editor com matriz de permissões por módulo
+- [x] Criar página UsersProfiles.tsx — gerenciamento de usuários com atribuição de perfil
+- [x] Registrar rotas no App.tsx
+- [x] Adicionar grupo "Perfis e Permissões" no menu lateral (admin only)
+- [x] Escrever testes Vitest para as procedures de perfis

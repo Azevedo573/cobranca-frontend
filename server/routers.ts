@@ -4348,5 +4348,167 @@ export const appRouter = router({
         })).sort((a, b) => b.total - a.total);
       }),
   }),
+
+  // ─── Módulo de Perfis e Permissões (RBAC) ────────────────────────────────────
+  profiles: router({
+
+    // Listar todos os perfis com contagem de usuários
+    list: adminProcedure.query(async () => {
+      const { getProfileStats } = await import("./db-profiles");
+      return getProfileStats();
+    }),
+
+    // Buscar perfil por ID com suas permissões
+    getById: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const { getProfileById, getPermissionsByProfile } = await import("./db-profiles");
+        const profile = await getProfileById(input.id);
+        if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
+        const permissions = await getPermissionsByProfile(input.id);
+        return { ...profile, permissions };
+      }),
+
+    // Criar novo perfil
+    create: adminProcedure
+      .input(z.object({
+        nome: z.string().min(2).max(100),
+        descricao: z.string().optional(),
+        cor: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createProfile } = await import("./db-profiles");
+        return createProfile(input);
+      }),
+
+    // Atualizar dados do perfil
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        nome: z.string().min(2).max(100).optional(),
+        descricao: z.string().optional(),
+        cor: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateProfile, getProfileById } = await import("./db-profiles");
+        const profile = await getProfileById(input.id);
+        if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
+        if (profile.isSystem) throw new TRPCError({ code: "FORBIDDEN", message: "Perfis do sistema não podem ser editados" });
+        const { id, ...data } = input;
+        return updateProfile(id, data);
+      }),
+
+    // Excluir perfil
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const { deleteProfile, getProfileById } = await import("./db-profiles");
+        const profile = await getProfileById(input.id);
+        if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
+        if (profile.isSystem) throw new TRPCError({ code: "FORBIDDEN", message: "Perfis do sistema não podem ser excluídos" });
+        return deleteProfile(input.id);
+      }),
+
+    // Salvar permissões de um perfil (substitui todas)
+    setPermissions: adminProcedure
+      .input(z.object({
+        profileId: z.number(),
+        permissions: z.array(z.object({
+          modulo: z.string(),
+          acao: z.string(),
+          permitido: z.number(),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        const { setPermissions, getProfileById } = await import("./db-profiles");
+        const profile = await getProfileById(input.profileId);
+        if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
+        return setPermissions(input.profileId, input.permissions);
+      }),
+
+    // Atribuir perfil a um usuário
+    assignToUser: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        profileId: z.number().nullable(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { assignProfileToUser } = await import("./db-profiles");
+        return assignProfileToUser(input.userId, input.profileId, ctx.user.id);
+      }),
+
+    // Listar módulos e ações disponíveis (para o editor de permissões)
+    getModulosAcoes: adminProcedure.query(async () => {
+      const { MODULOS, ACOES } = await import("./db-profiles");
+      return { modulos: MODULOS, acoes: ACOES };
+    }),
+
+    // Listar usuários com seus perfis atribuídos
+    listUsersWithProfiles: adminProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      const { users, profiles } = await import("../drizzle/schema");
+      const { eq, isNull } = await import("drizzle-orm");
+      const rows = await db
+        .select({
+          userId: users.id,
+          userName: users.name,
+          userEmail: users.email,
+          userRole: users.role,
+          isActive: users.isActive,
+          condominioId: users.condominioId,
+          profileId: users.profileId,
+          profileNome: profiles.nome,
+          profileCor: profiles.cor,
+        })
+        .from(users)
+        .leftJoin(profiles, eq(users.profileId, profiles.id));
+      return rows;
+    }),
+
+    // Criar perfis padrão do sistema (idempotente)
+    seedDefaultProfiles: adminProcedure.mutation(async () => {
+      const { PERFIS_PADRAO, MODULOS, ACOES } = await import("./db-profiles");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { profiles: profilesTable, profilePermissions: ppTable } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const resultados: string[] = [];
+      for (const p of PERFIS_PADRAO) {
+        // Verificar se já existe
+        const existing = await db.select({ id: profilesTable.id }).from(profilesTable).where(eq(profilesTable.nome, p.nome)).limit(1);
+        if (existing.length) {
+          resultados.push(`Já existe: ${p.nome}`);
+          continue;
+        }
+        const inserted = await db.insert(profilesTable).values({
+          nome: p.nome,
+          descricao: p.descricao,
+          cor: p.cor,
+          isSystem: p.nome === "Administrador Master" ? 1 : 0,
+        });
+        const profileId = Number((inserted as any).insertId);
+
+        // Inserir permissões
+        const perms: Array<{ profileId: number; modulo: string; acao: string; permitido: number }> = [];
+        if (p.permissoes === "all") {
+          for (const m of MODULOS) {
+            for (const a of ACOES) {
+              perms.push({ profileId, modulo: m.id, acao: a.id, permitido: 1 });
+            }
+          }
+        } else {
+          for (const perm of p.permissoes as readonly string[]) {
+            const [modulo, acao] = perm.split(":");
+            perms.push({ profileId, modulo, acao, permitido: 1 });
+          }
+        }
+        if (perms.length > 0) await db.insert(ppTable).values(perms);
+        resultados.push(`Criado: ${p.nome} (${perms.length} permissões)`);
+      }
+      return { resultados };
+    }),
+  }),
 });
 export type AppRouter = typeof appRouter;

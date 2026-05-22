@@ -16,6 +16,7 @@ export const users = mysqlTable("users", {
   condominioId: int("condominioId"),
   isPrimaryAdmin: int("isPrimaryAdmin").default(0).notNull(), // 1 = administrador principal do condomínio
   isActive: int("isActive").default(1).notNull(),
+  profileId: int("profileId"), // FK para profiles.id (nullable = sem perfil personalizado)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -527,3 +528,56 @@ export const juridicoMensagens = mysqlTable("juridico_mensagens", {
 });
 export type JuridicoMensagem = typeof juridicoMensagens.$inferSelect;
 export type InsertJuridicoMensagem = typeof juridicoMensagens.$inferInsert;
+
+// ─── Módulo de Perfis e Permissões (RBAC) ────────────────────────────────────
+
+/**
+ * Perfis de acesso (ex: Supervisor, Operador, Financeiro, Jurídico)
+ * Cada perfil agrupa um conjunto de permissões por módulo.
+ */
+export const profiles = mysqlTable("profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 100 }).notNull(),
+  descricao: text("descricao"),
+  cor: varchar("cor", { length: 20 }).default("#6366f1"), // cor do badge
+  isSystem: int("isSystem").default(0).notNull(), // 1 = perfil do sistema, não pode ser excluído
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = typeof profiles.$inferInsert;
+
+/**
+ * Permissões por módulo/recurso para cada perfil.
+ * Cada linha representa: perfil X pode fazer ação Y no módulo Z.
+ *
+ * Módulos disponíveis: dashboard, condominios, devedores, cobrancas, acordos,
+ *   tentativas, relatorios, importacoes, automacao, juridico, banco, configuracoes,
+ *   usuarios, perfis, auditoria
+ *
+ * Ações disponíveis: visualizar, criar, editar, excluir, exportar, aprovar
+ */
+export const profilePermissions = mysqlTable("profile_permissions", {
+  id: int("id").autoincrement().primaryKey(),
+  profileId: int("profileId").notNull(),
+  modulo: varchar("modulo", { length: 60 }).notNull(),
+  acao: varchar("acao", { length: 30 }).notNull(), // visualizar | criar | editar | excluir | exportar | aprovar
+  permitido: int("permitido").default(1).notNull(), // 1 = permitido, 0 = negado
+});
+export type ProfilePermission = typeof profilePermissions.$inferSelect;
+export type InsertProfilePermission = typeof profilePermissions.$inferInsert;
+
+/**
+ * Vínculo entre usuário e perfil.
+ * Um usuário pode ter exatamente um perfil ativo.
+ * O campo profileId é armazenado diretamente na tabela users (via coluna separada abaixo).
+ * Esta tabela armazena o histórico de atribuições para auditoria.
+ */
+export const userProfileHistory = mysqlTable("user_profile_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  profileId: int("profileId").notNull(),
+  atribuidoPorId: int("atribuidoPorId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type UserProfileHistory = typeof userProfileHistory.$inferSelect;

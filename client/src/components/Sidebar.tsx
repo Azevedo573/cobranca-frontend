@@ -36,6 +36,8 @@ import {
   Scale,
   MessageSquare,
   Plus,
+  UserCog,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -148,6 +150,17 @@ const menuGroups: MenuGroup[] = [
       { label: "Importar Devedores", href: "/admin/importar-devedores", icon: Upload, roles: ["admin"] },
       { label: "Importar Condomínios", href: "/admin/importar-condominios", icon: Building2, roles: ["admin"] },
       { label: "Histórico de Importações", href: "/admin/historico-importacoes", icon: ClipboardList, roles: ["admin"] },
+    ],
+  },
+
+  // ── Perfis e Permissões ──
+  {
+    label: "Perfis e Permissões",
+    icon: KeyRound,
+    roles: ["admin"],
+    items: [
+      { label: "Perfis de Acesso", href: "/admin/perfis", icon: Shield, roles: ["admin"] },
+      { label: "Atribuir Perfis", href: "/admin/usuarios-perfis", icon: UserCog, roles: ["admin"] },
     ],
   },
 
