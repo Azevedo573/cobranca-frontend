@@ -3,6 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { adminProcedure, condominioAccessProcedure } from "./middleware";
+import { requirePermission } from "./rbac";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
@@ -501,16 +502,16 @@ export const appRouter = router({
   }),
   // Devedores
   devedores: router({
-    list: condominioAccessProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
+    list: requirePermission("devedores", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getDevedoresByCondominio } = await import("./db-devedores");
       return await getDevedoresByCondominio(condominioId);
     }),
-    getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    getById: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getDevedorById } = await import("./db-devedores");
       return await getDevedorById(input.id);
     }),
-    create: condominioAccessProcedure.input(z.object({
+    create: requirePermission("devedores", "criar").input(z.object({
       condominioId: z.number(),
       name: z.string(),
       unitNumber: z.string(),
@@ -525,7 +526,7 @@ export const appRouter = router({
       await logAudit(ctx, { action: "create", entity: "devedor", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, cpfCnpj: input.cpfCnpj, unitNumber: input.unitNumber }, severity: "info" });
       return result;
     }),
-    update: protectedProcedure.input(z.object({
+    update: requirePermission("devedores", "editar").input(z.object({
       id: z.number(),
       name: z.string().optional(),
       unitNumber: z.string().optional(),
@@ -542,7 +543,7 @@ export const appRouter = router({
       await logAudit(ctx, { action: "update", entity: "devedor", entityId: String(id), afterData: data as Record<string, unknown>, severity: "info" });
       return result;
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+    delete: requirePermission("devedores", "excluir").input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { deleteDevedor } = await import("./db-devedores");
       await deleteDevedor(input.id);
       await logAudit(ctx, { action: "delete", entity: "devedor", entityId: String(input.id), severity: "warning" });
@@ -610,24 +611,24 @@ export const appRouter = router({
 
   // Cobranças
   cobrancas: router({
-    list: condominioAccessProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
+    list: requirePermission("cobrancas", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getCobrancasByCondominio } = await import("./db-cobrancas");
       return await getCobrancasByCondominio(condominioId);
     }),
-    getByDevedor: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getByDevedor: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
       const { getCobrancasByDevedor } = await import("./db-cobrancas");
       return await getCobrancasByDevedor(input.devedorId);
     }),
-    getComCalculos: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getComCalculos: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
       const { getCobrancasComCalculos } = await import("./db-cobrancas");
       return await getCobrancasComCalculos(input.devedorId);
     }),
-    getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    getById: requirePermission("cobrancas", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getCobrancaById } = await import("./db-cobrancas");
       return await getCobrancaById(input.id);
     }),
-    create: condominioAccessProcedure.input(z.object({
+    create: requirePermission("cobrancas", "criar").input(z.object({
       devedorId: z.number(),
       condominioId: z.number(),
       tipoCobranca: z.enum(["condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
@@ -642,7 +643,7 @@ export const appRouter = router({
       await logAudit(ctx, { action: "create", entity: "cobranca", condominioId: input.condominioId, afterData: { devedorId: input.devedorId, amount: input.amount, tipoCobranca: input.tipoCobranca }, severity: "info" });
       return result;
     }),
-    update: protectedProcedure.input(z.object({
+    update: requirePermission("cobrancas", "editar").input(z.object({
       id: z.number(),
       description: z.string().optional(),
       amount: z.number().optional(),
@@ -655,7 +656,7 @@ export const appRouter = router({
       await logAudit(ctx, { action: "update", entity: "cobranca", entityId: String(id), afterData: data as Record<string, unknown>, severity: "info" });
       return result;
     }),
-    delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+    delete: requirePermission("cobrancas", "excluir").input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { deleteCobranca } = await import("./db-cobrancas");
       await deleteCobranca(input.id);
       await logAudit(ctx, { action: "delete", entity: "cobranca", entityId: String(input.id), severity: "warning" });
@@ -781,7 +782,7 @@ export const appRouter = router({
 
   // Tentativas de Cobrança
   tentativas: router({
-    list: protectedProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
+    list: requirePermission("tentativas", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getTentativasByCondominio } = await import("./db-tentativas");
       return await getTentativasByCondominio(condominioId);
@@ -848,11 +849,11 @@ export const appRouter = router({
         .from(users)
         .where(ne(users.role, "admin" as any));
     }),
-    getByDevedor: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getByDevedor: requirePermission("tentativas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
       const { getTentativasByDevedor } = await import("./db-tentativas");
       return await getTentativasByDevedor(input.devedorId);
     }),
-    create: protectedProcedure.input(z.object({
+    create: requirePermission("tentativas", "criar").input(z.object({
       cobrancaId: z.number(),
       devedorId: z.number(),
       condominioId: z.number(),
@@ -864,7 +865,7 @@ export const appRouter = router({
       const { createTentativa } = await import("./db-tentativas");
       return await createTentativa({ ...input, userId: ctx.user.id });
     }),
-    getEstatisticas: protectedProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
+    getEstatisticas: requirePermission("tentativas", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getEstatisticasTentativas } = await import("./db-tentativas");
       return await getEstatisticasTentativas(condominioId);
@@ -873,16 +874,16 @@ export const appRouter = router({
 
   // Acordos
   acordos: router({
-    list: condominioAccessProcedure.input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
+    list: requirePermission("acordos", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const condominioId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
       const { getAcordosByCondominio } = await import("./db-acordos");
       return await getAcordosByCondominio(condominioId);
     }),
-    getById: protectedProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
+    getById: requirePermission("acordos", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getAcordoById } = await import("./db-acordos");
       return await getAcordoById(input.id);
     }),
-    getByCobranca: protectedProcedure.input(z.object({ cobrancaId: z.number() })).query(async ({ input }) => {
+    getByCobranca: requirePermission("acordos", "visualizar").input(z.object({ cobrancaId: z.number() })).query(async ({ input }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) return null;
@@ -913,17 +914,17 @@ export const appRouter = router({
       return result[0] || null;
     }),
     // Buscar acordos ativos com parcelas restantes para consolidação
-    getAtivosComParcelas: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getAtivosComParcelas: requirePermission("acordos", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
       const { getAcordosAtivosComParcelas } = await import("./db-acordos");
       return await getAcordosAtivosComParcelas(input.devedorId);
     }),
     // Buscar histórico de consolidações de um acordo
-    getHistorico: protectedProcedure.input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
+    getHistorico: requirePermission("acordos", "visualizar").input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
       const { getHistoricoConsolidacoes } = await import("./db-acordos");
       return await getHistoricoConsolidacoes(input.acordoId);
     }),
     // Buscar todos os acordos de um devedor
-    listByDevedor: protectedProcedure.input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    listByDevedor: requirePermission("acordos", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) return [];
@@ -931,7 +932,7 @@ export const appRouter = router({
       const { eq, desc } = await import("drizzle-orm");
       return await db.select().from(acordos).where(eq(acordos.devedorId, input.devedorId)).orderBy(desc(acordos.createdAt));
     }),
-    create: condominioAccessProcedure.input(z.object({
+    create: requirePermission("acordos", "criar").input(z.object({
       cobrancaIds: z.array(z.number()),
       devedorId: z.number(),
       condominioId: z.number(),
@@ -1025,11 +1026,11 @@ export const appRouter = router({
       await logAudit(ctx, { action: "create", entity: "acordo", entityId: String(acordoId), condominioId: input.condominioId, afterData: { devedorId: input.devedorId, totalAmount: input.totalAmount, agreedAmount: input.agreedAmount, installments: input.installments }, severity: "info" });
       return { success: true, acordoId };
     }),
-    getParcelas: protectedProcedure.input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
+    getParcelas: requirePermission("acordos", "visualizar").input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
       const { getParcelasByAcordo } = await import("./db-acordos");
       return await getParcelasByAcordo(input.acordoId);
     }),
-    updateParcela: protectedProcedure.input(z.object({
+    updateParcela: requirePermission("acordos", "editar").input(z.object({
       id: z.number(),
       paymentDate: z.date().optional(),
       status: z.enum(["pendente", "pago", "atrasado"]).optional(),
@@ -1037,7 +1038,7 @@ export const appRouter = router({
       const { updateParcela } = await import("./db-acordos");
       return await updateParcela(input.id, input);
     }),
-    darBaixaParcela: protectedProcedure.input(z.object({
+    darBaixaParcela: requirePermission("acordos", "aprovar").input(z.object({
       parcelaId: z.number(),
       dataPagamento: z.date().optional(),
     })).mutation(async ({ input, ctx }) => {
@@ -4073,7 +4074,7 @@ export const appRouter = router({
   // ─── Módulo Jurídico ────────────────────────────────────────────────────────
   juridico: router({
     // Listar tickets (admin vê todos; síndico vê apenas do seu condomínio)
-    listTickets: protectedProcedure
+    listTickets: requirePermission("juridico", "visualizar")
       .input(z.object({ condominioId: z.number().optional() }))
       .query(async ({ input, ctx }) => {
         const { getAllTickets, getTicketsByCondominio } = await import("./db-juridico");
@@ -4087,7 +4088,7 @@ export const appRouter = router({
         return tickets.map((t) => ({ ...t, id: Number(t.id) }));
       }),
 
-    getTicket: protectedProcedure
+    getTicket: requirePermission("juridico", "visualizar")
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
         const { getTicketById } = await import("./db-juridico");
@@ -4100,7 +4101,7 @@ export const appRouter = router({
         return { ...ticket, id: Number(ticket.id) };
       }),
 
-    createTicket: protectedProcedure
+    createTicket: requirePermission("juridico", "criar")
       .input(z.object({
         titulo: z.string().min(3).max(255),
         descricao: z.string().min(10),
@@ -4158,7 +4159,7 @@ export const appRouter = router({
         return { ...ticket, id: Number(ticket.id) };
       }),
 
-    updateTicket: protectedProcedure
+    updateTicket: requirePermission("juridico", "editar")
       .input(z.object({
         id: z.number(),
         status: z.enum(["aberto", "em_andamento", "aguardando_cliente", "resolvido", "cancelado"]).optional(),
@@ -4431,9 +4432,13 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const { setPermissions, getProfileById } = await import("./db-profiles");
+        const { invalidatePermCacheForProfile } = await import("./rbac");
         const profile = await getProfileById(input.profileId);
         if (!profile) throw new TRPCError({ code: "NOT_FOUND" });
-        return setPermissions(input.profileId, input.permissions);
+        const result = await setPermissions(input.profileId, input.permissions);
+        // Invalidar cache de todos os usuários com este perfil
+        await invalidatePermCacheForProfile(input.profileId);
+        return result;
       }),
 
     // Atribuir perfil a um usuário
@@ -4444,7 +4449,11 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const { assignProfileToUser } = await import("./db-profiles");
-        return assignProfileToUser(input.userId, input.profileId, ctx.user.id);
+        const { invalidatePermCache } = await import("./rbac");
+        const result = await assignProfileToUser(input.userId, input.profileId, ctx.user.id);
+        // Invalidar cache de permissões do usuário afetado
+        invalidatePermCache(input.userId);
+        return result;
       }),
 
     // Listar módulos e ações disponíveis (para o editor de permissões)
