@@ -47,12 +47,14 @@ type PermMap = { [modulo: string]: { [acao: string]: boolean } };
 export default function ProfileEditor() {
   const [, navigate] = useLocation();
   const [, params] = useRoute("/admin/perfis/:id");
-  const profileId = Number(params?.id);
+  const rawId = params?.id;
+  const profileId = rawId ? Number(rawId) : NaN;
+  const validProfileId = !isNaN(profileId) && profileId > 0;
   const utils = trpc.useUtils();
 
   const { data: profileData, isLoading } = trpc.profiles.getById.useQuery(
     { id: profileId },
-    { enabled: !!profileId }
+    { enabled: validProfileId }
   );
   const { data: modulosAcoes } = trpc.profiles.getModulosAcoes.useQuery();
 
@@ -165,6 +167,10 @@ export default function ProfileEditor() {
   const totalPossivel = (modulosAcoes?.modulos.length ?? 0) * (modulosAcoes?.acoes.length ?? 0);
 
   const handleSave = () => {
+    if (!validProfileId) {
+      toast.error("ID de perfil inválido. Retorne à listagem e tente novamente.");
+      return;
+    }
     // Salvar dados do perfil
     if (!isSystem) {
       updateMutation.mutate({ id: profileId, nome: nome.trim(), descricao: descricao || undefined, cor });
@@ -178,6 +184,21 @@ export default function ProfileEditor() {
     }
     setPermsMutation.mutate({ profileId, permissions });
   };
+
+  // Redirecionar se o ID for inválido
+  if (!validProfileId) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        <p className="font-medium">ID de perfil inválido.</p>
+        <button
+          className="mt-2 text-sm text-primary underline"
+          onClick={() => navigate("/admin/perfis")}
+        >
+          Voltar para a listagem de perfis
+        </button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
