@@ -37,11 +37,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const PAGE_SIZE_DEFAULT = 25;
 
 export default function ProcessosCobranca() {
   const { user, logout } = useAuth();
+  const { can } = usePermissions();
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
@@ -202,7 +204,7 @@ export default function ProcessosCobranca() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                {selectedIds.length > 0 && (user?.role === "admin" || user?.role === "sindico") && (
+                {selectedIds.length > 0 && can("cobrancas", "editar") && (
                   <Button
                     variant="outline"
                     onClick={() => setStatusLoteDialogOpen(true)}
@@ -212,16 +214,18 @@ export default function ProcessosCobranca() {
                     Alterar Status ({selectedIds.length})
                   </Button>
                 )}
-                <ExportExcelButton
-                  onClick={async () => {
-                    const result = await utils.client.exportacao.cobrancas.mutate({
-                      condominioId: condominioId || undefined,
-                    });
-                    return result;
-                  }}
-                  label="Exportar Excel"
-                />
-                {user?.role === "admin" && (
+                {can("cobrancas", "exportar") && (
+                  <ExportExcelButton
+                    onClick={async () => {
+                      const result = await utils.client.exportacao.cobrancas.mutate({
+                        condominioId: condominioId || undefined,
+                      });
+                      return result;
+                    }}
+                    label="Exportar Excel"
+                  />
+                )}
+                {can("cobrancas", "criar") && (
                   <Link href="/processos/novo">
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                       <Plus className="mr-2 h-4 w-4" />
@@ -272,7 +276,7 @@ export default function ProcessosCobranca() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
-                      {(user?.role === "admin" || user?.role === "sindico") && (
+                      {can("cobrancas", "editar") && (
                         <Checkbox
                           checked={selectedIds.length > 0 && paginateItems(filteredCobrancas, currentPage, pageSize).every(c => selectedIds.includes(c.id))}
                           onCheckedChange={(checked) => {
@@ -308,7 +312,7 @@ export default function ProcessosCobranca() {
                     return (
                       <TableRow key={cob.id} className={selectedIds.includes(cob.id) ? "bg-primary/5" : ""}>
                         <TableCell>
-                          {(user?.role === "admin" || user?.role === "sindico") && (
+                          {can("cobrancas", "editar") && (
                             <Checkbox
                               checked={selectedIds.includes(cob.id)}
                               onCheckedChange={(checked) => {
@@ -338,26 +342,26 @@ export default function ProcessosCobranca() {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          {(user?.role === "admin" || user?.role === "sindico") && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Editar"
-                                onClick={() => setLocation(`/processos/${cob.id}/editar`)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Excluir"
-                                onClick={() => handleDeleteClick(cob.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
+                          {can("cobrancas", "editar") && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Editar"
+                              onClick={() => setLocation(`/processos/${cob.id}/editar`)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {can("cobrancas", "excluir") && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Excluir"
+                              onClick={() => handleDeleteClick(cob.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </TableCell>

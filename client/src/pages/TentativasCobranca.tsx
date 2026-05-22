@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { Phone, Search, X, Calendar, TrendingUp, MessageSquare, CheckCircle } from "lucide-react";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { Pagination, paginateItems } from "@/components/Pagination";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useMemo } from "react";
 import { format, startOfDay, startOfWeek, startOfMonth, subDays } from "date-fns";
 
@@ -22,6 +23,7 @@ type CanalFiltro = "todos" | "telefone" | "whatsapp" | "email" | "pessoal";
 
 export default function TentativasCobranca() {
   const { user } = useAuth();
+  const { can } = usePermissions();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
@@ -154,14 +156,16 @@ export default function TentativasCobranca() {
               Registro de todas as tentativas de cobrança realizadas
             </p>
           </div>
-          <ExportExcelButton
-            onClick={async () => {
-              return await utils.client.exportacao.tentativas.mutate({
-                condominioId: condominioId || undefined,
-              });
-            }}
-            label="Exportar Excel"
-          />
+          {can("tentativas", "exportar") && (
+            <ExportExcelButton
+              onClick={async () => {
+                return await utils.client.exportacao.tentativas.mutate({
+                  condominioId: condominioId || undefined,
+                });
+              }}
+              label="Exportar Excel"
+            />
+          )}
         </div>
 
         {/* Cards de estatísticas */}

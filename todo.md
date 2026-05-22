@@ -1949,3 +1949,11 @@
 - [ ] Atualizar filtros de role nos selects de cadastro de usuário (admin)
 - [ ] Atualizar Sidebar.tsx para exibir menus corretos para colaborador
 - [ ] Atualizar UsersProfiles.tsx para incluir role "colaborador" nos filtros
+
+## Controle de Acesso Frontend (RBAC)
+- [ ] Criar hook usePermissions com helper can(modulo, acao)
+- [ ] Aplicar usePermissions no Sidebar para ocultar grupos/itens sem permissão
+- [ ] Ocultar botões de criar/editar/excluir/exportar nas páginas de Devedores
+- [ ] Ocultar botões de criar/editar/excluir nas páginas de Cobranças e Acordos
+- [ ] Ocultar botões de ação nas páginas do módulo Jurídico
+- [ ] Ocultar botões de ação nas páginas de Tentativas

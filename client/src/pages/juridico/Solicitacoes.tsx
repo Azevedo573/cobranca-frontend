@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,7 +161,7 @@ export default function Solicitacoes() {
             </p>
           </div>
         </div>
-        {user?.role === "admin" && (
+        {(user?.role === "admin" || user?.role === "colaborador") && (
           <Button className="gap-2" onClick={() => navigate("/juridico/solicitacoes/novo")}>
             <Plus className="h-4 w-4" />
             Novo Ticket

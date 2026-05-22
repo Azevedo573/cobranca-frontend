@@ -16,9 +16,11 @@ import {
 } from "lucide-react";
 import { ExportExcelButton } from "@/components/ExportExcelButton";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function Acordos() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [selectedCondominio, setSelectedCondominio] = useState<number | undefined>(undefined);
@@ -124,16 +126,18 @@ export default function Acordos() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <ExportExcelButton
-              onClick={async () => {
-                const utils = trpc.useUtils();
-                return await utils.client.exportacao.acordos.mutate({
-                  condominioId: condominioId ?? undefined,
-                });
-              }}
-              label="Exportar Excel"
-              size="sm"
-            />
+            {can("acordos", "exportar") && (
+              <ExportExcelButton
+                onClick={async () => {
+                  const utils = trpc.useUtils();
+                  return await utils.client.exportacao.acordos.mutate({
+                    condominioId: condominioId ?? undefined,
+                  });
+                }}
+                label="Exportar Excel"
+                size="sm"
+              />
+            )}
           </div>
         </div>
 

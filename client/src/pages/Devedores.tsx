@@ -37,11 +37,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { BadgePrioridade } from "@/components/BadgePrioridade";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const PAGE_SIZE_DEFAULT = 25;
 
 export default function Devedores() {
   const { user, logout } = useAuth();
+  const { can } = usePermissions();
   const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(null);
@@ -171,16 +173,18 @@ export default function Devedores() {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <ExportExcelButton
-                  onClick={async () => {
-                    const result = await utils.client.exportacao.devedores.mutate({
-                      condominioId: condominioId || undefined,
-                    });
-                    return result;
-                  }}
-                  label="Exportar Excel"
-                />
-                {user?.role === "admin" && (
+                {can("devedores", "exportar") && (
+                  <ExportExcelButton
+                    onClick={async () => {
+                      const result = await utils.client.exportacao.devedores.mutate({
+                        condominioId: condominioId || undefined,
+                      });
+                      return result;
+                    }}
+                    label="Exportar Excel"
+                  />
+                )}
+                {can("devedores", "criar") && (
                   <Link href="/devedores/novo">
                     <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                       <Plus className="mr-2 h-4 w-4" />
@@ -266,18 +270,16 @@ export default function Devedores() {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          {user?.role === "admin" && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Excluir"
-                                onClick={() => handleDeleteClick(dev.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
+                          {can("devedores", "excluir") && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Excluir"
+                              onClick={() => handleDeleteClick(dev.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </TableCell>

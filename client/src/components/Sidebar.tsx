@@ -44,6 +44,7 @@ import { useSidebarContext } from "./Layout";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePermissions, type Modulo } from "@/hooks/usePermissions";
 
 interface MenuItem {
   label: string;
@@ -203,15 +204,11 @@ export default function Sidebar() {
     : (modulosAtivos ?? ["cobranca"]);
 
   // Permissões RBAC do colaborador logado
-  const { data: myPerms } = trpc.profiles.getMyPermissions.useQuery(
-    undefined,
-    { enabled: user?.role === "colaborador", staleTime: 5 * 60 * 1000 }
-  );
-  const rbacPerms = myPerms?.permissoes ?? {};
+  const { can, profileLabel } = usePermissions();
 
   // Verifica se o colaborador tem permissão de visualizar um módulo
   const colaboradorPodeVer = (modulo: string) =>
-    user?.role !== "colaborador" || rbacPerms[modulo]?.visualizar === true;
+    can(modulo as Modulo, "visualizar");
 
   // Estado de abertura de cada grupo — persiste no localStorage
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -444,7 +441,7 @@ export default function Sidebar() {
                 {user.role === "admin" && "Administrador"}
                 {user.role === "sindico" && "Síndico"}
                 {user.role === "cobrador" && "Cobrador"}
-                {user.role === "colaborador" && (myPerms?.profileNome ?? "Colaborador")}
+                {user.role === "colaborador" && (profileLabel())}
               </span>
             </div>
           )}

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -305,7 +306,7 @@ export default function KanbanJuridico() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Filtro por responsável */}
-          {user?.role === "admin" && (
+          {(user?.role === "admin" || user?.role === "colaborador") && (
             <div className="flex items-center gap-1.5">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <Select value={filtroResponsavel} onValueChange={setFiltroResponsavel}>
@@ -322,7 +323,7 @@ export default function KanbanJuridico() {
               </Select>
             </div>
           )}
-          {user?.role === "admin" && (
+          {(user?.role === "admin" || user?.role === "colaborador") && (
             <Link href="/juridico/solicitacoes/novo">
               <Button size="sm" className="gap-1.5 h-8 text-xs">
                 <Plus className="h-3.5 w-3.5" />
