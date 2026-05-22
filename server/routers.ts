@@ -4122,6 +4122,7 @@ export const appRouter = router({
         descricao: z.string().min(10),
         categoria: z.enum(["consultoria", "notificacao", "acao_judicial", "cobranca_judicial", "assembleia", "contrato", "outro"]),
         prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
+        responsavelId: z.number().nullable().optional(),
         mensagemInicial: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -4133,6 +4134,7 @@ export const appRouter = router({
           categoria: input.categoria,
           prioridade: input.prioridade,
           criadoPorId: ctx.user.id,
+          responsavelId: input.responsavelId ?? null,
         });
         // Se houver mensagem inicial, adicioná-la como primeira mensagem do escritório
         if (input.mensagemInicial?.trim()) {

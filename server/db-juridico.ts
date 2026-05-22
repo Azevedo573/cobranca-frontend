@@ -11,6 +11,7 @@ export async function createTicket(data: {
   categoria: string;
   prioridade: string;
   criadoPorId: number;
+  responsavelId?: number | null;
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -21,6 +22,7 @@ export async function createTicket(data: {
     categoria: data.categoria as any,
     prioridade: data.prioridade as any,
     criadoPorId: data.criadoPorId,
+    responsavelId: data.responsavelId ?? null,
     status: "aberto",
   });
   return { id: Number(result[0].insertId) };

@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -22,6 +23,7 @@ import {
   AlertTriangle,
   MessageSquarePlus,
   Send,
+  UserCheck,
 } from "lucide-react";
 
 const CATEGORIAS = [
@@ -41,6 +43,15 @@ const PRIORIDADES = [
   { value: "urgente", label: "Urgente", color: "text-red-600" },
 ];
 
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+}
+
 export default function TicketForm() {
   const [, navigate] = useLocation();
 
@@ -50,6 +61,7 @@ export default function TicketForm() {
   const [categoria, setCategoria] = useState<string>("outro");
   const [prioridade, setPrioridade] = useState<string>("media");
   const [descricao, setDescricao] = useState("");
+  const [responsavelId, setResponsavelId] = useState<string>("nenhum");
   const [mensagemInicial, setMensagemInicial] = useState("");
 
   const utils = trpc.useUtils();
@@ -58,7 +70,16 @@ export default function TicketForm() {
   const { data: condominios = [], isLoading: loadingCondominios } =
     trpc.condominios.list.useQuery();
 
-  // Procedure de criação — reutiliza createTicketAdmin que aceita condominioId explícito
+  // Buscar lista de usuários (admin + cobradores) para selecionar responsável
+  const { data: todosUsuarios = [], isLoading: loadingUsuarios } =
+    trpc.users.list.useQuery();
+
+  // Filtrar apenas admin e cobradores (excluir síndicos)
+  const responsaveis = todosUsuarios.filter(
+    (u) => u.role === "admin" || u.role === "cobrador"
+  );
+
+  // Procedure de criação
   const createTicket = trpc.juridico.createTicketAdmin.useMutation({
     onSuccess: (ticket) => {
       utils.juridico.listTickets.invalidate();
@@ -90,12 +111,20 @@ export default function TicketForm() {
       descricao: descricao.trim(),
       categoria: categoria as any,
       prioridade: prioridade as any,
+      responsavelId:
+        responsavelId && responsavelId !== "nenhum"
+          ? parseInt(responsavelId)
+          : null,
       mensagemInicial: mensagemInicial.trim() || undefined,
     });
   };
 
   const condominioSelecionado = condominios.find(
     (c) => String(c.id) === condominioId
+  );
+
+  const responsavelSelecionado = responsaveis.find(
+    (u) => String(u.id) === responsavelId
   );
 
   return (
@@ -244,6 +273,80 @@ export default function TicketForm() {
                 required
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Card: Responsável */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+              Responsável{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                (opcional)
+              </span>
+            </CardTitle>
+            <CardDescription>
+              Atribua este ticket a um advogado ou colaborador do escritório
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select
+              value={responsavelId}
+              onValueChange={setResponsavelId}
+              disabled={loadingUsuarios}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue
+                  placeholder={
+                    loadingUsuarios
+                      ? "Carregando colaboradores..."
+                      : "Selecione o responsável"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nenhum">
+                  <span className="text-muted-foreground">
+                    Sem responsável definido
+                  </span>
+                </SelectItem>
+                {responsaveis.map((u) => (
+                  <SelectItem key={u.id} value={String(u.id)}>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-5 w-5">
+                        <AvatarFallback className="text-[10px]">
+                          {getInitials(u.name || "?")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{u.name}</span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        ({u.role === "admin" ? "Administrador" : "Colaborador"})
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {responsavelSelecionado && responsavelId !== "nenhum" && (
+              <div className="flex items-center gap-2 mt-3 p-2 bg-muted rounded-md">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="text-xs">
+                    {getInitials(responsavelSelecionado.name || "?")}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-sm font-medium">
+                    {responsavelSelecionado.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {responsavelSelecionado.role === "admin"
+                      ? "Administrador"
+                      : "Colaborador"}
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
