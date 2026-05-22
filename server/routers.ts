@@ -257,6 +257,20 @@ export const appRouter = router({
       const { getCondominioById } = await import("./db-condominios");
       return await getCondominioById(input.id);
     }),
+    // Retorna os módulos ativos do condomínio do usuário logado (ou de um id específico para admin)
+    getModulosAtivos: protectedProcedure.input(z.object({ condominioId: z.number().optional() })).query(async ({ input, ctx }) => {
+      const { getCondominioById } = await import("./db-condominios");
+      const id = input.condominioId ?? ctx.user.condominioId;
+      if (!id) return ["cobranca"]; // admin sem condomínio vê tudo
+      const condominio = await getCondominioById(id);
+      if (!condominio) return ["cobranca"];
+      try {
+        const mods = JSON.parse((condominio as any).modulosAtivos || '["cobranca"]');
+        return Array.isArray(mods) ? mods as string[] : ["cobranca"];
+      } catch {
+        return ["cobranca"];
+      }
+    }),
     create: adminProcedure.input(z.object({
       name: z.string(),
       cnpj: z.string().optional(),
@@ -276,6 +290,7 @@ export const appRouter = router({
       descontoMaximo: z.string().optional(),
       billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).default("administradora"),
       customBillingIssuer: z.string().max(255).optional(),
+      modulosAtivos: z.string().optional(), // JSON array: '["cobranca","juridico"]'
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
@@ -306,6 +321,7 @@ export const appRouter = router({
       password: z.string().optional(),
       billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).optional(),
       customBillingIssuer: z.string().max(255).optional().nullable(),
+      modulosAtivos: z.string().optional(), // JSON array: '["cobranca","juridico"]'
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
@@ -4042,6 +4058,142 @@ export const appRouter = router({
       const { VARIAVEIS_DISPONIVEIS } = await import("./modelo-pdf");
       return VARIAVEIS_DISPONIVEIS;
     }),
+  }),
+
+  // ─── Módulo Jurídico ────────────────────────────────────────────────────────
+  juridico: router({
+    // Listar tickets (admin vê todos; síndico vê apenas do seu condomínio)
+    listTickets: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const { getAllTickets, getTicketsByCondominio } = await import("./db-juridico");
+        if (ctx.user.role === "admin") {
+          const tickets = await getAllTickets();
+          return tickets.map((t) => ({ ...t, id: Number(t.id) }));
+        }
+        const condId = ctx.user.condominioId;
+        if (!condId) return [];
+        const tickets = await getTicketsByCondominio(condId);
+        return tickets.map((t) => ({ ...t, id: Number(t.id) }));
+      }),
+
+    getTicket: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const { getTicketById } = await import("./db-juridico");
+        const ticket = await getTicketById(input.id);
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+        // Sindico só pode ver tickets do seu condomínio
+        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return { ...ticket, id: Number(ticket.id) };
+      }),
+
+    createTicket: protectedProcedure
+      .input(z.object({
+        titulo: z.string().min(3).max(255),
+        descricao: z.string().min(10),
+        categoria: z.enum(["consultoria", "notificacao", "acao_judicial", "cobranca_judicial", "assembleia", "contrato", "outro"]),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const condominioId = ctx.user.condominioId;
+        if (!condominioId && ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Usuário não vinculado a um condomínio" });
+        }
+        const { createTicket } = await import("./db-juridico");
+        const result = await createTicket({
+          condominioId: condominioId ?? 0,
+          titulo: input.titulo,
+          descricao: input.descricao,
+          categoria: input.categoria,
+          prioridade: input.prioridade,
+          criadoPorId: ctx.user.id,
+        });
+        return result;
+      }),
+
+    updateTicket: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["aberto", "em_andamento", "aguardando_cliente", "resolvido", "cancelado"]).optional(),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+        responsavelId: z.number().nullable().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { getTicketById, updateTicket } = await import("./db-juridico");
+        const ticket = await getTicketById(input.id);
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const { id, ...data } = input;
+        const updateData: any = { ...data };
+        if (data.status === "resolvido") updateData.resolvidoEm = new Date();
+        return await updateTicket(id, updateData);
+      }),
+
+    // Mensagens do ticket
+    getMensagens: protectedProcedure
+      .input(z.object({ ticketId: z.number() }))
+      .query(async ({ input, ctx }) => {
+        const { getTicketById, getMensagensByTicket } = await import("./db-juridico");
+        const ticket = await getTicketById(input.ticketId);
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        return getMensagensByTicket(input.ticketId);
+      }),
+
+    sendMensagem: protectedProcedure
+      .input(z.object({
+        ticketId: z.number(),
+        conteudo: z.string().min(1),
+        anexos: z.array(z.object({
+          nome: z.string(),
+          url: z.string(),
+          tipo: z.string(),
+        })).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { getTicketById, createMensagem } = await import("./db-juridico");
+        const ticket = await getTicketById(input.ticketId);
+        if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
+        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+          throw new TRPCError({ code: "FORBIDDEN" });
+        }
+        const tipoAutor: "cliente" | "escritorio" = ctx.user.role === "admin" ? "escritorio" : "cliente";
+        // Se admin responde, muda status para em_andamento automaticamente
+        if (ctx.user.role === "admin" && ticket.status === "aberto") {
+          const { updateTicket } = await import("./db-juridico");
+          await updateTicket(input.ticketId, { status: "em_andamento" });
+        }
+        return createMensagem({
+          ticketId: input.ticketId,
+          autorId: ctx.user.id,
+          conteudo: input.conteudo,
+          tipoAutor,
+          anexos: input.anexos,
+        });
+      }),
+
+    // Upload de anexo para S3
+    uploadAnexo: protectedProcedure
+      .input(z.object({
+        fileBase64: z.string(),
+        fileName: z.string(),
+        mimeType: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { storagePut } = await import("./storage");
+        const buffer = Buffer.from(input.fileBase64, "base64");
+        const ext = input.fileName.split(".").pop() ?? "bin";
+        const key = `juridico/anexos/${ctx.user.id}-${Date.now()}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        return { url, nome: input.fileName, tipo: input.mimeType };
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;

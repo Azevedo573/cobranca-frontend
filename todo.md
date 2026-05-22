@@ -1890,3 +1890,14 @@
 - [ ] Bloco de assinaturas editável no editor
 - [ ] Integrar seleção de modelo nos simuladores de acordo (gerar PDF preenchido)
 - [ ] Adicionar item "Modelos de Documentos" no menu lateral
+
+## Sistema de Módulos por Condomínio
+
+- [ ] Adicionar campo `modulosAtivos` (JSON) na tabela condominios
+- [ ] Criar UI de configuração de módulos na página de edição do condomínio (admin only)
+- [ ] Adaptar menu lateral para exibir apenas módulos ativos do condomínio do usuário logado
+- [ ] Criar tabela `ticketsJuridico` e `mensagensTicket` no schema
+- [ ] Criar procedures CRUD de tickets e mensagens
+- [ ] Criar painel de solicitações para o condomínio (abrir, acompanhar, responder tickets)
+- [ ] Criar painel admin de atendimento jurídico (todos os tickets, responder, mudar status)
+- [ ] Notificar admin quando nova solicitação for aberta

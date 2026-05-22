@@ -51,6 +51,8 @@ import ExecutivoDashboard from "./pages/admin/ExecutivoDashboard";
 import Auditoria from "./pages/admin/Auditoria";
 import ModelosDocumento from "./pages/ModelosDocumento";
 import ModeloEditor from "./pages/ModeloEditor";
+import Solicitacoes from "./pages/juridico/Solicitacoes";
+import TicketDetalhes from "./pages/juridico/TicketDetalhes";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -272,6 +274,14 @@ function Router() {
       </Route>
       <Route path="/modelos-documento/:id/editar">
         {() => <ProtectedRoute component={ModeloEditor} />}
+      </Route>
+
+      {/* Rotas do Módulo Jurídico */}
+      <Route path="/juridico/solicitacoes">
+        {() => <ProtectedRoute component={Solicitacoes} />}
+      </Route>
+      <Route path="/juridico/solicitacoes/:id">
+        {() => <ProtectedRoute component={TicketDetalhes} />}
       </Route>
 
       <Route path="/404" component={NotFound} />

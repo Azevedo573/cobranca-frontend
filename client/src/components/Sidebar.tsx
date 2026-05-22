@@ -33,11 +33,14 @@ import {
   Shield,
   TrendingUp,
   ScrollText,
+  Scale,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useState, useEffect } from "react";
+import { trpc } from "@/lib/trpc";
 
 interface MenuItem {
   label: string;
@@ -51,6 +54,7 @@ interface MenuGroup {
   icon: React.ComponentType<{ className?: string }>;
   roles: string[];
   items: MenuItem[];
+  modulo?: string; // se definido, só aparece quando esse módulo está ativo no condomínio
 }
 
 const menuGroups: MenuGroup[] = [
@@ -84,6 +88,7 @@ const menuGroups: MenuGroup[] = [
     label: "Cobrança",
     icon: Briefcase,
     roles: ["admin", "sindico", "cobrador"],
+    modulo: "cobranca",
     items: [
       { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador"] },
       { label: "Dívidas", href: "/processos", icon: FileText, roles: ["admin", "sindico", "cobrador"] },
@@ -94,11 +99,23 @@ const menuGroups: MenuGroup[] = [
     ],
   },
 
+  // ── Jurídico ──
+  {
+    label: "Jurídico",
+    icon: Scale,
+    roles: ["admin", "sindico"],
+    modulo: "juridico",
+    items: [
+      { label: "Solicitações", href: "/juridico/solicitacoes", icon: MessageSquare, roles: ["admin", "sindico"] },
+    ],
+  },
+
   // ── Automação ──
   {
     label: "Automação",
     icon: Bot,
     roles: ["admin"],
+    modulo: "cobranca",
     items: [
       { label: "Régua de Cobrança", href: "/admin/regua-cobranca", icon: Zap, roles: ["admin"] },
       { label: "Histórico de Disparos", href: "/admin/historico-disparos", icon: HistoryIcon, roles: ["admin"] },
@@ -110,6 +127,7 @@ const menuGroups: MenuGroup[] = [
     label: "Banco",
     icon: Landmark,
     roles: ["admin"],
+    modulo: "cobranca",
     items: [
       { label: "Configuração de Boleto", href: "/admin/configuracao-boleto", icon: Settings, roles: ["admin"] },
       { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin"] },
@@ -122,6 +140,7 @@ const menuGroups: MenuGroup[] = [
     label: "Importações",
     icon: Download,
     roles: ["admin"],
+    modulo: "cobranca",
     items: [
       { label: "Importar Devedores", href: "/admin/importar-devedores", icon: Upload, roles: ["admin"] },
       { label: "Importar Condomínios", href: "/admin/importar-condominios", icon: Building2, roles: ["admin"] },
@@ -154,6 +173,16 @@ export default function Sidebar() {
   const [location] = useLocation();
   const { collapsed, setCollapsed } = useSidebarContext();
   const { theme, toggleTheme } = useTheme();
+
+  // Buscar módulos ativos do condomínio do usuário
+  const { data: modulosAtivos } = trpc.condominios.getModulosAtivos.useQuery(
+    { condominioId: user?.condominioId ?? undefined },
+    { enabled: !!user, staleTime: 5 * 60 * 1000 }
+  );
+  // Admin sem condomínio vê todos os módulos
+  const modulosEfetivos = user?.role === "admin" && !user?.condominioId
+    ? ["cobranca", "juridico"]
+    : (modulosAtivos ?? ["cobranca"]);
 
   // Estado de abertura de cada grupo — persiste no localStorage
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -264,6 +293,7 @@ export default function Sidebar() {
           {/* Grupos colapsáveis */}
           {menuGroups
             .filter((group) => group.roles.includes(user.role))
+            .filter((group) => !group.modulo || modulosEfetivos.includes(group.modulo))
             .map((group) => {
               const GroupIcon = group.icon;
               const isOpen = openGroups[group.label] ?? false;

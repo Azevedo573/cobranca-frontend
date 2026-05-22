@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink } from "lucide-react";
+import { ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink, Scale, FileText, ToggleLeft, ToggleRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -90,6 +90,30 @@ export default function CondominioForm() {
     customBillingIssuer: "",
   });
 
+  // Módulos ativos do condomínio
+  const [modulosAtivos, setModulosAtivos] = useState<string[]>(["cobranca"]);
+
+  const MODULOS_DISPONIVEIS = [
+    {
+      id: "cobranca",
+      nome: "Cobrança",
+      descricao: "Gestão de dívidas, boletos, acordos e régua de cobrança",
+      icone: Receipt,
+      cor: "text-blue-600",
+      bg: "bg-blue-50 dark:bg-blue-950/30",
+      borda: "border-blue-200 dark:border-blue-800",
+    },
+    {
+      id: "juridico",
+      nome: "Jurídico",
+      descricao: "Canal de atendimento jurídico, solicitações e comunicação com o escritório",
+      icone: Scale,
+      cor: "text-purple-600",
+      bg: "bg-purple-50 dark:bg-purple-950/30",
+      borda: "border-purple-200 dark:border-purple-800",
+    },
+  ];
+
   const { data: condominio } = trpc.condominios.getById.useQuery(
     { id: condominioId! },
     { enabled: !!condominioId }
@@ -120,6 +144,13 @@ export default function CondominioForm() {
         billingIssuer: (condominio.billingIssuer as "emissao_propria" | "administradora" | "outro") || "administradora",
         customBillingIssuer: condominio.customBillingIssuer || "",
       });
+      // Carregar módulos ativos
+      try {
+        const mods = JSON.parse((condominio as any).modulosAtivos || '["cobranca"]');
+        setModulosAtivos(Array.isArray(mods) ? mods : ["cobranca"]);
+      } catch {
+        setModulosAtivos(["cobranca"]);
+      }
     }
   }, [condominio]);
 
@@ -161,6 +192,7 @@ export default function CondominioForm() {
     const payload = {
       ...formData,
       customBillingIssuer: formData.billingIssuer === "outro" ? formData.customBillingIssuer : undefined,
+      modulosAtivos: JSON.stringify(modulosAtivos),
     };
 
     if (isEdit && condominioId) {
@@ -592,6 +624,73 @@ export default function CondominioForm() {
                   </div>
                 </div>
               </div>
+
+              {/* Módulos do Condomínio */}
+              {user?.role === "admin" && (
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center gap-2 pb-1 border-b">
+                    <Scale className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm">Módulos Contratados</h3>
+                    <span className="text-xs text-muted-foreground ml-1">Ative ou desative os módulos disponíveis para este condomínio</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {MODULOS_DISPONIVEIS.map((modulo) => {
+                      const ativo = modulosAtivos.includes(modulo.id);
+                      const Icon = modulo.icone;
+                      const toggle = () => {
+                        setModulosAtivos(prev =>
+                          ativo ? prev.filter(m => m !== modulo.id) : [...prev, modulo.id]
+                        );
+                      };
+                      return (
+                        <button
+                          key={modulo.id}
+                          type="button"
+                          onClick={toggle}
+                          className={`relative flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all cursor-pointer ${
+                            ativo
+                              ? `${modulo.borda} ${modulo.bg} shadow-sm`
+                              : "border-border bg-muted/30 opacity-60 hover:opacity-80"
+                          }`}
+                        >
+                          <div className={`mt-0.5 rounded-lg p-1.5 ${
+                            ativo ? modulo.bg : "bg-muted"
+                          }`}>
+                            <Icon className={`h-5 w-5 ${ativo ? modulo.cor : "text-muted-foreground"}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm">{modulo.nome}</span>
+                              {ativo ? (
+                                <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">
+                                  Ativo
+                                </span>
+                              ) : (
+                                <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                                  Inativo
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{modulo.descricao}</p>
+                          </div>
+                          <div className="shrink-0 mt-0.5">
+                            {ativo
+                              ? <ToggleRight className={`h-5 w-5 ${modulo.cor}`} />
+                              : <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+                            }
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {modulosAtivos.length === 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Info className="h-3.5 w-3.5" />
+                      Nenhum módulo ativo. O condomínio não terá acesso ao sistema.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Botões */}
               <div className="flex gap-4 pt-4">

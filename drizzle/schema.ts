@@ -48,6 +48,9 @@ export const condominios = mysqlTable("condominios", {
   // Emissor de Cobrança: define quem emite os boletos deste condomínio
   billingIssuer: mysqlEnum("billingIssuer", ["emissao_propria", "administradora", "outro"]).default("administradora").notNull(),
   customBillingIssuer: varchar("customBillingIssuer", { length: 255 }), // preenchido quando billingIssuer = 'outro'
+  // Módulos ativos: JSON array com os módulos habilitados para este condomínio
+  // Exemplo: '["cobranca","juridico"]'
+  modulosAtivos: varchar("modulosAtivos", { length: 500 }).default('["cobranca"]').notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -478,3 +481,49 @@ export const modelosDocumento = mysqlTable("modelosDocumento", {
 
 export type ModeloDocumento = typeof modelosDocumento.$inferSelect;
 export type InsertModeloDocumento = typeof modelosDocumento.$inferInsert;
+
+// ─── Módulo Jurídico ─────────────────────────────────────────────────────────
+
+export const juridicoTickets = mysqlTable("juridico_tickets", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId").notNull(),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descricao: text("descricao").notNull(),
+  categoria: mysqlEnum("categoria", [
+    "consultoria",
+    "notificacao",
+    "acao_judicial",
+    "cobranca_judicial",
+    "assembleia",
+    "contrato",
+    "outro",
+  ]).notNull().default("outro"),
+  prioridade: mysqlEnum("prioridade", ["baixa", "media", "alta", "urgente"]).notNull().default("media"),
+  status: mysqlEnum("status", [
+    "aberto",
+    "em_andamento",
+    "aguardando_cliente",
+    "resolvido",
+    "cancelado",
+  ]).notNull().default("aberto"),
+  responsavelId: int("responsavelId"), // admin/cobrador responsável
+  criadoPorId: int("criadoPorId").notNull(), // usuário que abriu
+  resolvidoEm: timestamp("resolvidoEm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type JuridicoTicket = typeof juridicoTickets.$inferSelect;
+export type InsertJuridicoTicket = typeof juridicoTickets.$inferInsert;
+
+export const juridicoMensagens = mysqlTable("juridico_mensagens", {
+  id: int("id").autoincrement().primaryKey(),
+  ticketId: int("ticketId").notNull(),
+  autorId: int("autorId").notNull(),
+  conteudo: text("conteudo").notNull(),
+  tipoAutor: mysqlEnum("tipoAutor", ["cliente", "escritorio"]).notNull(),
+  // Anexos armazenados como JSON array de { nome, url, tipo }
+  anexos: text("anexos"), // JSON
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type JuridicoMensagem = typeof juridicoMensagens.$inferSelect;
+export type InsertJuridicoMensagem = typeof juridicoMensagens.$inferInsert;
