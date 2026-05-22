@@ -25,6 +25,10 @@ import {
   Paperclip,
   User,
   Building2,
+  X,
+  FileText,
+  Image,
+  Loader2,
 } from "lucide-react";
 
 const CATEGORIAS: Record<string, string> = {
@@ -59,6 +63,9 @@ export default function TicketDetalhes() {
   const ticketId = match ? parseInt(params!.id) : 0;
 
   const [mensagem, setMensagem] = useState("");
+  const [anexosSelecionados, setAnexosSelecionados] = useState<File[]>([]);
+  const [uploadingAnexos, setUploadingAnexos] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const utils = trpc.useUtils();
 
@@ -72,11 +79,14 @@ export default function TicketDetalhes() {
     { enabled: ticketId > 0, refetchInterval: 10000 }
   );
 
+  const uploadAnexo = trpc.juridico.uploadAnexo.useMutation();
+
   const sendMensagem = trpc.juridico.sendMensagem.useMutation({
     onSuccess: () => {
       utils.juridico.getMensagens.invalidate({ ticketId });
       utils.juridico.getTicket.invalidate({ id: ticketId });
       setMensagem("");
+      setAnexosSelecionados([]);
     },
     onError: (err) => toast.error("Erro ao enviar mensagem: " + err.message),
   });
@@ -94,9 +104,59 @@ export default function TicketDetalhes() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens]);
 
-  const handleSend = () => {
-    if (!mensagem.trim()) return;
-    sendMensagem.mutate({ ticketId, conteudo: mensagem.trim() });
+  const handleSend = async () => {
+    if (!mensagem.trim() && anexosSelecionados.length === 0) return;
+    setUploadingAnexos(true);
+    try {
+      // Fazer upload de cada anexo para o S3 primeiro
+      const anexosUploadados: { nome: string; url: string; tipo: string }[] = [];
+      for (const file of anexosSelecionados) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const result = await uploadAnexo.mutateAsync({
+          fileBase64: base64,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+        });
+        anexosUploadados.push(result);
+      }
+      sendMensagem.mutate({
+        ticketId,
+        conteudo: mensagem.trim() || " ",
+        anexos: anexosUploadados.length > 0 ? anexosUploadados : undefined,
+      });
+    } catch (err: any) {
+      toast.error("Erro ao enviar anexo: " + err.message);
+    } finally {
+      setUploadingAnexos(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    const MAX_SIZE = 16 * 1024 * 1024; // 16MB
+    const validos = files.filter((f) => {
+      if (f.size > MAX_SIZE) {
+        toast.error(`"${f.name}" excede o limite de 16MB.`);
+        return false;
+      }
+      return true;
+    });
+    setAnexosSelecionados((prev) => [...prev, ...validos]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removerAnexo = (idx: number) => {
+    setAnexosSelecionados((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const getFileIcon = (file: File) => {
+    if (file.type.startsWith("image/")) return <Image className="h-3.5 w-3.5" />;
+    return <FileText className="h-3.5 w-3.5" />;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -256,6 +316,26 @@ export default function TicketDetalhes() {
               {/* Input de mensagem */}
               {!isClosed && (
                 <div className="border-t p-4 space-y-2">
+                  {/* Preview de anexos selecionados */}
+                  {anexosSelecionados.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {anexosSelecionados.map((file, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-1.5 bg-muted rounded-md px-2 py-1 text-xs max-w-[200px]"
+                        >
+                          {getFileIcon(file)}
+                          <span className="truncate flex-1">{file.name}</span>
+                          <button
+                            onClick={() => removerAnexo(idx)}
+                            className="text-muted-foreground hover:text-destructive flex-shrink-0"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <Textarea
                     placeholder="Digite sua mensagem... (Ctrl+Enter para enviar)"
                     value={mensagem}
@@ -264,14 +344,41 @@ export default function TicketDetalhes() {
                     rows={3}
                     className="resize-none"
                   />
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                        onChange={handleFileSelect}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="gap-2"
+                        disabled={uploadingAnexos || sendMensagem.isPending}
+                      >
+                        <Paperclip className="h-4 w-4" />
+                        Anexar
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        PDF, Word, Excel, imagens (máx. 16MB)
+                      </span>
+                    </div>
                     <Button
                       onClick={handleSend}
-                      disabled={!mensagem.trim() || sendMensagem.isPending}
+                      disabled={(!mensagem.trim() && anexosSelecionados.length === 0) || uploadingAnexos || sendMensagem.isPending}
                       className="gap-2"
                     >
-                      <Send className="h-4 w-4" />
-                      {sendMensagem.isPending ? "Enviando..." : "Enviar"}
+                      {uploadingAnexos || sendMensagem.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      {uploadingAnexos ? "Enviando anexo..." : sendMensagem.isPending ? "Enviando..." : "Enviar"}
                     </Button>
                   </div>
                 </div>
