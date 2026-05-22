@@ -143,7 +143,8 @@ export async function getProfileStats() {
 
   return allProfiles.map((p) => ({
     ...p,
-    totalUsuarios: allUsers.filter((u) => u.profileId === p.id).length,
+    id: Number(p.id),
+    totalUsuarios: allUsers.filter((u) => Number(u.profileId) === Number(p.id)).length,
   }));
 }
 

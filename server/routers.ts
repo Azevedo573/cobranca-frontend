@@ -4448,7 +4448,7 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) return [];
       const { users, profiles } = await import("../drizzle/schema");
-      const { eq, isNull } = await import("drizzle-orm");
+      const { eq } = await import("drizzle-orm");
       const rows = await db
         .select({
           userId: users.id,
@@ -4462,8 +4462,15 @@ export const appRouter = router({
           profileCor: profiles.cor,
         })
         .from(users)
-        .leftJoin(profiles, eq(users.profileId, profiles.id));
-      return rows;
+        .leftJoin(profiles, eq(users.profileId, profiles.id))
+        .orderBy(users.name);
+      // Converter BigInt para Number para serialização JSON correta
+      return rows.map((r) => ({
+        ...r,
+        userId: Number(r.userId),
+        condominioId: r.condominioId ? Number(r.condominioId) : null,
+        profileId: r.profileId ? Number(r.profileId) : null,
+      }));
     }),
 
     // Criar perfis padrão do sistema (idempotente)

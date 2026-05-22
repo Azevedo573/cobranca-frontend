@@ -1,0 +1,73 @@
+{
+  "query": "SELECT id, name, email, role, isActive, condominioId, profileId FROM users ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, name, email, role, isActive, condominioId, profileId FROM users ORDER BY id;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Antonio Carlos",
+      "email": "acarlos573@gmail.com",
+      "role": "admin",
+      "isActive": "1",
+      "condominioId": "NULL",
+      "profileId": "NULL"
+    },
+    {
+      "id": "120057",
+      "name": "teste3",
+      "email": "teste3@gmail.com",
+      "role": "cobrador",
+      "isActive": "1",
+      "condominioId": "150001",
+      "profileId": "NULL"
+    },
+    {
+      "id": "2100006",
+      "name": "teste sindico",
+      "email": "teste.sindico@gmail.com",
+      "role": "sindico",
+      "isActive": "1",
+      "condominioId": "150001",
+      "profileId": "NULL"
+    },
+    {
+      "id": "3900006",
+      "name": "Icaro",
+      "email": "cobranca2@gomesesilvaadv.com.br",
+      "role": "admin",
+      "isActive": "1",
+      "condominioId": "NULL",
+      "profileId": "NULL"
+    },
+    {
+      "id": "6600008",
+      "name": "CONDOMINIO PARK PREMIUM RECREIO RESIDENCES",
+      "email": "NULL",
+      "role": "sindico",
+      "isActive": "1",
+      "condominioId": "150001",
+      "profileId": "NULL"
+    },
+    {
+      "id": "9450014",
+      "name": "Administrador — CONDOMINIO PARK PREMIUM RECREIO RESIDENCES",
+      "email": "park.premium @condominio.local",
+      "role": "sindico",
+      "isActive": "1",
+      "condominioId": "150001",
+      "profileId": "NULL"
+    },
+    {
+      "id": "10740002",
+      "name": "Higor Gomes",
+      "email": "higorgomes@gomesesilvaadv.com.br",
+      "role": "admin",
+      "isActive": "1",
+      "condominioId": "NULL",
+      "profileId": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\tisActive\tcondominioId\tprofileId\n1\tAntonio Carlos\tacarlos573@gmail.com\tadmin\t1\tNULL\tNULL\n120057\tteste3\tteste3@gmail.com\tcobrador\t1\t150001\tNULL\n2100006\tteste sindico\tteste.sindico@gmail.com\tsindico\t1\t150001\tNULL\n3900006\tIcaro\tcobranca2@gomesesilvaadv.com.br\tadmin\t1\tNULL\tNULL\n6600008\tCONDOMINIO PARK PREMIUM RECREIO RESIDENCES\tNULL\tsindico\t1\t150001\tNULL\n9450014\tAdministrador — CONDOMINIO PARK PREMIUM RECREIO RESIDENCES\tpark.premium @condominio.local\tsindico\t1\t150001\tNULL\n10740002\tHigor Gomes\thigorgomes@gomesesilvaadv.com.br\tadmin\t1\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 751
+}
