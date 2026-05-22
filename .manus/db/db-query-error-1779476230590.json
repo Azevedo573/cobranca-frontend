@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT \n  d.id, d.nome, d.condominioId,\n  p.id as processoId, p.valorOriginal, p.valorAtualizado, p.juros, p.multa, p.honorarios, p.correcaoMonetaria, p.dataVencimento, p.status\nFROM devedores d\nJOIN processos_cobranca p ON p.devedorId = d.id\nJOIN condominios c ON c.id = d.condominioId\nWHERE c.nome LIKE '%Saboya%' OR c.nome LIKE '%saboya%'\nLIMIT 20;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute \nSELECT \n  d.id, d.nome, d.condominioId,\n  p.id as processoId, p.valorOriginal, p.valorAtualizado, p.juros, p.multa, p.honorarios, p.correcaoMonetaria, p.dataVencimento, p.status\nFROM devedores d\nJOIN processos_cobranca p ON p.devedorId = d.id\nJOIN condominios c ON c.id = d.condominioId\nWHERE c.nome LIKE '%Saboya%' OR c.nome LIKE '%saboya%'\nLIMIT 20;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 2: Table '7b8ey9dz5tvd9qwuurviln.processos_cobranca' doesn't exist"
+  ]
+}

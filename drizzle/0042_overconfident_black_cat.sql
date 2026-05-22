@@ -1,0 +1,2 @@
+ALTER TABLE `condominios` MODIFY COLUMN `indiceCorrecao` enum('NENHUM','IPCA','IGP-M','INPC','IGP-DI') DEFAULT 'IPCA';--> statement-breakpoint
+ALTER TABLE `condominios` MODIFY COLUMN `aplicarCorrecaoAuto` int NOT NULL DEFAULT 1;

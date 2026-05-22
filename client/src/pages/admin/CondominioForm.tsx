@@ -88,6 +88,8 @@ export default function CondominioForm() {
     descontoMaximo: "0.00",
     billingIssuer: "administradora" as "emissao_propria" | "administradora" | "outro",
     customBillingIssuer: "",
+    indiceCorrecao: "IPCA" as "NENHUM" | "IPCA" | "IGP-M" | "INPC" | "IGP-DI",
+    aplicarCorrecaoAuto: 1,
   });
 
   // Módulos ativos do condomínio
@@ -143,6 +145,8 @@ export default function CondominioForm() {
         descontoMaximo: condominio.descontoMaximo || "0.00",
         billingIssuer: (condominio.billingIssuer as "emissao_propria" | "administradora" | "outro") || "administradora",
         customBillingIssuer: condominio.customBillingIssuer || "",
+        indiceCorrecao: ((condominio as any).indiceCorrecao || "IPCA") as "NENHUM" | "IPCA" | "IGP-M" | "INPC" | "IGP-DI",
+        aplicarCorrecaoAuto: (condominio as any).aplicarCorrecaoAuto ?? 1,
       });
       // Carregar módulos ativos
       try {
@@ -476,7 +480,42 @@ export default function CondominioForm() {
                       onChange={handleChange}
                       placeholder="0.00"
                     />
-                    <p className="text-xs text-muted-foreground">Aplicado por mês de atraso</p>
+                    <p className="text-xs text-muted-foreground">Percentual fixo por mês de atraso (usado quando índice = Nenhum)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="indiceCorrecao">Índice de Correção Monetária</Label>
+                    <Select
+                      value={formData.indiceCorrecao}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, indiceCorrecao: v as typeof prev.indiceCorrecao }))}
+                    >
+                      <SelectTrigger id="indiceCorrecao">
+                        <SelectValue placeholder="Selecione o índice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NENHUM">Nenhum (usar % fixo)</SelectItem>
+                        <SelectItem value="IPCA">IPCA (Banco Central)</SelectItem>
+                        <SelectItem value="IGP-M">IGP-M (FGV)</SelectItem>
+                        <SelectItem value="INPC">INPC (IBGE)</SelectItem>
+                        <SelectItem value="IGP-DI">IGP-DI (FGV)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Quando selecionado, substitui o percentual fixo pelo índice acumulado desde o vencimento</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Aplicação Automática</Label>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, aplicarCorrecaoAuto: prev.aplicarCorrecaoAuto === 1 ? 0 : 1 }))}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      {formData.aplicarCorrecaoAuto === 1
+                        ? <ToggleRight className="h-6 w-6 text-green-500" />
+                        : <ToggleLeft className="h-6 w-6 text-muted-foreground" />}
+                      <span className={formData.aplicarCorrecaoAuto === 1 ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                        {formData.aplicarCorrecaoAuto === 1 ? "Ativado" : "Desativado"}
+                      </span>
+                    </button>
+                    <p className="text-xs text-muted-foreground">Quando ativado, o sistema busca os dados do índice selecionado no Banco Central automaticamente</p>
                   </div>
                 </div>
                 <div className="mt-4">

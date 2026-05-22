@@ -1,0 +1,120 @@
+{
+  "query": "\nSELECT \n  d.id as devedorId, d.name, d.unitNumber,\n  c.id as cobrancaId, c.amount, c.dueDate, c.status, c.description, c.tipoCobranca\nFROM devedores d\nJOIN cobrancas c ON c.devedorId = d.id\nWHERE d.condominioId = 210001\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute \nSELECT \n  d.id as devedorId, d.name, d.unitNumber,\n  c.id as cobrancaId, c.amount, c.dueDate, c.status, c.description, c.tipoCobranca\nFROM devedores d\nJOIN cobrancas c ON c.devedorId = d.id\nWHERE d.condominioId = 210001\nLIMIT 10;\n",
+  "rows": [
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870001",
+      "amount": "21930",
+      "dueDate": "2016-08-09 04:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870002",
+      "amount": "17034",
+      "dueDate": "2016-09-09 04:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870003",
+      "amount": "17544",
+      "dueDate": "2016-10-09 04:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870004",
+      "amount": "17748",
+      "dueDate": "2016-11-09 05:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870005",
+      "amount": "18258",
+      "dueDate": "2016-12-09 05:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870006",
+      "amount": "18564",
+      "dueDate": "2017-01-09 05:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870007",
+      "amount": "18764",
+      "dueDate": "2017-02-09 05:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870008",
+      "amount": "19176",
+      "dueDate": "2017-03-09 05:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870009",
+      "amount": "18000",
+      "dueDate": "2017-04-09 04:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    },
+    {
+      "devedorId": "390390",
+      "name": "Katia",
+      "unitNumber": "Apto 314",
+      "cobrancaId": "870010",
+      "amount": "16830",
+      "dueDate": "2017-05-09 04:00:00",
+      "status": "pendente",
+      "description": "Condomínio ",
+      "tipoCobranca": "condominio"
+    }
+  ],
+  "messages": [],
+  "stdout": "devedorId\tname\tunitNumber\tcobrancaId\tamount\tdueDate\tstatus\tdescription\ttipoCobranca\n390390\tKatia\tApto 314\t870001\t21930\t2016-08-09 04:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870002\t17034\t2016-09-09 04:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870003\t17544\t2016-10-09 04:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870004\t17748\t2016-11-09 05:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870005\t18258\t2016-12-09 05:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870006\t18564\t2017-01-09 05:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870007\t18764\t2017-02-09 05:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870008\t19176\t2017-03-09 05:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870009\t18000\t2017-04-09 04:00:00\tpendente\tCondomínio \tcondominio\n390390\tKatia\tApto 314\t870010\t16830\t2017-05-09 04:00:00\tpendente\tCondomínio \tcondominio\n",
+  "stderr": "",
+  "execution_time_ms": 560
+}

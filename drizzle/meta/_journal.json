@@ -288,6 +288,13 @@
       "when": 1779475499488,
       "tag": "0041_charming_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "5",
+      "when": 1779477286006,
+      "tag": "0042_overconfident_black_cat",
+      "breakpoints": true
     }
   ]
 }

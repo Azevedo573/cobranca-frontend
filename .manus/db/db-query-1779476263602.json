@@ -1,0 +1,14 @@
+{
+  "query": "\nSELECT cond.id, cond.name FROM condominios cond WHERE cond.name LIKE '%Saboya%' OR cond.name LIKE '%saboya%';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute \nSELECT cond.id, cond.name FROM condominios cond WHERE cond.name LIKE '%Saboya%' OR cond.name LIKE '%saboya%';\n",
+  "rows": [
+    {
+      "id": "210001",
+      "name": "Condomínio do Edifício Saboya"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\n210001\tCondomínio do Edifício Saboya\n",
+  "stderr": "",
+  "execution_time_ms": 577
+}

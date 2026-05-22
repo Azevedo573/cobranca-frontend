@@ -1,0 +1,8 @@
+{
+  "query": "\nSELECT \n  d.id, d.nome, d.condominioId,\n  c.id as cobrancaId, c.valorOriginal, c.valorAtualizado, c.juros, c.multa, c.honorarios, c.correcaoMonetaria, c.dataVencimento, c.status\nFROM devedores d\nJOIN cobrancas c ON c.devedorId = d.id\nJOIN condominios cond ON cond.id = d.condominioId\nWHERE cond.nome LIKE '%Saboya%' OR cond.nome LIKE '%saboya%'\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute \nSELECT \n  d.id, d.nome, d.condominioId,\n  c.id as cobrancaId, c.valorOriginal, c.valorAtualizado, c.juros, c.multa, c.honorarios, c.correcaoMonetaria, c.dataVencimento, c.status\nFROM devedores d\nJOIN cobrancas c ON c.devedorId = d.id\nJOIN condominios cond ON cond.id = d.condominioId\nWHERE cond.nome LIKE '%Saboya%' OR cond.nome LIKE '%saboya%'\nLIMIT 10;\n",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 2: Unknown column 'cond.nome' in 'where clause'"
+  ]
+}

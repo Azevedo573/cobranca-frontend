@@ -291,13 +291,21 @@ export const appRouter = router({
       billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).default("administradora"),
       customBillingIssuer: z.string().max(255).optional(),
       modulosAtivos: z.string().optional(), // JSON array: '["cobranca","juridico"]'
+      indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).default("IPCA"),
+      aplicarCorrecaoAuto: z.number().default(1),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o nome do emissor personalizado." });
       }
       const { createCondominio } = await import("./db-condominios");
-      const result = await createCondominio(input);
+      // Garantir defaults de correção monetária para novos condomínios
+      const payload = {
+        ...input,
+        indiceCorrecao: input.indiceCorrecao ?? "IPCA",
+        aplicarCorrecaoAuto: input.aplicarCorrecaoAuto ?? 1,
+      };
+      const result = await createCondominio(payload);
       await logAudit(ctx, { action: "create", entity: "condominio", entityLabel: input.name, afterData: { name: input.name, cnpj: input.cnpj }, severity: "info" });
       return result;
     }),
@@ -322,6 +330,8 @@ export const appRouter = router({
       billingIssuer: z.enum(["emissao_propria", "administradora", "outro"]).optional(),
       customBillingIssuer: z.string().max(255).optional().nullable(),
       modulosAtivos: z.string().optional(), // JSON array: '["cobranca","juridico"]'
+      indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).optional(),
+      aplicarCorrecaoAuto: z.number().optional(),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
