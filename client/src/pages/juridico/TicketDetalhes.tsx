@@ -37,6 +37,7 @@ import {
   Loader2,
   UserCog,
   UserCircle2,
+  RefreshCw,
 } from "lucide-react";
 
 function getInitials(name: string) {
@@ -408,6 +409,24 @@ export default function TicketDetalhes() {
                 ) : (
                   mensagens.map((msg) => {
                     const isEscritorio = msg.tipoAutor === "escritorio";
+                    const isSistema = msg.tipoAutor === "sistema";
+
+                    // Mensagem de sistema: linha centralizada com ícone
+                    if (isSistema) {
+                      return (
+                        <div key={msg.id} className="flex items-center gap-3 py-1">
+                          <div className="flex-1 h-px bg-border" />
+                          <div className="flex items-center gap-1.5 bg-muted/60 border border-border rounded-full px-3 py-1 text-xs text-muted-foreground shrink-0 max-w-[80%]">
+                            <RefreshCw className="h-3 w-3 text-indigo-400 shrink-0" />
+                            <span className="text-center leading-snug">
+                              {msg.conteudo.replace(/\*\*/g, "")}
+                            </span>
+                          </div>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      );
+                    }
+
                     return (
                       <div key={msg.id} className={`flex gap-3 ${isEscritorio ? "flex-row-reverse" : ""}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isEscritorio ? "bg-primary/10" : "bg-secondary"}`}>

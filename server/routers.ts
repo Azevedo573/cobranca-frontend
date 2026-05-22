@@ -4156,7 +4156,7 @@ export const appRouter = router({
         responsavelId: z.number().nullable().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { getTicketById, updateTicket } = await import("./db-juridico");
+        const { getTicketById, updateTicket, createMensagem } = await import("./db-juridico");
         const ticket = await getTicketById(input.id);
         if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
         if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
@@ -4165,6 +4165,42 @@ export const appRouter = router({
         const { id, ...data } = input;
         const updateData: any = { ...data };
         if (data.status === "resolvido") updateData.resolvidoEm = new Date();
+
+        // Se o responsável está sendo alterado, registrar mensagem de sistema no chat
+        if ("responsavelId" in data && data.responsavelId !== undefined) {
+          const responsavelAnteriorId = ticket.responsavelId ? Number(ticket.responsavelId) : null;
+          const novoResponsavelId = data.responsavelId;
+          const mudou = responsavelAnteriorId !== novoResponsavelId;
+          if (mudou) {
+            // Busca nomes para compor a mensagem
+            const db = await getDb();
+            let nomeAnterior = "Ninguém";
+            let nomeNovo = "Ninguém";
+            if (db) {
+              const { users } = await import("../drizzle/schema");
+              const { eq } = await import("drizzle-orm");
+              if (responsavelAnteriorId) {
+                const [u] = await db.select({ name: users.name }).from(users).where(eq(users.id, responsavelAnteriorId));
+                if (u?.name) nomeAnterior = u.name;
+              }
+              if (novoResponsavelId) {
+                const [u] = await db.select({ name: users.name }).from(users).where(eq(users.id, novoResponsavelId));
+                if (u?.name) nomeNovo = u.name;
+              }
+            }
+            const quemAlterou = ctx.user.name ?? ctx.user.email ?? "Admin";
+            const conteudo = novoResponsavelId
+              ? `🔄 **${quemAlterou}** reatribuiu o ticket de **${nomeAnterior}** para **${nomeNovo}**.`
+              : `🔄 **${quemAlterou}** removeu o responsável **${nomeAnterior}** do ticket.`;
+            await createMensagem({
+              ticketId: id,
+              autorId: ctx.user.id,
+              conteudo,
+              tipoAutor: "sistema",
+            });
+          }
+        }
+
         return await updateTicket(id, updateData);
       }),
 

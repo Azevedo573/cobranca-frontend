@@ -1918,3 +1918,9 @@
 - [x] Criar procedure juridico.statsResponsaveis no backend com métricas por responsável
 - [x] Adicionar seção "Produtividade de Advogados" no Centro de Inteligência
 - [x] Exibir cards com total de tickets, abertos, resolvidos e tempo médio por responsável
+
+## Histórico de Reatribuições no Chat
+- [x] Adicionar valor "sistema" no enum tipoAutor da tabela juridico_mensagens
+- [x] Migração db:push aplicada para o novo enum
+- [x] Atualizar procedure updateTicket para registrar mensagem de sistema ao reatribuir responsável
+- [x] Exibir mensagens de sistema com estilo de linha divisória centralizada no chat do ticket

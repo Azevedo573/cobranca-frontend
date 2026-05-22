@@ -1,0 +1,1 @@
+ALTER TABLE `juridico_mensagens` MODIFY COLUMN `tipoAutor` enum('cliente','escritorio','sistema') NOT NULL;

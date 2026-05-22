@@ -520,7 +520,7 @@ export const juridicoMensagens = mysqlTable("juridico_mensagens", {
   ticketId: int("ticketId").notNull(),
   autorId: int("autorId").notNull(),
   conteudo: text("conteudo").notNull(),
-  tipoAutor: mysqlEnum("tipoAutor", ["cliente", "escritorio"]).notNull(),
+  tipoAutor: mysqlEnum("tipoAutor", ["cliente", "escritorio", "sistema"]).notNull(),
   // Anexos armazenados como JSON array de { nome, url, tipo }
   anexos: text("anexos"), // JSON
   createdAt: timestamp("createdAt").defaultNow().notNull(),

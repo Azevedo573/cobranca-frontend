@@ -112,7 +112,7 @@ export async function createMensagem(data: {
   ticketId: number;
   autorId: number;
   conteudo: string;
-  tipoAutor: "cliente" | "escritorio";
+  tipoAutor: "cliente" | "escritorio" | "sistema";
   anexos?: Array<{ nome: string; url: string; tipo: string }>;
 }) {
   const db = await getDb();
