@@ -1998,3 +1998,15 @@
 - [x] Reduzir automaticamente o tamanho da fonte para tabelas com muitas colunas (>5 colunas)
 - [x] Ajustar largura das colunas proporcionalmente ao conteúdo
 - [x] TypeScript: 0 erros
+
+## Melhoria - Botão "Gerar Documento" na tela do Acordo
+- [x] Analisar AcordoDetalhes e estrutura das parcelas do acordo
+- [x] Integrar GerarDocumentoModal na tela de detalhes do acordo com parcelas reais
+- [x] Preencher variáveis do acordo automaticamente (valorAcordo, numeroParcelas, etc.)
+- [x] TypeScript: 0 erros
+
+## Melhoria - Pré-visualização inline do PDF no modal
+- [x] Adicionar botão "Pré-visualizar" no GerarDocumentoModal
+- [x] Gerar PDF temporário e exibir em iframe dentro do modal
+- [x] Mostrar spinner durante a geração da pré-visualização
+- [x] TypeScript: 0 erros

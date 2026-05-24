@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
+import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 
 export default function AcordoDetalhes() {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ export default function AcordoDetalhes() {
   const acordoId = Number(params?.id);
   const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola: string | null }>>({});
   const [copiandoParcela, setCopiandoParcela] = useState<Record<number, 'linha' | 'pix' | null>>({});
+  const [modalDocumentoOpen, setModalDocumentoOpen] = useState(false);
 
   const utils = trpc.useUtils();
   const [relatorioUrl, setRelatorioUrl] = useState<string | null>(null);
@@ -254,6 +256,15 @@ export default function AcordoDetalhes() {
                 )}
               </div>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setModalDocumentoOpen(true)}
+              disabled={!parcelas || parcelas.length === 0}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Gerar Documento
+            </Button>
             <span className="text-sm text-muted-foreground">{user?.name}</span>
             <Badge variant="outline" className="capitalize">
               {user?.role}
@@ -545,6 +556,38 @@ export default function AcordoDetalhes() {
         {/* Histórico de Consolidações */}
         <HistoricoConsolidacoes acordoId={acordoId} />
       </div>
+
+      {/* Modal de Gerar Documento */}
+      {acordo && (
+        <GerarDocumentoModal
+          open={modalDocumentoOpen}
+          onClose={() => setModalDocumentoOpen(false)}
+          devedor={{
+            id: acordo.devedorId,
+            name: (acordo as any).devedorNome ?? `Devedor #${acordo.devedorId}`,
+            cpfCnpj: (acordo as any).devedorCpfCnpj ?? undefined,
+            unitNumber: (acordo as any).devedorUnidade ?? undefined,
+            bloco: (acordo as any).devedorBloco ?? undefined,
+            condominioId: acordo.condominioId,
+          }}
+          parcelasAcordo={parcelas?.map((p) => ({
+            id: p.id,
+            installmentNumber: p.installmentNumber,
+            amount: p.amount,
+            dueDate: p.dueDate,
+            status: p.status,
+          }))}
+          variaveisExtras={{
+            valorOriginal: formatCurrency(acordo.totalAmount).replace('\u00a0', ' '),
+            valorAcordo: formatCurrency(acordo.agreedAmount).replace('\u00a0', ' '),
+            numeroParcelas: String(acordo.installments),
+            valorParcela: parcelas && parcelas[0] ? formatCurrency(parcelas[0].amount).replace('\u00a0', ' ') : '',
+            dataVencimentoPrimeiraParcela: parcelas && parcelas[0] ? formatDate(parcelas[0].dueDate) : '',
+          }}
+          nomeCondominio={condominio?.name}
+          nomeResponsavel={user?.name ?? undefined}
+        />
+      )}
     </div>
   );
 }
