@@ -465,7 +465,8 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
   const [, paramsNovo] = useRoute("/modelos-documento/novo");
   const [, navigate] = useLocation();
 
-  const modeloId = params?.id && params.id !== "novo" ? parseInt(params.id) : null;
+  const rawId = params?.id && params.id !== "novo" ? parseInt(params.id, 10) : null;
+  const modeloId = rawId !== null && !isNaN(rawId) && rawId > 0 ? rawId : null;
   const isEdicao = modeloId !== null;
 
   // Estado do formulário
@@ -541,6 +542,11 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
       return;
     }
     if (!editor) return;
+
+    if (isEdicao && (!modeloId || isNaN(modeloId))) {
+      toast.error("ID do modelo inválido. Tente recarregar a página.");
+      return;
+    }
 
     setSalvando(true);
     try {

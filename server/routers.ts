@@ -3968,7 +3968,7 @@ export const appRouter = router({
 
     update: protectedProcedure
       .input(z.object({
-        id: z.number(),
+        id: z.number().int().positive(),
         nome: z.string().min(1).optional(),
         tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","outro"]).optional(),
         conteudoHtml: z.string().optional(),

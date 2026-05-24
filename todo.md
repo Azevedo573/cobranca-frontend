@@ -1957,3 +1957,10 @@
 - [ ] Ocultar botões de criar/editar/excluir nas páginas de Cobranças e Acordos
 - [ ] Ocultar botões de ação nas páginas do módulo Jurídico
 - [ ] Ocultar botões de ação nas páginas de Tentativas
+
+## Bug - "Erro ao salvar modelo: ID do modelo inválido"
+- [x] Investigar como modeloId é extraído do URL params no ModeloEditor
+- [x] Corrigir parseInt para validar NaN e valor positivo (rawId → modeloId com guard)
+- [x] Adicionar guard explícito no handleSalvar para isEdicao com modeloId inválido
+- [x] Adicionar z.number().int().positive() na procedure update de modelosDocumento
+- [x] TypeScript: 0 erros
