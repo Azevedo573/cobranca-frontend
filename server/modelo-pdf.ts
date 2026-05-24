@@ -469,8 +469,8 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
       .text(
         `Página ${i + 1} de ${totalPaginas}`,
         margemEsquerda,
-        doc.page.height - margemInferior + 10,
-        { width: larguraUtil, align: "center" }
+        doc.page.height - margemInferior - 14,
+        { width: larguraUtil, align: "center", lineBreak: false }
       );
   }
 
