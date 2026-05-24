@@ -617,12 +617,9 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
         },
         // Parcelas de exemplo para preencher {{tabelaParcelas}}
         parcelas: [
-          { numero: 1, vencimento: "15/06/2026", valor: "R$ 248,87", status: "Em aberto" },
-          { numero: 2, vencimento: "15/07/2026", valor: "R$ 248,87", status: "Em aberto" },
-          { numero: 3, vencimento: "15/08/2026", valor: "R$ 248,87", status: "Em aberto" },
-          { numero: 4, vencimento: "15/09/2026", valor: "R$ 248,87", status: "Em aberto" },
-          { numero: 5, vencimento: "15/10/2026", valor: "R$ 248,87", status: "Em aberto" },
-          { numero: 6, vencimento: "15/11/2026", valor: "R$ 248,87", status: "Em aberto" },
+          { descricao: "Cond. Janeiro/2026", vencimento: "15/01/2026", valorOriginal: "R$ 500,00", juros: "R$ 15,00", multa: "R$ 10,00", honorarios: "R$ 52,50", correcao: "R$ 8,60", valorAtualizado: "R$ 586,10" },
+          { descricao: "Cond. Fevereiro/2026", vencimento: "15/02/2026", valorOriginal: "R$ 500,00", juros: "R$ 10,00", multa: "R$ 10,00", honorarios: "R$ 52,00", correcao: "R$ 6,90", valorAtualizado: "R$ 578,90" },
+          { descricao: "Cond. Março/2026", vencimento: "15/03/2026", valorOriginal: "R$ 500,00", juros: "R$ 5,00", multa: "R$ 10,00", honorarios: "R$ 51,50", correcao: "R$ 4,30", valorAtualizado: "R$ 570,80" },
         ],
       });
       window.open(url, "_blank");

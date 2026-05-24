@@ -1978,3 +1978,10 @@
 - [x] Instalar sharp para conversão de imagens
 - [x] Atualizar baixarImagem() para converter WebP/AVIF para PNG via sharp antes de passar ao PDFKit
 - [x] TypeScript: 0 erros
+
+## Melhoria - {{tabelaParcelas}} com colunas detalhadas
+- [x] Atualizar interface ParcelaTabela para incluir: descricao, juros, multa, honorarios, correcao, valorAtualizado
+- [x] Atualizar gerarHtmlTabelaParcelas para gerar tabela com 8 colunas completas
+- [x] Atualizar procedure gerarPDF no routers.ts para aceitar os campos extras
+- [x] Atualizar parcelas de exemplo no ModeloEditor com dados detalhados
+- [x] TypeScript: 0 erros

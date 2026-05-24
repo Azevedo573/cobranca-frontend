@@ -217,20 +217,71 @@ function htmlParaLinhas(html: string): Array<{ texto: string; tipo: string; nive
 // ─── Gerador de tabela HTML de parcelas ─────────────────────────────────────
 
 export interface ParcelaTabela {
-  numero: number;
-  vencimento: string; // dd/mm/aaaa
-  valor: string;      // R$ X.XXX,XX
+  numero?: number;         // número da parcela (opcional quando é lista de dívidas)
+  descricao?: string;      // descrição da dívida / parcela
+  vencimento: string;      // dd/mm/aaaa
+  valorOriginal?: string;  // R$ X.XXX,XX
+  juros?: string;          // R$ X.XXX,XX
+  multa?: string;          // R$ X.XXX,XX
+  honorarios?: string;     // R$ X.XXX,XX
+  correcao?: string;       // R$ X.XXX,XX
+  valorAtualizado?: string; // R$ X.XXX,XX (valor total com encargos)
+  valor?: string;          // alias de valorAtualizado (compat. retroativa)
   status?: string;
 }
 
 export function gerarHtmlTabelaParcelas(parcelas: ParcelaTabela[]): string {
-  const linhas = parcelas
-    .map(
-      (p) =>
-        `<tr><td>${p.numero}</td><td>${p.vencimento}</td><td>${p.valor}</td><td>${p.status ?? "Em aberto"}</td></tr>`
-    )
-    .join("");
-  return `<table><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table>`;
+  // Detecta se há dados detalhados (juros/multa/honorários/correção) em alguma parcela
+  const temDetalhes = parcelas.some(
+    (p) => p.juros || p.multa || p.honorarios || p.correcao || p.valorOriginal
+  );
+
+  if (temDetalhes) {
+    // Tabela detalhada com 8 colunas
+    const linhas = parcelas
+      .map((p) => {
+        const descricao = p.descricao || (p.numero != null ? `Parcela ${p.numero}` : "-");
+        const valorAtualizado = p.valorAtualizado || p.valor || "-";
+        return [
+          `<tr>`,
+          `<td>${descricao}</td>`,
+          `<td>${p.vencimento}</td>`,
+          `<td>${p.valorOriginal || "-"}</td>`,
+          `<td>${p.juros || "R$ 0,00"}</td>`,
+          `<td>${p.multa || "R$ 0,00"}</td>`,
+          `<td>${p.honorarios || "R$ 0,00"}</td>`,
+          `<td>${p.correcao || "R$ 0,00"}</td>`,
+          `<td>${valorAtualizado}</td>`,
+          `</tr>`,
+        ].join("");
+      })
+      .join("");
+    return [
+      `<table>`,
+      `<thead><tr>`,
+      `<th>Descrição</th>`,
+      `<th>Vencimento</th>`,
+      `<th>Valor Original</th>`,
+      `<th>Juros</th>`,
+      `<th>Multa</th>`,
+      `<th>Honorários</th>`,
+      `<th>Correção</th>`,
+      `<th>Valor Atualizado</th>`,
+      `</tr></thead>`,
+      `<tbody>${linhas}</tbody>`,
+      `</table>`,
+    ].join("");
+  } else {
+    // Tabela simples (compat. retroativa) — parcelas de acordo sem encargos detalhados
+    const linhas = parcelas
+      .map((p) => {
+        const descricao = p.descricao || (p.numero != null ? `Parcela ${p.numero}` : "-");
+        const valor = p.valorAtualizado || p.valor || "-";
+        return `<tr><td>${descricao}</td><td>${p.vencimento}</td><td>${valor}</td><td>${p.status ?? "Em aberto"}</td></tr>`;
+      })
+      .join("");
+    return `<table><thead><tr><th>Descrição</th><th>Vencimento</th><th>Valor</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table>`;
+  }
 }
 
 // ─── Gerador Principal ───────────────────────────────────────────────────────

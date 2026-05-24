@@ -4023,9 +4023,16 @@ export const appRouter = router({
         modeloId: z.number(),
         variaveis: z.record(z.string(), z.string()).optional(),
         parcelas: z.array(z.object({
-          numero: z.number(),
+          numero: z.number().optional(),
+          descricao: z.string().optional(),
           vencimento: z.string(),
-          valor: z.string(),
+          valorOriginal: z.string().optional(),
+          juros: z.string().optional(),
+          multa: z.string().optional(),
+          honorarios: z.string().optional(),
+          correcao: z.string().optional(),
+          valorAtualizado: z.string().optional(),
+          valor: z.string().optional(), // compat. retroativa
           status: z.string().optional(),
         })).optional(),
       }))
@@ -4050,7 +4057,7 @@ export const appRouter = router({
           variaveis.tabelaParcelas = gerarHtmlTabelaParcelas(input.parcelas);
           // Preencher variáveis derivadas das parcelas se não fornecidas
           if (!variaveis.numeroParcelas) variaveis.numeroParcelas = String(input.parcelas.length);
-          if (!variaveis.valorParcela && input.parcelas[0]) variaveis.valorParcela = input.parcelas[0].valor;
+          if (!variaveis.valorParcela && input.parcelas[0]) variaveis.valorParcela = input.parcelas[0].valorAtualizado || input.parcelas[0].valor || "";
           if (!variaveis.dataVencimentoPrimeiraParcela && input.parcelas[0]) variaveis.dataVencimentoPrimeiraParcela = input.parcelas[0].vencimento;
         }
 
