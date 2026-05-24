@@ -1972,3 +1972,9 @@
 - [x] Suportar alinhamentos: left, center, right, justify
 - [x] Tratar tabela embutida dentro de parágrafo (quando {{tabelaParcelas}} é substituído dentro de <p>)
 - [x] TypeScript: 0 erros
+
+## Bug - Logomarca não aparece no PDF (formato WebP não suportado pelo PDFKit)
+- [x] Identificar que PDFKit suporta apenas JPEG e PNG (não WebP/AVIF)
+- [x] Instalar sharp para conversão de imagens
+- [x] Atualizar baixarImagem() para converter WebP/AVIF para PNG via sharp antes de passar ao PDFKit
+- [x] TypeScript: 0 erros

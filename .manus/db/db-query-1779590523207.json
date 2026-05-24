@@ -1,0 +1,18 @@
+{
+  "query": "SELECT id, nome, logoUrl, logoAlinhamento, logoPosicaoVertical, logoLargura FROM modelosDocumento WHERE id = 60003;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2n9dMf6Lkd8abrT.b11d2bb9e72f --database 7b8Ey9DZ5tVd9qwUurViLN --execute SELECT id, nome, logoUrl, logoAlinhamento, logoPosicaoVertical, logoLargura FROM modelosDocumento WHERE id = 60003;",
+  "rows": [
+    {
+      "id": "60003",
+      "nome": "Demonstrativos de Débitos",
+      "logoUrl": "https://d2xsxph8kpxj0f.cloudfront.net/310419663028938873/7b8Ey9DZ5tVd9qwUurViLN/modelos/logo/1-e7qs06ju.webp",
+      "logoAlinhamento": "esquerda",
+      "logoPosicaoVertical": "topo",
+      "logoLargura": "120"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tnome\tlogoUrl\tlogoAlinhamento\tlogoPosicaoVertical\tlogoLargura\n60003\tDemonstrativos de Débitos\thttps://d2xsxph8kpxj0f.cloudfront.net/310419663028938873/7b8Ey9DZ5tVd9qwUurViLN/modelos/logo/1-e7qs06ju.webp\tesquerda\ttopo\t120\n",
+  "stderr": "",
+  "execution_time_ms": 617
+}

@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import https from "https";
 import http from "http";
 import { Readable } from "stream";
+import sharp from "sharp";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -70,7 +71,7 @@ function substituirVariaveis(html: string, variaveis: VariaveisDocumento): strin
 }
 
 async function baixarImagem(url: string): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
+  const raw = await new Promise<Buffer>((resolve, reject) => {
     const protocolo = url.startsWith("https") ? https : http;
     protocolo.get(url, (res) => {
       const chunks: Buffer[] = [];
@@ -79,6 +80,17 @@ async function baixarImagem(url: string): Promise<Buffer> {
       res.on("error", reject);
     }).on("error", reject);
   });
+  // PDFKit suporta apenas JPEG e PNG.
+  // Converte WebP, AVIF e outros formatos não suportados para PNG via sharp.
+  try {
+    const meta = await sharp(raw).metadata();
+    if (meta.format && !["jpeg", "jpg", "png"].includes(meta.format)) {
+      return await sharp(raw).png().toBuffer();
+    }
+  } catch {
+    // Se sharp falhar, retorna o buffer original e deixa o PDFKit tentar
+  }
+  return raw;
 }
 
 /**
