@@ -26,6 +26,7 @@ import { useMemo, useState, useRef } from "react";
 import { toast } from "sonner";
 import { NovaDividaModal } from "@/components/NovaDividaModal";
 import { NovaTentativaModal } from "@/components/NovaTentativaModal";
+import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 
 export default function DevedorDetalhes() {
   const { user } = useAuth();
@@ -33,6 +34,7 @@ export default function DevedorDetalhes() {
   const devedorId = params?.id ? parseInt(params.id) : null;
   const [modalDividaOpen, setModalDividaOpen] = useState(false);
   const [modalTentativaOpen, setModalTentativaOpen] = useState(false);
+  const [modalDocumentoOpen, setModalDocumentoOpen] = useState(false);
   const [gerandoBoleto, setGerandoBoleto] = useState<number | null>(null);
   const [copiadoLinhaId, setCopiadoLinhaId] = useState<number | null>(null);
   const [copiadoPixId, setCopiadoPixId] = useState<number | null>(null);
@@ -242,6 +244,10 @@ export default function DevedorDetalhes() {
               <Button variant="outline" size="sm" onClick={() => setModalTentativaOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Nova Tentativa
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setModalDocumentoOpen(true)}>
+                <FileText className="mr-2 h-4 w-4" />
+                Gerar Documento
               </Button>
               <Link href={`/devedores/${devedor.id}/editar`}>
                 <Button size="sm">
@@ -503,6 +509,23 @@ export default function DevedorDetalhes() {
         onOpenChange={setModalTentativaOpen}
         devedorId={devedor.id}
         condominioId={devedor.condominioId}
+      />
+
+      {/* Modal de Gerar Documento */}
+      <GerarDocumentoModal
+        open={modalDocumentoOpen}
+        onClose={() => setModalDocumentoOpen(false)}
+        devedor={{
+          id: devedor.id,
+          name: devedor.name ?? "",
+          cpfCnpj: devedor.cpfCnpj ?? undefined,
+          unitNumber: devedor.unitNumber ?? undefined,
+          bloco: devedor.bloco ?? undefined,
+          condominioId: devedor.condominioId,
+        }}
+        cobrancas={cobrancas as any}
+        nomeCondominio={condominio?.name ?? undefined}
+        nomeResponsavel={user?.name ?? undefined}
       />
     </div>
   );

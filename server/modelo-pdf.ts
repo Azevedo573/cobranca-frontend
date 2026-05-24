@@ -442,10 +442,33 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
         if (tableRows.length === 0) break;
 
         const numCols = Math.max(...tableRows.map((r) => r.cells.length));
+
+        // ── Largura adaptativa ──────────────────────────────────────────────
+        // Para tabelas com muitas colunas, reduzimos a fonte e o padding para
+        // que o conteúdo caiba dentro da largura útil da página.
+        // Thresholds: ≤4 cols → normal; 5-6 → compacto; ≥7 → muito compacto
+        let fontSize: number;
+        let cellPadH: number;
+        let cellPadV: number;
+        let rowH: number;
+        if (numCols >= 7) {
+          fontSize = 6.5;
+          cellPadH = 2;
+          cellPadV = 3;
+          rowH = 16;
+        } else if (numCols >= 5) {
+          fontSize = 7.5;
+          cellPadH = 3;
+          cellPadV = 4;
+          rowH = 18;
+        } else {
+          fontSize = 9;
+          cellPadH = 4;
+          cellPadV = 5;
+          rowH = 20;
+        }
         const colW = larguraUtil / numCols;
-        const cellPadH = 4;
-        const cellPadV = 5;
-        const rowH = 20;
+        // ────────────────────────────────────────────────────────────────────
 
         // Verificar espaço na página
         const tableH = tableRows.length * rowH + 4;
@@ -482,7 +505,7 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
             }
             doc
               .font(row.isHeader ? "Helvetica-Bold" : "Helvetica")
-              .fontSize(9)
+              .fontSize(fontSize)
               .fillColor(row.isHeader ? "#ffffff" : "#333333")
               .text(cellText, cellX + cellPadH, rowY + cellPadV, {
                 width: colW - cellPadH * 2,

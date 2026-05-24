@@ -1985,3 +1985,16 @@
 - [x] Atualizar procedure gerarPDF no routers.ts para aceitar os campos extras
 - [x] Atualizar parcelas de exemplo no ModeloEditor com dados detalhados
 - [x] TypeScript: 0 erros
+
+## Melhoria - Botão "Gerar Documento" na tela do Devedor
+- [x] Criar componente GerarDocumentoModal com seleção de modelo e opções de filtro de dívidas
+- [x] Integrar botão "Gerar Documento" na tela DevedorDetalhes
+- [x] Passar dados reais de dívidas com breakdown (juros/multa/honorários/correção) para {{tabelaParcelas}}
+- [x] Preencher variáveis do devedor automaticamente (nomeDevedor, cpfCnpjDevedor, etc.)
+- [x] TypeScript: 0 erros
+
+## Melhoria - Largura adaptativa da tabela no PDF
+- [x] Detectar número de colunas da tabela no modelo-pdf.ts
+- [x] Reduzir automaticamente o tamanho da fonte para tabelas com muitas colunas (>5 colunas)
+- [x] Ajustar largura das colunas proporcionalmente ao conteúdo
+- [x] TypeScript: 0 erros
