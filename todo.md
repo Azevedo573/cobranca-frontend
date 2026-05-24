@@ -1964,3 +1964,11 @@
 - [x] Adicionar guard explícito no handleSalvar para isEdicao com modeloId inválido
 - [x] Adicionar z.number().int().positive() na procedure update de modelosDocumento
 - [x] TypeScript: 0 erros
+
+## Bug - {{tabelaParcelas}} aparece no início do PDF e alinhamentos não funcionam
+- [x] Reescrever htmlParaLinhas para processar blocos HTML em ordem sequencial (preservar posição da tabela)
+- [x] Capturar atributo style="text-align: ..." do TipTap em cada parágrafo e heading
+- [x] Propagar campo align para o renderizador PDFKit em todos os tipos de bloco (p, h1-h6)
+- [x] Suportar alinhamentos: left, center, right, justify
+- [x] Tratar tabela embutida dentro de parágrafo (quando {{tabelaParcelas}} é substituído dentro de <p>)
+- [x] TypeScript: 0 erros

@@ -84,18 +84,19 @@ async function baixarImagem(url: string): Promise<Buffer> {
 /**
  * Converte HTML simples (do TipTap) em blocos de texto para PDFKit.
  * Suporta: parágrafos, negrito, itálico, listas, headings, tabelas, quebras de linha.
+ * Preserva a ordem original dos elementos e captura alinhamentos de texto.
  */
-function htmlParaLinhas(html: string): Array<{ texto: string; tipo: string; nivel?: number }> {
-  const linhas: Array<{ texto: string; tipo: string; nivel?: number }> = [];
+function htmlParaLinhas(html: string): Array<{ texto: string; tipo: string; nivel?: number; align?: string }> {
+  const linhas: Array<{ texto: string; tipo: string; nivel?: number; align?: string }> = [];
 
   // Remove tags de estilo inline mas preserva conteúdo
   const limpar = (s: string) =>
     s
-      .replace(/<strong>(.*?)<\/strong>/gi, "**$1**")
-      .replace(/<b>(.*?)<\/b>/gi, "**$1**")
-      .replace(/<em>(.*?)<\/em>/gi, "_$1_")
-      .replace(/<i>(.*?)<\/i>/gi, "_$1_")
-      .replace(/<u>(.*?)<\/u>/gi, "$1")
+      .replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**")
+      .replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**")
+      .replace(/<em[^>]*>(.*?)<\/em>/gi, "_$1_")
+      .replace(/<i[^>]*>(.*?)<\/i>/gi, "_$1_")
+      .replace(/<u[^>]*>(.*?)<\/u>/gi, "$1")
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<[^>]+>/g, "")
       .replace(/&nbsp;/g, " ")
@@ -105,56 +106,97 @@ function htmlParaLinhas(html: string): Array<{ texto: string; tipo: string; nive
       .replace(/&quot;/g, '"')
       .trim();
 
-  // Headings
-  html = html.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_, nivel, conteudo) => {
-    linhas.push({ texto: limpar(conteudo), tipo: `h${nivel}`, nivel: parseInt(nivel) });
-    return "";
-  });
+  // Extrai alinhamento de texto de um atributo style ou data-text-align
+  const extrairAlign = (tag: string): string => {
+    // TipTap usa style="text-align: center" ou style="text-align:center"
+    const styleMatch = tag.match(/style=["'][^"']*text-align\s*:\s*(\w+)/i);
+    if (styleMatch) return styleMatch[1].toLowerCase();
+    return "left";
+  };
 
-  // Listas não ordenadas
-  html = html.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, conteudo) => {
-    const items = [...conteudo.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)];
-    for (const [, item] of items) {
-      linhas.push({ texto: `• ${limpar(item)}`, tipo: "li" });
-    }
-    return "";
-  });
+  // Helper para converter alinhamento TipTap → PDFKit
+  const normalizarAlign = (a: string): string => {
+    if (a === "center" || a === "centre") return "center";
+    if (a === "right") return "right";
+    if (a === "justify") return "justify";
+    return "left";
+  };
 
-  // Listas ordenadas
-  let liCounter = 0;
-  html = html.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, conteudo) => {
-    liCounter = 0;
-    const items = [...conteudo.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)];
-    for (const [, item] of items) {
-      liCounter++;
-      linhas.push({ texto: `${liCounter}. ${limpar(item)}`, tipo: "li" });
-    }
-    return "";
-  });
-
-  // Tabelas — renderiza como estrutura de tabela para PDFKit
-  html = html.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, conteudo) => {
-    const rows = [...conteudo.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+  // Helper para processar tabela HTML e retornar objeto de linha
+  const processarTabela = (conteudo: string): { texto: string; tipo: string } => {
+    const rows = Array.from(conteudo.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi));
     const tableRows: Array<{ cells: string[]; isHeader: boolean }> = [];
     for (const [, row] of rows) {
-      const headerCells = [...row.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)];
-      const dataCells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)];
+      const headerCells = Array.from(row.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi));
+      const dataCells = Array.from(row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi));
       if (headerCells.length > 0) {
         tableRows.push({ cells: headerCells.map(([, c]) => limpar(c)), isHeader: true });
       } else if (dataCells.length > 0) {
         tableRows.push({ cells: dataCells.map(([, c]) => limpar(c)), isHeader: false });
       }
     }
-    // Serializa como marcador especial para o renderizador
-    linhas.push({ texto: JSON.stringify(tableRows), tipo: "tabela_estruturada" });
-    return "";
-  });
+    return { texto: JSON.stringify(tableRows), tipo: "tabela_estruturada" };
+  };
 
-  // Parágrafos restantes
-  const paragrafos = html.split(/<p[^>]*>|<\/p>/gi).filter((s) => s.trim());
-  for (const p of paragrafos) {
-    const texto = limpar(p);
-    if (texto) linhas.push({ texto, tipo: "p" });
+  // Processa o HTML de forma sequencial, preservando a ordem dos elementos
+  // Divide o HTML em tokens: blocos de nível superior (p, h1-h6, ul, ol, table)
+  // usando uma regex que captura cada bloco com sua tag de abertura completa
+  const blockRegex = /<(h[1-6]|p|ul|ol|table)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = blockRegex.exec(html)) !== null) {
+    const [fullMatch, tag, attrs = "", inner] = match;
+    const tagLower = tag.toLowerCase();
+
+    if (tagLower.match(/^h[1-6]$/)) {
+      const nivel = parseInt(tagLower[1]);
+      const align = normalizarAlign(extrairAlign(fullMatch));
+      const texto = limpar(inner);
+      if (texto) linhas.push({ texto, tipo: tagLower, nivel, align });
+
+    } else if (tagLower === "p") {
+      const align = normalizarAlign(extrairAlign(fullMatch));
+      // Verifica se o parágrafo contém uma tabela embutida ({{tabelaParcelas}} já substituído)
+      if (/<table/i.test(inner)) {
+        // Extrai texto antes da tabela
+        const preTabela = inner.replace(/<table[\s\S]*?<\/table>/gi, "").trim();
+        const textoAntes = limpar(preTabela);
+        if (textoAntes) linhas.push({ texto: textoAntes, tipo: "p", align });
+        // Extrai e processa a tabela
+        const tabelaMatch = inner.match(/<table[^>]*>([\s\S]*?)<\/table>/i);
+        if (tabelaMatch) {
+          linhas.push(processarTabela(tabelaMatch[1]));
+        }
+      } else {
+        const texto = limpar(inner);
+        if (texto) linhas.push({ texto, tipo: "p", align });
+      }
+
+    } else if (tagLower === "ul") {
+      const items = Array.from(inner.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi));
+      for (const [, item] of items) {
+        linhas.push({ texto: `• ${limpar(item)}`, tipo: "li" });
+      }
+
+    } else if (tagLower === "ol") {
+      const items = Array.from(inner.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi));
+      items.forEach(([, item], idx) => {
+        linhas.push({ texto: `${idx + 1}. ${limpar(item)}`, tipo: "li" });
+      });
+
+    } else if (tagLower === "table") {
+      linhas.push(processarTabela(inner));
+    }
+
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  // Processa qualquer texto restante fora de blocos (edge case)
+  const resto = html.slice(lastIndex).trim();
+  if (resto) {
+    const texto = limpar(resto);
+    if (texto) linhas.push({ texto, tipo: "p", align: "left" });
   }
 
   return linhas;
@@ -297,15 +339,18 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
       doc.y = margemSuperior;
     }
 
+    // Normaliza o alinhamento para PDFKit (aceita 'left'|'center'|'right'|'justify')
+    const pdfAlign = (linha.align ?? "left") as "left" | "center" | "right" | "justify";
+
     switch (linha.tipo) {
       case "h1":
         doc.font("Helvetica-Bold").fontSize(18).fillColor("#1a1a2e");
-        doc.text(linha.texto, { width: larguraUtil, align: "center" });
+        doc.text(linha.texto, { width: larguraUtil, align: pdfAlign !== "left" ? pdfAlign : "center" });
         doc.moveDown(0.5);
         break;
       case "h2":
         doc.font("Helvetica-Bold").fontSize(15).fillColor("#1a1a2e");
-        doc.text(linha.texto, { width: larguraUtil });
+        doc.text(linha.texto, { width: larguraUtil, align: pdfAlign });
         doc.moveDown(0.3);
         break;
       case "h3":
@@ -313,7 +358,7 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
       case "h5":
       case "h6":
         doc.font("Helvetica-Bold").fontSize(12).fillColor("#333333");
-        doc.text(linha.texto, { width: larguraUtil });
+        doc.text(linha.texto, { width: larguraUtil, align: pdfAlign });
         doc.moveDown(0.3);
         break;
       case "li":
@@ -399,14 +444,14 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
           const y = doc.y;
           for (const parte of partes) {
             if (parte.startsWith("**") && parte.endsWith("**")) {
-              doc.font("Helvetica-Bold").text(parte.slice(2, -2), x, y, { continued: true });
+              doc.font("Helvetica-Bold").text(parte.slice(2, -2), x, y, { continued: true, align: pdfAlign });
             } else if (parte) {
-              doc.font("Helvetica").text(parte, { continued: true });
+              doc.font("Helvetica").text(parte, { continued: true, align: pdfAlign });
             }
           }
           doc.text(""); // finaliza linha
         } else {
-          doc.text(linha.texto, { width: larguraUtil });
+          doc.text(linha.texto, { width: larguraUtil, align: pdfAlign });
         }
         doc.moveDown(0.4);
     }
