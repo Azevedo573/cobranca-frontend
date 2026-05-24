@@ -182,7 +182,12 @@ function htmlParaLinhas(html: string): Array<{ texto: string; tipo: string; nive
         }
       } else {
         const texto = limpar(inner);
-        if (texto) linhas.push({ texto, tipo: "p", align });
+        // Preserva parágrafos vazios (Enter/linha em branco) como espaçamento
+        if (texto) {
+          linhas.push({ texto, tipo: "p", align });
+        } else {
+          linhas.push({ texto: "", tipo: "linha_em_branco" });
+        }
       }
 
     } else if (tagLower === "ul") {
@@ -521,6 +526,11 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
         doc.x = startX;
         break;
       }
+      case "linha_em_branco":
+        // Parágrafo vazio — adiciona espaçamento equivalente a uma linha de texto
+        doc.moveDown(1);
+        break;
+
       default: // "p"
         doc.font("Helvetica").fontSize(11).fillColor("#333333");
         // Suporte básico a negrito inline **texto**

@@ -2010,3 +2010,9 @@
 - [x] Gerar PDF temporário e exibir em iframe dentro do modal
 - [x] Mostrar spinner durante a geração da pré-visualização
 - [x] TypeScript: 0 erros
+
+## Bug - Linhas em branco (Enter) não aparecem no PDF
+- [x] Identificar que htmlParaLinhas descartava parágrafos vazios com `if (texto)`
+- [x] Adicionar tipo "linha_em_branco" para parágrafos vazios
+- [x] Renderizar "linha_em_branco" como moveDown(1) no switch do PDFKit
+- [x] TypeScript: 0 erros
