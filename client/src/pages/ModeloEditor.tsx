@@ -93,7 +93,7 @@ function ToolbarButton({ onClick, active, title, children }: {
 function EditorToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   if (!editor) return null;
   return (
-    <div className="flex flex-wrap items-center gap-0.5 p-2 border-b bg-muted/30">
+    <div className="flex flex-wrap items-center gap-0.5 p-1.5 sm:p-2 border-b bg-muted/30 overflow-x-auto scrollbar-none">
       {/* Desfazer / Refazer */}
       <ToolbarButton onClick={() => editor.chain().focus().undo().run()} title="Desfazer">
         <Undo className="h-3.5 w-3.5" />
@@ -634,46 +634,47 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
     <DashboardLayout>
       <div className="flex flex-col h-full">
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between px-6 py-4 border-b bg-background shrink-0">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/modelos-documento")} className="gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b bg-background shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/modelos-documento")} className="gap-1.5 shrink-0 px-2 sm:px-3">
               <ArrowLeft className="h-4 w-4" />
-              Voltar
+              <span className="hidden sm:inline">Voltar</span>
             </Button>
-            <Separator orientation="vertical" className="h-5" />
-            <h1 className="text-lg font-semibold">
+            <Separator orientation="vertical" className="h-5 shrink-0" />
+            <h1 className="text-base sm:text-lg font-semibold truncate">
               {isEdicao ? "Editar Modelo" : "Novo Modelo"}
             </h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleGerarPDF} disabled={gerandoPDF || !isEdicao} className="gap-2">
-              <Eye className="h-4 w-4" />
-              {gerandoPDF ? "Gerando..." : "Pré-visualizar PDF"}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={handleGerarPDF} disabled={gerandoPDF || !isEdicao} className="gap-1.5 text-xs sm:text-sm">
+              <Eye className="h-4 w-4 shrink-0" />
+              <span className="hidden xs:inline">{gerandoPDF ? "Gerando..." : "Pré-visualizar"}</span>
+              <span className="xs:hidden">{gerandoPDF ? "..." : "PDF"}</span>
             </Button>
-            <Button size="sm" onClick={handleSalvar} disabled={salvando} className="gap-2">
-              <Save className="h-4 w-4" />
+            <Button size="sm" onClick={handleSalvar} disabled={salvando} className="gap-1.5 text-xs sm:text-sm">
+              <Save className="h-4 w-4 shrink-0" />
               {salvando ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </div>
 
         {/* Corpo */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
           {/* Editor principal */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
             {/* Metadados do modelo */}
-            <div className="flex items-center gap-4 px-6 py-3 border-b bg-muted/20 shrink-0">
-              <div className="flex-1">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center px-3 sm:px-6 py-2.5 border-b bg-muted/20 shrink-0">
+              <div className="flex-1 min-w-0">
                 <Input
-                  placeholder="Nome do modelo (ex: Proposta de Acordo Padrão)"
+                  placeholder="Nome do modelo"
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
-                  className="font-medium"
+                  className="font-medium text-sm"
                 />
               </div>
-              <div className="w-56">
+              <div className="w-full sm:w-52 shrink-0">
                 <Select value={tipo} onValueChange={setTipo}>
-                  <SelectTrigger>
+                  <SelectTrigger className="text-sm">
                     <SelectValue placeholder="Tipo de documento" />
                   </SelectTrigger>
                   <SelectContent>
@@ -690,14 +691,14 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
 
             {/* Área de edição */}
             <div className="flex-1 overflow-y-auto bg-white">
-              <div className="max-w-[794px] mx-auto my-6 shadow-sm border rounded-sm bg-white">
+              <div className="max-w-[794px] mx-auto my-4 sm:my-6 shadow-sm border rounded-sm bg-white">
                 <EditorContent editor={editor} />
               </div>
             </div>
           </div>
 
           {/* Painel lateral */}
-          <div className="w-72 border-l bg-background flex flex-col overflow-hidden shrink-0">
+          <div className="w-full lg:w-72 border-t lg:border-t-0 lg:border-l bg-background flex flex-col overflow-hidden shrink-0 max-h-[40vh] lg:max-h-none">
             <Tabs defaultValue="variaveis" className="flex flex-col h-full">
               <TabsList className="mx-3 mt-3 shrink-0 grid grid-cols-3">
                 <TabsTrigger value="variaveis" className="gap-1 text-xs">

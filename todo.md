@@ -2016,3 +2016,12 @@
 - [x] Adicionar tipo "linha_em_branco" para parágrafos vazios
 - [x] Renderizar "linha_em_branco" como moveDown(1) no switch do PDFKit
 - [x] TypeScript: 0 erros
+
+## Melhoria - Responsividade das páginas de modelos de documentos
+- [x] ModelosDocumento: header flex-col em mobile, grid 1→2→3 colunas, botões sempre visíveis em mobile
+- [x] ModelosDocumento: AlertDialog com max-w-sm e botões empilhados em mobile
+- [x] ModeloEditor: header flex-col em mobile com botões compactos
+- [x] ModeloEditor: metadados (nome + tipo) em coluna em mobile
+- [x] ModeloEditor: painel lateral abaixo do editor em mobile (lg:flex-row)
+- [x] ModeloEditor: toolbar com overflow-x-auto para telas pequenas
+- [x] TypeScript: 0 erros
