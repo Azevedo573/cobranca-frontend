@@ -527,8 +527,10 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
         break;
       }
       case "linha_em_branco":
-        // Parágrafo vazio — adiciona espaçamento equivalente a uma linha de texto
-        doc.moveDown(1);
+        // Parágrafo vazio — adiciona espaçamento equivalente a uma linha de texto (11pt * 1.2 leading ≈ 16px)
+        // Usa doc.y diretamente pois moveDown() depende de currentLineHeight que pode ser 0
+        doc.font("Helvetica").fontSize(11);
+        doc.y += doc.currentLineHeight(true) * 1.4;
         break;
 
       default: // "p"
