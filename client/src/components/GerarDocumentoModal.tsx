@@ -236,6 +236,14 @@ export function GerarDocumentoModal({
       base.valorAcordo = fmt(totais.total);
       base.numeroParcelas = String(cobrancasSelecionadas.size);
       base.valorParcela = fmt(totais.total);
+      // Encargos calculados das dívidas selecionadas
+      base.honorarios = fmt(totais.honorarios);
+      base.juros = fmt(totais.juros);
+      base.multa = fmt(totais.multa);
+      base.correcao = fmt(totais.correcao);
+      base.saldoVencido = fmt(totais.total);
+      base.saldoAVencer = fmt(0);
+      base.saldoTotal = fmt(totais.total);
     }
     return base;
   };
