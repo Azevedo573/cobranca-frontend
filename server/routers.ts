@@ -3958,11 +3958,13 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { createModelo } = await import("./db-modelos");
-        const id = await createModelo({
+        const rawId = await createModelo({
           ...input,
           condominioId: input.condominioId ?? ctx.user?.condominioId ?? null,
           createdBy: ctx.user?.id,
         });
+        // Garantir que id seja number primitivo (não bigint) para serialização JSON
+        const id = typeof rawId === 'bigint' ? Number(rawId) : (rawId as number);
         return { id };
       }),
 

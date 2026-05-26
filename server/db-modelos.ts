@@ -38,7 +38,22 @@ export async function createModelo(data: InsertModeloDocumento): Promise<number>
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const result = await db.insert(modelosDocumento).values(data);
-  return Number((result as any).insertId);
+  // insertId pode ser bigint em algumas versões do driver MySQL
+  const rawId = (result as any).insertId;
+  const id = typeof rawId === 'bigint' ? Number(rawId) : Number(rawId);
+  if (!id || isNaN(id)) {
+    // Fallback: buscar o último registro inserido pelo nome
+    const rows = await db
+      .select({ id: modelosDocumento.id })
+      .from(modelosDocumento)
+      .where(eq(modelosDocumento.nome, data.nome ?? ""))
+      .orderBy(desc(modelosDocumento.createdAt))
+      .limit(1);
+    const fallbackId = rows[0]?.id;
+    if (!fallbackId) throw new Error("Não foi possível obter o ID do modelo criado");
+    return Number(fallbackId);
+  }
+  return id;
 }
 
 export async function updateModelo(id: number, data: Partial<InsertModeloDocumento>): Promise<void> {
