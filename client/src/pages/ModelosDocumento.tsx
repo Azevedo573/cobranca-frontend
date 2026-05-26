@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,8 +59,7 @@ export default function ModelosDocumento() {
   const podeEditar = user?.role === "admin" || user?.role === "cobrador";
 
   return (
-    <DashboardLayout>
-      <div className="p-4 sm:p-6 space-y-5">
+    <div className="p-4 sm:p-6 space-y-5">
         {/* Cabeçalho */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -183,7 +181,6 @@ export default function ModelosDocumento() {
             })}
           </div>
         )}
-      </div>
 
       {/* Diálogo de confirmação de exclusão */}
       <AlertDialog open={deletandoId !== null} onOpenChange={() => setDeletandoId(null)}>
@@ -205,6 +202,6 @@ export default function ModelosDocumento() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </DashboardLayout>
+    </div>
   );
 }

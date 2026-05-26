@@ -12,7 +12,6 @@ import Image from "@tiptap/extension-image";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Placeholder from "@tiptap/extension-placeholder";
 import { trpc } from "@/lib/trpc";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -631,8 +630,7 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
   };
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col h-full">
+    <div className="flex flex-col" style={{ height: "100dvh", overflow: "hidden" }}>
         {/* Cabeçalho */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b bg-background shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -850,7 +848,6 @@ Responsável
             </Tabs>
           </div>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }
