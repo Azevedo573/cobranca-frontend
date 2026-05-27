@@ -535,19 +535,22 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
 
       default: // "p"
         doc.font("Helvetica").fontSize(11).fillColor("#333333");
-        // Suporte básico a negrito inline **texto**
-        if (linha.texto.includes("**")) {
-          const partes = linha.texto.split(/(\*\*.*?\*\*)/g);
-          let x = doc.x;
-          const y = doc.y;
-          for (const parte of partes) {
+        // Suporte a negrito/itálico inline **texto** e _texto_
+        if (linha.texto.includes("**") || linha.texto.includes("_")) {
+          // Dividir em fragmentos: **negrito**, _itálico_ e texto normal
+          const partes = linha.texto.split(/(\*\*[^*]+\*\*|_[^_]+_)/g).filter(p => p !== "");
+          const opts = { continued: true, width: larguraUtil, align: pdfAlign };
+          for (let i = 0; i < partes.length; i++) {
+            const parte = partes[i];
+            const isUltima = i === partes.length - 1;
             if (parte.startsWith("**") && parte.endsWith("**")) {
-              doc.font("Helvetica-Bold").text(parte.slice(2, -2), x, y, { continued: true, align: pdfAlign });
-            } else if (parte) {
-              doc.font("Helvetica").text(parte, { continued: true, align: pdfAlign });
+              doc.font("Helvetica-Bold").text(parte.slice(2, -2), isUltima ? { width: larguraUtil, align: pdfAlign } : opts);
+            } else if (parte.startsWith("_") && parte.endsWith("_")) {
+              doc.font("Helvetica-Oblique").text(parte.slice(1, -1), isUltima ? { width: larguraUtil, align: pdfAlign } : opts);
+            } else {
+              doc.font("Helvetica").text(parte, isUltima ? { width: larguraUtil, align: pdfAlign } : opts);
             }
           }
-          doc.text(""); // finaliza linha
         } else {
           doc.text(linha.texto, { width: larguraUtil, align: pdfAlign });
         }
