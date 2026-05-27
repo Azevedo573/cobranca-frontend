@@ -2025,3 +2025,9 @@
 - [x] ModeloEditor: painel lateral abaixo do editor em mobile (lg:flex-row)
 - [x] ModeloEditor: toolbar com overflow-x-auto para telas pequenas
 - [x] TypeScript: 0 erros
+
+## Melhoria - Valores monetarios por extenso
+- [ ] Criar funcao valorPorExtenso() em shared/extenso.ts
+- [ ] Adicionar variaveis *Extenso no painel do editor
+- [ ] Preencher variaveis *Extenso no GerarDocumentoModal
+- [ ] TypeScript: 0 erros

@@ -72,9 +72,17 @@ const CATEGORIAS_VARIAVEIS: Record<string, { chave: string; descricao: string }[
     { chave: "percentualJuros", descricao: "Taxa de juros (ex: 1% a.m.)" },
     { chave: "percentualMulta", descricao: "Percentual de multa (ex: 2%)" },
   ],
+  "Por Extenso": [
+    { chave: "valorAcordoExtenso", descricao: "Valor do acordo por extenso" },
+    { chave: "valorParcelaExtenso", descricao: "Valor da parcela por extenso" },
+    { chave: "valorOriginalExtenso", descricao: "Valor original por extenso" },
+    { chave: "honorariosExtenso", descricao: "Honorários por extenso" },
+    { chave: "saldoTotalExtenso", descricao: "Saldo total por extenso" },
+    { chave: "saldoVencidoExtenso", descricao: "Saldo vencido por extenso" },
+    { chave: "dataAtualExtenso", descricao: "Data atual por extenso" },
+  ],
   Data: [
     { chave: "dataAtual", descricao: "Data atual (dd/mm/aaaa)" },
-    { chave: "dataAtualExtenso", descricao: "Data por extenso" },
   ],
   Responsável: [
     { chave: "nomeResponsavel", descricao: "Nome do responsável" },
@@ -636,6 +644,14 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
             percentualHonorarios: "10%",
             percentualJuros: "1% a.m.",
             percentualMulta: "2%",
+            // Por extenso
+            valorAcordoExtenso: "um mil quatrocentos e noventa e três reais e vinte centavos",
+            valorParcelaExtenso: "duzentos e quarenta e oito reais e oitenta e sete centavos",
+            valorOriginalExtenso: "um mil quatrocentos e noventa e três reais e vinte centavos",
+            honorariosExtenso: "cento e cinquenta e seis reais",
+            saldoTotalExtenso: "um mil quatrocentos e noventa e três reais e vinte centavos",
+            saldoVencidoExtenso: "um mil quatrocentos e noventa e três reais e vinte centavos",
+            dataAtualExtenso: new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }),
           },
         // Parcelas de exemplo para preencher {{tabelaParcelas}}
         parcelas: [

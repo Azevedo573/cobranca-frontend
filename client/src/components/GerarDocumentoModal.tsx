@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { valorPorExtenso, dataPorExtenso } from "../../../shared/extenso";
 import {
   Dialog,
   DialogContent,
@@ -227,8 +228,11 @@ export function GerarDocumentoModal({
     if (modoAcordo && totaisAcordo) {
       base.valorAcordo = fmt(totaisAcordo.total);
       base.numeroParcelas = String(totaisAcordo.numParcelas);
+      base.valorAcordoExtenso = valorPorExtenso(totaisAcordo.total);
       if (parcelasAcordo && parcelasAcordo[0]) {
-        base.valorParcela = fmt(parcelasAcordo[0].amount / 100);
+        const valorParcela = parcelasAcordo[0].amount / 100;
+        base.valorParcela = fmt(valorParcela);
+        base.valorParcelaExtenso = valorPorExtenso(valorParcela);
         base.dataVencimentoPrimeiraParcela = format(new Date(parcelasAcordo[0].dueDate), "dd/MM/yyyy");
       }
     } else {
@@ -244,7 +248,15 @@ export function GerarDocumentoModal({
       base.saldoVencido = fmt(totais.total);
       base.saldoAVencer = fmt(0);
       base.saldoTotal = fmt(totais.total);
+      // Por extenso
+      base.valorAcordoExtenso = valorPorExtenso(totais.total);
+      base.valorOriginalExtenso = valorPorExtenso(totais.valorOriginal);
+      base.honorariosExtenso = valorPorExtenso(totais.honorarios);
+      base.saldoTotalExtenso = valorPorExtenso(totais.total);
+      base.saldoVencidoExtenso = valorPorExtenso(totais.total);
     }
+    // Data por extenso (sempre)
+    base.dataAtualExtenso = dataPorExtenso();
     return base;
   };
 
