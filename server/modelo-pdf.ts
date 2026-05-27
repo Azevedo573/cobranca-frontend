@@ -475,36 +475,31 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
         const colW = larguraUtil / numCols;
         // ────────────────────────────────────────────────────────────────────
 
-        // Verificar espaço na página
-        const tableH = tableRows.length * rowH + 4;
-        if (doc.y + tableH > doc.page.height - margemInferior - 20) {
+        // Extrair linha de cabeçalho para repetir após quebra de página
+        const headerRow = tableRows.find((r) => r.isHeader);
+
+        // Se nem o cabeçalho cabe na página atual, avançar já
+        if (doc.y + rowH * 2 > doc.page.height - margemInferior - 20) {
           doc.addPage();
+          await renderizarMarcaDagua();
           doc.y = margemSuperior;
         }
 
         const startX = doc.x;
         let rowY = doc.y;
+        let dataRowIndex = 0; // para zebra
 
-        for (const row of tableRows) {
-          // Fundo do cabeçalho
+        // Função auxiliar para renderizar uma linha da tabela
+        const renderRow = (row: { cells: string[]; isHeader: boolean }, zebraIndex: number) => {
           if (row.isHeader) {
             doc.rect(startX, rowY, larguraUtil, rowH).fillColor("#1a1a2e").fill();
-          } else {
-            // Linha zebrada
-            const rowIndex = tableRows.indexOf(row);
-            if (rowIndex % 2 === 0) {
-              doc.rect(startX, rowY, larguraUtil, rowH).fillColor("#f5f5f5").fill();
-            }
+          } else if (zebraIndex % 2 === 0) {
+            doc.rect(startX, rowY, larguraUtil, rowH).fillColor("#f5f5f5").fill();
           }
-
-          // Bordas externas da linha
           doc.rect(startX, rowY, larguraUtil, rowH).strokeColor("#cccccc").lineWidth(0.5).stroke();
-
-          // Texto das células
           for (let ci = 0; ci < numCols; ci++) {
             const cellText = row.cells[ci] ?? "";
             const cellX = startX + ci * colW;
-            // Linha vertical entre células
             if (ci > 0) {
               doc.moveTo(cellX, rowY).lineTo(cellX, rowY + rowH).strokeColor("#cccccc").lineWidth(0.5).stroke();
             }
@@ -520,6 +515,25 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
               });
           }
           rowY += rowH;
+        };
+
+        for (const row of tableRows) {
+          // Verificar se a linha cabe na página atual
+          if (!row.isHeader && rowY + rowH > doc.page.height - margemInferior - 20) {
+            // Quebra de página: avançar e repetir cabeçalho
+            doc.addPage();
+            await renderizarMarcaDagua();
+            rowY = margemSuperior;
+            if (headerRow) {
+              renderRow(headerRow, -1);
+            }
+          }
+
+          if (row.isHeader) {
+            renderRow(row, -1);
+          } else {
+            renderRow(row, dataRowIndex++);
+          }
         }
 
         doc.y = rowY + 8;
