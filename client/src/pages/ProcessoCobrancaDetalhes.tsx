@@ -203,6 +203,7 @@ export default function CobrancaDetalhes() {
                 condominioId={condominio.id}
                 condominioNome={condominio.name}
                 taxaJurosMensal={taxas.taxaJurosMensal}
+                maxParcelas={(condominio as any).maxParcelas ?? 12}
                 onAcordoCriado={() => {
                   window.location.reload();
                 }}

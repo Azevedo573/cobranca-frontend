@@ -52,6 +52,7 @@ export const condominios = mysqlTable("condominios", {
   // Módulos ativos: JSON array com os módulos habilitados para este condomínio
   // Exemplo: '["cobranca","juridico"]'
   modulosAtivos: varchar("modulosAtivos", { length: 500 }).default('["cobranca"]').notNull(),
+  maxParcelas: int("maxParcelas").default(12).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

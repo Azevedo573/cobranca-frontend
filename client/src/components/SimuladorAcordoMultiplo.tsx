@@ -54,6 +54,7 @@ interface SimuladorAcordoMultiploProps {
   condominioId: number;
   condominioNome: string;
   taxaJurosMensal: number;
+  maxParcelas?: number;
   onAcordoCriado?: () => void;
 }
 
@@ -64,11 +65,12 @@ export function SimuladorAcordoMultiplo({
   condominioId,
   condominioNome,
   taxaJurosMensal,
+  maxParcelas = 12,
   onAcordoCriado,
 }: SimuladorAcordoMultiploProps) {
   const [cobrancasSelecionadas, setCobrancasSelecionadas] = useState<Set<number>>(new Set());
   const [valorEntrada, setValorEntrada] = useState(0);
-  const [numeroParcelas, setNumeroParcelas] = useState(6);
+  const [numeroParcelas, setNumeroParcelas] = useState(() => Math.min(6, maxParcelas));
   const [percentualDesconto, setPercentualDesconto] = useState(0);
   const [copiado, setCopiado] = useState(false);
   const [consolidarAcordo, setConsolidarAcordo] = useState(false);
@@ -461,12 +463,21 @@ export function SimuladorAcordoMultiplo({
                 id="numeroParcelas"
                 type="number"
                 min="1"
-                max="60"
+                max={maxParcelas}
                 value={numeroParcelas}
-                onChange={(e) => setNumeroParcelas(parseInt(e.target.value || "1"))}
-                className="mt-1"
+                onChange={(e) => {
+                  const v = parseInt(e.target.value || "1");
+                  setNumeroParcelas(Math.min(v, maxParcelas));
+                }}
+                className={`mt-1 ${numeroParcelas >= maxParcelas ? 'border-amber-400 focus-visible:ring-amber-400' : ''}`}
               />
-              <p className="text-sm text-muted-foreground mt-1">Quantidade de parcelas mensais</p>
+              {numeroParcelas >= maxParcelas ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">
+                  Limite máximo do condomínio: {maxParcelas}x
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-1">Máximo permitido: {maxParcelas}x</p>
+              )}
             </div>
 
             {/* Data da Primeira Parcela */}

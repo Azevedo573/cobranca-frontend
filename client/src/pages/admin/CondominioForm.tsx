@@ -90,6 +90,7 @@ export default function CondominioForm() {
     customBillingIssuer: "",
     indiceCorrecao: "IPCA" as "NENHUM" | "IPCA" | "IGP-M" | "INPC" | "IGP-DI",
     aplicarCorrecaoAuto: 1,
+    maxParcelas: 12,
   });
 
   // Módulos ativos do condomínio
@@ -147,6 +148,7 @@ export default function CondominioForm() {
         customBillingIssuer: condominio.customBillingIssuer || "",
         indiceCorrecao: ((condominio as any).indiceCorrecao || "IPCA") as "NENHUM" | "IPCA" | "IGP-M" | "INPC" | "IGP-DI",
         aplicarCorrecaoAuto: (condominio as any).aplicarCorrecaoAuto ?? 1,
+        maxParcelas: (condominio as any).maxParcelas ?? 12,
       });
       // Carregar módulos ativos
       try {
@@ -519,8 +521,26 @@ export default function CondominioForm() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="descontoMaximo">Desconto Máximo Permitido (%)</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="maxParcelas">Máximo de Parcelas no Acordo</Label>
+                      <Select
+                        value={String(formData.maxParcelas)}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, maxParcelas: parseInt(v) }))}
+                      >
+                        <SelectTrigger id="maxParcelas">
+                          <SelectValue placeholder="Selecione o máximo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1,2,3,4,5,6,7,8,9,10,11,12,15,18,24,36,48,60].map(n => (
+                            <SelectItem key={n} value={String(n)}>Até {n}x</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Número máximo de parcelas aceito em acordos de negociação</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="descontoMaximo">Desconto Máximo Permitido (%)</Label>
                     <Input
                       id="descontoMaximo"
                       name="descontoMaximo"
@@ -533,6 +553,7 @@ export default function CondominioForm() {
                       placeholder="0.00"
                     />
                     <p className="text-xs text-muted-foreground">Limite de desconto para acordos de cobrança</p>
+                    </div>
                   </div>
                 </div>
               </div>

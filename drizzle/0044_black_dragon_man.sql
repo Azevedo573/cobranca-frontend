@@ -1,0 +1,1 @@
+ALTER TABLE `condominios` ADD `maxParcelas` int DEFAULT 12 NOT NULL;

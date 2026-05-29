@@ -486,6 +486,7 @@ export default function DevedorDetalhes() {
                 condominioId={devedor.condominioId}
                 condominioNome={condominio.name}
                 taxaJurosMensal={Number(condominio.taxaJurosMensal || "1.00")}
+                maxParcelas={(condominio as any).maxParcelas ?? 12}
                 onAcordoCriado={() => {
                   window.location.reload();
                 }}

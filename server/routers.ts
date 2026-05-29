@@ -294,6 +294,7 @@ export const appRouter = router({
       modulosAtivos: z.string().optional(), // JSON array: '["cobranca","juridico"]'
       indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).default("IPCA"),
       aplicarCorrecaoAuto: z.number().default(1),
+      maxParcelas: z.number().int().min(1).max(60).default(12),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
@@ -305,6 +306,7 @@ export const appRouter = router({
         ...input,
         indiceCorrecao: input.indiceCorrecao ?? "IPCA",
         aplicarCorrecaoAuto: input.aplicarCorrecaoAuto ?? 1,
+        maxParcelas: input.maxParcelas ?? 12,
       };
       const result = await createCondominio(payload);
       await logAudit(ctx, { action: "create", entity: "condominio", entityLabel: input.name, afterData: { name: input.name, cnpj: input.cnpj }, severity: "info" });
@@ -333,6 +335,7 @@ export const appRouter = router({
       modulosAtivos: z.string().optional(), // JSON array: '["cobranca","juridico"]'
       indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).optional(),
       aplicarCorrecaoAuto: z.number().optional(),
+      maxParcelas: z.number().int().min(1).max(60).optional(),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {

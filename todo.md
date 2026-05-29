@@ -2031,3 +2031,11 @@
 - [ ] Adicionar variaveis *Extenso no painel do editor
 - [ ] Preencher variaveis *Extenso no GerarDocumentoModal
 - [ ] TypeScript: 0 erros
+
+## Melhoria - Maximo de parcelas no condominio
+- [ ] Adicionar campo maxParcelas no schema
+- [ ] Migrar banco com pnpm db:push
+- [ ] Atualizar CondominioForm com campo de selecao
+- [ ] Atualizar procedures create/update do condominio
+- [ ] Integrar limite no SimuladorAcordoMultiplo
+- [ ] TypeScript: 0 erros
