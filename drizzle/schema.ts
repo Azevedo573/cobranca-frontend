@@ -53,6 +53,9 @@ export const condominios = mysqlTable("condominios", {
   // Exemplo: '["cobranca","juridico"]'
   modulosAtivos: varchar("modulosAtivos", { length: 500 }).default('["cobranca"]').notNull(),
   maxParcelas: int("maxParcelas").default(12).notNull(),
+  // Cancelamento automático de acordos com primeira parcela não paga
+  cancelamentoAutoAtivo: int("cancelamentoAutoAtivo").default(0).notNull(),
+  cancelamentoPrazoDias: int("cancelamentoPrazoDias").default(20).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

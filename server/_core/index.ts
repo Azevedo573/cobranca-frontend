@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startReguaJob } from "../job-regua";
+import { cancelamentoAutoHandler } from "../job-cancelamento-auto";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +37,9 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // Job de cancelamento automático de acordos (Heartbeat cron)
+  app.post("/api/scheduled/cancelamento-auto", cancelamentoAutoHandler);
+
   // tRPC API
   app.use(
     "/api/trpc",

@@ -295,6 +295,8 @@ export const appRouter = router({
       indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).default("IPCA"),
       aplicarCorrecaoAuto: z.number().default(1),
       maxParcelas: z.number().int().min(1).max(60).default(12),
+      cancelamentoAutoAtivo: z.number().int().min(0).max(1).default(0),
+      cancelamentoPrazoDias: z.number().int().min(1).max(90).default(20),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
@@ -307,6 +309,8 @@ export const appRouter = router({
         indiceCorrecao: input.indiceCorrecao ?? "IPCA",
         aplicarCorrecaoAuto: input.aplicarCorrecaoAuto ?? 1,
         maxParcelas: input.maxParcelas ?? 12,
+        cancelamentoAutoAtivo: input.cancelamentoAutoAtivo ?? 0,
+        cancelamentoPrazoDias: input.cancelamentoPrazoDias ?? 20,
       };
       const result = await createCondominio(payload);
       await logAudit(ctx, { action: "create", entity: "condominio", entityLabel: input.name, afterData: { name: input.name, cnpj: input.cnpj }, severity: "info" });
@@ -336,6 +340,8 @@ export const appRouter = router({
       indiceCorrecao: z.enum(["NENHUM", "IPCA", "IGP-M", "INPC", "IGP-DI"]).optional(),
       aplicarCorrecaoAuto: z.number().optional(),
       maxParcelas: z.number().int().min(1).max(60).optional(),
+      cancelamentoAutoAtivo: z.number().int().min(0).max(1).optional(),
+      cancelamentoPrazoDias: z.number().int().min(1).max(90).optional(),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {

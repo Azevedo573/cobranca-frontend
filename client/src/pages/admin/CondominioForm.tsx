@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink, Scale, FileText, ToggleLeft, ToggleRight } from "lucide-react";
+import { ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink, Scale, FileText, ToggleLeft, ToggleRight, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -91,6 +91,8 @@ export default function CondominioForm() {
     indiceCorrecao: "IPCA" as "NENHUM" | "IPCA" | "IGP-M" | "INPC" | "IGP-DI",
     aplicarCorrecaoAuto: 1,
     maxParcelas: 12,
+    cancelamentoAutoAtivo: 0,
+    cancelamentoPrazoDias: 20,
   });
 
   // Módulos ativos do condomínio
@@ -149,6 +151,8 @@ export default function CondominioForm() {
         indiceCorrecao: ((condominio as any).indiceCorrecao || "IPCA") as "NENHUM" | "IPCA" | "IGP-M" | "INPC" | "IGP-DI",
         aplicarCorrecaoAuto: (condominio as any).aplicarCorrecaoAuto ?? 1,
         maxParcelas: (condominio as any).maxParcelas ?? 12,
+        cancelamentoAutoAtivo: (condominio as any).cancelamentoAutoAtivo ?? 0,
+        cancelamentoPrazoDias: (condominio as any).cancelamentoPrazoDias ?? 20,
       });
       // Carregar módulos ativos
       try {
@@ -555,6 +559,57 @@ export default function CondominioForm() {
                     <p className="text-xs text-muted-foreground">Limite de desconto para acordos de cobrança</p>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Cancelamento Automático de Acordos */}
+              <div className="border-t pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertCircle className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Cancelamento Automático de Acordos</h3>
+                  <Badge variant="outline" className="text-xs font-normal text-primary border-primary/30 bg-primary/5">Negocição</Badge>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">Cancelamento automático ativo</p>
+                      <p className="text-xs text-muted-foreground">Cancela acordos cuja primeira parcela não seja paga dentro do prazo configurado</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, cancelamentoAutoAtivo: prev.cancelamentoAutoAtivo === 1 ? 0 : 1 }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        formData.cancelamentoAutoAtivo === 1 ? "bg-primary" : "bg-input"
+                      }`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                        formData.cancelamentoAutoAtivo === 1 ? "translate-x-6" : "translate-x-1"
+                      }`} />
+                    </button>
+                  </div>
+                  {formData.cancelamentoAutoAtivo === 1 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="cancelamentoPrazoDias">Prazo para pagamento da 1ª parcela (dias)</Label>
+                        <Select
+                          value={String(formData.cancelamentoPrazoDias)}
+                          onValueChange={(v) => setFormData(prev => ({ ...prev, cancelamentoPrazoDias: parseInt(v) }))}
+                        >
+                          <SelectTrigger id="cancelamentoPrazoDias">
+                            <SelectValue placeholder="Selecione o prazo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[5,7,10,15,20,25,30,45,60].map(n => (
+                              <SelectItem key={n} value={String(n)}>{n} dias</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Se a 1ª parcela não for paga em até {formData.cancelamentoPrazoDias} dias após a criação do acordo, ele será cancelado automaticamente
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

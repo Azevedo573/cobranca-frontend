@@ -2039,3 +2039,13 @@
 - [ ] Atualizar procedures create/update do condominio
 - [ ] Integrar limite no SimuladorAcordoMultiplo
 - [ ] TypeScript: 0 erros
+
+## Cancelamento Automático de Acordos por Prazo
+- [x] Adicionar colunas cancelamentoAutoAtivo e cancelamentoPrazoDias no schema de condominios
+- [x] Executar db:push para aplicar migração no banco
+- [x] Atualizar procedure condominios.update no routers.ts com novos campos
+- [x] Adicionar seção de Cancelamento Automático no CondominioForm (toggle + seletor de prazo)
+- [x] Criar handler job-cancelamento-auto.ts com await getDb() correto
+- [x] Registrar rota POST /api/scheduled/cancelamento-auto no servidor Express
+- [x] Criar Heartbeat via CLI (task_uid: SNLwphD5fCmbFcJX2VcBkP, cron: 0 0 6 * * * UTC)
+- [x] Verificar TypeScript: 0 erros
