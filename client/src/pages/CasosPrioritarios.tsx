@@ -180,7 +180,7 @@ export default function CasosPrioritarios() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link href={`/devedores/${devedor.id}`}>
+                        <Link href={`/devedores/${devedor.id}/detalhes`}>
                           <Button variant="ghost" size="sm">
                             <Eye className="w-4 h-4" />
                           </Button>

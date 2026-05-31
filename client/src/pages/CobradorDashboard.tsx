@@ -147,7 +147,7 @@ export default function CobradorDashboard() {
                             Unidade {dev.unitNumber} - R$ {(dev.totalDue / 100).toFixed(2)}
                           </p>
                         </div>
-                        <Link href={`/devedores/${dev.id}`}>
+                        <Link href={`/devedores/${dev.id}/detalhes`}>
                           <Button size="sm" variant="ghost">Ver</Button>
                         </Link>
                       </div>

@@ -144,7 +144,7 @@ function DevedorCard({ devedor, onMover }: { devedor: Devedor; onMover: (id: num
 
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
         <ScoreDot score={devedor.scoreRecuperacao} />
-        <Link href={`/devedores/${devedor.id}`}>
+        <Link href={`/devedores/${devedor.id}/detalhes`}>
           <span className="text-xs text-primary hover:underline">Ver detalhes →</span>
         </Link>
       </div>

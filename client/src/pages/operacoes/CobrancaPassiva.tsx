@@ -286,7 +286,7 @@ export default function CobrancaPassiva() {
                       {devedorSelecionado.totalDevido > 0 && (
                         <p className="font-bold text-red-600">{formatCurrency(devedorSelecionado.totalDevido)}</p>
                       )}
-                      <Link href={`/devedores/${devedorSelecionado.id}`} className="text-xs text-primary hover:underline">
+                      <Link href={`/devedores/${devedorSelecionado.id}/detalhes`} className="text-xs text-primary hover:underline">
                         Ver perfil →
                       </Link>
                     </div>
@@ -657,7 +657,7 @@ export default function CobrancaPassiva() {
                           </Badge>
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <Link href={`/devedores/${dev.id}`}>
+                          <Link href={`/devedores/${dev.id}/detalhes`}>
                             <Button size="sm" variant="ghost" className="h-7 text-xs">
                               Ver
                             </Button>
