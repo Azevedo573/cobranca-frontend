@@ -127,7 +127,7 @@ export default function CobrancaAtiva() {
   }
 
   return (
-    <div className="p-4 space-y-4 h-full">
+    <div className="p-4 flex flex-col gap-4 h-full">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -159,7 +159,7 @@ export default function CobrancaAtiva() {
       </div>
 
       {/* Layout dividido: fila à esquerda, painel à direita */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 h-[calc(100vh-200px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0">
         {/* Fila de devedores */}
         <div className="lg:col-span-2 flex flex-col gap-2 overflow-y-auto pr-1">
           {loadingFila ? (
@@ -316,7 +316,7 @@ export default function CobrancaAtiva() {
                         {devedorDetalhes.devedor.email}
                       </a>
                     )}
-                    <Link href={`/devedores/${devedorDetalhes.devedor.id}`} className="flex items-center gap-1.5 text-sm text-primary hover:underline ml-auto">
+                    <Link href={`/devedores/${devedorDetalhes.devedor.id}/detalhes`} className="flex items-center gap-1.5 text-sm text-primary hover:underline ml-auto">
                       Ver perfil completo →
                     </Link>
                   </div>

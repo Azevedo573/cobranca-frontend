@@ -48,11 +48,11 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-      <div className="min-h-screen bg-background">
+      <div className="h-screen overflow-hidden bg-background flex">
         <Sidebar />
         <main
           className={cn(
-            "transition-all duration-300 min-h-screen",
+            "transition-all duration-300 flex-1 h-screen overflow-y-auto",
             collapsed ? "ml-16" : "ml-64"
           )}
         >
