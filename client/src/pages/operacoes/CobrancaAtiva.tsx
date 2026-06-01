@@ -127,7 +127,7 @@ export default function CobrancaAtiva() {
   }
 
   return (
-    <div className="p-4 flex flex-col gap-4 h-full">
+    <div className="p-4 flex flex-col gap-4 flex-1 min-h-0 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -232,7 +232,7 @@ export default function CobrancaAtiva() {
         </div>
 
         {/* Painel de atendimento */}
-        <div className="lg:col-span-3 flex flex-col gap-3 overflow-y-auto">
+        <div className="lg:col-span-3 flex flex-col gap-3 overflow-y-auto h-full">
           {!devedorSelecionadoId ? (
             <Card className="border-dashed h-full">
               <CardContent className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">

@@ -52,7 +52,7 @@ export default function Layout({ children }: LayoutProps) {
         <Sidebar />
         <main
           className={cn(
-            "transition-all duration-300 flex-1 h-screen overflow-y-auto",
+            "transition-all duration-300 flex-1 min-h-0 flex flex-col",
             collapsed ? "ml-16" : "ml-64"
           )}
         >
