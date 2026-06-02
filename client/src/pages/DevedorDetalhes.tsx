@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -39,7 +40,10 @@ export default function DevedorDetalhes() {
   const [copiadoLinhaId, setCopiadoLinhaId] = useState<number | null>(null);
   const [copiadoPixId, setCopiadoPixId] = useState<number | null>(null);
   // Cache dos dados do boleto gerado por cobrancaId
-  const [dadosBoleto, setDadosBoleto] = useState<Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>>({});
+  const [dadosBoleto, setDadosBoleto] = useState<Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>>({})
+  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
+  const [mostrarTodas, setMostrarTodas] = useState(false);
+  const LIMITE_INICIAL = 5;
 
   const copiarTexto = (texto: string, tipo: "linha" | "pix", cobrancaId: number) => {
     navigator.clipboard.writeText(texto).then(() => {
@@ -329,36 +333,172 @@ export default function DevedorDetalhes() {
             )}
           </div>
 
-          {/* Coluna Direita: Timeline e Ações */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Timeline de Tentativas */}
-            <TimelineTentativas tentativas={tentativas} limite={8} />
+          {/* Coluna Direita: Abas */}
+          <div className="lg:col-span-2">
+            <Tabs defaultValue="historico" className="w-full">
+              <TabsList className="w-full mb-4 grid grid-cols-3">
+                <TabsTrigger value="historico">Histórico de Contatos</TabsTrigger>
+                <TabsTrigger value="cobrancas">Cobranças ({cobrancas.length})</TabsTrigger>
+                <TabsTrigger value="acordos">Acordos & Boletos</TabsTrigger>
+              </TabsList>
 
-            {/* Tabela de Cobranças */}
+              {/* ABA: Histórico */}
+              <TabsContent value="historico" className="space-y-6">
+                <TimelineTentativas tentativas={tentativas} limite={8} />
+              </TabsContent>
+
+              {/* ABA: Cobranças */}
+              <TabsContent value="cobrancas">
             <Card>
               <CardHeader>
-                <CardTitle>Todas as Cobranças</CardTitle>
-                <CardDescription>Total: {cobrancas.length} cobrança(s)</CardDescription>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Cobranças</CardTitle>
+                      <CardDescription>Total: {cobrancas.length} cobrança(s)</CardDescription>
+                    </div>
+                  </div>
+                  {/* Filtros de status */}
+                  <div className="flex gap-2 flex-wrap">
+                    {["todos", "pendente", "pago", "em_cobranca", "cancelado"].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => { setFiltroStatus(s); setMostrarTodas(false); }}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                          filtroStatus === s
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background border-border hover:border-primary/50 text-muted-foreground"
+                        }`}
+                      >
+                        {s === "todos" ? "Todas" : s === "pendente" ? "Pendentes" : s === "pago" ? "Pagas" : s === "em_cobranca" ? "Em Cobrança" : "Canceladas"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                {cobrancas.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Vencimento</TableHead>
-                        <TableHead>Valor Original</TableHead>
-                        <TableHead>Juros</TableHead>
-                        <TableHead>Multa</TableHead>
-                        <TableHead>Honorários</TableHead>
-                        <TableHead>Correção</TableHead>
-                        <TableHead>Valor Atualizado</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Boleto</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {cobrancas.map((cob: any) => {
+                <CobrancasTabela
+                  cobrancas={cobrancas}
+                  filtroStatus={filtroStatus}
+                  mostrarTodas={mostrarTodas}
+                  setMostrarTodas={setMostrarTodas}
+                  limiteInicial={LIMITE_INICIAL}
+                  gerandoBoleto={gerandoBoleto}
+                  setGerandoBoleto={setGerandoBoleto}
+                  dadosBoleto={dadosBoleto}
+                  gerarBoletoPDFMutation={gerarBoletoPDFMutation}
+                  copiadoLinhaId={copiadoLinhaId}
+                  copiadoPixId={copiadoPixId}
+                  copiarTexto={copiarTexto}
+                />
+              </CardContent>
+            </Card>
+              </TabsContent>
+
+              {/* ABA: Acordos & Boletos */}
+              <TabsContent value="acordos" className="space-y-6">
+                <BoletosPorDevedor devedorId={devedor.id} condominioId={devedor.condominioId} />
+                <AcordosDevedor devedorId={devedor.id} />
+                {condominio && cobrancas.length > 0 && (
+                  <SimuladorAcordoMultiplo
+                    cobrancas={cobrancas as any}
+                    devedorId={devedor.id}
+                    devedorNome={getDevedorIdentificador(devedor)}
+                    condominioId={devedor.condominioId}
+                    condominioNome={condominio.name}
+                    taxaJurosMensal={Number(condominio.taxaJurosMensal || "1.00")}
+                    maxParcelas={(condominio as any).maxParcelas ?? 12}
+                    onAcordoCriado={() => { window.location.reload(); }}
+                  />
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </main>
+
+      {/* Modal de Nova Dívida */}
+      <NovaDividaModal
+        open={modalDividaOpen}
+        onOpenChange={setModalDividaOpen}
+        devedorId={devedor.id}
+        condominioId={devedor.condominioId}
+      />
+
+      {/* Modal de Nova Tentativa */}
+      <NovaTentativaModal
+        open={modalTentativaOpen}
+        onOpenChange={setModalTentativaOpen}
+        devedorId={devedor.id}
+        condominioId={devedor.condominioId}
+      />
+
+      {/* Modal de Gerar Documento */}
+      <GerarDocumentoModal
+        open={modalDocumentoOpen}
+        onClose={() => setModalDocumentoOpen(false)}
+        devedor={{
+          id: devedor.id,
+          name: devedor.name ?? "",
+          cpfCnpj: devedor.cpfCnpj ?? undefined,
+          unitNumber: devedor.unitNumber ?? undefined,
+          bloco: devedor.bloco ?? undefined,
+          condominioId: devedor.condominioId,
+        }}
+        cobrancas={cobrancas as any}
+        nomeCondominio={condominio?.name ?? undefined}
+        nomeResponsavel={user?.name ?? undefined}
+      />
+    </div>
+  );
+}
+
+// ===== Componente interno: tabela de cobranças =====
+function CobrancasTabela({
+  cobrancas, filtroStatus, mostrarTodas, setMostrarTodas, limiteInicial,
+  gerandoBoleto, setGerandoBoleto, dadosBoleto, gerarBoletoPDFMutation,
+  copiadoLinhaId, copiadoPixId, copiarTexto
+}: {
+  cobrancas: any[];
+  filtroStatus: string;
+  mostrarTodas: boolean;
+  setMostrarTodas: (fn: (v: boolean) => boolean) => void;
+  limiteInicial: number;
+  gerandoBoleto: number | null;
+  setGerandoBoleto: (id: number | null) => void;
+  dadosBoleto: Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>;
+  gerarBoletoPDFMutation: any;
+  copiadoLinhaId: number | null;
+  copiadoPixId: number | null;
+  copiarTexto: (texto: string, tipo: "linha" | "pix", cobrancaId: number) => void;
+}) {
+  const cobFiltradas = filtroStatus === "todos" ? cobrancas : cobrancas.filter((c: any) => c.status === filtroStatus);
+  const cobVisiveis = mostrarTodas ? cobFiltradas : cobFiltradas.slice(0, limiteInicial);
+
+  if (cobFiltradas.length === 0) {
+    return <div className="text-center py-8 text-muted-foreground">Nenhuma cobrança com este filtro.</div>;
+  }
+
+  return (
+    <>
+      <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Descrição</TableHead>
+            <TableHead>Vencimento</TableHead>
+            <TableHead className="hidden xl:table-cell">Valor Original</TableHead>
+            <TableHead className="hidden xl:table-cell">Juros</TableHead>
+            <TableHead className="hidden xl:table-cell">Multa</TableHead>
+            <TableHead className="hidden xl:table-cell">Honorários</TableHead>
+            <TableHead className="hidden xl:table-cell">Correção</TableHead>
+            <TableHead>Valor Atualizado</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Boleto</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {cobVisiveis.map((cob: any) => {
                         // Usar breakdown calculado pelo backend (inclui correção BCB)
                         const breakdown = cob.breakdown || {
                           valorOriginal: cob.amount / 100,
@@ -447,7 +587,6 @@ export default function DevedorDetalhes() {
                                     </Button>
                                   ) : null}
 
-                                  {/* Gerar pela primeira vez mostra apenas o botão PDF */}
                                   {!dadosBoleto[cob.id] && !(cob as any).pixCopiaCola && (
                                     <span className="text-xs text-muted-foreground text-center">
                                       Gere o PDF para copiar
@@ -461,74 +600,17 @@ export default function DevedorDetalhes() {
                           </TableRow>
                         );
                       })}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Nenhuma cobrança cadastrada
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Boletos do Devedor */}
-            <BoletosPorDevedor devedorId={devedor.id} condominioId={devedor.condominioId} />
-
-            {/* Acordos do Devedor */}
-            <AcordosDevedor devedorId={devedor.id} />
-
-            {/* Simulador de Acordo Consolidado */}
-            {condominio && cobrancas.length > 0 && (
-              <SimuladorAcordoMultiplo
-                cobrancas={cobrancas as any}
-                devedorId={devedor.id}
-                devedorNome={getDevedorIdentificador(devedor)}
-                condominioId={devedor.condominioId}
-                condominioNome={condominio.name}
-                taxaJurosMensal={Number(condominio.taxaJurosMensal || "1.00")}
-                maxParcelas={(condominio as any).maxParcelas ?? 12}
-                onAcordoCriado={() => {
-                  window.location.reload();
-                }}
-              />
-            )}
-          </div>
+        </TableBody>
+      </Table>
+      </div>
+      {cobFiltradas.length > limiteInicial && (
+        <div className="mt-3 text-center">
+          <Button variant="outline" size="sm" onClick={() => setMostrarTodas(v => !v)}>
+            {mostrarTodas ? "Ver menos" : `Ver todas as ${cobFiltradas.length} cobranças`}
+          </Button>
         </div>
-      </main>
-
-      {/* Modal de Nova Dívida */}
-      <NovaDividaModal
-        open={modalDividaOpen}
-        onOpenChange={setModalDividaOpen}
-        devedorId={devedor.id}
-        condominioId={devedor.condominioId}
-      />
-
-      {/* Modal de Nova Tentativa */}
-      <NovaTentativaModal
-        open={modalTentativaOpen}
-        onOpenChange={setModalTentativaOpen}
-        devedorId={devedor.id}
-        condominioId={devedor.condominioId}
-      />
-
-      {/* Modal de Gerar Documento */}
-      <GerarDocumentoModal
-        open={modalDocumentoOpen}
-        onClose={() => setModalDocumentoOpen(false)}
-        devedor={{
-          id: devedor.id,
-          name: devedor.name ?? "",
-          cpfCnpj: devedor.cpfCnpj ?? undefined,
-          unitNumber: devedor.unitNumber ?? undefined,
-          bloco: devedor.bloco ?? undefined,
-          condominioId: devedor.condominioId,
-        }}
-        cobrancas={cobrancas as any}
-        nomeCondominio={condominio?.name ?? undefined}
-        nomeResponsavel={user?.name ?? undefined}
-      />
-    </div>
+      )}
+    </>
   );
 }
 
