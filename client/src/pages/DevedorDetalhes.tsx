@@ -336,10 +336,11 @@ export default function DevedorDetalhes() {
           {/* Coluna Direita: Abas */}
           <div className="lg:col-span-2">
             <Tabs defaultValue="historico" className="w-full">
-              <TabsList className="w-full mb-4 grid grid-cols-3">
-                <TabsTrigger value="historico">Histórico de Contatos</TabsTrigger>
+              <TabsList className="w-full mb-4 grid grid-cols-4">
+                <TabsTrigger value="historico">Histórico</TabsTrigger>
                 <TabsTrigger value="cobrancas">Cobranças ({cobrancas.length})</TabsTrigger>
                 <TabsTrigger value="acordos">Acordos & Boletos</TabsTrigger>
+                <TabsTrigger value="simulador">Simulador</TabsTrigger>
               </TabsList>
 
               {/* ABA: Histórico */}
@@ -399,7 +400,11 @@ export default function DevedorDetalhes() {
               <TabsContent value="acordos" className="space-y-6">
                 <BoletosPorDevedor devedorId={devedor.id} condominioId={devedor.condominioId} />
                 <AcordosDevedor devedorId={devedor.id} />
-                {condominio && cobrancas.length > 0 && (
+              </TabsContent>
+
+              {/* ABA: Simulador de Acordo */}
+              <TabsContent value="simulador" className="space-y-6">
+                {condominio && cobrancas.length > 0 ? (
                   <SimuladorAcordoMultiplo
                     cobrancas={cobrancas as any}
                     devedorId={devedor.id}
@@ -410,6 +415,10 @@ export default function DevedorDetalhes() {
                     maxParcelas={(condominio as any).maxParcelas ?? 12}
                     onAcordoCriado={() => { window.location.reload(); }}
                   />
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <p className="text-sm">Nenhuma cobrança pendente para simular acordo.</p>
+                  </div>
                 )}
               </TabsContent>
             </Tabs>
