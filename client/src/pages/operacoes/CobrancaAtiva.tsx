@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +54,7 @@ export default function CobrancaAtiva() {
   const [result, setResult] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [cobrancaIdSelecionada, setCobrancaIdSelecionada] = useState<number | null>(null);
+
   const [atendimentosHoje, setAtendimentosHoje] = useState(0);
 
   const condIdQuery = isAdmin ? (condominioId ?? undefined) : undefined;
@@ -67,6 +68,18 @@ export default function CobrancaAtiva() {
     { devedorId: devedorSelecionadoId! },
     { enabled: !!devedorSelecionadoId }
   );
+
+  // Auto-selecionar a cobrança mais prioritária quando os detalhes carregam
+  useEffect(() => {
+    if (devedorDetalhes?.cobrancasPendentes?.length) {
+      const mais = devedorDetalhes.cobrancasPendentes.reduce((a: any, b: any) =>
+        ((b as any).diasAtraso ?? 0) > ((a as any).diasAtraso ?? 0) ? b : a
+      );
+      setCobrancaIdSelecionada(mais.id);
+    } else {
+      setCobrancaIdSelecionada(null);
+    }
+  }, [devedorDetalhes]);
 
   const registrarMutation = trpc.operacoes.registrarAcaoAtiva.useMutation({
     onSuccess: () => {
@@ -83,8 +96,8 @@ export default function CobrancaAtiva() {
   const utils = trpc.useUtils();
 
   const handleRegistrar = () => {
-    if (!devedorSelecionadoId || !result || !cobrancaIdSelecionada) {
-      toast.error("Selecione a cobrança, o canal e o resultado antes de registrar.");
+    if (!devedorSelecionadoId || !result) {
+      toast.error("Selecione o canal e o resultado antes de registrar.");
       return;
     }
     registrarMutation.mutate({
@@ -268,26 +281,23 @@ export default function CobrancaAtiva() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                    <div className="bg-red-50 dark:bg-red-950 rounded-lg p-2.5 text-center">
-                      <DollarSign className="h-4 w-4 mx-auto text-red-600 mb-1" />
-                      <p className="text-xs text-muted-foreground">Total Devido</p>
-                      <p className="font-bold text-red-600 text-sm">{formatCurrency(devedorDetalhes.valorTotalDevido)}</p>
+                  {/* Resumo rápido */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-red-50 dark:bg-red-950 border border-red-100 dark:border-red-900 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <DollarSign className="h-4 w-4 text-red-600" />
+                        <span className="text-xs text-muted-foreground font-medium">Valor Total em Aberto</span>
+                      </div>
+                      <p className="font-bold text-red-600 text-xl">{formatCurrency(devedorDetalhes.valorTotalDevido)}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{devedorDetalhes.cobrancasPendentes.length} cobrança{devedorDetalhes.cobrancasPendentes.length !== 1 ? 's' : ''} pendente{devedorDetalhes.cobrancasPendentes.length !== 1 ? 's' : ''}</p>
                     </div>
-                    <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-2.5 text-center">
-                      <Clock className="h-4 w-4 mx-auto text-orange-600 mb-1" />
-                      <p className="text-xs text-muted-foreground">Dias Atraso</p>
-                      <p className="font-bold text-orange-600 text-sm">{devedorDetalhes.diasMaxAtraso}d</p>
-                    </div>
-                    <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2.5 text-center">
-                      <Phone className="h-4 w-4 mx-auto text-blue-600 mb-1" />
-                      <p className="text-xs text-muted-foreground">Tentativas</p>
-                      <p className="font-bold text-blue-600 text-sm">{devedorDetalhes.tentativas.length}</p>
-                    </div>
-                    <div className="bg-purple-50 dark:bg-purple-950 rounded-lg p-2.5 text-center">
-                      <AlertTriangle className="h-4 w-4 mx-auto text-purple-600 mb-1" />
-                      <p className="text-xs text-muted-foreground">Cobranças</p>
-                      <p className="font-bold text-purple-600 text-sm">{devedorDetalhes.cobrancasPendentes.length}</p>
+                    <div className="bg-orange-50 dark:bg-orange-950 border border-orange-100 dark:border-orange-900 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="h-4 w-4 text-orange-600" />
+                        <span className="text-xs text-muted-foreground font-medium">Maior Atraso</span>
+                      </div>
+                      <p className="font-bold text-orange-600 text-xl">{devedorDetalhes.diasMaxAtraso} dias</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{devedorDetalhes.tentativas.length} contato{devedorDetalhes.tentativas.length !== 1 ? 's' : ''} registrado{devedorDetalhes.tentativas.length !== 1 ? 's' : ''}</p>
                     </div>
                   </div>
 
@@ -320,42 +330,6 @@ export default function CobrancaAtiva() {
                       Ver perfil completo →
                     </Link>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Cobranças pendentes */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                    Cobranças Pendentes — Selecione a que será tratada
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {devedorDetalhes.cobrancasPendentes.map((cob) => (
-                    <button
-                      key={cob.id}
-                      onClick={() => setCobrancaIdSelecionada(cob.id)}
-                      className={`w-full text-left rounded-lg border p-3 transition-all ${
-                        cobrancaIdSelecionada === cob.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/40"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">{cob.description || cob.monthReference || `Cobrança #${cob.id}`}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Venc: {cob.dueDate ? new Date(cob.dueDate).toLocaleDateString("pt-BR") : "—"} ·{" "}
-                            <span className="text-orange-600">{(cob as any).diasAtraso}d em atraso</span>
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-red-600 text-sm">{formatCurrency((cob as any).valorAtualizado || cob.amount)}</p>
-                          <p className="text-xs text-muted-foreground">Original: {formatCurrency(cob.amount)}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
                 </CardContent>
               </Card>
 
@@ -423,7 +397,7 @@ export default function CobrancaAtiva() {
 
                   <Button
                     onClick={handleRegistrar}
-                    disabled={!result || !cobrancaIdSelecionada || registrarMutation.isPending}
+                    disabled={!result || registrarMutation.isPending}
                     className="w-full"
                   >
                     {registrarMutation.isPending ? (

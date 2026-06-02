@@ -1,0 +1,1 @@
+ALTER TABLE `tentativasCobranca` MODIFY COLUMN `cobrancaId` int;

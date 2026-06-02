@@ -101,7 +101,7 @@ export const cobrancas = mysqlTable("cobrancas", {
 
 export const tentativasCobranca = mysqlTable("tentativasCobranca", {
   id: int("id").autoincrement().primaryKey(),
-  cobrancaId: int("cobrancaId").notNull(),
+  cobrancaId: int("cobrancaId"),
   devedorId: int("devedorId").notNull(),
   condominioId: int("condominioId").notNull(),
   userId: int("userId").notNull(),

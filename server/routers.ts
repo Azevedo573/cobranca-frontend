@@ -2954,7 +2954,7 @@ export const appRouter = router({
     registrarAcaoAtiva: protectedProcedure
       .input(z.object({
         devedorId: z.number(),
-        cobrancaId: z.number(),
+        cobrancaId: z.number().nullable().optional(),
         contactType: z.enum(["telefone", "email", "pessoal", "whatsapp"]),
         result: z.enum(["sem_resposta", "promessa_pagamento", "deseja_acordo", "recusa", "outro"]),
         notes: z.string().optional(),
@@ -2963,14 +2963,26 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const db = await (await import("./db")).getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-        const { tentativasCobranca: tc, devedores: dev } = await import("../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
+        const { tentativasCobranca: tc, devedores: dev, cobrancas } = await import("../drizzle/schema");
+        const { eq, and, inArray } = await import("drizzle-orm");
         // Buscar condominioId do devedor
         const devedorResult = await db.select({ condominioId: dev.condominioId }).from(dev).where(eq(dev.id, input.devedorId)).limit(1);
         const condominioId = devedorResult[0]?.condominioId ?? 0;
+        // Se cobrancaId não fornecido, usar a cobrança pendente mais antiga
+        let cobrancaId = input.cobrancaId ?? null;
+        if (!cobrancaId) {
+          const pendentes = await db.select({ id: cobrancas.id, dueDate: cobrancas.dueDate })
+            .from(cobrancas)
+            .where(and(eq(cobrancas.devedorId, input.devedorId), inArray(cobrancas.status, ["pendente", "em_cobranca"])))
+            .limit(10);
+          if (pendentes.length > 0) {
+            const mais = pendentes.reduce((a, b) => (a.dueDate ?? 0) < (b.dueDate ?? 0) ? a : b);
+            cobrancaId = mais.id;
+          }
+        }
         await db.insert(tc).values({
           devedorId: input.devedorId,
-          cobrancaId: input.cobrancaId,
+          cobrancaId: cobrancaId ?? null,
           condominioId,
           userId: ctx.user.id,
           contactType: input.contactType,
