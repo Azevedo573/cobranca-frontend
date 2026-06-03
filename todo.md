@@ -2049,3 +2049,20 @@
 - [x] Registrar rota POST /api/scheduled/cancelamento-auto no servidor Express
 - [x] Criar Heartbeat via CLI (task_uid: SNLwphD5fCmbFcJX2VcBkP, cron: 0 0 6 * * * UTC)
 - [x] Verificar TypeScript: 0 erros
+
+## Editor Visual de Modelos (Canva-like)
+
+- [x] Instalar dependências para drag-and-drop e exportação PDF
+- [x] Criar componente CanvasEditor com área de página A4 e elementos posicionados absolutamente
+- [x] Suporte a elementos: Texto livre, Retângulo, Linha horizontal, Círculo/Elipse
+- [x] Drag para mover elementos com mouse (pointer events nativos)
+- [x] Resize de elementos via handles nos cantos
+- [x] Painel de propriedades: cor de fundo, cor de borda, cor do texto, tamanho da fonte, largura/altura
+- [x] Seleção de elemento com clique (highlight com borda azul)
+- [x] Deletar elemento selecionado (tecla Delete ou botão)
+- [x] Toolbar de inserção: botões para adicionar cada tipo de elemento
+- [x] Inserir variáveis dinâmicas em elementos de texto
+- [x] Modo de edição de texto inline com duplo clique
+- [x] Integrar CanvasEditor como aba "Visual" no ModeloEditor (ao lado da aba "Texto")
+- [x] Persistir canvasElements (JSON) no campo do modelo no banco
+- [x] Exportar canvas para PDF via html2canvas + jsPDF

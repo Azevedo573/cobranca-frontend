@@ -25,8 +25,9 @@ import {
   Bold, Italic, Underline as UnderlineIcon, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   List, ListOrdered, Table as TableIcon, Undo, Redo, Save, ArrowLeft,
   Upload, Trash2, Eye, ChevronDown, ChevronRight, Variable, Image as ImageIcon,
-  Heading1, Heading2, Heading3,
+  Heading1, Heading2, Heading3, Layers,
 } from "lucide-react";
+import CanvasEditor, { CanvasElement } from "@/components/CanvasEditor";
 
 const TIPOS_DOCUMENTO = [
   { value: "proposta_acordo", label: "Proposta de Acordo" },
@@ -500,6 +501,8 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
   const [marcaDaguaPosicao, setMarcaDaguaPosicao] = useState<"diagonal" | "centro" | "topo" | "rodape">("diagonal");
   const [salvando, setSalvando] = useState(false);
   const [gerandoPDF, setGerandoPDF] = useState(false);
+  const [canvasElements, setCanvasElements] = useState<CanvasElement[]>([]);
+  const [modoEditor, setModoEditor] = useState<"texto" | "visual">("texto");
 
   // Carregar modelo existente
   const { data: modeloExistente } = trpc.modelosDocumento.getById.useQuery(
@@ -542,6 +545,9 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
       setMarcaDaguaOpacidade(modeloExistente.marcaDaguaOpacidade ?? 8);
       setMarcaDaguaPosicao((modeloExistente.marcaDaguaPosicao as any) ?? "diagonal");
       editor.commands.setContent(modeloExistente.conteudoHtml || "<p></p>");
+      if (modeloExistente.canvasElements) {
+        try { setCanvasElements(JSON.parse(modeloExistente.canvasElements)); } catch {}
+      }
     }
   }, [modeloExistente, editor]);
 
@@ -570,6 +576,7 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
     setSalvando(true);
     try {
       const conteudoHtml = editor.getHTML();
+      const canvasJson = canvasElements.length > 0 ? JSON.stringify(canvasElements) : null;
       if (isEdicao) {
         await updateMutation.mutateAsync({
           id: modeloId,
@@ -583,6 +590,7 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
           logoLargura,
           marcaDaguaOpacidade,
           marcaDaguaPosicao,
+          canvasElements: canvasJson,
         });
         toast.success("Modelo atualizado com sucesso");
       } else {
@@ -597,6 +605,7 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
           logoLargura,
           marcaDaguaOpacidade,
           marcaDaguaPosicao,
+          canvasElements: canvasJson,
         });
         const newId = Number(result.id);
         if (!newId || isNaN(newId)) throw new Error("ID do modelo inválido");
@@ -723,15 +732,49 @@ export default function ModeloEditor() { const [, params] = useRoute("/modelos-d
               </div>
             </div>
 
-            {/* Barra de ferramentas */}
-            <EditorToolbar editor={editor} />
-
-            {/* Área de edição */}
-            <div className="flex-1 overflow-y-auto bg-white">
-              <div className="max-w-[794px] mx-auto my-4 sm:my-6 shadow-sm border rounded-sm bg-white">
-                <EditorContent editor={editor} />
-              </div>
+            {/* Tabs Texto / Visual */}
+            <div className="flex items-center gap-1 px-3 py-1.5 border-b bg-muted/20 shrink-0">
+              <button
+                onClick={() => setModoEditor("texto")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                  modoEditor === "texto" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                }`}
+              >
+                <Bold className="h-3 w-3" /> Editor de Texto
+              </button>
+              <button
+                onClick={() => setModoEditor("visual")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                  modoEditor === "visual" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                }`}
+              >
+                <Layers className="h-3 w-3" /> Editor Visual
+              </button>
+              {modoEditor === "visual" && canvasElements.length > 0 && (
+                <span className="ml-2 text-xs text-muted-foreground">{canvasElements.length} elemento(s)</span>
+              )}
             </div>
+
+            {modoEditor === "texto" ? (
+              <>
+                {/* Barra de ferramentas */}
+                <EditorToolbar editor={editor} />
+                {/* Área de edição */}
+                <div className="flex-1 overflow-y-auto bg-white">
+                  <div className="max-w-[794px] mx-auto my-4 sm:my-6 shadow-sm border rounded-sm bg-white">
+                    <EditorContent editor={editor} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 overflow-hidden min-h-0 p-3">
+                <CanvasEditor
+                  elements={canvasElements}
+                  onChange={setCanvasElements}
+                  variaveisDisponiveis={Object.values(CATEGORIAS_VARIAVEIS).flat()}
+                />
+              </div>
+            )}
           </div>
 
           {/* Painel lateral */}

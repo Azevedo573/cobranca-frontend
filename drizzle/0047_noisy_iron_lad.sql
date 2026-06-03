@@ -1,0 +1,1 @@
+ALTER TABLE `modelosDocumento` ADD `canvasElements` text;

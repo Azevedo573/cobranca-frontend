@@ -3976,6 +3976,7 @@ export const appRouter = router({
         margemInferior: z.number().optional(),
         margemEsquerda: z.number().optional(),
         margemDireita: z.number().optional(),
+        canvasElements: z.string().nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { createModelo } = await import("./db-modelos");
@@ -4006,6 +4007,7 @@ export const appRouter = router({
         margemInferior: z.number().optional(),
         margemEsquerda: z.number().optional(),
         margemDireita: z.number().optional(),
+        canvasElements: z.string().nullable().optional(),
       }))
       .mutation(async ({ input }) => {
         const { updateModelo } = await import("./db-modelos");

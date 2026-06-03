@@ -477,6 +477,8 @@ export const modelosDocumento = mysqlTable("modelosDocumento", {
   marcaDaguaUrl: text("marcaDaguaUrl"), // URL S3 da imagem de marca d'água
   marcaDaguaOpacidade: int("marcaDaguaOpacidade").default(8), // 1-50 (%)
   marcaDaguaPosicao: mysqlEnum("marcaDaguaPosicao", ["diagonal", "centro", "topo", "rodape"]).default("diagonal"),
+  // Editor visual (Canva-like) — JSON com array de CanvasElement
+  canvasElements: text("canvasElements"), // JSON serializado
   // Configurações de página
   margemSuperior: int("margemSuperior").default(40),
   margemInferior: int("margemInferior").default(40),
