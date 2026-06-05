@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { NovaDividaModal } from "@/components/NovaDividaModal";
 import { NovaTentativaModal } from "@/components/NovaTentativaModal";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
+import EnviarEmailModal from "@/components/EnviarEmailModal";
 
 export default function DevedorDetalhes() {
   const { user } = useAuth();
@@ -36,6 +37,7 @@ export default function DevedorDetalhes() {
   const [modalDividaOpen, setModalDividaOpen] = useState(false);
   const [modalTentativaOpen, setModalTentativaOpen] = useState(false);
   const [modalDocumentoOpen, setModalDocumentoOpen] = useState(false);
+  const [modalEmailOpen, setModalEmailOpen] = useState(false);
   const [gerandoBoleto, setGerandoBoleto] = useState<number | null>(null);
   const [copiadoLinhaId, setCopiadoLinhaId] = useState<number | null>(null);
   const [copiadoPixId, setCopiadoPixId] = useState<number | null>(null);
@@ -253,6 +255,10 @@ export default function DevedorDetalhes() {
                 <FileText className="mr-2 h-4 w-4" />
                 Gerar Documento
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setModalEmailOpen(true)}>
+                <Mail className="mr-2 h-4 w-4" />
+                Enviar E-mail
+              </Button>
               <Link href={`/devedores/${devedor.id}/editar`}>
                 <Button size="sm">
                   <Edit className="mr-2 h-4 w-4" />
@@ -457,6 +463,15 @@ export default function DevedorDetalhes() {
         cobrancas={cobrancas as any}
         nomeCondominio={condominio?.name ?? undefined}
         nomeResponsavel={user?.name ?? undefined}
+      />
+      {/* Modal de Envio de E-mail */}
+      <EnviarEmailModal
+        open={modalEmailOpen}
+        onClose={() => setModalEmailOpen(false)}
+        devedorId={devedor.id}
+        nomeDevedor={devedor.name ?? ""}
+        emailDevedor={devedor.email ?? null}
+        condominioId={devedor.condominioId}
       />
     </div>
   );

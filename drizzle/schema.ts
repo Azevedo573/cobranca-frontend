@@ -610,3 +610,37 @@ export const userProfileHistory = mysqlTable("user_profile_history", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type UserProfileHistory = typeof userProfileHistory.$inferSelect;
+
+// ─── Configuração de E-mail Microsoft 365 ────────────────────────────────────
+export const emailConfig = mysqlTable("emailConfig", {
+  id: int("id").autoincrement().primaryKey(),
+  // Credenciais Azure AD (Microsoft Graph)
+  tenantId: varchar("tenantId", { length: 255 }).notNull(),
+  clientId: varchar("clientId", { length: 255 }).notNull(),
+  clientSecret: text("clientSecret").notNull(), // armazenado criptografado
+  emailRemetente: varchar("emailRemetente", { length: 255 }).notNull(), // ex: cobranca@escritorio.com.br
+  nomeRemetente: varchar("nomeRemetente", { length: 255 }).notNull().default("Sistema de Cobranças"),
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type EmailConfig = typeof emailConfig.$inferSelect;
+export type InsertEmailConfig = typeof emailConfig.$inferInsert;
+
+// ─── Histórico de E-mails Enviados ───────────────────────────────────────────
+export const emailsEnviados = mysqlTable("emailsEnviados", {
+  id: int("id").autoincrement().primaryKey(),
+  devedorId: int("devedorId").notNull(),
+  condominioId: int("condominioId"),
+  enviadoPorId: int("enviadoPorId"), // userId do operador
+  destinatario: varchar("destinatario", { length: 255 }).notNull(), // e-mail do devedor
+  assunto: varchar("assunto", { length: 500 }).notNull(),
+  corpo: text("corpo").notNull(), // HTML do e-mail enviado
+  modeloId: int("modeloId"), // modelo de documento usado (opcional)
+  status: mysqlEnum("status", ["enviado", "erro", "pendente"]).default("pendente").notNull(),
+  erro: text("erro"), // mensagem de erro se falhou
+  enviadoEm: timestamp("enviadoEm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type EmailEnviado = typeof emailsEnviados.$inferSelect;
+export type InsertEmailEnviado = typeof emailsEnviados.$inferInsert;

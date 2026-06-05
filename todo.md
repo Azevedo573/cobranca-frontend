@@ -2066,3 +2066,19 @@
 - [x] Integrar CanvasEditor como aba "Visual" no ModeloEditor (ao lado da aba "Texto")
 - [x] Persistir canvasElements (JSON) no campo do modelo no banco
 - [x] Exportar canvas para PDF via html2canvas + jsPDF
+
+## Integração Microsoft 365 — Envio de E-mails
+
+- [x] Instalar @azure/msal-node para autenticação OAuth2 com Microsoft Graph
+- [x] Criar tabela emailConfig no schema (tenantId, clientId, clientSecret, emailRemetente, nomeRemetente)
+- [x] Criar tabela emailsEnviados no schema (devedorId, destinatario, assunto, corpo, status, erro, enviadoEm)
+- [x] Migrar banco com db:push
+- [x] Criar server/email-service.ts com função sendEmailMicrosoft365 via Graph API
+- [x] Criar procedures tRPC: emailConfig.get, emailConfig.save, emailConfig.testar, email.enviar, email.listarPorDevedor
+- [x] Criar página de configuração de e-mail em Configurações
+- [x] Criar modal de envio de e-mail no perfil do devedor
+- [ ] Integrar botão de envio de e-mail na Cobrança Ativa
+- [ ] Integrar botão de envio de e-mail na Cobrança Passiva
+- [x] Mostrar histórico de e-mails enviados no perfil do devedor
+- [x] Suporte a templates de modelo de documento como corpo do e-mail
+- [x] Verificar TypeScript: 0 erros

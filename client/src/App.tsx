@@ -42,6 +42,7 @@ import Vencimentos from "./pages/Vencimentos";
 import CobrancaAtiva from "./pages/operacoes/CobrancaAtiva";
 import CobrancaPassiva from "./pages/operacoes/CobrancaPassiva";
 import ConfiguracaoBoleto from "./pages/admin/ConfiguracaoBoleto";
+import EmailConfig from "./pages/configuracoes/EmailConfig";
 import RetornoCNAB from "./pages/admin/RetornoCNAB";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -199,6 +200,9 @@ function Router() {
       {/* Configuração de Boleto */}
       <Route path="/admin/configuracao-boleto">
         {() => <ProtectedRoute component={ConfiguracaoBoleto} allowedRoles={["admin", "sindico"]} />}
+      </Route>
+      <Route path="/admin/email-config">
+        {() => <ProtectedRoute component={EmailConfig} allowedRoles={["admin"]} />}
       </Route>
       {/* Histórico de Importações */}
       <Route path="/admin/historico-importacoes">

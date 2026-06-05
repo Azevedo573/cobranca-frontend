@@ -4698,5 +4698,88 @@ export const appRouter = router({
       };
     }),
   }),
+  // ─── E-mail Microsoft 365 ─────────────────────────────────────────────────
+  emailConfig: router({
+    get: protectedProcedure.query(async () => {
+      const { getEmailConfig } = await import("./email-service");
+      const config = await getEmailConfig();
+      if (!config) return null;
+      // Nunca retornar o clientSecret completo — mascarar
+      return {
+        id: config.id,
+        tenantId: config.tenantId,
+        clientId: config.clientId,
+        clientSecretMasked: config.clientSecret ? "***" + config.clientSecret.slice(-4) : "",
+        emailRemetente: config.emailRemetente,
+        nomeRemetente: config.nomeRemetente,
+        ativo: config.ativo,
+      };
+    }),
+
+    save: protectedProcedure
+      .input(z.object({
+        tenantId: z.string().min(1),
+        clientId: z.string().min(1),
+        clientSecret: z.string().min(1),
+        emailRemetente: z.string().email(),
+        nomeRemetente: z.string().min(1).default("Sistema de Cobranças"),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+        const { emailConfig } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        // Verificar se já existe uma config
+        const [existing] = await db.select({ id: emailConfig.id }).from(emailConfig).limit(1);
+        if (existing) {
+          await db.update(emailConfig).set({ ...input, updatedAt: new Date() }).where(eq(emailConfig.id, existing.id));
+          return { id: existing.id };
+        } else {
+          const [result] = await db.insert(emailConfig).values(input);
+          const id = typeof (result as any).insertId === "bigint" ? Number((result as any).insertId) : (result as any).insertId;
+          return { id };
+        }
+      }),
+
+    testar: protectedProcedure.mutation(async () => {
+      const { testarConexaoEmail } = await import("./email-service");
+      return testarConexaoEmail();
+    }),
+  }),
+
+  email: router({
+    enviar: protectedProcedure
+      .input(z.object({
+        devedorId: z.number().int().positive(),
+        destinatario: z.string().email(),
+        nomeDestinatario: z.string().optional(),
+        assunto: z.string().min(1),
+        corpoHtml: z.string().min(1),
+        condominioId: z.number().optional(),
+        modeloId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { enviarEmailMicrosoft365 } = await import("./email-service");
+        return enviarEmailMicrosoft365({
+          ...input,
+          enviadoPorId: ctx.user.id,
+        });
+      }),
+
+    listarPorDevedor: protectedProcedure
+      .input(z.object({ devedorId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { emailsEnviados } = await import("../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        return db
+          .select()
+          .from(emailsEnviados)
+          .where(eq(emailsEnviados.devedorId, input.devedorId))
+          .orderBy(desc(emailsEnviados.createdAt))
+          .limit(50);
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

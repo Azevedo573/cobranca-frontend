@@ -38,6 +38,7 @@ import {
   Plus,
   UserCog,
   KeyRound,
+  Mail,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -137,6 +138,7 @@ const menuGroups: MenuGroup[] = [
     modulo: "cobranca",
     items: [
       { label: "Configuração de Boleto", href: "/admin/configuracao-boleto", icon: Settings, roles: ["admin"] },
+      { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
       { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin"] },
       { label: "Retorno CNAB 240", href: "/admin/retorno-cnab", icon: Download, roles: ["admin"] },
     ],
