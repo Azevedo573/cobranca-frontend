@@ -29,6 +29,12 @@ interface AnexoSelecionado {
   label: string; // descrição para o usuário
 }
 
+interface AnexoInicial {
+  nome: string;
+  url: string;
+  mimeType: string;
+}
+
 interface EnviarEmailModalProps {
   open: boolean;
   onClose: () => void;
@@ -36,6 +42,8 @@ interface EnviarEmailModalProps {
   nomeDevedor: string;
   emailDevedor?: string | null;
   condominioId?: number;
+  /** Anexo pré-carregado (ex: documento gerado pelo sistema) */
+  anexoInicial?: AnexoInicial;
 }
 
 export default function EnviarEmailModal({
@@ -45,6 +53,7 @@ export default function EnviarEmailModal({
   nomeDevedor,
   emailDevedor,
   condominioId,
+  anexoInicial,
 }: EnviarEmailModalProps) {
   const [destinatario, setDestinatario] = useState(emailDevedor ?? "");
   const [assunto, setAssunto] = useState("");
@@ -61,10 +70,21 @@ export default function EnviarEmailModal({
       setAssunto("");
       setCorpoHtml("");
       setModeloId("");
-      setAnexosSelecionados([]);
       setEnviado(false);
+      // Pré-carregar o anexo inicial (documento gerado pelo sistema)
+      if (anexoInicial) {
+        setAnexosSelecionados([{
+          nome: anexoInicial.nome,
+          url: anexoInicial.url,
+          mimeType: anexoInicial.mimeType,
+          tipo: "boleto" as const,
+          label: anexoInicial.nome,
+        }]);
+      } else {
+        setAnexosSelecionados([]);
+      }
     }
-  }, [open, emailDevedor]);
+  }, [open, emailDevedor, anexoInicial]);
 
   const { data: modelos = [] } = trpc.modelosDocumento.list.useQuery({ condominioId: condominioId ?? null });
 

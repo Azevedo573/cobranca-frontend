@@ -23,7 +23,8 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, FileText, ExternalLink, Eye, EyeOff, ChevronLeft } from "lucide-react";
+import { Loader2, FileText, ExternalLink, Eye, EyeOff, ChevronLeft, Mail } from "lucide-react";
+import EnviarEmailModal from "./EnviarEmailModal";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,8 @@ interface GerarDocumentoModalProps {
   variaveisExtras?: Record<string, string>;
   nomeCondominio?: string;
   nomeResponsavel?: string;
+  /** E-mail do devedor para pré-preencher o modal de envio */
+  emailDevedor?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,6 +96,7 @@ export function GerarDocumentoModal({
   variaveisExtras = {},
   nomeCondominio,
   nomeResponsavel,
+  emailDevedor,
 }: GerarDocumentoModalProps) {
   const modoAcordo = Array.isArray(parcelasAcordo);
 
@@ -101,6 +105,10 @@ export function GerarDocumentoModal({
   const [gerandoPDF, setGerandoPDF] = useState(false);
   const [gerandoPreview, setGerandoPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [enviandoEmail, setEnviandoEmail] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [documentoGeradoUrl, setDocumentoGeradoUrl] = useState<string | null>(null);
+  const [documentoGeradoNome, setDocumentoGeradoNome] = useState<string>("documento.pdf");
 
   // Buscar lista de modelos disponíveis
   const { data: modelos = [], isLoading: loadingModelos } = trpc.modelosDocumento.list.useQuery(
@@ -314,6 +322,37 @@ export function GerarDocumentoModal({
     }
   };
 
+  // ─── Gerar e enviar por e-mail ────────────────────────────────────────────
+
+  const handleGerarEEnviarEmail = async () => {
+    if (!validar()) return;
+    setEnviandoEmail(true);
+    try {
+      // Usar URL já gerada (preview) ou gerar nova
+      let urlDocumento = previewUrl;
+      if (!urlDocumento) {
+        const { url } = await gerarPDFMutation.mutateAsync({
+          modeloId: modeloId!,
+          variaveis: montarVariaveis(),
+          parcelas: montarParcelas(),
+        });
+        urlDocumento = url;
+      }
+      // Montar nome do arquivo a partir do modelo selecionado
+      const modelo = modelos.find((m: any) => m.id === modeloId);
+      const nomeArquivo = modelo
+        ? `${modelo.nome.replace(/\s+/g, "-").toLowerCase()}-${devedor.name.replace(/\s+/g, "-").toLowerCase()}.pdf`
+        : "documento.pdf";
+      setDocumentoGeradoUrl(urlDocumento);
+      setDocumentoGeradoNome(nomeArquivo);
+      setEmailModalOpen(true);
+    } catch (err: any) {
+      toast.error("Erro ao gerar documento para envio: " + err.message);
+    } finally {
+      setEnviandoEmail(false);
+    }
+  };
+
   // ─── Labels de status ─────────────────────────────────────────────────────
 
   const statusLabel: Record<string, string> = {
@@ -508,8 +547,8 @@ export function GerarDocumentoModal({
           </div>
         )}
 
-        <DialogFooter className="gap-2 pt-2">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+        <DialogFooter className="gap-2 pt-2 flex-wrap">
+          <Button variant="outline" onClick={onClose} disabled={isLoading || enviandoEmail}>
             Cancelar
           </Button>
 
@@ -518,7 +557,7 @@ export function GerarDocumentoModal({
             <Button
               variant="outline"
               onClick={handlePrevisualizar}
-              disabled={isLoading || !modeloId || (!modoAcordo && cobrancasSelecionadas.size === 0)}
+              disabled={isLoading || enviandoEmail || !modeloId || (!modoAcordo && cobrancasSelecionadas.size === 0)}
               className="gap-2"
             >
               {gerandoPreview ? (
@@ -530,9 +569,24 @@ export function GerarDocumentoModal({
             </Button>
           )}
 
+          {/* Botão Enviar por E-mail */}
+          <Button
+            variant="outline"
+            onClick={handleGerarEEnviarEmail}
+            disabled={isLoading || enviandoEmail || !modeloId || (!modoAcordo && cobrancasSelecionadas.size === 0)}
+            className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+          >
+            {enviandoEmail ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Mail className="h-4 w-4" />
+            )}
+            {enviandoEmail ? "Gerando..." : "Enviar por E-mail"}
+          </Button>
+
           <Button
             onClick={handleGerar}
-            disabled={isLoading || !modeloId || (!modoAcordo && cobrancasSelecionadas.size === 0)}
+            disabled={isLoading || enviandoEmail || !modeloId || (!modoAcordo && cobrancasSelecionadas.size === 0)}
             className="gap-2"
           >
             {gerandoPDF ? (
@@ -544,6 +598,26 @@ export function GerarDocumentoModal({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Modal de e-mail com o documento já pré-anexado */}
+      {emailModalOpen && documentoGeradoUrl && (
+        <EnviarEmailModal
+          open={emailModalOpen}
+          onClose={() => {
+            setEmailModalOpen(false);
+            onClose();
+          }}
+          devedorId={devedor.id}
+          nomeDevedor={devedor.name}
+          emailDevedor={emailDevedor}
+          condominioId={devedor.condominioId ?? undefined}
+          anexoInicial={{
+            nome: documentoGeradoNome,
+            url: documentoGeradoUrl,
+            mimeType: "application/pdf",
+          }}
+        />
+      )}
     </Dialog>
   );
 }
