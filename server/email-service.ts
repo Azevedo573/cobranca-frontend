@@ -11,15 +11,22 @@ import { eq } from "drizzle-orm";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
+export interface AnexoEmail {
+  nome: string;        // nome do arquivo, ex: "boleto-jan-2025.pdf"
+  conteudoBase64: string; // conteúdo do arquivo em base64
+  mimeType: string;    // ex: "application/pdf"
+}
+
 export interface EnviarEmailParams {
-  destinatario: string;         // e-mail do destinatário
-  nomeDestinatario?: string;    // nome do destinatário (opcional)
+  destinatario: string;
+  nomeDestinatario?: string;
   assunto: string;
-  corpoHtml: string;            // HTML do e-mail
+  corpoHtml: string;
   devedorId: number;
   condominioId?: number;
   enviadoPorId?: number;
   modeloId?: number;
+  anexos?: AnexoEmail[]; // lista de anexos (opcional)
 }
 
 export interface ResultadoEnvio {
@@ -63,6 +70,27 @@ async function getAccessToken(tenantId: string, clientId: string, clientSecret: 
   return result.accessToken;
 }
 
+// ─── Buscar arquivo de URL pública e converter para base64 ───────────────────
+
+export async function urlParaBase64(url: string): Promise<{ base64: string; mimeType: string; nome: string }> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Não foi possível baixar o arquivo: ${response.status} ${response.statusText}`);
+  }
+
+  const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+  const mimeType = contentType.split(";")[0].trim();
+
+  const buffer = await response.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString("base64");
+
+  // Extrair nome do arquivo da URL
+  const urlPath = new URL(url).pathname;
+  const nomeArquivo = urlPath.split("/").pop() ?? "documento.pdf";
+
+  return { base64, mimeType, nome: nomeArquivo };
+}
+
 // ─── Enviar e-mail via Microsoft Graph ───────────────────────────────────────
 
 export async function enviarEmailMicrosoft365(params: EnviarEmailParams): Promise<ResultadoEnvio> {
@@ -95,8 +123,21 @@ export async function enviarEmailMicrosoft365(params: EnviarEmailParams): Promis
     // Obter token
     const accessToken = await getAccessToken(config.tenantId, config.clientId, config.clientSecret);
 
+    // Montar anexos no formato Graph API
+    const attachments: object[] = [];
+    if (params.anexos && params.anexos.length > 0) {
+      for (const anexo of params.anexos) {
+        attachments.push({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: anexo.nome,
+          contentType: anexo.mimeType,
+          contentBytes: anexo.conteudoBase64,
+        });
+      }
+    }
+
     // Montar payload do Graph API
-    const emailPayload = {
+    const emailPayload: Record<string, unknown> = {
       message: {
         subject: params.assunto,
         body: {
@@ -117,6 +158,7 @@ export async function enviarEmailMicrosoft365(params: EnviarEmailParams): Promis
             name: config.nomeRemetente,
           },
         },
+        ...(attachments.length > 0 ? { attachments } : {}),
       },
       saveToSentItems: true,
     };

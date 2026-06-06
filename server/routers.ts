@@ -4757,12 +4757,48 @@ export const appRouter = router({
         corpoHtml: z.string().min(1),
         condominioId: z.number().optional(),
         modeloId: z.number().optional(),
+        // Anexos: cada item pode ser URL pública ou base64 direto
+        anexos: z.array(z.object({
+          nome: z.string().min(1),
+          url: z.string().optional(),          // URL pública (boleto S3, etc.)
+          conteudoBase64: z.string().optional(), // base64 direto
+          mimeType: z.string().default("application/pdf"),
+        })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const { enviarEmailMicrosoft365 } = await import("./email-service");
+        const { enviarEmailMicrosoft365, urlParaBase64 } = await import("./email-service");
+
+        // Resolver anexos: baixar URLs e converter para base64
+        const anexosResolvidos: { nome: string; conteudoBase64: string; mimeType: string }[] = [];
+        if (input.anexos && input.anexos.length > 0) {
+          for (const anexo of input.anexos) {
+            if (anexo.conteudoBase64) {
+              anexosResolvidos.push({
+                nome: anexo.nome,
+                conteudoBase64: anexo.conteudoBase64,
+                mimeType: anexo.mimeType,
+              });
+            } else if (anexo.url) {
+              const { base64, mimeType, nome } = await urlParaBase64(anexo.url);
+              anexosResolvidos.push({
+                nome: anexo.nome || nome,
+                conteudoBase64: base64,
+                mimeType: anexo.mimeType || mimeType,
+              });
+            }
+          }
+        }
+
         return enviarEmailMicrosoft365({
-          ...input,
+          devedorId: input.devedorId,
+          destinatario: input.destinatario,
+          nomeDestinatario: input.nomeDestinatario,
+          assunto: input.assunto,
+          corpoHtml: input.corpoHtml,
+          condominioId: input.condominioId,
+          modeloId: input.modeloId,
           enviadoPorId: ctx.user.id,
+          anexos: anexosResolvidos.length > 0 ? anexosResolvidos : undefined,
         });
       }),
 
