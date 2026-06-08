@@ -47,7 +47,7 @@ export default function Relatorios() {
   const filtro = {
     dataInicio: dataInicio || undefined,
     dataFim: dataFim || undefined,
-    condominioId: condominioId ? parseInt(condominioId) : undefined,
+    condominioId: condominioId && condominioId !== "todos" ? parseInt(condominioId) : undefined,
   };
 
   // ─── Queries ────────────────────────────────────────────────────────────────
@@ -199,7 +199,7 @@ export default function Relatorios() {
                   <SelectValue placeholder="Todos os condomínios" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os condomínios</SelectItem>
+                  <SelectItem value="todos">Todos os condomínios</SelectItem>
                   {(listaCondominios as any[]).map((c: any) => (
                     <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                   ))}
