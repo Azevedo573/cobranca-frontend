@@ -1653,6 +1653,39 @@ export const appRouter = router({
       const dataFim = input.dataFim ? new Date(input.dataFim) : undefined;
       return await getDistribuicaoPorCondominio(dataInicio, dataFim);
     }),
+    inadimplencia: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+    })).query(async ({ input }) => {
+      const { getRelatorioInadimplencia } = await import("./db-relatorios-extra");
+      return await getRelatorioInadimplencia(input);
+    }),
+    acordosPeriodo: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+    })).query(async ({ input }) => {
+      const { getRelatorioAcordos } = await import("./db-relatorios-extra");
+      return await getRelatorioAcordos(input);
+    }),
+    extrato: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+      devedorId: z.number().int().positive().optional(),
+    })).query(async ({ input }) => {
+      const { getRelatorioExtrato } = await import("./db-relatorios-extra");
+      return await getRelatorioExtrato(input);
+    }),
+    recuperacao: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+    })).query(async ({ input }) => {
+      const { getRelatorioRecuperacao } = await import("./db-relatorios-extra");
+      return await getRelatorioRecuperacao(input);
+    }),
   }),
   scoring: router({
     atualizarScore: protectedProcedure.input(z.object({

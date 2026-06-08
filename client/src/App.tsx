@@ -27,6 +27,7 @@ import ProcessosCobranca from "./pages/ProcessosCobranca";
 import ProcessoCobrancaForm from "./pages/ProcessoCobrancaForm";
 import ProcessoCobrancaDetalhes from "./pages/ProcessoCobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
+import Relatorios from "./pages/Relatorios";
 import ImportarDevedores from "./pages/admin/ImportarDevedores";
 import ImportarCondominios from "./pages/admin/ImportarCondominios";
 import ReguaCobranca from "./pages/admin/ReguaCobranca";
@@ -182,6 +183,11 @@ function Router() {
       {/* Rotas de Relatórios (Admin) */}
       <Route path="/admin/relatorios/produtividade">
         {() => <ProtectedRoute component={RelatorioProdutividade} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Relatórios Consolidados */}
+      <Route path="/relatorios">
+        {() => <ProtectedRoute component={Relatorios} allowedRoles={["admin", "user"]} />}
       </Route>
 
       {/* Régua de Cobrança */}
