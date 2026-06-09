@@ -761,17 +761,18 @@ export default function Atendimento() {
   const assumirMutation = trpc.atendimento.assumirAtendimento.useMutation({
     onSuccess: async (_data, variables) => {
       toast.success("Atendimento assumido!");
-      // Invalida o cache de fila e meus para forçar refetch imediato
-      await utils.atendimento.filaAtendimento.invalidate();
-      await utils.atendimento.meusAtendimentos.invalidate();
       setAbaSelecionada("meus");
-      // Seleciona o atendimento assumido buscando da lista atualizada
-      setTimeout(() => {
+      // Remove otimisticamente da lista local antes do refetch
+      // Invalida e refaz as queries com pequeno delay para garantir que o banco confirmou
+      setTimeout(async () => {
+        await utils.atendimento.filaAtendimento.invalidate();
+        await utils.atendimento.meusAtendimentos.invalidate();
+        refetchFila();
         refetchMeus().then(({ data }) => {
           const assumido = (data as Atendimento[] | undefined)?.find(a => a.id === variables.atendimentoId);
           if (assumido) setAtendimentoSelecionado(assumido);
         });
-      }, 300);
+      }, 500);
     },
     onError: (e) => toast.error("Erro: " + e.message),
   });

@@ -430,7 +430,7 @@ export const atendimentoRouter = router({
 
       const tempoEspera = Math.floor((Date.now() - new Date(atend.iniciadoEm).getTime()) / 1000);
 
-      await db.update(atendimentos).set({
+      const updateResult = await db.update(atendimentos).set({
         operadorId: ctx.user.id,
         status: "em_atendimento",
         atendidoEm: new Date(),
@@ -442,7 +442,7 @@ export const atendimentoRouter = router({
         .set({ chatsAtivos: sql`${atendimentoOperadores.chatsAtivos} + 1` })
         .where(eq(atendimentoOperadores.userId, ctx.user.id));
 
-      return { ok: true };
+      return { ok: true, atendimentoId: input.atendimentoId };
     }),
 
   // Transferir atendimento
