@@ -219,7 +219,7 @@ function MsgBubble({ msg, onReenviar }: { msg: any; onReenviar?: (msg: any) => v
   return (
     <div className={cn("flex flex-col", isOut ? "items-end" : "items-start")}>
       <div className={cn(
-        "max-w-[72%] rounded-2xl px-3 py-2 shadow-sm transition-opacity",
+        "inline-block max-w-[72%] rounded-2xl px-3 py-2 shadow-sm transition-opacity",
         isOut ? "bg-green-500 text-white rounded-br-sm" : "bg-white text-foreground rounded-bl-sm",
         isOtimista && !isErro && "opacity-70",
         isErro && "bg-red-400 text-white opacity-90",
@@ -251,7 +251,7 @@ function MsgBubble({ msg, onReenviar }: { msg: any; onReenviar?: (msg: any) => v
         {msg.tipo === "text" && msg.conteudo && (
           <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>
         )}
-        <div className={cn("flex items-center justify-end gap-1 mt-0.5", isErro ? "text-red-100" : isOut ? "text-green-100" : "text-muted-foreground")}>
+        <div className={cn("flex items-center justify-end gap-1 mt-0.5 whitespace-nowrap", isErro ? "text-red-100" : isOut ? "text-green-100" : "text-muted-foreground")}>
           <span className="text-[10px]">
             {isOtimista ? new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </span>
