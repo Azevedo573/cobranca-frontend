@@ -756,13 +756,22 @@ export default function Atendimento() {
     onSuccess: (data) => { toast.success(`Status: ${statusOperadorConfig[data.status]?.label}`); refetchStatus(); },
   });
 
+  const utils = trpc.useUtils();
+
   const assumirMutation = trpc.atendimento.assumirAtendimento.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (_data, variables) => {
       toast.success("Atendimento assumido!");
-      refetchMeus();
-      refetchFila();
+      // Invalida o cache de fila e meus para forçar refetch imediato
+      await utils.atendimento.filaAtendimento.invalidate();
+      await utils.atendimento.meusAtendimentos.invalidate();
       setAbaSelecionada("meus");
-      if (data) setAtendimentoSelecionado(data as unknown as Atendimento);
+      // Seleciona o atendimento assumido buscando da lista atualizada
+      setTimeout(() => {
+        refetchMeus().then(({ data }) => {
+          const assumido = (data as Atendimento[] | undefined)?.find(a => a.id === variables.atendimentoId);
+          if (assumido) setAtendimentoSelecionado(assumido);
+        });
+      }, 300);
     },
     onError: (e) => toast.error("Erro: " + e.message),
   });
