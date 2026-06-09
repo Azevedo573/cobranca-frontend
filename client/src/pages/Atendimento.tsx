@@ -757,7 +757,13 @@ export default function Atendimento() {
   });
 
   const assumirMutation = trpc.atendimento.assumirAtendimento.useMutation({
-    onSuccess: () => { toast.success("Atendimento assumido!"); refetchMeus(); refetchFila(); },
+    onSuccess: (data) => {
+      toast.success("Atendimento assumido!");
+      refetchMeus();
+      refetchFila();
+      setAbaSelecionada("meus");
+      if (data) setAtendimentoSelecionado(data as unknown as Atendimento);
+    },
     onError: (e) => toast.error("Erro: " + e.message),
   });
 
