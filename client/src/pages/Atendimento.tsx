@@ -606,7 +606,7 @@ function ModalNovaConversa({ open, onClose, instancias, instanciaAtualId, onConv
       utils.whatsapp.listarConversas.invalidate();
       // Cria atendimento vinculado automaticamente
       try {
-        await abrirAtendimentoMutation.mutateAsync({ conversaId: conversa.id });
+        await abrirAtendimentoMutation.mutateAsync({ conversaId: conversa.id, atribuirAoOperador: true });
         utils.atendimento.meusAtendimentos.invalidate();
       } catch (_) { /* ignora se já existe */ }
       onConversaCriada?.(conversa as any);

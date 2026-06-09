@@ -271,6 +271,7 @@ export const atendimentoRouter = router({
       prioridade: z.enum(["baixa", "normal", "alta", "urgente"]).default("normal"),
       devedorId: z.number().optional(),
       cobrancaId: z.number().optional(),
+      atribuirAoOperador: z.boolean().default(false), // se true, atribui direto ao operador logado
     }))
     .mutation(async ({ ctx, input }) => {
     const db = (await getDb())!;
@@ -295,14 +296,16 @@ export const atendimentoRouter = router({
         if (dep) slaMinutos = dep.slaMinutos;
       }
 
-      // Tentar distribuição automática
+      // Atribuir ao operador: se atribuirAoOperador=true, usa o operador logado diretamente
       let operadorId: number | null = null;
-      if (input.departamentoId) {
+      if (input.atribuirAoOperador) {
+        operadorId = ctx.user.id;
+      } else if (input.departamentoId) {
+        // Distribuição automática pelo departamento
         const [dep] = await db.select().from(atendimentoDepartamentos)
           .where(eq(atendimentoDepartamentos.id, input.departamentoId)).limit(1);
 
         if (dep?.distribuicaoAutomatica) {
-          // Buscar operador online com menor carga
           const ops = await db.select().from(atendimentoOperadores)
             .where(and(
               eq(atendimentoOperadores.departamentoId, input.departamentoId),
@@ -314,7 +317,6 @@ export const atendimentoRouter = router({
 
           if (ops.length > 0) {
             operadorId = ops[0].userId;
-            // Incrementar chats ativos
             await db.update(atendimentoOperadores)
               .set({ chatsAtivos: sql`${atendimentoOperadores.chatsAtivos} + 1` })
               .where(eq(atendimentoOperadores.id, ops[0].id));
