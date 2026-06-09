@@ -4,27 +4,35 @@ import {
   whatsappInstancias,
   whatsappConversas,
   whatsappMensagens,
+  atendimentos,
+  atendimentoDepartamentos,
 } from "../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { formatPhone } from "./zapi-service";
 
 /**
  * Webhook Z-API — recebe mensagens e atualizações de status
  * URL: POST /api/webhook/whatsapp/:instanciaId
  *
- * Payload de mensagem recebida (Z-API):
- * {
- *   type: "ReceivedCallback",
- *   phone: "5521999999999",
- *   fromMe: false,
- *   messageId: "...",
- *   text: { message: "..." },
- *   image: { imageUrl: "...", caption: "..." },
- *   document: { documentUrl: "...", fileName: "..." },
- *   senderName: "Nome do Contato",
- *   ...
- * }
+ * Ao receber uma mensagem de um contato externo:
+ *  1. Busca ou cria a conversa
+ *  2. Salva a mensagem
+ *  3. Se não houver atendimento ativo para a conversa, cria um na fila (status "aguardando")
  */
+
+function gerarProtocolo(): string {
+  const now = new Date();
+  const ano = now.getFullYear();
+  const rand = Math.floor(Math.random() * 99999).toString().padStart(5, "0");
+  return `ATD-${ano}-${rand}`;
+}
+
+function calcularSlaLimite(slaMinutos: number): Date {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + slaMinutos);
+  return d;
+}
+
 export async function webhookWhatsappHandler(req: Request, res: Response) {
   // Responde imediatamente para não bloquear a Z-API
   res.status(200).json({ ok: true });
@@ -39,10 +47,8 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
     const payload = req.body;
     if (!payload) return;
 
-    // Ignorar mensagens enviadas por nós mesmos (fromMe: true) que já são salvas pelo tRPC
-    // mas processar atualizações de status
+    // ── Atualização de status de mensagem ──────────────────────────────────────
     if (payload.type === "DeliveryCallback" || payload.type === "ReadCallback") {
-      // Atualizar status da mensagem
       if (payload.messageId) {
         const novoStatus = payload.type === "ReadCallback" ? "lida" : "entregue";
         await db
@@ -53,16 +59,16 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       return;
     }
 
-    // Processar mensagem recebida
+    // ── Processar mensagem recebida ────────────────────────────────────────────
     if (payload.type !== "ReceivedCallback") return;
-    if (payload.fromMe) return; // ignorar eco de mensagens enviadas
+    if (payload.fromMe) return; // ignorar eco de mensagens enviadas por nós
 
     const phone = formatPhone(payload.phone ?? payload.chatId ?? "");
     if (!phone) return;
 
     const senderName: string = payload.senderName ?? payload.pushName ?? null;
 
-    // Buscar ou criar conversa
+    // ── Buscar ou criar conversa ───────────────────────────────────────────────
     let [conversa] = await db
       .select()
       .from(whatsappConversas)
@@ -74,7 +80,7 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       );
 
     if (!conversa) {
-      const [res] = await db.insert(whatsappConversas).values({
+      const [insertResult] = await db.insert(whatsappConversas).values({
         instanciaId,
         telefone: phone,
         nomeContato: senderName,
@@ -84,10 +90,9 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       const [nova] = await db
         .select()
         .from(whatsappConversas)
-        .where(eq(whatsappConversas.id, (res as any).insertId));
+        .where(eq(whatsappConversas.id, (insertResult as any).insertId));
       conversa = nova;
     } else {
-      // Atualizar nome do contato se disponível
       await db
         .update(whatsappConversas)
         .set({
@@ -98,7 +103,9 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
         .where(eq(whatsappConversas.id, conversa.id));
     }
 
-    // Determinar tipo e conteúdo da mensagem
+    if (!conversa) return;
+
+    // ── Determinar tipo e conteúdo da mensagem ────────────────────────────────
     let tipo: "text" | "image" | "document" | "audio" | "video" | "sticker" = "text";
     let conteudo: string | null = null;
     let mediaUrl: string | null = null;
@@ -127,11 +134,10 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       tipo = "sticker";
       mediaUrl = payload.sticker.stickerUrl ?? null;
     } else {
-      // Tipo desconhecido — ignorar
-      return;
+      return; // tipo desconhecido
     }
 
-    // Salvar mensagem
+    // ── Salvar mensagem ────────────────────────────────────────────────────────
     await db.insert(whatsappMensagens).values({
       conversaId: conversa.id,
       instanciaId,
@@ -144,7 +150,7 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       zApiMessageId: payload.messageId ?? null,
     });
 
-    // Atualizar última mensagem da conversa
+    // ── Atualizar última mensagem da conversa ─────────────────────────────────
     await db
       .update(whatsappConversas)
       .set({
@@ -152,6 +158,42 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
         ultimaMensagemEm: new Date(),
       })
       .where(eq(whatsappConversas.id, conversa.id));
+
+    // ── Criar atendimento na fila se não houver um ativo ──────────────────────
+    // Verifica se já existe atendimento aberto (aguardando, em_atendimento ou transferido)
+    const [atendimentoExistente] = await db
+      .select({ id: atendimentos.id, status: atendimentos.status })
+      .from(atendimentos)
+      .where(
+        and(
+          eq(atendimentos.conversaId, conversa.id),
+          or(
+            eq(atendimentos.status, "aguardando"),
+            eq(atendimentos.status, "em_atendimento"),
+            eq(atendimentos.status, "transferido"),
+          )
+        )
+      )
+      .limit(1);
+
+    if (!atendimentoExistente) {
+      // Buscar departamento padrão da instância (se houver)
+      // Por ora usamos SLA padrão de 60 minutos
+      const slaMinutos = 60;
+      const protocolo = gerarProtocolo();
+      const slaLimite = calcularSlaLimite(slaMinutos);
+
+      await db.insert(atendimentos).values({
+        conversaId: conversa.id,
+        protocolo,
+        status: "aguardando",
+        prioridade: "normal",
+        slaLimite,
+        iniciadoEm: new Date(),
+      });
+
+      console.log(`[Webhook] Novo atendimento criado na fila: ${protocolo} para conversa ${conversa.id} (${phone})`);
+    }
   } catch (err) {
     console.error("[Webhook WhatsApp] Erro:", err);
   }

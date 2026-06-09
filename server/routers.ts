@@ -4957,6 +4957,55 @@ export const appRouter = router({
         return rows;
       }),
 
+    listarConversasSemAtendimento: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive().optional(),
+        busca: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { whatsappConversas, whatsappInstancias, atendimentos } = await import("../drizzle/schema");
+        const { eq, desc, like, and, notInArray, inArray } = await import("drizzle-orm");
+        // Buscar IDs de conversas com atendimento ativo
+        const atendimentosAtivos = await db
+          .select({ conversaId: atendimentos.conversaId })
+          .from(atendimentos)
+          .where(
+            (atendimentos.status as any).__enumValues
+              ? undefined
+              : undefined
+          );
+        // Usar subquery manual: buscar conversaIds com status ativo
+        const idsAtivos = await db
+          .selectDistinct({ conversaId: atendimentos.conversaId })
+          .from(atendimentos)
+          .where(
+            (await import("drizzle-orm")).or(
+              eq(atendimentos.status, "aguardando"),
+              eq(atendimentos.status, "em_atendimento"),
+              eq(atendimentos.status, "transferido"),
+            )
+          );
+        const conversaIdsAtivos = idsAtivos.map((r) => r.conversaId).filter(Boolean) as number[];
+        const conditions: any[] = [];
+        if (input.instanciaId) conditions.push(eq(whatsappConversas.instanciaId, input.instanciaId));
+        if (input.busca) conditions.push(like(whatsappConversas.nomeContato, `%${input.busca}%`));
+        if (conversaIdsAtivos.length > 0) {
+          conditions.push(notInArray(whatsappConversas.id, conversaIdsAtivos));
+        }
+        const rows = await db
+          .select({
+            conversa: whatsappConversas,
+            instancia: { nome: whatsappInstancias.nome, setor: whatsappInstancias.setor },
+          })
+          .from(whatsappConversas)
+          .leftJoin(whatsappInstancias, eq(whatsappConversas.instanciaId, whatsappInstancias.id))
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(whatsappConversas.ultimaMensagemEm));
+        return rows;
+      }),
+
     buscarOuCriarConversa: protectedProcedure
       .input(z.object({
         instanciaId: z.number().int().positive(),

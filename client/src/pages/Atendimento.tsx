@@ -746,8 +746,8 @@ export default function Atendimento() {
   // Instâncias WhatsApp
   const { data: instancias = [] } = trpc.whatsapp.listarInstancias.useQuery(undefined, { refetchInterval: 30000 });
 
-  // Conversas da instância selecionada
-  const { data: conversas = [], refetch: refetchConversas } = trpc.whatsapp.listarConversas.useQuery(
+  // Conversas SEM atendimento ativo (aba Conversas mostra apenas conversas livres)
+  const { data: conversas = [], refetch: refetchConversas } = trpc.whatsapp.listarConversasSemAtendimento.useQuery(
     { instanciaId: instanciaSelecionada?.id, busca: buscaConversa || undefined },
     { enabled: abaSelecionada === "conversas", refetchInterval: 3000 }
   );
@@ -778,6 +778,18 @@ export default function Atendimento() {
   const assumirMutation = trpc.atendimento.assumirAtendimento.useMutation({
     onSuccess: () => { toast.success("Atendimento assumido!"); refetchMeus(); refetchFila(); },
     onError: (e) => toast.error("Erro: " + e.message),
+  });
+
+  const iniciarAtendimentoMutation = trpc.atendimento.abrirAtendimento.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Atendimento iniciado — ${data.protocolo}`);
+      refetchMeus();
+      refetchFila();
+      refetchConversas();
+      // Mudar para aba Meus e selecionar o atendimento criado
+      setAbaSelecionada("meus");
+    },
+    onError: (e) => toast.error("Erro ao iniciar atendimento: " + e.message),
   });
 
   const enviarMutation = trpc.whatsapp.enviarMensagem.useMutation({
@@ -1050,28 +1062,48 @@ export default function Atendimento() {
               ) : (conversas as Conversa[]).map((c) => {
                 const isActive = conversaSelecionada?.conversa.id === c.conversa.id;
                 return (
-                  <button key={c.conversa.id} onClick={() => setConversaSelecionada(c)}
-                    className={cn("w-full flex items-center gap-3 px-3 py-3 text-left transition-colors border-b border-border/50",
+                  <div key={c.conversa.id}
+                    className={cn("group w-full flex items-center gap-3 px-3 py-3 border-b border-border/50 transition-colors",
                       isActive ? "bg-green-50 border-l-2 border-l-green-500" : "hover:bg-muted/50"
                     )}>
-                    <Avatar className="h-10 w-10 shrink-0">
-                      <AvatarFallback className={cn("text-white text-xs", c.instancia ? setorColor(c.instancia.setor) : "bg-gray-400")}>
-                        {initials(c.conversa.nomeContato)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium truncate">{c.conversa.nomeContato || c.conversa.telefone}</p>
-                        <span className="text-[10px] text-muted-foreground shrink-0 ml-1">{formatTime(c.conversa.ultimaMensagemEm)}</span>
+                    <button className="flex items-center gap-3 flex-1 min-w-0 text-left" onClick={() => setConversaSelecionada(c)}>
+                      <Avatar className="h-10 w-10 shrink-0">
+                        <AvatarFallback className={cn("text-white text-xs", c.instancia ? setorColor(c.instancia.setor) : "bg-gray-400")}>
+                          {initials(c.conversa.nomeContato)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium truncate">{c.conversa.nomeContato || c.conversa.telefone}</p>
+                          <span className="text-[10px] text-muted-foreground shrink-0 ml-1">{formatTime(c.conversa.ultimaMensagemEm)}</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <p className="text-xs text-muted-foreground truncate">{c.conversa.ultimaMensagem || "Sem mensagens"}</p>
+                          {c.conversa.naoLidas > 0 && (
+                            <Badge className="h-4 min-w-4 px-1 text-[10px] bg-green-500 text-white rounded-full shrink-0 ml-1">{c.conversa.naoLidas}</Badge>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-xs text-muted-foreground truncate">{c.conversa.ultimaMensagem || "Sem mensagens"}</p>
-                        {c.conversa.naoLidas > 0 && (
-                          <Badge className="h-4 min-w-4 px-1 text-[10px] bg-green-500 text-white rounded-full shrink-0 ml-1">{c.conversa.naoLidas}</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </button>
+                    </button>
+                    {/* Botão Iniciar Atendimento — aparece no hover */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-green-600 hover:bg-green-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            iniciarAtendimentoMutation.mutate({ conversaId: c.conversa.id });
+                          }}
+                          disabled={iniciarAtendimentoMutation.isPending}
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">Iniciar atendimento</TooltipContent>
+                    </Tooltip>
+                  </div>
                 );
               })}
             </>
@@ -1130,14 +1162,28 @@ export default function Atendimento() {
                 </div>
               </div>
               {abaSelecionada !== "conversas" && atendimentoSelecionado && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => setModalTransferencia(true)}>
                     <Shuffle className="h-3.5 w-3.5" />Transferir
                   </Button>
-                  <Button size="sm" className="h-8 text-xs gap-1 bg-green-600 hover:bg-green-700" onClick={() => setModalFinalizacao(true)}>
-                    <CheckCircle2 className="h-3.5 w-3.5" />Finalizar
+                  <Button size="sm" className="h-8 text-xs gap-1.5 bg-red-500 hover:bg-red-600 text-white font-semibold px-3" onClick={() => setModalFinalizacao(true)}>
+                    <XCircle className="h-3.5 w-3.5" />Finalizar
                   </Button>
                 </div>
+              )}
+              {abaSelecionada === "conversas" && conversaSelecionada && (
+                <Button
+                  size="sm"
+                  className="h-8 text-xs gap-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold px-3"
+                  onClick={() => iniciarAtendimentoMutation.mutate({ conversaId: conversaSelecionada.conversa.id })}
+                  disabled={iniciarAtendimentoMutation.isPending}
+                >
+                  {iniciarAtendimentoMutation.isPending
+                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    : <ArrowRight className="h-3.5 w-3.5" />
+                  }
+                  Iniciar Atendimento
+                </Button>
               )}
             </div>
 
