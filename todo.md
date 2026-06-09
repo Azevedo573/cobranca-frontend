@@ -2138,3 +2138,13 @@
 - [x] Sidebar: item "Central de Atendimento" e "Config. Atendimento" no grupo WhatsApp
 - [x] App.tsx: rotas /atendimento e /configuracoes/atendimento registradas
 - [x] TypeScript: 0 erros | Vite build: sucesso
+
+## Consolidação: Conversas → Central de Atendimento
+- [ ] Analisar WhatsApp.tsx e identificar funcionalidades a migrar para Atendimento.tsx
+- [ ] Integrar seletor de instância WhatsApp na Central de Atendimento
+- [ ] Integrar lista de conversas (com busca e filtros) na Central de Atendimento
+- [ ] Garantir envio de texto, imagem, documento e áudio na Central de Atendimento
+- [ ] Garantir player de áudio e preview de imagem/documento na Central de Atendimento
+- [ ] Remover item "Conversas" do menu Sidebar (grupo WhatsApp)
+- [ ] Redirecionar rota /whatsapp → /atendimento (ou mostrar 404)
+- [ ] Verificar TypeScript: 0 erros | Vite build: sucesso

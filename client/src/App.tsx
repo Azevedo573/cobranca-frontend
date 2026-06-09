@@ -328,7 +328,7 @@ function Router() {
       </Route>
 
       <Route path="/whatsapp">
-        {() => <ProtectedRoute component={WhatsApp} />}
+        {() => { window.location.replace("/atendimento"); return null; }}
       </Route>
       <Route path="/configuracoes/whatsapp">
         {() => <ProtectedRoute component={WhatsAppConfig} allowedRoles={["admin"]} />}

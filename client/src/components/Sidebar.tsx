@@ -176,7 +176,6 @@ const menuGroups: MenuGroup[] = [
     icon: MessageCircle,
     roles: ["admin", "cobrador", "colaborador"],
     items: [
-      { label: "Conversas", href: "/whatsapp", icon: MessageCircle, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Central de Atendimento", href: "/atendimento", icon: Headphones, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Configurar Instâncias", href: "/configuracoes/whatsapp", icon: Settings, roles: ["admin"] },
       { label: "Config. Atendimento", href: "/configuracoes/atendimento", icon: Settings, roles: ["admin"] },
