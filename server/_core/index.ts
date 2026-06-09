@@ -39,6 +39,9 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Job de cancelamento automático de acordos (Heartbeat cron)
   app.post("/api/scheduled/cancelamento-auto", cancelamentoAutoHandler);
+  // Webhook Z-API — recebe mensagens WhatsApp
+  const { webhookWhatsappHandler } = await import("../webhook-whatsapp");
+  app.post("/api/webhook/whatsapp/:instanciaId", webhookWhatsappHandler);
 
   // tRPC API
   app.use(

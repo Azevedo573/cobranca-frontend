@@ -2082,3 +2082,24 @@
 - [x] Mostrar histórico de e-mails enviados no perfil do devedor
 - [x] Suporte a templates de modelo de documento como corpo do e-mail
 - [x] Verificar TypeScript: 0 erros
+
+## Módulo WhatsApp Z-API
+
+- [ ] Criar tabela whatsappInstancias (id, nome, setor, instanceId, token, clientToken, webhookUrl, ativo)
+- [ ] Criar tabela whatsappConversas (id, instanciaId, telefone, nomeContato, devedorId nullable, ultimaMensagem, naoLidas, status)
+- [ ] Criar tabela whatsappMensagens (id, conversaId, direction, tipo, conteudo, mediaUrl, status, zApiMessageId, criadoEm)
+- [ ] Migrar banco com db:push
+- [ ] Criar server/zapi-service.ts com funções sendText, sendDocument, sendImage, getStatus, getQRCode
+- [ ] Criar endpoint POST /api/webhook/whatsapp/:instanciaId para receber mensagens
+- [ ] Criar procedures tRPC: whatsapp.listarInstancias, listarConversas, listarMensagens, enviarMensagem, marcarLida, buscarOuCriarConversa
+- [ ] Criar página WhatsApp.tsx com layout 3 colunas: instâncias | conversas | mensagens
+- [ ] Lista de instâncias com status de conexão (Cobrança / Jurídico)
+- [ ] Lista de conversas com busca, filtro por setor e badge de não lidas
+- [ ] Painel de mensagens com scroll automático
+- [ ] Campo de envio com suporte a texto e anexo
+- [ ] Polling a cada 3s para atualizar mensagens
+- [ ] Vincular conversa a devedor existente
+- [ ] Botão de envio rápido de WhatsApp no perfil do devedor
+- [ ] Página de configuração de instâncias Z-API por setor com QR Code
+- [ ] Adicionar rota /whatsapp e item no menu lateral
+- [ ] Verificar TypeScript: 0 erros

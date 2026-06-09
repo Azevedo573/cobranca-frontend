@@ -61,6 +61,8 @@ import Profiles from "./pages/admin/Profiles";
 import ProfileEditor from "./pages/admin/ProfileEditor";
 import UsersProfiles from "./pages/admin/UsersProfiles";
 import ColaboradorDashboard from "./pages/colaborador/ColaboradorDashboard";
+import WhatsApp from "./pages/WhatsApp";
+import WhatsAppConfig from "./pages/configuracoes/WhatsAppConfig";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -323,6 +325,12 @@ function Router() {
         {() => <ProtectedRoute component={UsersProfiles} allowedRoles={["admin"]} />}
       </Route>
 
+      <Route path="/whatsapp">
+        {() => <ProtectedRoute component={WhatsApp} />}
+      </Route>
+      <Route path="/configuracoes/whatsapp">
+        {() => <ProtectedRoute component={WhatsAppConfig} allowedRoles={["admin"]} />}
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

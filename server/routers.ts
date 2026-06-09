@@ -4850,5 +4850,237 @@ export const appRouter = router({
           .limit(50);
       }),
   }),
+
+  // ─── WhatsApp Z-API ──────────────────────────────────────────────────────────
+  whatsapp: router({
+    // ── Instâncias ──────────────────────────────────────────────────────────
+    listarInstancias: protectedProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) return [];
+      const { whatsappInstancias } = await import("../drizzle/schema");
+      const { asc } = await import("drizzle-orm");
+      return db.select().from(whatsappInstancias).orderBy(asc(whatsappInstancias.nome));
+    }),
+
+    salvarInstancia: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive().optional(),
+        nome: z.string().min(1),
+        setor: z.enum(["cobranca", "juridico", "geral"]),
+        instanceId: z.string().min(1),
+        token: z.string().min(1),
+        clientToken: z.string().min(1),
+        ativo: z.number().int().min(0).max(1).default(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        if (input.id) {
+          await db.update(whatsappInstancias)
+            .set({ nome: input.nome, setor: input.setor, instanceId: input.instanceId, token: input.token, clientToken: input.clientToken, ativo: input.ativo })
+            .where(eq(whatsappInstancias.id, input.id));
+          return { success: true, id: input.id };
+        } else {
+          const [res] = await db.insert(whatsappInstancias).values({
+            nome: input.nome, setor: input.setor, instanceId: input.instanceId,
+            token: input.token, clientToken: input.clientToken, ativo: input.ativo,
+          });
+          return { success: true, id: (res as any).insertId };
+        }
+      }),
+
+    deletarInstancia: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.delete(whatsappInstancias).where(eq(whatsappInstancias.id, input.id));
+        return { success: true };
+      }),
+
+    statusInstancia: protectedProcedure
+      .input(z.object({ instanciaId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { connected: false, smartphoneConnected: false, session: "disconnected" };
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { getInstanceStatus } = await import("./zapi-service");
+        return getInstanceStatus({ instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken });
+      }),
+
+    qrCode: protectedProcedure
+      .input(z.object({ instanciaId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { getQRCode } = await import("./zapi-service");
+        return getQRCode({ instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken });
+      }),
+
+    // ── Conversas ────────────────────────────────────────────────────────────
+    listarConversas: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive().optional(),
+        busca: z.string().optional(),
+        status: z.enum(["aberta", "fechada", "aguardando"]).optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { whatsappConversas, whatsappInstancias } = await import("../drizzle/schema");
+        const { eq, desc, like, and } = await import("drizzle-orm");
+        const conditions: any[] = [];
+        if (input.instanciaId) conditions.push(eq(whatsappConversas.instanciaId, input.instanciaId));
+        if (input.status) conditions.push(eq(whatsappConversas.status, input.status));
+        if (input.busca) conditions.push(like(whatsappConversas.nomeContato, `%${input.busca}%`));
+        const rows = await db
+          .select({
+            conversa: whatsappConversas,
+            instancia: { nome: whatsappInstancias.nome, setor: whatsappInstancias.setor },
+          })
+          .from(whatsappConversas)
+          .leftJoin(whatsappInstancias, eq(whatsappConversas.instanciaId, whatsappInstancias.id))
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(desc(whatsappConversas.ultimaMensagemEm));
+        return rows;
+      }),
+
+    buscarOuCriarConversa: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        telefone: z.string().min(8),
+        nomeContato: z.string().optional(),
+        devedorId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappConversas } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const { formatPhone } = await import("./zapi-service");
+        const telefone = formatPhone(input.telefone);
+        const [existing] = await db.select().from(whatsappConversas)
+          .where(and(eq(whatsappConversas.instanciaId, input.instanciaId), eq(whatsappConversas.telefone, telefone)));
+        if (existing) return existing;
+        const [res] = await db.insert(whatsappConversas).values({
+          instanciaId: input.instanciaId,
+          telefone,
+          nomeContato: input.nomeContato,
+          devedorId: input.devedorId,
+          status: "aberta",
+          naoLidas: 0,
+        });
+        const [nova] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, (res as any).insertId));
+        return nova;
+      }),
+
+    vincularDevedor: protectedProcedure
+      .input(z.object({ conversaId: z.number().int().positive(), devedorId: z.number().int().positive().nullable() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappConversas } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(whatsappConversas).set({ devedorId: input.devedorId }).where(eq(whatsappConversas.id, input.conversaId));
+        return { success: true };
+      }),
+
+    // ── Mensagens ────────────────────────────────────────────────────────────
+    listarMensagens: protectedProcedure
+      .input(z.object({
+        conversaId: z.number().int().positive(),
+        limit: z.number().int().min(1).max(200).default(50),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { whatsappMensagens } = await import("../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        const rows = await db.select().from(whatsappMensagens)
+          .where(eq(whatsappMensagens.conversaId, input.conversaId))
+          .orderBy(desc(whatsappMensagens.createdAt))
+          .limit(input.limit);
+        return rows.reverse();
+      }),
+
+    enviarMensagem: protectedProcedure
+      .input(z.object({
+        conversaId: z.number().int().positive(),
+        tipo: z.enum(["text", "document", "image"]).default("text"),
+        conteudo: z.string().optional(),
+        mediaUrl: z.string().url().optional(),
+        nomeArquivo: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappConversas, whatsappInstancias, whatsappMensagens } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const { sendText, sendDocument, sendImage, formatPhone } = await import("./zapi-service");
+
+        const [conversa] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, input.conversaId));
+        if (!conversa) throw new Error("Conversa não encontrada");
+
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, conversa.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+
+        const zapiConfig = { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken };
+        const phone = formatPhone(conversa.telefone);
+
+        let zapiResult: { zaapId: string; messageId: string };
+        if (input.tipo === "document" && input.mediaUrl) {
+          zapiResult = await sendDocument(zapiConfig, phone, input.mediaUrl, input.nomeArquivo ?? "documento.pdf", input.conteudo);
+        } else if (input.tipo === "image" && input.mediaUrl) {
+          zapiResult = await sendImage(zapiConfig, phone, input.mediaUrl, input.conteudo);
+        } else {
+          if (!input.conteudo) throw new Error("Conteúdo obrigatório para mensagem de texto");
+          zapiResult = await sendText(zapiConfig, phone, input.conteudo);
+        }
+
+        // Salvar mensagem no banco
+        await db.insert(whatsappMensagens).values({
+          conversaId: input.conversaId,
+          instanciaId: inst.id,
+          direction: "out",
+          tipo: input.tipo,
+          conteudo: input.conteudo,
+          mediaUrl: input.mediaUrl,
+          nomeArquivo: input.nomeArquivo,
+          status: "enviada",
+          zApiMessageId: zapiResult.messageId,
+          enviadoPorId: ctx.user.id,
+        });
+
+        // Atualizar última mensagem da conversa
+        await db.update(whatsappConversas).set({
+          ultimaMensagem: input.conteudo ?? input.nomeArquivo ?? "[arquivo]",
+          ultimaMensagemEm: new Date(),
+        }).where(eq(whatsappConversas.id, input.conversaId));
+
+        return { success: true, messageId: zapiResult.messageId };
+      }),
+
+    marcarLida: protectedProcedure
+      .input(z.object({ conversaId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappConversas } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(whatsappConversas).set({ naoLidas: 0 }).where(eq(whatsappConversas.id, input.conversaId));
+        return { success: true };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

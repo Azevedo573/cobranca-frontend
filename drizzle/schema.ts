@@ -644,3 +644,52 @@ export const emailsEnviados = mysqlTable("emailsEnviados", {
 });
 export type EmailEnviado = typeof emailsEnviados.$inferSelect;
 export type InsertEmailEnviado = typeof emailsEnviados.$inferInsert;
+
+// ─── WhatsApp Z-API ───────────────────────────────────────────────────────────
+export const whatsappInstancias = mysqlTable("whatsappInstancias", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 100 }).notNull(), // ex: "Cobrança", "Jurídico"
+  setor: mysqlEnum("setor", ["cobranca", "juridico", "geral"]).default("geral").notNull(),
+  instanceId: varchar("instanceId", { length: 255 }).notNull(),
+  token: varchar("token", { length: 500 }).notNull(),
+  clientToken: varchar("clientToken", { length: 500 }).notNull(),
+  webhookUrl: varchar("webhookUrl", { length: 500 }),
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type WhatsappInstancia = typeof whatsappInstancias.$inferSelect;
+export type InsertWhatsappInstancia = typeof whatsappInstancias.$inferInsert;
+
+export const whatsappConversas = mysqlTable("whatsappConversas", {
+  id: int("id").autoincrement().primaryKey(),
+  instanciaId: int("instanciaId").notNull(),
+  telefone: varchar("telefone", { length: 30 }).notNull(), // ex: 5521999999999
+  nomeContato: varchar("nomeContato", { length: 255 }),
+  devedorId: int("devedorId"), // vínculo opcional com devedor
+  ultimaMensagem: text("ultimaMensagem"),
+  ultimaMensagemEm: timestamp("ultimaMensagemEm"),
+  naoLidas: int("naoLidas").default(0).notNull(),
+  status: mysqlEnum("status", ["aberta", "fechada", "aguardando"]).default("aberta").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type WhatsappConversa = typeof whatsappConversas.$inferSelect;
+export type InsertWhatsappConversa = typeof whatsappConversas.$inferInsert;
+
+export const whatsappMensagens = mysqlTable("whatsappMensagens", {
+  id: int("id").autoincrement().primaryKey(),
+  conversaId: int("conversaId").notNull(),
+  instanciaId: int("instanciaId").notNull(),
+  direction: mysqlEnum("direction", ["in", "out"]).notNull(),
+  tipo: mysqlEnum("tipo", ["text", "image", "document", "audio", "video", "sticker"]).default("text").notNull(),
+  conteudo: text("conteudo"),
+  mediaUrl: varchar("mediaUrl", { length: 1000 }),
+  nomeArquivo: varchar("nomeArquivo", { length: 255 }),
+  status: mysqlEnum("status", ["enviada", "entregue", "lida", "erro"]).default("enviada").notNull(),
+  zApiMessageId: varchar("zApiMessageId", { length: 255 }),
+  enviadoPorId: int("enviadoPorId"), // userId do operador (para mensagens out)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type WhatsappMensagem = typeof whatsappMensagens.$inferSelect;
+export type InsertWhatsappMensagem = typeof whatsappMensagens.$inferInsert;

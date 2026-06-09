@@ -39,6 +39,7 @@ import {
   UserCog,
   KeyRound,
   Mail,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -165,6 +166,17 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Perfis de Acesso", href: "/admin/perfis", icon: Shield, roles: ["admin"] },
       { label: "Atribuir Perfis", href: "/admin/usuarios-perfis", icon: UserCog, roles: ["admin"] },
+    ],
+  },
+
+  // ── WhatsApp ──
+  {
+    label: "WhatsApp",
+    icon: MessageCircle,
+    roles: ["admin", "cobrador", "colaborador"],
+    items: [
+      { label: "Conversas", href: "/whatsapp", icon: MessageCircle, roles: ["admin", "cobrador", "colaborador"] },
+      { label: "Configurar Instâncias", href: "/configuracoes/whatsapp", icon: Settings, roles: ["admin"] },
     ],
   },
 
