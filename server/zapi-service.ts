@@ -79,7 +79,10 @@ export async function sendDocument(
   fileName: string,
   caption?: string
 ): Promise<{ zaapId: string; messageId: string }> {
-  const data = await zapiRequest(config, "POST", "/send-document/pdf", {
+  // Detectar extensão para escolher o endpoint correto
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "pdf";
+  const endpoint = ext === "pdf" ? "/send-document/pdf" : "/send-document/doc";
+  const data = await zapiRequest(config, "POST", endpoint, {
     phone,
     document: documentUrl,
     fileName,
@@ -102,6 +105,23 @@ export async function sendImage(
     phone,
     image: imageUrl,
     caption: caption ?? "",
+  }) as any;
+  return {
+    zaapId: data?.zaapId ?? "",
+    messageId: data?.messageId ?? "",
+  };
+}
+
+// ─── Enviar áudio ─────────────────────────────────────────────────────────────
+export async function sendAudio(
+  config: ZApiConfig,
+  phone: string,
+  audioUrl: string
+): Promise<{ zaapId: string; messageId: string }> {
+  // Z-API aceita áudio via /send-audio com campo "audio" contendo a URL
+  const data = await zapiRequest(config, "POST", "/send-audio", {
+    phone,
+    audio: audioUrl,
   }) as any;
   return {
     zaapId: data?.zaapId ?? "",

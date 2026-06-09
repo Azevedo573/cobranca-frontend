@@ -2102,8 +2102,7 @@
 - [ ] Botão de envio rápido de WhatsApp no perfil do devedor
 - [ ] Página de configuração de instâncias Z-API por setor com QR Code
 - [ ] Adicionar rota /whatsapp e item no menu lateral
-- [ ] Verificar TypeScript: 0 erros
-
+- [x] Verificar TypeScript: 0 erros
 ## Bug — WhatsApp.tsx JSX quebrado (modal fora do return)
 - [x] Envolver o return em fragmento React <>...</> para suportar <div> + <Dialog> como irmãos
 - [x] Verificar TypeScript: 0 erros
@@ -2111,3 +2110,14 @@
 ## Bug — App.tsx import duplicado de EmailConfig
 - [x] Verificar imports duplicados no App.tsx (não havia duplicata real, erro já estava resolvido)
 - [x] Verificar TypeScript: 0 erros
+
+## WhatsApp — Envio de Mídia e Reprodução de Áudio
+- [x] Backend: procedure whatsapp.enviarArquivo que recebe base64 + mime + nome e envia via Z-API (imagem, documento, áudio)
+- [x] Backend: upload do arquivo para S3 antes de enviar via Z-API (URL pública necessária)
+- [x] Frontend: botão de clipe (Paperclip) abre menu com opções: Foto/Imagem, Documento, Áudio
+- [x] Frontend: input file oculto para seleção de arquivo (imagem, documento, áudio)
+- [x] Frontend: preview de imagem enviada/recebida no balão de mensagem (thumbnail clicável)
+- [x] Frontend: player de áudio nativo HTML5 para mensagens de áudio recebidas/enviadas
+- [x] Frontend: link de download para documentos recebidos/enviados com ícone e nome do arquivo
+- [x] Frontend: indicador de progresso durante upload/envio de arquivo
+- [ ] Verificar TypeScript: 0 erros

@@ -12,13 +12,17 @@ import {
   Wifi, WifiOff, RefreshCw, Settings, ChevronRight,
   FileText, Image as ImageIcon, Mic, MoreVertical,
   Building2, Scale, Globe, CheckCheck, Check, Clock,
-  Plus, X,
+  Plus, X, Download, Play, Pause, Volume2,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -77,6 +81,20 @@ const initials = (name: string | null) => {
   return name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
 };
 
+// Detecta o tipo de mídia pelo mime ou nome do arquivo
+const detectTipo = (file: File): "image" | "audio" | "document" => {
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("audio/")) return "audio";
+  return "document";
+};
+
+// Formata duração em segundos para mm:ss
+const formatDuration = (secs: number) => {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
 // ─── Componente de status de mensagem ─────────────────────────────────────────
 const MsgStatus = ({ status }: { status: string }) => {
   if (status === "lida") return <CheckCheck className="h-3.5 w-3.5 text-blue-400" />;
@@ -84,6 +102,195 @@ const MsgStatus = ({ status }: { status: string }) => {
   if (status === "enviada") return <Check className="h-3.5 w-3.5 text-gray-400" />;
   return <Clock className="h-3.5 w-3.5 text-gray-400" />;
 };
+
+// ─── Player de áudio inline ───────────────────────────────────────────────────
+function AudioPlayer({ src, isOut }: { src: string; isOut: boolean }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+    } else {
+      audio.play().catch(() => toast.error("Não foi possível reproduzir o áudio"));
+    }
+  };
+
+  return (
+    <div className={cn("flex items-center gap-2 min-w-[200px] py-1", isOut ? "text-white" : "text-foreground")}>
+      <audio
+        ref={audioRef}
+        src={src}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setProgress(0); setCurrentTime(0); }}
+        onTimeUpdate={() => {
+          const audio = audioRef.current;
+          if (!audio) return;
+          setCurrentTime(audio.currentTime);
+          setProgress(audio.duration ? (audio.currentTime / audio.duration) * 100 : 0);
+        }}
+        onLoadedMetadata={() => {
+          const audio = audioRef.current;
+          if (audio) setDuration(audio.duration);
+        }}
+        preload="metadata"
+      />
+      <button
+        onClick={toggle}
+        className={cn(
+          "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
+          isOut ? "bg-white/20 hover:bg-white/30" : "bg-green-100 hover:bg-green-200"
+        )}
+      >
+        {playing
+          ? <Pause className={cn("h-3.5 w-3.5", isOut ? "text-white" : "text-green-600")} />
+          : <Play className={cn("h-3.5 w-3.5", isOut ? "text-white" : "text-green-600")} />
+        }
+      </button>
+      <div className="flex-1 flex flex-col gap-0.5">
+        <div
+          className={cn("w-full h-1.5 rounded-full cursor-pointer", isOut ? "bg-white/30" : "bg-gray-200")}
+          onClick={(e) => {
+            const audio = audioRef.current;
+            if (!audio || !audio.duration) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const ratio = (e.clientX - rect.left) / rect.width;
+            audio.currentTime = ratio * audio.duration;
+          }}
+        >
+          <div
+            className={cn("h-full rounded-full transition-all", isOut ? "bg-white" : "bg-green-500")}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <span className={cn("text-[10px]", isOut ? "text-green-100" : "text-muted-foreground")}>
+          {duration > 0 ? `${formatDuration(currentTime)} / ${formatDuration(duration)}` : "Áudio"}
+        </span>
+      </div>
+      <Volume2 className={cn("h-3.5 w-3.5 shrink-0 opacity-60", isOut ? "text-white" : "text-muted-foreground")} />
+    </div>
+  );
+}
+
+// ─── Preview de arquivo antes de enviar ──────────────────────────────────────
+function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const tipo = detectTipo(file);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tipo === "image") {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, [file, tipo]);
+
+  return (
+    <div className="relative flex items-center gap-2 bg-muted rounded-xl px-3 py-2 border border-border max-w-xs">
+      {tipo === "image" && previewUrl ? (
+        <img src={previewUrl} alt="preview" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+      ) : tipo === "audio" ? (
+        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+          <Mic className="h-5 w-5 text-green-600" />
+        </div>
+      ) : (
+        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+          <FileText className="h-5 w-5 text-blue-600" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium truncate">{file.name}</p>
+        <p className="text-[10px] text-muted-foreground">
+          {(file.size / 1024).toFixed(0)} KB · {tipo === "image" ? "Imagem" : tipo === "audio" ? "Áudio" : "Documento"}
+        </p>
+      </div>
+      <button
+        onClick={onRemove}
+        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+// ─── Balão de mensagem ────────────────────────────────────────────────────────
+function MsgBubble({ msg }: { msg: Mensagem }) {
+  const isOut = msg.direction === "out";
+
+  return (
+    <div className={cn(
+      "max-w-[72%] rounded-2xl px-3 py-2 shadow-sm",
+      isOut
+        ? "bg-green-500 text-white rounded-br-sm"
+        : "bg-white text-foreground rounded-bl-sm"
+    )}>
+      {/* Imagem */}
+      {msg.tipo === "image" && msg.mediaUrl && (
+        <div className="mb-1">
+          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
+            <img
+              src={msg.mediaUrl}
+              alt={msg.nomeArquivo ?? "imagem"}
+              className="rounded-xl max-w-full max-h-56 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+            />
+          </a>
+          {msg.conteudo && (
+            <p className="text-sm mt-1 whitespace-pre-wrap break-words">{msg.conteudo}</p>
+          )}
+        </div>
+      )}
+
+      {/* Áudio */}
+      {msg.tipo === "audio" && msg.mediaUrl && (
+        <AudioPlayer src={msg.mediaUrl} isOut={isOut} />
+      )}
+
+      {/* Documento */}
+      {msg.tipo === "document" && (
+        <a
+          href={msg.mediaUrl ?? "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-3 py-2 mb-1 transition-colors",
+            isOut ? "bg-white/15 hover:bg-white/25" : "bg-gray-50 hover:bg-gray-100 border border-gray-200"
+          )}
+        >
+          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", isOut ? "bg-white/20" : "bg-blue-100")}>
+            <FileText className={cn("h-5 w-5", isOut ? "text-white" : "text-blue-600")} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className={cn("text-xs font-medium truncate", isOut ? "text-white" : "text-foreground")}>
+              {msg.nomeArquivo || "Documento"}
+            </p>
+            <p className={cn("text-[10px]", isOut ? "text-green-100" : "text-muted-foreground")}>Toque para abrir</p>
+          </div>
+          <Download className={cn("h-4 w-4 shrink-0", isOut ? "text-white/70" : "text-muted-foreground")} />
+        </a>
+      )}
+
+      {/* Texto simples */}
+      {msg.tipo === "text" && msg.conteudo && (
+        <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>
+      )}
+
+      {/* Rodapé: hora + status */}
+      <div className={cn("flex items-center justify-end gap-1 mt-0.5", isOut ? "text-green-100" : "text-muted-foreground")}>
+        <span className="text-[10px]">
+          {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+        </span>
+        {isOut && <MsgStatus status={msg.status} />}
+      </div>
+    </div>
+  );
+}
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function WhatsApp() {
@@ -93,13 +300,20 @@ export default function WhatsApp() {
   const [busca, setBusca] = useState("");
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0 = idle, 1-100 = uploading
+  const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+  // Modal nova conversa
   const [novaConversaAberta, setNovaConversaAberta] = useState(false);
   const [novoTelefone, setNovoTelefone] = useState("");
   const [novoNome, setNovoNome] = useState("");
   const [novaInstanciaId, setNovaInstanciaId] = useState<string>("");
   const [criandoConversa, setCriandoConversa] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Queries ────────────────────────────────────────────────────────────────
   const { data: instancias = [], isLoading: loadingInst } = trpc.whatsapp.listarInstancias.useQuery(undefined, {
@@ -125,10 +339,15 @@ export default function WhatsApp() {
   const enviarMutation = trpc.whatsapp.enviarMensagem.useMutation({
     onSuccess: () => {
       setTexto("");
+      setArquivoSelecionado(null);
       refetchMensagens();
       refetchConversas();
     },
     onError: (err) => toast.error("Erro ao enviar: " + err.message),
+  });
+
+  const uploadMidiaMutation = trpc.whatsapp.uploadMidia.useMutation({
+    onError: (err) => toast.error("Erro no upload: " + err.message),
   });
 
   const marcarLidaMutation = trpc.whatsapp.marcarLida.useMutation({
@@ -142,7 +361,6 @@ export default function WhatsApp() {
       setNovoTelefone("");
       setNovoNome("");
       refetchConversas();
-      // Selecionar a nova conversa automaticamente
       if (novaConversa) {
         const instancia = instancias.find((i: any) => i.id === novaConversa.instanciaId) as Instancia | undefined;
         setConversaSelecionada({
@@ -153,24 +371,6 @@ export default function WhatsApp() {
     },
     onError: (err) => toast.error("Erro ao criar conversa: " + err.message),
   });
-
-  const handleCriarConversa = async () => {
-    const instId = novaInstanciaId || (instanciaSelecionada?.id?.toString() ?? "");
-    if (!novoTelefone.trim() || !instId) {
-      toast.error("Preencha o número de telefone e selecione uma instância");
-      return;
-    }
-    setCriandoConversa(true);
-    try {
-      await criarConversaMutation.mutateAsync({
-        instanciaId: parseInt(instId),
-        telefone: novoTelefone.trim(),
-        nomeContato: novoNome.trim() || undefined,
-      });
-    } finally {
-      setCriandoConversa(false);
-    }
-  };
 
   // ─── Efeitos ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -191,7 +391,53 @@ export default function WhatsApp() {
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
   const handleEnviar = useCallback(async () => {
-    if (!texto.trim() || !conversaSelecionada || enviando) return;
+    if (!conversaSelecionada || enviando) return;
+
+    // Se há arquivo selecionado, fazer upload primeiro
+    if (arquivoSelecionado) {
+      setEnviando(true);
+      setUploadProgress(10);
+      try {
+        const tipo = detectTipo(arquivoSelecionado);
+        // Converter arquivo para base64
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Remover prefixo "data:...;base64,"
+            resolve(result.split(",")[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(arquivoSelecionado);
+        });
+        setUploadProgress(40);
+
+        const { url } = await uploadMidiaMutation.mutateAsync({
+          base64,
+          mimeType: arquivoSelecionado.type || "application/octet-stream",
+          nomeArquivo: arquivoSelecionado.name,
+        });
+        setUploadProgress(80);
+
+        await enviarMutation.mutateAsync({
+          conversaId: conversaSelecionada.conversa.id,
+          tipo,
+          mediaUrl: url,
+          nomeArquivo: arquivoSelecionado.name,
+          conteudo: texto.trim() || undefined,
+        });
+        setUploadProgress(0);
+      } catch {
+        setUploadProgress(0);
+      } finally {
+        setEnviando(false);
+        inputRef.current?.focus();
+      }
+      return;
+    }
+
+    // Envio de texto simples
+    if (!texto.trim()) return;
     setEnviando(true);
     try {
       await enviarMutation.mutateAsync({
@@ -203,12 +449,48 @@ export default function WhatsApp() {
       setEnviando(false);
       inputRef.current?.focus();
     }
-  }, [texto, conversaSelecionada, enviando]);
+  }, [texto, conversaSelecionada, enviando, arquivoSelecionado]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleEnviar();
+    }
+  };
+
+  const handleSelecionarArquivo = (tipo: "image" | "document" | "audio") => {
+    if (tipo === "image") imageInputRef.current?.click();
+    else if (tipo === "audio") audioInputRef.current?.click();
+    else fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Limite: 16 MB");
+      return;
+    }
+    setArquivoSelecionado(file);
+    // Limpar o input para permitir selecionar o mesmo arquivo novamente
+    e.target.value = "";
+  };
+
+  const handleCriarConversa = async () => {
+    const instId = novaInstanciaId || (instanciaSelecionada?.id?.toString() ?? "");
+    if (!novoTelefone.trim() || !instId) {
+      toast.error("Preencha o número de telefone e selecione uma instância");
+      return;
+    }
+    setCriandoConversa(true);
+    try {
+      await criarConversaMutation.mutateAsync({
+        instanciaId: parseInt(instId),
+        telefone: novoTelefone.trim(),
+        nomeContato: novoNome.trim() || undefined,
+      });
+    } finally {
+      setCriandoConversa(false);
     }
   };
 
@@ -297,25 +579,25 @@ export default function WhatsApp() {
                 </div>
               )}
             </div>
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost" size="icon" className="h-8 w-8"
-                  onClick={() => {
-                    setNovaInstanciaId(instanciaSelecionada?.id?.toString() ?? "");
-                    setNovaConversaAberta(true);
-                  }}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Nova conversa</TooltipContent>
-            </Tooltip>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => refetchConversas()}>
-              <RefreshCw className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost" size="icon" className="h-8 w-8"
+                    onClick={() => {
+                      setNovaInstanciaId(instanciaSelecionada?.id?.toString() ?? "");
+                      setNovaConversaAberta(true);
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Nova conversa</TooltipContent>
+              </Tooltip>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => refetchConversas()}>
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -334,54 +616,48 @@ export default function WhatsApp() {
             <div className="flex flex-col items-center justify-center h-full text-center p-6">
               <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="text-sm text-muted-foreground">Nenhuma conversa ainda</p>
-              {!instanciaSelecionada && (
-                <p className="text-xs text-muted-foreground mt-1">Configure uma instância para começar</p>
-              )}
+              <p className="text-xs text-muted-foreground mt-1">Clique em + para iniciar</p>
             </div>
           ) : (
-            (conversas as Conversa[]).map((c) => (
-              <button
-                key={c.conversa.id}
-                onClick={() => handleSelecionarConversa(c)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors text-left",
-                  conversaSelecionada?.conversa.id === c.conversa.id && "bg-muted"
-                )}
-              >
-                <div className="relative shrink-0">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="text-xs bg-green-100 text-green-700">
+            (conversas as Conversa[]).map((c) => {
+              const isActive = conversaSelecionada?.conversa.id === c.conversa.id;
+              return (
+                <button
+                  key={c.conversa.id}
+                  onClick={() => handleSelecionarConversa(c)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-3 text-left transition-colors border-b border-border/50",
+                    isActive ? "bg-green-50 border-l-2 border-l-green-500" : "hover:bg-muted/50"
+                  )}
+                >
+                  <Avatar className="h-10 w-10 shrink-0">
+                    <AvatarFallback className={cn("text-white text-xs", c.instancia ? setorColor(c.instancia.setor) : "bg-gray-400")}>
                       {initials(c.conversa.nomeContato)}
                     </AvatarFallback>
                   </Avatar>
-                  {c.instancia && (
-                    <span className={cn("absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white", setorColor(c.instancia.setor))}>
-                      <span className="text-[8px] font-bold">{c.instancia.nome.charAt(0)}</span>
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium truncate">
-                      {c.conversa.nomeContato || c.conversa.telefone}
-                    </span>
-                    <span className="text-xs text-muted-foreground shrink-0 ml-1">
-                      {formatTime(c.conversa.ultimaMensagemEm)}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium truncate">
+                        {c.conversa.nomeContato || c.conversa.telefone}
+                      </p>
+                      <span className="text-[10px] text-muted-foreground shrink-0 ml-1">
+                        {formatTime(c.conversa.ultimaMensagemEm)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <p className="text-xs text-muted-foreground truncate">
+                        {c.conversa.ultimaMensagem || "Sem mensagens"}
+                      </p>
+                      {c.conversa.naoLidas > 0 && (
+                        <Badge className="h-4 min-w-4 px-1 text-[10px] bg-green-500 text-white rounded-full shrink-0 ml-1">
+                          {c.conversa.naoLidas}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <span className="text-xs text-muted-foreground truncate">
-                      {c.conversa.ultimaMensagem || "Sem mensagens"}
-                    </span>
-                    {c.conversa.naoLidas > 0 && (
-                      <Badge className="h-4 min-w-4 px-1 text-[10px] bg-green-500 text-white rounded-full shrink-0 ml-1">
-                        {c.conversa.naoLidas}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))
+                </button>
+              );
+            })
           )}
         </div>
       </div>
@@ -390,9 +666,12 @@ export default function WhatsApp() {
       {conversaSelecionada ? (
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header da conversa */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/20 shrink-0">
+          <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
             <Avatar className="h-9 w-9">
-              <AvatarFallback className="text-xs bg-green-100 text-green-700">
+              <AvatarFallback className={cn(
+                "text-white text-xs",
+                conversaSelecionada.instancia ? setorColor(conversaSelecionada.instancia.setor) : "bg-gray-400"
+              )}>
                 {initials(conversaSelecionada.conversa.nomeContato)}
               </AvatarFallback>
             </Avatar>
@@ -457,34 +736,7 @@ export default function WhatsApp() {
                       </div>
                     )}
                     <div className={cn("flex", isOut ? "justify-end" : "justify-start")}>
-                      <div className={cn(
-                        "max-w-[70%] rounded-2xl px-3 py-2 shadow-sm",
-                        isOut
-                          ? "bg-green-500 text-white rounded-br-sm"
-                          : "bg-white text-foreground rounded-bl-sm"
-                      )}>
-                        {msg.tipo === "document" && (
-                          <div className="flex items-center gap-2 mb-1">
-                            <FileText className="h-4 w-4 shrink-0" />
-                            <a href={msg.mediaUrl ?? "#"} target="_blank" rel="noopener noreferrer"
-                              className="text-xs underline truncate max-w-[200px]">
-                              {msg.nomeArquivo || "Documento"}
-                            </a>
-                          </div>
-                        )}
-                        {msg.tipo === "image" && msg.mediaUrl && (
-                          <img src={msg.mediaUrl} alt="imagem" className="rounded-lg max-w-full mb-1 max-h-48 object-cover" />
-                        )}
-                        {msg.conteudo && (
-                          <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>
-                        )}
-                        <div className={cn("flex items-center justify-end gap-1 mt-0.5", isOut ? "text-green-100" : "text-muted-foreground")}>
-                          <span className="text-[10px]">
-                            {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                          {isOut && <MsgStatus status={msg.status} />}
-                        </div>
-                      </div>
+                      <MsgBubble msg={msg} />
                     </div>
                   </div>
                 );
@@ -493,25 +745,106 @@ export default function WhatsApp() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Barra de progresso de upload */}
+          {uploadProgress > 0 && (
+            <div className="px-4 py-1 shrink-0">
+              <div className="flex items-center gap-2">
+                <Progress value={uploadProgress} className="flex-1 h-1.5" />
+                <span className="text-xs text-muted-foreground">{uploadProgress}%</span>
+              </div>
+            </div>
+          )}
+
+          {/* Preview do arquivo selecionado */}
+          {arquivoSelecionado && (
+            <div className="px-4 py-2 border-t shrink-0">
+              <FilePreview file={arquivoSelecionado} onRemove={() => setArquivoSelecionado(null)} />
+            </div>
+          )}
+
           {/* Campo de envio */}
           <div className="flex items-end gap-2 p-3 border-t bg-background shrink-0">
+            {/* Inputs ocultos para seleção de arquivo */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <input
+              ref={audioInputRef}
+              type="file"
+              accept="audio/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {/* Botão de anexo com menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 rounded-full shrink-0 text-muted-foreground hover:text-foreground"
+                  disabled={enviando}
+                >
+                  <Paperclip className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-48">
+                <DropdownMenuItem onClick={() => handleSelecionarArquivo("image")} className="gap-2 cursor-pointer">
+                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                    <ImageIcon className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <span>Foto / Imagem</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSelecionarArquivo("audio")} className="gap-2 cursor-pointer">
+                  <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+                    <Mic className="h-4 w-4 text-orange-600" />
+                  </div>
+                  <span>Áudio</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSelecionarArquivo("document")} className="gap-2 cursor-pointer">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <span>Documento</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Campo de texto */}
             <div className="flex-1 flex items-center gap-2 bg-muted rounded-2xl px-3 py-2">
               <Input
                 ref={inputRef}
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Digite uma mensagem..."
+                placeholder={arquivoSelecionado ? "Adicionar legenda (opcional)..." : "Digite uma mensagem..."}
                 className="border-0 bg-transparent shadow-none focus-visible:ring-0 p-0 text-sm"
+                disabled={enviando}
               />
             </div>
+
+            {/* Botão de envio */}
             <Button
               onClick={handleEnviar}
-              disabled={!texto.trim() || enviando}
+              disabled={(!texto.trim() && !arquivoSelecionado) || enviando}
               size="icon"
               className="h-10 w-10 rounded-full bg-green-500 hover:bg-green-600 shrink-0"
             >
-              <Send className="h-4 w-4" />
+              {enviando
+                ? <RefreshCw className="h-4 w-4 animate-spin" />
+                : <Send className="h-4 w-4" />
+              }
             </Button>
           </div>
         </div>
@@ -550,10 +883,7 @@ export default function WhatsApp() {
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label>Instância *</Label>
-            <Select
-              value={novaInstanciaId}
-              onValueChange={setNovaInstanciaId}
-            >
+            <Select value={novaInstanciaId} onValueChange={setNovaInstanciaId}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a instância" />
               </SelectTrigger>

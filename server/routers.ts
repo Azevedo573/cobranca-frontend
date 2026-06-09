@@ -5048,10 +5048,26 @@ export const appRouter = router({
         return rows.reverse();
       }),
 
+    // ─── Upload de mídia para S3 e retorno de URL pública ──────────────────────
+    uploadMidia: protectedProcedure
+      .input(z.object({
+        base64: z.string(),          // conteudo base64 sem prefixo data:...
+        mimeType: z.string(),        // ex: "image/jpeg", "application/pdf", "audio/ogg"
+        nomeArquivo: z.string(),     // ex: "foto.jpg"
+      }))
+      .mutation(async ({ input }) => {
+        const { storagePut } = await import("./storage");
+        const buffer = Buffer.from(input.base64, "base64");
+        const ext = input.nomeArquivo.split(".").pop() ?? "bin";
+        const key = `whatsapp-media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        return { url, key };
+      }),
+
     enviarMensagem: protectedProcedure
       .input(z.object({
         conversaId: z.number().int().positive(),
-        tipo: z.enum(["text", "document", "image"]).default("text"),
+        tipo: z.enum(["text", "document", "image", "audio"]).default("text"),
         conteudo: z.string().optional(),
         mediaUrl: z.string().url().optional(),
         nomeArquivo: z.string().optional(),
@@ -5061,7 +5077,7 @@ export const appRouter = router({
         if (!db) throw new Error("DB indisponível");
         const { whatsappConversas, whatsappInstancias, whatsappMensagens } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
-        const { sendText, sendDocument, sendImage, formatPhone } = await import("./zapi-service");
+        const { sendText, sendDocument, sendImage, sendAudio, formatPhone } = await import("./zapi-service");
 
         const [conversa] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, input.conversaId));
         if (!conversa) throw new Error("Conversa não encontrada");
@@ -5077,6 +5093,8 @@ export const appRouter = router({
           zapiResult = await sendDocument(zapiConfig, phone, input.mediaUrl, input.nomeArquivo ?? "documento.pdf", input.conteudo);
         } else if (input.tipo === "image" && input.mediaUrl) {
           zapiResult = await sendImage(zapiConfig, phone, input.mediaUrl, input.conteudo);
+        } else if (input.tipo === "audio" && input.mediaUrl) {
+          zapiResult = await sendAudio(zapiConfig, phone, input.mediaUrl);
         } else {
           if (!input.conteudo) throw new Error("Conteúdo obrigatório para mensagem de texto");
           zapiResult = await sendText(zapiConfig, phone, input.conteudo);
