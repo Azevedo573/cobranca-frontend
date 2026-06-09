@@ -212,48 +212,68 @@ function AudioPlayer({ src, isOut }: { src: string; isOut: boolean }) {
 }
 
 // ─── Balão de mensagem ────────────────────────────────────────────────────────
-function MsgBubble({ msg }: { msg: any }) {
+function MsgBubble({ msg, onReenviar }: { msg: any; onReenviar?: (msg: any) => void }) {
   const isOut = msg.direction === "out";
+  const isOtimista = msg._otimista === true;
+  const isErro = msg._erro === true;
   return (
-    <div className={cn("max-w-[72%] rounded-2xl px-3 py-2 shadow-sm",
-      isOut ? "bg-green-500 text-white rounded-br-sm" : "bg-white text-foreground rounded-bl-sm"
-    )}>
-      {msg.tipo === "image" && msg.mediaUrl && (
-        <div className="mb-1">
-          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
-            <img src={msg.mediaUrl} alt={msg.nomeArquivo ?? "imagem"} className="rounded-xl max-w-full max-h-56 object-cover cursor-pointer hover:opacity-90 transition-opacity" />
-          </a>
-          {msg.conteudo && <p className="text-sm mt-1 whitespace-pre-wrap break-words">{msg.conteudo}</p>}
-        </div>
-      )}
-      {msg.tipo === "audio" && msg.mediaUrl && <AudioPlayer src={msg.mediaUrl} isOut={isOut} />}
-      {msg.tipo === "document" && (
-        <a href={msg.mediaUrl ?? "#"} target="_blank" rel="noopener noreferrer"
-          className={cn("flex items-center gap-2 rounded-xl px-3 py-2 mb-1 transition-colors",
-            isOut ? "bg-white/15 hover:bg-white/25" : "bg-gray-50 hover:bg-gray-100 border border-gray-200"
-          )}>
-          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", isOut ? "bg-white/20" : "bg-blue-100")}>
-            <FileText className={cn("h-5 w-5", isOut ? "text-white" : "text-blue-600")} />
+    <div className={cn("flex flex-col", isOut ? "items-end" : "items-start")}>
+      <div className={cn(
+        "max-w-[72%] rounded-2xl px-3 py-2 shadow-sm transition-opacity",
+        isOut ? "bg-green-500 text-white rounded-br-sm" : "bg-white text-foreground rounded-bl-sm",
+        isOtimista && !isErro && "opacity-70",
+        isErro && "bg-red-400 text-white opacity-90",
+      )}>
+        {msg.tipo === "image" && msg.mediaUrl && (
+          <div className="mb-1">
+            <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
+              <img src={msg.mediaUrl} alt={msg.nomeArquivo ?? "imagem"} className="rounded-xl max-w-full max-h-56 object-cover cursor-pointer hover:opacity-90 transition-opacity" />
+            </a>
+            {msg.conteudo && <p className="text-sm mt-1 whitespace-pre-wrap break-words">{msg.conteudo}</p>}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className={cn("text-xs font-medium truncate", isOut ? "text-white" : "text-foreground")}>{msg.nomeArquivo || "Documento"}</p>
-            <p className={cn("text-[10px]", isOut ? "text-green-100" : "text-muted-foreground")}>Toque para abrir</p>
-          </div>
-          <Download className={cn("h-4 w-4 shrink-0", isOut ? "text-white/70" : "text-muted-foreground")} />
-        </a>
-      )}
-      {msg.tipo === "text" && msg.conteudo && (
-        <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>
-      )}
-      <div className={cn("flex items-center justify-end gap-1 mt-0.5", isOut ? "text-green-100" : "text-muted-foreground")}>
-        <span className="text-[10px]">{new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-        {isOut && (
-          msg.status === "lida" ? <CheckCheck className="h-3.5 w-3.5 text-blue-400" /> :
-          msg.status === "entregue" ? <CheckCheck className="h-3.5 w-3.5 text-gray-400" /> :
-          msg.status === "enviada" ? <Check className="h-3.5 w-3.5 text-gray-400" /> :
-          <Clock className="h-3.5 w-3.5 text-gray-400" />
         )}
+        {msg.tipo === "audio" && msg.mediaUrl && <AudioPlayer src={msg.mediaUrl} isOut={isOut} />}
+        {msg.tipo === "document" && (
+          <a href={msg.mediaUrl ?? "#"} target="_blank" rel="noopener noreferrer"
+            className={cn("flex items-center gap-2 rounded-xl px-3 py-2 mb-1 transition-colors",
+              isOut ? "bg-white/15 hover:bg-white/25" : "bg-gray-50 hover:bg-gray-100 border border-gray-200"
+            )}>
+            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", isOut ? "bg-white/20" : "bg-blue-100")}>
+              <FileText className={cn("h-5 w-5", isOut ? "text-white" : "text-blue-600")} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={cn("text-xs font-medium truncate", isOut ? "text-white" : "text-foreground")}>{msg.nomeArquivo || "Documento"}</p>
+              <p className={cn("text-[10px]", isOut ? "text-green-100" : "text-muted-foreground")}>Toque para abrir</p>
+            </div>
+            <Download className={cn("h-4 w-4 shrink-0", isOut ? "text-white/70" : "text-muted-foreground")} />
+          </a>
+        )}
+        {msg.tipo === "text" && msg.conteudo && (
+          <p className="text-sm whitespace-pre-wrap break-words">{msg.conteudo}</p>
+        )}
+        <div className={cn("flex items-center justify-end gap-1 mt-0.5", isErro ? "text-red-100" : isOut ? "text-green-100" : "text-muted-foreground")}>
+          <span className="text-[10px]">
+            {isOtimista ? new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+          {isOut && !isErro && (
+            isOtimista
+              ? <Clock className="h-3.5 w-3.5 animate-pulse" />
+              : msg.status === "lida" ? <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+              : msg.status === "entregue" ? <CheckCheck className="h-3.5 w-3.5 text-gray-400" />
+              : msg.status === "enviada" ? <Check className="h-3.5 w-3.5 text-gray-400" />
+              : <Clock className="h-3.5 w-3.5" />
+          )}
+          {isErro && <AlertTriangle className="h-3.5 w-3.5 text-red-100" />}
+        </div>
       </div>
+      {isErro && onReenviar && (
+        <button
+          onClick={() => onReenviar(msg)}
+          className="flex items-center gap-1 text-[10px] text-red-500 hover:text-red-700 mt-0.5 px-1 transition-colors"
+        >
+          <RefreshCw className="h-3 w-3" /> Não enviado — toque para reenviar
+        </button>
+      )}
     </div>
   );
 }
@@ -721,6 +741,7 @@ export default function Atendimento() {
   const [enviando, setEnviando] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
+  const [mensagensOtimistas, setMensagensOtimistas] = useState<any[]>([]);
   const [modalTransferencia, setModalTransferencia] = useState(false);
   const [modalFinalizacao, setModalFinalizacao] = useState(false);
   const [buscaConversa, setBuscaConversa] = useState("");
@@ -779,49 +800,122 @@ export default function Atendimento() {
 
 
   const enviarMutation = trpc.whatsapp.enviarMensagem.useMutation({
-    onSuccess: () => { setTexto(""); setArquivoSelecionado(null); refetchMensagens(); },
-    onError: (e) => toast.error("Erro ao enviar: " + e.message),
+    onSuccess: () => { refetchMensagens(); },
+    onError: () => {},
   });
 
   const uploadMidiaMutation = trpc.whatsapp.uploadMidia.useMutation({
-    onError: (e) => toast.error("Erro no upload: " + e.message),
+    onError: () => {},
   });
 
   // ─── Efeitos ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [mensagens, mensagensOtimistas]);
+
+  // Limpa mensagens otimistas que já chegaram via polling
+  useEffect(() => {
+    if (mensagensOtimistas.length === 0) return;
+    setMensagensOtimistas(prev =>
+      prev.filter(ot => !ot._erro && !(mensagens as any[]).some(
+        (m: any) => m.conteudo === ot.conteudo && m.direction === "out" && !ot._erro
+      ))
+    );
   }, [mensagens]);
 
-
   // ─── Handlers ─────────────────────────────────────────────────────────────────
+  const handleEnviarOtimista = useCallback(async (
+    conversaId: number,
+    tipo: string,
+    conteudo: string | undefined,
+    mediaUrl?: string,
+    nomeArquivo?: string,
+    tempId?: string,
+  ) => {
+    try {
+      await enviarMutation.mutateAsync({ conversaId, tipo: tipo as any, conteudo, mediaUrl, nomeArquivo });
+      // Remove da lista otimista após sucesso (o polling vai trazer a mensagem real)
+      setMensagensOtimistas(prev => prev.filter(m => m._tempId !== tempId));
+      refetchMensagens();
+    } catch (e: any) {
+      // Marca como erro
+      setMensagensOtimistas(prev =>
+        prev.map(m => m._tempId === tempId ? { ...m, _otimista: false, _erro: true } : m)
+      );
+    }
+  }, [enviarMutation, refetchMensagens]);
+
   const handleEnviar = useCallback(async () => {
-    if (enviando) return;
     const conversaId = atendimentoSelecionado?.conversaId;
     if (!conversaId) return;
 
     if (arquivoSelecionado) {
-      setEnviando(true); setUploadProgress(10);
+      const tipo = arquivoSelecionado.type.startsWith("image/") ? "image" : arquivoSelecionado.type.startsWith("audio/") ? "audio" : "document";
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
+      const previewUrl = tipo === "image" ? URL.createObjectURL(arquivoSelecionado) : undefined;
+      const msgOtimista = {
+        _tempId: tempId, _otimista: true, _erro: false,
+        id: tempId, direction: "out", tipo,
+        conteudo: texto.trim() || undefined,
+        mediaUrl: previewUrl,
+        nomeArquivo: arquivoSelecionado.name,
+        createdAt: new Date().toISOString(),
+        status: "enviando",
+      };
+      setMensagensOtimistas(prev => [...prev, msgOtimista]);
+      // Libera o campo imediatamente
+      const arquivoParaEnviar = arquivoSelecionado;
+      const textoCaption = texto.trim();
+      setArquivoSelecionado(null);
+      setTexto("");
+      setUploadProgress(10);
       try {
-        const tipo = arquivoSelecionado.type.startsWith("image/") ? "image" : arquivoSelecionado.type.startsWith("audio/") ? "audio" : "document";
         const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve((reader.result as string).split(",")[1]);
           reader.onerror = reject;
-          reader.readAsDataURL(arquivoSelecionado);
+          reader.readAsDataURL(arquivoParaEnviar);
         });
         setUploadProgress(40);
-        const { url } = await uploadMidiaMutation.mutateAsync({ base64, mimeType: arquivoSelecionado.type || "application/octet-stream", nomeArquivo: arquivoSelecionado.name });
+        const { url } = await uploadMidiaMutation.mutateAsync({ base64, mimeType: arquivoParaEnviar.type || "application/octet-stream", nomeArquivo: arquivoParaEnviar.name });
         setUploadProgress(80);
-        await enviarMutation.mutateAsync({ conversaId, tipo, mediaUrl: url, nomeArquivo: arquivoSelecionado.name, conteudo: texto.trim() || undefined });
+        await handleEnviarOtimista(conversaId, tipo, textoCaption || undefined, url, arquivoParaEnviar.name, tempId);
         setUploadProgress(0);
-      } catch { setUploadProgress(0); } finally { setEnviando(false); }
+      } catch {
+        setUploadProgress(0);
+        setMensagensOtimistas(prev =>
+          prev.map(m => m._tempId === tempId ? { ...m, _otimista: false, _erro: true } : m)
+        );
+      }
       return;
     }
+
     if (!texto.trim()) return;
-    setEnviando(true);
-    try { await enviarMutation.mutateAsync({ conversaId, tipo: "text", conteudo: texto.trim() }); }
-    finally { setEnviando(false); inputRef.current?.focus(); }
-  }, [texto, atendimentoSelecionado, enviando, arquivoSelecionado]);
+    const tempId = `temp-${Date.now()}-${Math.random()}`;
+    const textoParaEnviar = texto.trim();
+    const msgOtimista = {
+      _tempId: tempId, _otimista: true, _erro: false,
+      id: tempId, direction: "out", tipo: "text",
+      conteudo: textoParaEnviar,
+      createdAt: new Date().toISOString(),
+      status: "enviando",
+    };
+    setMensagensOtimistas(prev => [...prev, msgOtimista]);
+    // Libera o campo imediatamente
+    setTexto("");
+    inputRef.current?.focus();
+    handleEnviarOtimista(conversaId, "text", textoParaEnviar, undefined, undefined, tempId);
+  }, [texto, atendimentoSelecionado, arquivoSelecionado, handleEnviarOtimista]);
+
+  const handleReenviar = useCallback((msgErro: any) => {
+    const conversaId = atendimentoSelecionado?.conversaId;
+    if (!conversaId) return;
+    // Volta para estado enviando
+    setMensagensOtimistas(prev =>
+      prev.map(m => m._tempId === msgErro._tempId ? { ...m, _otimista: true, _erro: false } : m)
+    );
+    handleEnviarOtimista(conversaId, msgErro.tipo, msgErro.conteudo, msgErro.mediaUrl, msgErro.nomeArquivo, msgErro._tempId);
+  }, [atendimentoSelecionado, handleEnviarOtimista]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnviar(); } };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1005,16 +1099,25 @@ export default function Atendimento() {
             {/* Mensagens */}
             <div className="flex-1 overflow-y-auto p-4 space-y-1"
               style={{ backgroundImage: "radial-gradient(circle, #e5e7eb 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
-              {(mensagens as any[]).length === 0 ? (
+              {(mensagens as any[]).length === 0 && mensagensOtimistas.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <MessageCircle className="h-12 w-12 text-muted-foreground/20 mb-3" />
                   <p className="text-sm text-muted-foreground">Nenhuma mensagem ainda</p>
                 </div>
-              ) : (mensagens as any[]).map((msg) => (
-                <div key={msg.id} className={cn("flex", msg.direction === "out" ? "justify-end" : "justify-start")}>
-                  <MsgBubble msg={msg} />
-                </div>
-              ))}
+              ) : (
+                <>
+                  {(mensagens as any[]).map((msg) => (
+                    <div key={msg.id} className={cn("flex", msg.direction === "out" ? "justify-end" : "justify-start")}>
+                      <MsgBubble msg={msg} onReenviar={handleReenviar} />
+                    </div>
+                  ))}
+                  {mensagensOtimistas.map((msg) => (
+                    <div key={msg._tempId} className="flex justify-end">
+                      <MsgBubble msg={msg} onReenviar={handleReenviar} />
+                    </div>
+                  ))}
+                </>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
@@ -1066,7 +1169,7 @@ export default function Atendimento() {
               {/* Anexo */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full shrink-0 text-muted-foreground" disabled={enviando}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full shrink-0 text-muted-foreground">
                     <Paperclip className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -1089,12 +1192,12 @@ export default function Atendimento() {
               <div className="flex-1 flex items-center gap-2 bg-muted rounded-2xl px-3 py-2">
                 <Input ref={inputRef} value={texto} onChange={(e) => setTexto(e.target.value)} onKeyDown={handleKeyDown}
                   placeholder={arquivoSelecionado ? "Legenda (opcional)..." : "Digite uma mensagem..."}
-                  className="border-0 bg-transparent shadow-none focus-visible:ring-0 p-0 text-sm" disabled={enviando} />
+                  className="border-0 bg-transparent shadow-none focus-visible:ring-0 p-0 text-sm" />
               </div>
 
-              <Button onClick={handleEnviar} disabled={(!texto.trim() && !arquivoSelecionado) || enviando}
+              <Button onClick={handleEnviar} disabled={!texto.trim() && !arquivoSelecionado}
                 size="icon" className="h-10 w-10 rounded-full bg-green-500 hover:bg-green-600 shrink-0">
-                {enviando ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>
