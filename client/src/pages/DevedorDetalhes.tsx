@@ -13,8 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode } from "lucide-react";
-import { Link, useRoute } from "wouter";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
@@ -38,6 +38,9 @@ export default function DevedorDetalhes() {
   const [modalTentativaOpen, setModalTentativaOpen] = useState(false);
   const [modalDocumentoOpen, setModalDocumentoOpen] = useState(false);
   const [modalEmailOpen, setModalEmailOpen] = useState(false);
+  const [modalWhatsAppOpen, setModalWhatsAppOpen] = useState(false);
+  const [instanciaWhatsAppSelecionada, setInstanciaWhatsAppSelecionada] = useState<number | null>(null);
+  const [, navigate] = useLocation();
   const [gerandoBoleto, setGerandoBoleto] = useState<number | null>(null);
   const [copiadoLinhaId, setCopiadoLinhaId] = useState<number | null>(null);
   const [copiadoPixId, setCopiadoPixId] = useState<number | null>(null);
@@ -85,6 +88,22 @@ export default function DevedorDetalhes() {
     { id: devedorId! },
     { enabled: !!devedorId }
   );
+
+  const { data: instanciasWA = [] } = trpc.whatsapp.listarInstancias.useQuery();
+  const { data: atendimentosDevedor = [] } = trpc.atendimento.listarAtendimentosDevedor.useQuery(
+    { devedorId: devedorId! },
+    { enabled: !!devedorId }
+  );
+
+  const iniciarAtendimentoMutation = trpc.atendimento.iniciarAtendimentoDevedor.useMutation({
+    onSuccess: (data) => {
+      toast.success("Atendimento iniciado! Redirecionando...");
+      setModalWhatsAppOpen(false);
+      // Redirecionar para a Central de Atendimento com o atendimento aberto
+      setTimeout(() => navigate("/atendimento"), 800);
+    },
+    onError: (e) => toast.error("Erro ao iniciar atendimento: " + e.message),
+  });
 
   const { data: tentativas = [] } = trpc.tentativas.getByDevedor.useQuery(
     { devedorId: devedorId! },
@@ -259,6 +278,15 @@ export default function DevedorDetalhes() {
                 <Mail className="mr-2 h-4 w-4" />
                 Enviar E-mail
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+                onClick={() => setModalWhatsAppOpen(true)}
+              >
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Chamar no WhatsApp
+              </Button>
               <Link href={`/devedores/${devedor.id}/editar`}>
                 <Button size="sm">
                   <Edit className="mr-2 h-4 w-4" />
@@ -342,11 +370,15 @@ export default function DevedorDetalhes() {
           {/* Coluna Direita: Abas */}
           <div className="lg:col-span-2">
             <Tabs defaultValue="historico" className="w-full">
-              <TabsList className="w-full mb-4 grid grid-cols-4">
+              <TabsList className="w-full mb-4 grid grid-cols-5">
                 <TabsTrigger value="historico">Histórico</TabsTrigger>
                 <TabsTrigger value="cobrancas">Cobranças ({cobrancas.length})</TabsTrigger>
                 <TabsTrigger value="acordos">Acordos & Boletos</TabsTrigger>
                 <TabsTrigger value="simulador">Simulador</TabsTrigger>
+                <TabsTrigger value="whatsapp" className="flex items-center gap-1">
+                  <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                  WhatsApp ({(atendimentosDevedor as any[]).length})
+                </TabsTrigger>
               </TabsList>
 
               {/* ABA: Histórico */}
@@ -427,6 +459,95 @@ export default function DevedorDetalhes() {
                   </div>
                 )}
               </TabsContent>
+              {/* ABA: Histórico WhatsApp */}
+              <TabsContent value="whatsapp" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold">Histórico de Atendimentos WhatsApp</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Todos os atendimentos realizados com este devedor via WhatsApp</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                    onClick={() => setModalWhatsAppOpen(true)}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Novo Atendimento
+                  </Button>
+                </div>
+
+                {(atendimentosDevedor as any[]).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20">
+                    <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">Nenhum atendimento WhatsApp registrado</p>
+                    <p className="text-xs text-muted-foreground mt-1">Clique em "Novo Atendimento" para iniciar uma conversa</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {(atendimentosDevedor as any[]).map((at: any) => (
+                      <div key={at.id} className="border rounded-lg p-4 bg-card hover:bg-accent/30 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1"
+                              style={{ backgroundColor: at.departamentoCor || '#6366f1' }}
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-semibold text-primary">{at.protocolo}</span>
+                                {at.departamentoNome && (
+                                  <span className="text-xs text-muted-foreground">• {at.departamentoNome}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {at.iniciadoEm ? format(new Date(at.iniciadoEm), "dd/MM/yyyy HH:mm") : "-"}
+                                </span>
+                                {at.operadorNome && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    {at.operadorNome}
+                                  </span>
+                                )}
+                                {at.tempoAtendimento && (
+                                  <span className="text-xs text-muted-foreground">{Math.round(at.tempoAtendimento / 60)} min</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {at.slaViolado === 1 && (
+                              <span className="flex items-center gap-1 text-xs text-red-500">
+                                <AlertCircle className="h-3.5 w-3.5" /> SLA
+                              </span>
+                            )}
+                            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                              at.status === 'resolvido' ? 'bg-green-100 text-green-700' :
+                              at.status === 'em_atendimento' ? 'bg-blue-100 text-blue-700' :
+                              at.status === 'aguardando' ? 'bg-yellow-100 text-yellow-700' :
+                              at.status === 'cancelado' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {at.status === 'resolvido' && <CheckCircle2 className="h-3 w-3" />}
+                              {at.status === 'em_atendimento' && <MessageCircle className="h-3 w-3" />}
+                              {at.status === 'aguardando' && <Clock className="h-3 w-3" />}
+                              {at.status === 'cancelado' && <XCircle className="h-3 w-3" />}
+                              {at.status === 'resolvido' ? 'Resolvido' :
+                               at.status === 'em_atendimento' ? 'Em Atendimento' :
+                               at.status === 'aguardando' ? 'Aguardando' :
+                               at.status === 'cancelado' ? 'Cancelado' : at.status}
+                            </span>
+                          </div>
+                        </div>
+                        {at.motivoFechamento && (
+                          <p className="text-xs text-muted-foreground mt-2 pl-5 border-l-2 border-muted">{at.motivoFechamento}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
             </Tabs>
           </div>
         </div>
@@ -473,6 +594,102 @@ export default function DevedorDetalhes() {
         emailDevedor={devedor.email ?? null}
         condominioId={devedor.condominioId}
       />
+
+      {/* Modal de Iniciar Atendimento WhatsApp */}
+      {modalWhatsAppOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                <MessageCircle className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold">Iniciar Atendimento WhatsApp</h2>
+                <p className="text-xs text-muted-foreground">{devedor.name}</p>
+              </div>
+            </div>
+
+            {/* Telefone */}
+            <div className="mb-4">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Telefone do devedor</label>
+              <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  {devedor.phone || "Nenhum telefone cadastrado"}
+                </span>
+              </div>
+              {!devedor.phone && (
+                <p className="text-xs text-red-500 mt-1">Cadastre um telefone para o devedor antes de iniciar o atendimento.</p>
+              )}
+            </div>
+
+            {/* Seleção de instância */}
+            <div className="mb-6">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Selecionar instância WhatsApp</label>
+              {instanciasWA.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma instância configurada.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(instanciasWA as any[]).map((inst: any) => (
+                    <button
+                      key={inst.id}
+                      onClick={() => setInstanciaWhatsAppSelecionada(inst.id)}
+                      className={`w-full flex items-center gap-3 p-3 border rounded-lg text-left transition-colors ${
+                        instanciaWhatsAppSelecionada === inst.id
+                          ? "border-green-500 bg-green-50"
+                          : "hover:bg-muted/30"
+                      }`}
+                    >
+                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                        inst.status === "connected" ? "bg-green-500" : "bg-red-400"
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{inst.name || inst.instanceName}</p>
+                        <p className="text-xs text-muted-foreground">{inst.status === "connected" ? "Conectado" : "Desconectado"}</p>
+                      </div>
+                      {instanciaWhatsAppSelecionada === inst.id && (
+                        <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => { setModalWhatsAppOpen(false); setInstanciaWhatsAppSelecionada(null); }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                disabled={
+                  !instanciaWhatsAppSelecionada ||
+                  !devedor.phone ||
+                  iniciarAtendimentoMutation.isPending
+                }
+                onClick={() => {
+                  const tel = (devedor.phone || "").replace(/\D/g, "");
+                  iniciarAtendimentoMutation.mutate({
+                    devedorId: devedor.id,
+                    instanciaId: instanciaWhatsAppSelecionada!,
+                    telefone: tel.startsWith("55") ? tel : `55${tel}`,
+                  });
+                }}
+              >
+                {iniciarAtendimentoMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Iniciando...</>
+                ) : (
+                  <><MessageCircle className="h-4 w-4 mr-1" /> Iniciar Atendimento</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

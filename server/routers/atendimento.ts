@@ -821,6 +821,144 @@ export const atendimentoRouter = router({
       return rows;
     }),
 
+  // ── Integração Devedor ↔ WhatsApp ─────────────────────────────────────────
+
+  // Inicia um atendimento a partir do perfil do devedor
+  // Busca ou cria a conversa WhatsApp e cria um atendimento em_atendimento vinculado
+  iniciarAtendimentoDevedor: protectedProcedure
+    .input(z.object({
+      devedorId: z.number(),
+      instanciaId: z.number(),
+      telefone: z.string(), // formato: 5521999999999
+      departamentoId: z.number().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = (await getDb())!;
+
+      // 1. Buscar dados do devedor
+      const [devedor] = await db.select().from(devedores).where(eq(devedores.id, input.devedorId)).limit(1);
+      if (!devedor) throw new TRPCError({ code: "NOT_FOUND", message: "Devedor não encontrado" });
+
+      // 2. Buscar ou criar conversa WhatsApp para esse telefone + instância
+      let [conversa] = await db.select().from(whatsappConversas)
+        .where(and(
+          eq(whatsappConversas.instanciaId, input.instanciaId),
+          eq(whatsappConversas.telefone, input.telefone),
+        ))
+        .limit(1);
+
+      if (!conversa) {
+        const [inserted] = await db.insert(whatsappConversas).values({
+          instanciaId: input.instanciaId,
+          telefone: input.telefone,
+          nomeContato: devedor.name,
+          devedorId: input.devedorId,
+          status: "aberta",
+        });
+        const insertId = (inserted as any).insertId;
+        const [nova] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, insertId)).limit(1);
+        conversa = nova;
+      } else {
+        // Garantir que o devedorId está vinculado
+        if (!conversa.devedorId) {
+          await db.update(whatsappConversas)
+            .set({ devedorId: input.devedorId })
+            .where(eq(whatsappConversas.id, conversa.id));
+        }
+      }
+
+      // 3. Verificar se já existe atendimento ativo para essa conversa
+      const [atendimentoAtivo] = await db.select().from(atendimentos)
+        .where(and(
+          eq(atendimentos.conversaId, conversa.id),
+          or(
+            eq(atendimentos.status, "aguardando"),
+            eq(atendimentos.status, "em_atendimento"),
+          )
+        ))
+        .limit(1);
+
+      if (atendimentoAtivo) {
+        // Retorna o atendimento existente
+        return { atendimentoId: atendimentoAtivo.id, conversaId: conversa.id, novo: false };
+      }
+
+      // 4. Criar novo atendimento já em_atendimento (operador iniciou)
+      const protocolo = gerarProtocolo();
+      const slaLimite = calcularSlaLimite(input.departamentoId ? 60 : 60);
+
+      const [insertResult] = await db.insert(atendimentos).values({
+        conversaId: conversa.id,
+        devedorId: input.devedorId,
+        operadorId: ctx.user.id,
+        departamentoId: input.departamentoId ?? null,
+        protocolo,
+        status: "em_atendimento",
+        prioridade: "normal",
+        slaLimite,
+        slaViolado: 0,
+        iniciadoEm: new Date(),
+        atendidoEm: new Date(),
+        tempoEspera: 0,
+      });
+
+      const novoId = (insertResult as any).insertId;
+
+      // 5. Registrar operador como ativo se não existir
+      const [opExiste] = await db.select().from(atendimentoOperadores)
+        .where(eq(atendimentoOperadores.userId, ctx.user.id))
+        .limit(1);
+      if (!opExiste) {
+        await db.insert(atendimentoOperadores).values({
+          userId: ctx.user.id,
+          departamentoId: input.departamentoId ?? 0,
+          status: "online",
+          chatsAtivos: 1,
+          limiteChats: 10,
+        });
+      } else {
+        await db.update(atendimentoOperadores)
+          .set({ chatsAtivos: sql`${atendimentoOperadores.chatsAtivos} + 1` })
+          .where(eq(atendimentoOperadores.userId, ctx.user.id));
+      }
+
+      return { atendimentoId: novoId, conversaId: conversa.id, novo: true };
+    }),
+
+  // Lista histórico de atendimentos de um devedor específico
+  listarAtendimentosDevedor: protectedProcedure
+    .input(z.object({ devedorId: z.number() }))
+    .query(async ({ input }) => {
+      const db = (await getDb())!;
+      const rows = await db
+        .select({
+          id: atendimentos.id,
+          protocolo: atendimentos.protocolo,
+          status: atendimentos.status,
+          prioridade: atendimentos.prioridade,
+          iniciadoEm: atendimentos.iniciadoEm,
+          atendidoEm: atendimentos.atendidoEm,
+          resolvidoEm: atendimentos.resolvidoEm,
+          tempoEspera: atendimentos.tempoEspera,
+          tempoAtendimento: atendimentos.tempoAtendimento,
+          motivoFechamento: atendimentos.motivoFechamento,
+          slaViolado: atendimentos.slaViolado,
+          telefone: whatsappConversas.telefone,
+          nomeContato: whatsappConversas.nomeContato,
+          operadorNome: users.name,
+          departamentoNome: atendimentoDepartamentos.nome,
+          departamentoCor: atendimentoDepartamentos.cor,
+        })
+        .from(atendimentos)
+        .leftJoin(whatsappConversas, eq(atendimentos.conversaId, whatsappConversas.id))
+        .leftJoin(users, eq(atendimentos.operadorId, users.id))
+        .leftJoin(atendimentoDepartamentos, eq(atendimentos.departamentoId, atendimentoDepartamentos.id))
+        .where(eq(atendimentos.devedorId, input.devedorId))
+        .orderBy(desc(atendimentos.iniciadoEm))
+        .limit(50);
+      return rows;
+    }),
+
   // Verificar e marcar SLAs violados (chamado periodicamente)
   verificarSlas: protectedProcedure.mutation(async () => {
     const db = (await getDb())!;
