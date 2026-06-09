@@ -693,3 +693,151 @@ export const whatsappMensagens = mysqlTable("whatsappMensagens", {
 });
 export type WhatsappMensagem = typeof whatsappMensagens.$inferSelect;
 export type InsertWhatsappMensagem = typeof whatsappMensagens.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO DE MULTIATENDIMENTO
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Departamentos de atendimento (ex: Cobrança, Jurídico, Suporte)
+export const atendimentoDepartamentos = mysqlTable("atendimentoDepartamentos", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 100 }).notNull(),
+  descricao: text("descricao"),
+  cor: varchar("cor", { length: 20 }).default("#6366f1").notNull(), // cor para UI
+  instanciaId: int("instanciaId"), // instância WhatsApp vinculada (opcional)
+  slaMinutos: int("slaMinutos").default(60).notNull(), // SLA padrão em minutos
+  limiteChatsSimultaneos: int("limiteChatsSimultaneos").default(5).notNull(),
+  distribuicaoAutomatica: int("distribuicaoAutomatica").default(1).notNull(), // 0=manual, 1=auto
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AtendimentoDepartamento = typeof atendimentoDepartamentos.$inferSelect;
+export type InsertAtendimentoDepartamento = typeof atendimentoDepartamentos.$inferInsert;
+
+// Vínculo operador ↔ departamento
+export const atendimentoOperadores = mysqlTable("atendimentoOperadores", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  departamentoId: int("departamentoId").notNull(),
+  status: mysqlEnum("status", ["online", "offline", "ausente", "ocupado"]).default("offline").notNull(),
+  limiteChats: int("limiteChats").default(5).notNull(),
+  chatsAtivos: int("chatsAtivos").default(0).notNull(),
+  ultimaAtividade: timestamp("ultimaAtividade"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AtendimentoOperador = typeof atendimentoOperadores.$inferSelect;
+export type InsertAtendimentoOperador = typeof atendimentoOperadores.$inferInsert;
+
+// Etiquetas para categorizar conversas
+export const atendimentoEtiquetas = mysqlTable("atendimentoEtiquetas", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 80 }).notNull(),
+  cor: varchar("cor", { length: 20 }).default("#22c55e").notNull(),
+  descricao: text("descricao"),
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AtendimentoEtiqueta = typeof atendimentoEtiquetas.$inferSelect;
+export type InsertAtendimentoEtiqueta = typeof atendimentoEtiquetas.$inferInsert;
+
+// Mensagens rápidas (respostas pré-definidas)
+export const atendimentoMensagensRapidas = mysqlTable("atendimentoMensagensRapidas", {
+  id: int("id").autoincrement().primaryKey(),
+  titulo: varchar("titulo", { length: 100 }).notNull(), // nome de exibição
+  atalho: varchar("atalho", { length: 50 }).notNull(), // ex: "/boleto"
+  conteudo: text("conteudo").notNull(),
+  departamentoId: int("departamentoId"), // null = global
+  criadoPorId: int("criadoPorId").notNull(),
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AtendimentoMensagemRapida = typeof atendimentoMensagensRapidas.$inferSelect;
+export type InsertAtendimentoMensagemRapida = typeof atendimentoMensagensRapidas.$inferInsert;
+
+// Atendimentos (cada conversa aberta vira um atendimento)
+export const atendimentos = mysqlTable("atendimentos", {
+  id: int("id").autoincrement().primaryKey(),
+  conversaId: int("conversaId").notNull(), // FK → whatsappConversas
+  departamentoId: int("departamentoId"),
+  operadorId: int("operadorId"), // userId do operador atual (null = na fila)
+  devedorId: int("devedorId"), // vínculo com devedor
+  cobrancaId: int("cobrancaId"), // vínculo com cobrança específica
+  protocolo: varchar("protocolo", { length: 30 }).notNull(), // número único ex: "ATD-2024-00001"
+  status: mysqlEnum("status", [
+    "aguardando",   // na fila, sem operador
+    "em_atendimento", // com operador
+    "transferido",  // aguardando novo operador após transferência
+    "resolvido",    // finalizado com sucesso
+    "abandonado",   // cliente saiu sem ser atendido
+  ]).default("aguardando").notNull(),
+  prioridade: mysqlEnum("prioridade", ["baixa", "normal", "alta", "urgente"]).default("normal").notNull(),
+  slaLimite: timestamp("slaLimite"), // deadline do SLA
+  slaViolado: int("slaViolado").default(0).notNull(), // 0=ok, 1=violado
+  tempoEspera: int("tempoEspera"), // segundos na fila até ser atendido
+  tempoAtendimento: int("tempoAtendimento"), // segundos totais do atendimento
+  iniciadoEm: timestamp("iniciadoEm").defaultNow().notNull(),
+  atendidoEm: timestamp("atendidoEm"), // quando operador assumiu
+  resolvidoEm: timestamp("resolvidoEm"),
+  motivoFechamento: text("motivoFechamento"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Atendimento = typeof atendimentos.$inferSelect;
+export type InsertAtendimento = typeof atendimentos.$inferInsert;
+
+// Histórico de transferências
+export const atendimentoTransferencias = mysqlTable("atendimentoTransferencias", {
+  id: int("id").autoincrement().primaryKey(),
+  atendimentoId: int("atendimentoId").notNull(),
+  deOperadorId: int("deOperadorId"), // null = sistema/fila
+  paraOperadorId: int("paraOperadorId"), // null = fila
+  paraDepartamentoId: int("paraDepartamentoId"),
+  motivo: text("motivo"),
+  transferidoPorId: int("transferidoPorId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AtendimentoTransferencia = typeof atendimentoTransferencias.$inferSelect;
+
+// Etiquetas aplicadas a atendimentos (N:N)
+export const atendimentoEtiquetasAplicadas = mysqlTable("atendimentoEtiquetasAplicadas", {
+  id: int("id").autoincrement().primaryKey(),
+  atendimentoId: int("atendimentoId").notNull(),
+  etiquetaId: int("etiquetaId").notNull(),
+  aplicadoPorId: int("aplicadoPorId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// Notas internas (visíveis apenas para operadores, não para o cliente)
+export const atendimentoNotas = mysqlTable("atendimentoNotas", {
+  id: int("id").autoincrement().primaryKey(),
+  atendimentoId: int("atendimentoId").notNull(),
+  autorId: int("autorId").notNull(),
+  conteudo: text("conteudo").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type AtendimentoNota = typeof atendimentoNotas.$inferSelect;
+export type InsertAtendimentoNota = typeof atendimentoNotas.$inferInsert;
+
+// Avaliações de atendimento (CSAT)
+export const atendimentoAvaliacoes = mysqlTable("atendimentoAvaliacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  atendimentoId: int("atendimentoId").notNull(),
+  nota: int("nota").notNull(), // 1-5
+  comentario: text("comentario"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AtendimentoAvaliacao = typeof atendimentoAvaliacoes.$inferSelect;
+
+// Atualizações de status do operador (para supervisão em tempo real)
+export const atendimentoStatusLog = mysqlTable("atendimentoStatusLog", {
+  id: int("id").autoincrement().primaryKey(),
+  operadorId: int("operadorId").notNull(), // userId
+  statusAnterior: varchar("statusAnterior", { length: 20 }),
+  statusNovo: varchar("statusNovo", { length: 20 }).notNull(),
+  motivo: varchar("motivo", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});

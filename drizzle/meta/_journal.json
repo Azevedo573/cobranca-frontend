@@ -344,6 +344,13 @@
       "when": 1780964833134,
       "tag": "0049_new_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "5",
+      "when": 1781008137400,
+      "tag": "0050_nebulous_mantis",
+      "breakpoints": true
     }
   ]
 }

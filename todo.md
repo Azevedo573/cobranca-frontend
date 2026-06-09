@@ -2120,4 +2120,21 @@
 - [x] Frontend: player de áudio nativo HTML5 para mensagens de áudio recebidas/enviadas
 - [x] Frontend: link de download para documentos recebidos/enviados com ícone e nome do arquivo
 - [x] Frontend: indicador de progresso durante upload/envio de arquivo
-- [ ] Verificar TypeScript: 0 erros
+- [x] Verificar TypeScript: 0 erros
+
+## Sistema de Multiatendimento (WhatsApp + Cobrança)
+- [x] Schema do banco: tabelas atendimentoDepartamentos, atendimentoOperadores, atendimentos, atendimentoTransferencias, atendimentoEtiquetas, atendimentoEtiquetasAplicadas, atendimentoNotas, atendimentoAvaliacoes, atendimentoMensagensRapidas, atendimentoStatusLog
+- [x] Backend: router atendimento.ts com procedures de departamentos, fila, operadores, SLA, etiquetas, notas, mensagens rápidas, transferência, finalização, supervisão
+- [x] Backend: router registrado no appRouter principal
+- [x] Frontend: página Atendimento.tsx — painel 3 colunas (lista/fila, chat, detalhes)
+- [x] Frontend: fila de atendimento com cards de prioridade e SLA
+- [x] Frontend: painel do operador com status online/ausente/ocupado/offline
+- [x] Frontend: chat integrado com mensagens, envio de mídia, mensagens rápidas
+- [x] Frontend: painel de detalhes com notas internas e etiquetas
+- [x] Frontend: modal de transferência entre operadores/departamentos
+- [x] Frontend: modal de finalização de atendimento
+- [x] Frontend: painel de supervisão em tempo real (KPIs, operadores, atendimentos)
+- [x] Frontend: página AtendimentoConfig.tsx — departamentos, etiquetas, mensagens rápidas
+- [x] Sidebar: item "Central de Atendimento" e "Config. Atendimento" no grupo WhatsApp
+- [x] App.tsx: rotas /atendimento e /configuracoes/atendimento registradas
+- [x] TypeScript: 0 erros | Vite build: sucesso
