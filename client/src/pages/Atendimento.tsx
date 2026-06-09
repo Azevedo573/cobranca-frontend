@@ -499,7 +499,9 @@ function PainelDetalhes({ atendimentoId, conversaId, onTransferir, onFinalizar }
 }
 
 // ─── Modal de Transferência ───────────────────────────────────────────────────
+type ModoTransferencia = "fila" | "operador" | "departamento";
 function ModalTransferencia({ atendimentoId, open, onClose, onSuccess }: { atendimentoId: number; open: boolean; onClose: () => void; onSuccess: () => void }) {
+  const [modo, setModo] = useState<ModoTransferencia>("fila");
   const [paraOperadorId, setParaOperadorId] = useState<string>("");
   const [paraDepartamentoId, setParaDepartamentoId] = useState<string>("");
   const [motivo, setMotivo] = useState("");
@@ -507,49 +509,130 @@ function ModalTransferencia({ atendimentoId, open, onClose, onSuccess }: { atend
   const { data: operadores = [] } = trpc.atendimento.listarOperadores.useQuery();
   const { data: departamentos = [] } = trpc.atendimento.listarDepartamentos.useQuery();
   const transferirMutation = trpc.atendimento.transferirAtendimento.useMutation({
-    onSuccess: () => { toast.success("Transferido!"); onSuccess(); onClose(); },
+    onSuccess: () => { toast.success(modo === "fila" ? "Devolvido para a fila!" : "Transferido com sucesso!"); onSuccess(); onClose(); },
     onError: (e) => toast.error("Erro: " + e.message),
   });
+
+  const handleConfirmar = async () => {
+    if (modo === "operador" && !paraOperadorId) { toast.error("Selecione um operador"); return; }
+    if (modo === "departamento" && !paraDepartamentoId) { toast.error("Selecione um departamento"); return; }
+    setTransferindo(true);
+    try {
+      await transferirMutation.mutateAsync({
+        atendimentoId,
+        paraOperadorId: modo === "operador" && paraOperadorId ? parseInt(paraOperadorId) : undefined,
+        paraDepartamentoId: modo === "departamento" && paraDepartamentoId ? parseInt(paraDepartamentoId) : undefined,
+        motivo: motivo.trim() || undefined,
+      });
+    } finally {
+      setTransferindo(false);
+    }
+  };
+
+  // Reset ao abrir
+  const handleOpenChange = (v: boolean) => { if (!v) { setModo("fila"); setParaOperadorId(""); setParaDepartamentoId(""); setMotivo(""); onClose(); } };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle className="flex items-center gap-2"><Shuffle className="h-5 w-5 text-primary" />Transferir Atendimento</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shuffle className="h-5 w-5 text-primary" />Transferir Atendimento
+          </DialogTitle>
+          <p className="text-sm text-muted-foreground pt-1">Escolha para onde deseja encaminhar este atendimento.</p>
+        </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label>Transferir para operador</Label>
-            <Select value={paraOperadorId} onValueChange={setParaOperadorId}>
-              <SelectTrigger><SelectValue placeholder="Selecione um operador (opcional)" /></SelectTrigger>
-              <SelectContent>
-                {(operadores as any[]).filter(op => op.status === "online").map((op) => (
-                  <SelectItem key={op.userId} value={op.userId.toString()}>
-                    <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500" />{op.nome}<span className="text-xs text-muted-foreground">({op.chatsAtivos}/{op.limiteChats})</span></div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Opções de modo */}
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setModo("fila")}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-colors ${
+                modo === "fila" ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-muted-foreground/40"
+              }`}
+            >
+              <Users className="h-5 w-5" />
+              <span className="font-medium">Devolver à Fila</span>
+            </button>
+            <button
+              onClick={() => setModo("operador")}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-colors ${
+                modo === "operador" ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-muted-foreground/40"
+              }`}
+            >
+              <ArrowRight className="h-5 w-5" />
+              <span className="font-medium">Para Operador</span>
+            </button>
+            <button
+              onClick={() => setModo("departamento")}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 text-sm transition-colors ${
+                modo === "departamento" ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-muted-foreground/40"
+              }`}
+            >
+              <BarChart2 className="h-5 w-5" />
+              <span className="font-medium">Departamento</span>
+            </button>
           </div>
+
+          {/* Descrição do modo selecionado */}
+          {modo === "fila" && (
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-amber-700 dark:text-amber-400">O atendimento voltará para a fila de espera e poderá ser assumido por qualquer operador disponível.</p>
+            </div>
+          )}
+
+          {modo === "operador" && (
+            <div className="space-y-1.5">
+              <Label>Selecione o operador</Label>
+              <Select value={paraOperadorId} onValueChange={setParaOperadorId}>
+                <SelectTrigger><SelectValue placeholder="Escolha um operador online" /></SelectTrigger>
+                <SelectContent>
+                  {(operadores as any[]).filter(op => op.status === "online").map((op) => (
+                    <SelectItem key={op.userId} value={op.userId.toString()}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <span>{op.nome}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">({op.chatsAtivos}/{op.limiteChats} chats)</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                  {(operadores as any[]).filter(op => op.status === "online").length === 0 && (
+                    <div className="px-3 py-4 text-center text-sm text-muted-foreground">Nenhum operador online no momento</div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {modo === "departamento" && (
+            <div className="space-y-1.5">
+              <Label>Selecione o departamento</Label>
+              <Select value={paraDepartamentoId} onValueChange={setParaDepartamentoId}>
+                <SelectTrigger><SelectValue placeholder="Escolha um departamento" /></SelectTrigger>
+                <SelectContent>
+                  {(departamentos as any[]).map((dep) => (
+                    <SelectItem key={dep.id} value={dep.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: dep.cor }} />
+                        {dep.nome}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-1.5">
-            <Label>Ou transferir para departamento</Label>
-            <Select value={paraDepartamentoId} onValueChange={setParaDepartamentoId}>
-              <SelectTrigger><SelectValue placeholder="Selecione um departamento (opcional)" /></SelectTrigger>
-              <SelectContent>
-                {(departamentos as any[]).map((dep) => (
-                  <SelectItem key={dep.id} value={dep.id.toString()}>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: dep.cor }} />{dep.nome}</div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Motivo <span className="text-muted-foreground">(opcional)</span></Label>
-            <Textarea placeholder="Ex: Questão jurídica..." value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} className="resize-none text-sm" />
+            <Label>Motivo <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+            <Textarea placeholder="Ex: Questão jurídica, cliente solicitou..." value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} className="resize-none text-sm" />
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onClose} disabled={transferindo}>Cancelar</Button>
-          <Button onClick={async () => { if (!paraOperadorId && !paraDepartamentoId) { toast.error("Selecione destino"); return; } setTransferindo(true); try { await transferirMutation.mutateAsync({ atendimentoId, paraOperadorId: paraOperadorId ? parseInt(paraOperadorId) : undefined, paraDepartamentoId: paraDepartamentoId ? parseInt(paraDepartamentoId) : undefined, motivo: motivo.trim() || undefined }); } finally { setTransferindo(false); } }} disabled={transferindo || (!paraOperadorId && !paraDepartamentoId)}>
-            {transferindo ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Shuffle className="h-4 w-4 mr-2" />}Transferir
+          <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={transferindo}>Cancelar</Button>
+          <Button onClick={handleConfirmar} disabled={transferindo} className={modo === "fila" ? "bg-amber-600 hover:bg-amber-700" : ""}>
+            {transferindo ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Shuffle className="h-4 w-4 mr-2" />}
+            {modo === "fila" ? "Devolver à Fila" : "Transferir"}
           </Button>
         </DialogFooter>
       </DialogContent>
