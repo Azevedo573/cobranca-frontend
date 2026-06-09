@@ -753,6 +753,7 @@ export default function Atendimento() {
   const [mensagensOtimistas, setMensagensOtimistas] = useState<any[]>([]);
   const [modalTransferencia, setModalTransferencia] = useState(false);
   const [modalFinalizacao, setModalFinalizacao] = useState(false);
+  const [novaConversaAberta, setNovaConversaAberta] = useState(false);
   const [buscaConversa, setBuscaConversa] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -970,6 +971,15 @@ export default function Atendimento() {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {/* Botão Nova Conversa */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => setNovaConversaAberta(true)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Nova Conversa</TooltipContent>
+              </Tooltip>
               {/* Status do operador */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1242,6 +1252,11 @@ export default function Atendimento() {
       )}
 
       {/* Modais */}
+      <ModalNovaConversa
+        open={novaConversaAberta}
+        onClose={() => setNovaConversaAberta(false)}
+        instancias={instancias as Instancia[]}
+      />
       {atendimentoSelecionado && (
         <>
           <ModalTransferencia atendimentoId={atendimentoSelecionado.id} open={modalTransferencia} onClose={() => setModalTransferencia(false)} onSuccess={() => { refetchMeus(); setAtendimentoSelecionado(null); }} />
