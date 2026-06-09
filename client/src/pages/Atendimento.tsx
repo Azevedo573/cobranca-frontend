@@ -588,8 +588,9 @@ function ModalFinalizacao({ atendimentoId, open, onClose, onSuccess }: { atendim
 }
 
 // ─── Modal Nova Conversa ──────────────────────────────────────────────────────
-function ModalNovaConversa({ open, onClose, instancias, instanciaAtualId }: {
+function ModalNovaConversa({ open, onClose, instancias, instanciaAtualId, onConversaCriada }: {
   open: boolean; onClose: () => void; instancias: Instancia[]; instanciaAtualId?: number;
+  onConversaCriada?: (conversa: { id: number; telefone: string; nomeContato: string | null; instanciaId: number }) => void;
 }) {
   const [telefone, setTelefone] = useState("");
   const [nome, setNome] = useState("");
@@ -597,10 +598,18 @@ function ModalNovaConversa({ open, onClose, instancias, instanciaAtualId }: {
   const [criando, setCriando] = useState(false);
   const utils = trpc.useUtils();
 
+  const abrirAtendimentoMutation = trpc.atendimento.abrirAtendimento.useMutation();
+
   const criarMutation = trpc.whatsapp.criarConversa.useMutation({
-    onSuccess: () => {
+    onSuccess: async (conversa) => {
       toast.success("Conversa iniciada!");
       utils.whatsapp.listarConversas.invalidate();
+      // Cria atendimento vinculado automaticamente
+      try {
+        await abrirAtendimentoMutation.mutateAsync({ conversaId: conversa.id });
+        utils.atendimento.meusAtendimentos.invalidate();
+      } catch (_) { /* ignora se já existe */ }
+      onConversaCriada?.(conversa as any);
       onClose();
       setTelefone(""); setNome(""); setInstanciaId("");
     },
@@ -1256,6 +1265,20 @@ export default function Atendimento() {
         open={novaConversaAberta}
         onClose={() => setNovaConversaAberta(false)}
         instancias={instancias as Instancia[]}
+        onConversaCriada={async (conversa) => {
+          // Aguarda o banco confirmar e busca o atendimento criado
+          setTimeout(async () => {
+            await utils.atendimento.meusAtendimentos.invalidate();
+            const { data } = await refetchMeus();
+            const novo = (data as Atendimento[] | undefined)?.find(a => a.conversaId === conversa.id);
+            if (novo) {
+              setAtendimentoSelecionado(novo);
+              setAbaSelecionada("meus");
+            } else {
+              setAbaSelecionada("meus");
+            }
+          }, 800);
+        }}
       />
       {atendimentoSelecionado && (
         <>
