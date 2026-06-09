@@ -2103,3 +2103,11 @@
 - [ ] Página de configuração de instâncias Z-API por setor com QR Code
 - [ ] Adicionar rota /whatsapp e item no menu lateral
 - [ ] Verificar TypeScript: 0 erros
+
+## Bug — WhatsApp.tsx JSX quebrado (modal fora do return)
+- [x] Envolver o return em fragmento React <>...</> para suportar <div> + <Dialog> como irmãos
+- [x] Verificar TypeScript: 0 erros
+
+## Bug — App.tsx import duplicado de EmailConfig
+- [x] Verificar imports duplicados no App.tsx (não havia duplicata real, erro já estava resolvido)
+- [x] Verificar TypeScript: 0 erros

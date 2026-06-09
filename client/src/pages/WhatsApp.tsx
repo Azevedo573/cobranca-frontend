@@ -12,7 +12,13 @@ import {
   Wifi, WifiOff, RefreshCw, Settings, ChevronRight,
   FileText, Image as ImageIcon, Mic, MoreVertical,
   Building2, Scale, Globe, CheckCheck, Check, Clock,
+  Plus, X,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
@@ -87,6 +93,11 @@ export default function WhatsApp() {
   const [busca, setBusca] = useState("");
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [novaConversaAberta, setNovaConversaAberta] = useState(false);
+  const [novoTelefone, setNovoTelefone] = useState("");
+  const [novoNome, setNovoNome] = useState("");
+  const [novaInstanciaId, setNovaInstanciaId] = useState<string>("");
+  const [criandoConversa, setCriandoConversa] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -123,6 +134,43 @@ export default function WhatsApp() {
   const marcarLidaMutation = trpc.whatsapp.marcarLida.useMutation({
     onSuccess: () => refetchConversas(),
   });
+
+  const criarConversaMutation = trpc.whatsapp.criarConversa.useMutation({
+    onSuccess: (novaConversa) => {
+      toast.success("Conversa iniciada com sucesso!");
+      setNovaConversaAberta(false);
+      setNovoTelefone("");
+      setNovoNome("");
+      refetchConversas();
+      // Selecionar a nova conversa automaticamente
+      if (novaConversa) {
+        const instancia = instancias.find((i: any) => i.id === novaConversa.instanciaId) as Instancia | undefined;
+        setConversaSelecionada({
+          conversa: novaConversa as any,
+          instancia: instancia ? { nome: instancia.nome, setor: instancia.setor } : null,
+        });
+      }
+    },
+    onError: (err) => toast.error("Erro ao criar conversa: " + err.message),
+  });
+
+  const handleCriarConversa = async () => {
+    const instId = novaInstanciaId || (instanciaSelecionada?.id?.toString() ?? "");
+    if (!novoTelefone.trim() || !instId) {
+      toast.error("Preencha o número de telefone e selecione uma instância");
+      return;
+    }
+    setCriandoConversa(true);
+    try {
+      await criarConversaMutation.mutateAsync({
+        instanciaId: parseInt(instId),
+        telefone: novoTelefone.trim(),
+        nomeContato: novoNome.trim() || undefined,
+      });
+    } finally {
+      setCriandoConversa(false);
+    }
+  };
 
   // ─── Efeitos ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -170,6 +218,7 @@ export default function WhatsApp() {
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="flex h-full bg-background overflow-hidden">
 
       {/* ── Coluna 1: Instâncias ─────────────────────────────────────────────── */}
@@ -248,9 +297,25 @@ export default function WhatsApp() {
                 </div>
               )}
             </div>
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost" size="icon" className="h-8 w-8"
+                  onClick={() => {
+                    setNovaInstanciaId(instanciaSelecionada?.id?.toString() ?? "");
+                    setNovaConversaAberta(true);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Nova conversa</TooltipContent>
+            </Tooltip>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => refetchConversas()}>
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
+          </div>
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -472,5 +537,81 @@ export default function WhatsApp() {
         </div>
       )}
     </div>
+
+    {/* ── Modal: Nova Conversa ─────────────────────────────────────────────── */}
+    <Dialog open={novaConversaAberta} onOpenChange={setNovaConversaAberta}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-green-500" />
+            Nova Conversa
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Instância *</Label>
+            <Select
+              value={novaInstanciaId}
+              onValueChange={setNovaInstanciaId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a instância" />
+              </SelectTrigger>
+              <SelectContent>
+                {(instancias as Instancia[]).map((inst) => (
+                  <SelectItem key={inst.id} value={inst.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      {setorIcon(inst.setor)}
+                      <span>{inst.nome}</span>
+                      <Badge variant="outline" className="text-[10px] h-4 px-1">{setorLabel(inst.setor)}</Badge>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Número de telefone *</Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Ex: 21999998888 ou +5521999998888"
+                value={novoTelefone}
+                onChange={(e) => setNovoTelefone(e.target.value)}
+                className="pl-9"
+                onKeyDown={(e) => e.key === "Enter" && handleCriarConversa()}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">DDD + número, sem espaços ou traços. O código do Brasil (55) é adicionado automaticamente.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Nome do contato <span className="text-muted-foreground">(opcional)</span></Label>
+            <Input
+              placeholder="Ex: João Silva"
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCriarConversa()}
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setNovaConversaAberta(false)} disabled={criandoConversa}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleCriarConversa}
+            disabled={criandoConversa || !novoTelefone.trim() || !novaInstanciaId}
+            className="bg-green-600 hover:bg-green-700 gap-2"
+          >
+            {criandoConversa ? (
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Iniciando...</>
+            ) : (
+              <><MessageCircle className="h-4 w-4" /> Iniciar Conversa</>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

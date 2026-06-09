@@ -4985,6 +4985,40 @@ export const appRouter = router({
         return nova;
       }),
 
+    criarConversa: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        telefone: z.string().min(8),
+        nomeContato: z.string().optional(),
+        devedorId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappConversas } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const { formatPhone } = await import("./zapi-service");
+        const telefoneFormatado = formatPhone(input.telefone);
+        // Verificar se já existe conversa com esse número nessa instância
+        const [existente] = await db.select().from(whatsappConversas)
+          .where(and(
+            eq(whatsappConversas.instanciaId, input.instanciaId),
+            eq(whatsappConversas.telefone, telefoneFormatado)
+          ));
+        if (existente) return existente;
+        // Criar nova conversa
+        const [res] = await db.insert(whatsappConversas).values({
+          instanciaId: input.instanciaId,
+          telefone: telefoneFormatado,
+          nomeContato: input.nomeContato ?? null,
+          devedorId: input.devedorId ?? null,
+          status: "aberta",
+          naoLidas: 0,
+        });
+        const [nova] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, (res as any).insertId));
+        return nova;
+      }),
+
     vincularDevedor: protectedProcedure
       .input(z.object({ conversaId: z.number().int().positive(), devedorId: z.number().int().positive().nullable() }))
       .mutation(async ({ input }) => {
