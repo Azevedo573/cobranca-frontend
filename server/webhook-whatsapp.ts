@@ -1,14 +1,14 @@
 import type { Request, Response } from "express";
 import { getDb } from "./db";
 import {
-  whatsappInstancias,
   whatsappConversas,
   whatsappMensagens,
+  whatsappInstancias,
   atendimentos,
-  atendimentoDepartamentos,
 } from "../drizzle/schema";
 import { eq, and, or } from "drizzle-orm";
 import { formatPhone } from "./zapi-service";
+import { processarMensagemBot } from "./bot-engine";
 
 /**
  * Webhook Z-API — recebe mensagens e atualizações de status
@@ -17,7 +17,8 @@ import { formatPhone } from "./zapi-service";
  * Ao receber uma mensagem de um contato externo:
  *  1. Busca ou cria a conversa
  *  2. Salva a mensagem
- *  3. Se não houver atendimento ativo para a conversa, cria um na fila (status "aguardando")
+ *  3. Se houver fluxo de bot ativo para a instância, processa pelo motor do bot
+ *  4. Se não houver bot (ou bot finalizou), cria atendimento na fila
  */
 
 function gerarProtocolo(): string {
@@ -67,6 +68,12 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
     if (!phone) return;
 
     const senderName: string = payload.senderName ?? payload.pushName ?? null;
+
+    // ── Buscar instância para obter token ─────────────────────────────────────
+    const [instancia] = await db
+      .select()
+      .from(whatsappInstancias)
+      .where(eq(whatsappInstancias.id, instanciaId));
 
     // ── Buscar ou criar conversa ───────────────────────────────────────────────
     let [conversa] = await db
@@ -159,17 +166,50 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       })
       .where(eq(whatsappConversas.id, conversa.id));
 
+    // ── Verificar se há atendimento humano ativo (não processar bot) ──────────
+    const [atendimentoHumano] = await db
+      .select({ id: atendimentos.id })
+      .from(atendimentos)
+      .where(
+        and(
+          eq(atendimentos.conversaId, conversa.id),
+          eq(atendimentos.status, "em_atendimento")
+        )
+      )
+      .limit(1);
+
+    if (atendimentoHumano) {
+      // Operador humano está atendendo — não processar bot
+      return;
+    }
+
+    // ── Tentar processar pelo motor do bot ────────────────────────────────────
+    if (instancia) {
+      const botProcessou = await processarMensagemBot({
+        instanciaId,
+        conversaId: conversa.id,
+        telefone: phone,
+        texto: conteudo ?? "",
+        instanceToken: instancia.token,
+        instanceId: instancia.instanceId,
+      });
+
+      if (botProcessou) {
+        // Bot processou a mensagem — não criar atendimento na fila
+        console.log(`[Webhook] Bot processou mensagem da conversa ${conversa.id}`);
+        return;
+      }
+    }
+
     // ── Criar atendimento na fila se não houver um ativo ──────────────────────
-    // Verifica se já existe atendimento aberto (aguardando, em_atendimento ou transferido)
     const [atendimentoExistente] = await db
-      .select({ id: atendimentos.id, status: atendimentos.status })
+      .select({ id: atendimentos.id })
       .from(atendimentos)
       .where(
         and(
           eq(atendimentos.conversaId, conversa.id),
           or(
             eq(atendimentos.status, "aguardando"),
-            eq(atendimentos.status, "em_atendimento"),
             eq(atendimentos.status, "transferido"),
           )
         )
@@ -177,8 +217,6 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       .limit(1);
 
     if (!atendimentoExistente) {
-      // Buscar departamento padrão da instância (se houver)
-      // Por ora usamos SLA padrão de 60 minutos
       const slaMinutos = 60;
       const protocolo = gerarProtocolo();
       const slaLimite = calcularSlaLimite(slaMinutos);

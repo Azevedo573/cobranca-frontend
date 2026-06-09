@@ -2148,3 +2148,14 @@
 - [ ] Remover item "Conversas" do menu Sidebar (grupo WhatsApp)
 - [ ] Redirecionar rota /whatsapp → /atendimento (ou mostrar 404)
 - [ ] Verificar TypeScript: 0 erros | Vite build: sucesso
+
+## Fluxos de Atendimento (Chatbot)
+- [ ] Schema: tabela botFluxos (id, nome, descricao, ativo, instanciaId, criadoEm)
+- [ ] Schema: tabela botNos (id, fluxoId, tipo, titulo, conteudo JSON, ordem)
+- [ ] Schema: tabela botSessoes (id, conversaId, fluxoId, noAtualId, dados JSON, status)
+- [ ] Backend: router fluxos.ts com CRUD de fluxos e nós
+- [ ] Backend: motor de execução do bot (processarMensagem)
+- [ ] Backend: integração no webhook para iniciar/avançar fluxo
+- [ ] Frontend: página FluxosAtendimento.tsx com lista de fluxos
+- [ ] Frontend: editor de fluxo com nós de texto e botões de ação
+- [ ] Frontend: rota /fluxos e item no menu lateral

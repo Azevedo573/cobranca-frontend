@@ -41,6 +41,7 @@ import {
   Mail,
   MessageCircle,
   Headphones,
+  GitBranch,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -179,6 +180,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Central de Atendimento", href: "/atendimento", icon: Headphones, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Configurar Instâncias", href: "/configuracoes/whatsapp", icon: Settings, roles: ["admin"] },
       { label: "Config. Atendimento", href: "/configuracoes/atendimento", icon: Settings, roles: ["admin"] },
+      { label: "Fluxos de Atendimento", href: "/configuracoes/fluxos", icon: GitBranch, roles: ["admin"] },
     ],
   },
 

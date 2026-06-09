@@ -1,4 +1,4 @@
-import { decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -841,3 +841,49 @@ export const atendimentoStatusLog = mysqlTable("atendimentoStatusLog", {
   motivo: varchar("motivo", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
+
+// ─── Fluxos de Atendimento (Chatbot) ─────────────────────────────────────────
+
+// Fluxo principal: conjunto de nós que formam o bot
+export const botFluxos = mysqlTable("botFluxos", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 100 }).notNull(),
+  descricao: text("descricao"),
+  ativo: boolean("ativo").default(true).notNull(), // true=ativo, false=inativo
+  instanciaId: int("instanciaId"), // null = todos as instâncias
+  gatilho: varchar("gatilho", { length: 20 }).default("primeira_mensagem").notNull(), // primeira_mensagem | palavra_chave
+  palavraChave: varchar("palavraChave", { length: 100 }), // usado quando gatilho=palavra_chave
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BotFluxo = typeof botFluxos.$inferSelect;
+export type InsertBotFluxo = typeof botFluxos.$inferInsert;
+
+// Nós do fluxo: cada passo do bot
+// tipo: inicio | mensagem | botoes | transferir | encerrar
+export const botNos = mysqlTable("botNos", {
+  id: int("id").autoincrement().primaryKey(),
+  fluxoId: int("fluxoId").notNull(),
+  tipo: varchar("tipo", { length: 30 }).notNull(), // inicio | mensagem | botoes | transferir | encerrar
+  titulo: varchar("titulo", { length: 100 }).notNull(), // nome interno do nó
+  // conteudo JSON: { texto, botoes: [{label, proximoNoId}], departamentoId, mensagemEncerramento }
+  conteudo: json("conteudo").notNull(),
+  ordem: int("ordem").default(0).notNull(), // ordem de exibição no editor
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type BotNo = typeof botNos.$inferSelect;
+export type InsertBotNo = typeof botNos.$inferInsert;
+
+// Sessões ativas do bot por conversa
+export const botSessoes = mysqlTable("botSessoes", {
+  id: int("id").autoincrement().primaryKey(),
+  conversaId: int("conversaId").notNull(),
+  fluxoId: int("fluxoId").notNull(),
+  noAtualId: int("noAtualId"), // null = fluxo encerrado
+  status: varchar("status", { length: 20 }).default("ativa").notNull(), // ativa | encerrada | transferida
+  dados: json("dados"), // dados coletados durante o fluxo
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BotSessao = typeof botSessoes.$inferSelect;
+export type InsertBotSessao = typeof botSessoes.$inferInsert;
