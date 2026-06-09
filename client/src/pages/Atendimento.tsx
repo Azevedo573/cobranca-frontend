@@ -920,7 +920,7 @@ export default function Atendimento() {
         {/* Lista */}
         <div className="flex-1 overflow-y-auto">
           {/* Meus atendimentos */}
-          {(abaSelecionada === "meus" || abaSelecionada === "fila") && (
+          {abaSelecionada === "meus" && (
             <>
               {atendimentosFiltrados.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center p-6">
