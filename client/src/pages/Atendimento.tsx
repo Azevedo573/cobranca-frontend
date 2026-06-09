@@ -711,16 +711,11 @@ export default function Atendimento() {
   const { user } = useAuth();
 
   // Modo de visualização da coluna esquerda
-  const [abaSelecionada, setAbaSelecionada] = useState<"meus" | "fila" | "conversas" | "supervisor">("meus");
+  const [abaSelecionada, setAbaSelecionada] = useState<"meus" | "fila" | "supervisor">("meus");
 
   // Atendimento selecionado (modo "meus" e "fila")
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<Atendimento | null>(null);
 
-  // Conversa selecionada (modo "conversas")
-  const [conversaSelecionada, setConversaSelecionada] = useState<Conversa | null>(null);
-
-  // Instância selecionada para a aba Conversas
-  const [instanciaSelecionada, setInstanciaSelecionada] = useState<Instancia | null>(null);
 
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -728,7 +723,6 @@ export default function Atendimento() {
   const [arquivoSelecionado, setArquivoSelecionado] = useState<File | null>(null);
   const [modalTransferencia, setModalTransferencia] = useState(false);
   const [modalFinalizacao, setModalFinalizacao] = useState(false);
-  const [modalNovaConversa, setModalNovaConversa] = useState(false);
   const [buscaConversa, setBuscaConversa] = useState("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -746,29 +740,16 @@ export default function Atendimento() {
   // Instâncias WhatsApp
   const { data: instancias = [] } = trpc.whatsapp.listarInstancias.useQuery(undefined, { refetchInterval: 30000 });
 
-  // Conversas SEM atendimento ativo (aba Conversas mostra apenas conversas livres)
-  const { data: conversas = [], refetch: refetchConversas } = trpc.whatsapp.listarConversasSemAtendimento.useQuery(
-    { instanciaId: instanciaSelecionada?.id, busca: buscaConversa || undefined },
-    { enabled: abaSelecionada === "conversas", refetchInterval: 3000 }
-  );
 
-  // Status da instância selecionada
-  const { data: statusInstancia } = trpc.whatsapp.statusInstancia.useQuery(
-    { instanciaId: instanciaSelecionada?.id ?? 0 },
-    { enabled: !!instanciaSelecionada && abaSelecionada === "conversas", refetchInterval: 15000 }
-  );
 
-  // Mensagens — depende do modo ativo
-  const conversaIdAtiva = abaSelecionada === "conversas"
-    ? conversaSelecionada?.conversa.id
-    : atendimentoSelecionado?.conversaId;
+  // Mensagens do atendimento selecionado
+  const conversaIdAtiva = atendimentoSelecionado?.conversaId;
 
   const { data: mensagens = [], refetch: refetchMensagens } = trpc.whatsapp.listarMensagens.useQuery(
     { conversaId: conversaIdAtiva ?? 0 },
     { enabled: !!conversaIdAtiva, refetchInterval: 3000 }
   );
 
-  const marcarLidaMutation = trpc.whatsapp.marcarLida.useMutation({ onSuccess: () => refetchConversas() });
 
   // ─── Mutations ────────────────────────────────────────────────────────────────
   const atualizarStatusMutation = trpc.atendimento.atualizarStatusOperador.useMutation({
@@ -780,20 +761,9 @@ export default function Atendimento() {
     onError: (e) => toast.error("Erro: " + e.message),
   });
 
-  const iniciarAtendimentoMutation = trpc.atendimento.abrirAtendimento.useMutation({
-    onSuccess: (data) => {
-      toast.success(`Atendimento iniciado — ${data.protocolo}`);
-      refetchMeus();
-      refetchFila();
-      refetchConversas();
-      // Mudar para aba Meus e selecionar o atendimento criado
-      setAbaSelecionada("meus");
-    },
-    onError: (e) => toast.error("Erro ao iniciar atendimento: " + e.message),
-  });
 
   const enviarMutation = trpc.whatsapp.enviarMensagem.useMutation({
-    onSuccess: () => { setTexto(""); setArquivoSelecionado(null); refetchMensagens(); if (abaSelecionada === "conversas") refetchConversas(); },
+    onSuccess: () => { setTexto(""); setArquivoSelecionado(null); refetchMensagens(); },
     onError: (e) => toast.error("Erro ao enviar: " + e.message),
   });
 
@@ -803,27 +773,14 @@ export default function Atendimento() {
 
   // ─── Efeitos ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if ((instancias as Instancia[]).length > 0 && !instanciaSelecionada) {
-      setInstanciaSelecionada((instancias as Instancia[])[0]);
-    }
-  }, [instancias]);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens]);
 
-  useEffect(() => {
-    if (conversaSelecionada?.conversa.naoLidas && conversaSelecionada.conversa.naoLidas > 0) {
-      marcarLidaMutation.mutate({ conversaId: conversaSelecionada.conversa.id });
-    }
-  }, [conversaSelecionada?.conversa.id]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────────
   const handleEnviar = useCallback(async () => {
     if (enviando) return;
-    const conversaId = abaSelecionada === "conversas"
-      ? conversaSelecionada?.conversa.id
-      : atendimentoSelecionado?.conversaId;
+    const conversaId = atendimentoSelecionado?.conversaId;
     if (!conversaId) return;
 
     if (arquivoSelecionado) {
@@ -848,7 +805,7 @@ export default function Atendimento() {
     setEnviando(true);
     try { await enviarMutation.mutateAsync({ conversaId, tipo: "text", conteudo: texto.trim() }); }
     finally { setEnviando(false); inputRef.current?.focus(); }
-  }, [texto, conversaSelecionada, atendimentoSelecionado, abaSelecionada, enviando, arquivoSelecionado]);
+  }, [texto, atendimentoSelecionado, enviando, arquivoSelecionado]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEnviar(); } };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -868,69 +825,15 @@ export default function Atendimento() {
   const stConf = statusOperadorConfig[statusAtual] ?? statusOperadorConfig.offline;
 
   // Determina se há chat ativo para mostrar
-  const chatAtivo = abaSelecionada === "conversas" ? !!conversaSelecionada : !!atendimentoSelecionado;
-  const nomeAtivo = abaSelecionada === "conversas"
-    ? (conversaSelecionada?.conversa.nomeContato || conversaSelecionada?.conversa.telefone)
-    : (atendimentoSelecionado?.nomeContato || atendimentoSelecionado?.telefone);
-  const telefoneAtivo = abaSelecionada === "conversas"
-    ? conversaSelecionada?.conversa.telefone
-    : atendimentoSelecionado?.telefone;
+  const chatAtivo = !!atendimentoSelecionado;
+  const nomeAtivo = atendimentoSelecionado?.nomeContato || atendimentoSelecionado?.telefone;
+  const telefoneAtivo = atendimentoSelecionado?.telefone;
 
   return (
     <div className="flex h-full bg-background overflow-hidden">
 
-      {/* ── Coluna 1: Seletor de instâncias (modo conversas) ─────────────────── */}
-      {abaSelecionada === "conversas" && (
-        <div className="w-14 flex flex-col items-center py-3 gap-2 border-r bg-muted/30 shrink-0">
-          <div className="mb-1">
-            <MessageCircle className="h-5 w-5 text-green-500" />
-          </div>
-          {(instancias as Instancia[]).map((inst) => (
-            <Tooltip key={inst.id}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => { setInstanciaSelecionada(inst); setConversaSelecionada(null); }}
-                  className={cn(
-                    "w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold transition-all",
-                    setorColor(inst.setor),
-                    instanciaSelecionada?.id === inst.id ? "ring-2 ring-offset-2 ring-green-500 scale-110" : "opacity-70 hover:opacity-100"
-                  )}
-                >
-                  {inst.nome.charAt(0).toUpperCase()}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <div className="flex items-center gap-1.5">{setorIcon(inst.setor)}<span>{inst.nome} — {setorLabel(inst.setor)}</span></div>
-              </TooltipContent>
-            </Tooltip>
-          ))}
-          {(instancias as Instancia[]).length === 0 && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link href="/configuracoes/whatsapp">
-                  <Button variant="ghost" size="icon" className="w-9 h-9 rounded-full border-2 border-dashed border-muted-foreground/30">
-                    <Settings className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Configurar instâncias</TooltipContent>
-            </Tooltip>
-          )}
-          <div className="flex-1" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Link href="/configuracoes/whatsapp">
-                <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full">
-                  <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent side="right">Configurações</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
 
-      {/* ── Coluna 2: Lista de atendimentos / conversas ───────────────────────── */}
+      {/* ── Coluna 1: Lista de atendimentos ─────────────────────────────────────── */}
       <div className="w-80 flex flex-col border-r shrink-0">
         {/* Header do operador */}
         <div className="p-3 border-b bg-muted/20">
@@ -948,17 +851,6 @@ export default function Atendimento() {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              {/* Botão nova conversa — só na aba conversas */}
-              {abaSelecionada === "conversas" && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setModalNovaConversa(true)}>
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Nova conversa</TooltipContent>
-                </Tooltip>
-              )}
               {/* Status do operador */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -984,7 +876,6 @@ export default function Atendimento() {
             {([
               { key: "meus", label: "Meus", count: meusAtendimentos.length },
               { key: "fila", label: "Fila", count: fila.length },
-              { key: "conversas", label: "Conversas", count: null },
               { key: "supervisor", label: "Supervisão", count: null },
             ] as const).map((aba) => (
               <button key={aba.key} onClick={() => setAbaSelecionada(aba.key)}
@@ -1001,28 +892,19 @@ export default function Atendimento() {
           </div>
 
           {/* Busca */}
-          {(abaSelecionada === "meus" || abaSelecionada === "conversas") && (
+          {(abaSelecionada === "meus" || abaSelecionada === "fila") && (
             <div className="relative mt-2">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input placeholder="Buscar..." value={buscaConversa} onChange={(e) => setBuscaConversa(e.target.value)} className="pl-8 h-7 text-xs" />
             </div>
           )}
 
-          {/* Status da instância (modo conversas) */}
-          {abaSelecionada === "conversas" && instanciaSelecionada && (
-            <div className="flex items-center gap-1.5 mt-1.5">
-              {statusInstancia?.connected
-                ? <><Wifi className="h-3 w-3 text-green-500" /><span className="text-xs text-green-600">{instanciaSelecionada.nome} — Conectado</span></>
-                : <><WifiOff className="h-3 w-3 text-red-500" /><span className="text-xs text-red-500">{instanciaSelecionada.nome} — Desconectado</span></>
-              }
-            </div>
-          )}
         </div>
 
         {/* Lista */}
         <div className="flex-1 overflow-y-auto">
           {/* Meus atendimentos */}
-          {abaSelecionada === "meus" && (
+          {(abaSelecionada === "meus" || abaSelecionada === "fila") && (
             <>
               {atendimentosFiltrados.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center p-6">
@@ -1050,65 +932,6 @@ export default function Atendimento() {
             </div>
           )}
 
-          {/* Conversas */}
-          {abaSelecionada === "conversas" && (
-            <>
-              {(conversas as Conversa[]).length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                  <MessageCircle className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">Nenhuma conversa</p>
-                  <p className="text-xs text-muted-foreground mt-1">Clique em + para iniciar</p>
-                </div>
-              ) : (conversas as Conversa[]).map((c) => {
-                const isActive = conversaSelecionada?.conversa.id === c.conversa.id;
-                return (
-                  <div key={c.conversa.id}
-                    className={cn("group w-full flex items-center gap-3 px-3 py-3 border-b border-border/50 transition-colors",
-                      isActive ? "bg-green-50 border-l-2 border-l-green-500" : "hover:bg-muted/50"
-                    )}>
-                    <button className="flex items-center gap-3 flex-1 min-w-0 text-left" onClick={() => setConversaSelecionada(c)}>
-                      <Avatar className="h-10 w-10 shrink-0">
-                        <AvatarFallback className={cn("text-white text-xs", c.instancia ? setorColor(c.instancia.setor) : "bg-gray-400")}>
-                          {initials(c.conversa.nomeContato)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium truncate">{c.conversa.nomeContato || c.conversa.telefone}</p>
-                          <span className="text-[10px] text-muted-foreground shrink-0 ml-1">{formatTime(c.conversa.ultimaMensagemEm)}</span>
-                        </div>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <p className="text-xs text-muted-foreground truncate">{c.conversa.ultimaMensagem || "Sem mensagens"}</p>
-                          {c.conversa.naoLidas > 0 && (
-                            <Badge className="h-4 min-w-4 px-1 text-[10px] bg-green-500 text-white rounded-full shrink-0 ml-1">{c.conversa.naoLidas}</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                    {/* Botão Iniciar Atendimento — aparece no hover */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-green-600 hover:bg-green-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            iniciarAtendimentoMutation.mutate({ conversaId: c.conversa.id });
-                          }}
-                          disabled={iniciarAtendimentoMutation.isPending}
-                        >
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">Iniciar atendimento</TooltipContent>
-                    </Tooltip>
-                  </div>
-                );
-              })}
-            </>
-          )}
-
           {/* Supervisão — placeholder */}
           {abaSelecionada === "supervisor" && (
             <div className="flex items-center justify-center h-full text-xs text-muted-foreground p-4 text-center">
@@ -1133,11 +956,7 @@ export default function Atendimento() {
             {/* Header do chat */}
             <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
               <Avatar className="h-9 w-9">
-                <AvatarFallback className={cn("text-xs",
-                  abaSelecionada === "conversas" && conversaSelecionada?.instancia
-                    ? `${setorColor(conversaSelecionada.instancia.setor)} text-white`
-                    : "bg-slate-200 text-slate-700"
-                )}>
+                <AvatarFallback className="bg-slate-200 text-slate-700 text-xs">
                   {initials(nomeAtivo)}
                 </AvatarFallback>
               </Avatar>
@@ -1145,7 +964,7 @@ export default function Atendimento() {
                 <p className="font-semibold text-sm truncate">{nomeAtivo}</p>
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-muted-foreground">{telefoneAtivo}</p>
-                  {abaSelecionada !== "conversas" && atendimentoSelecionado && (
+                  {atendimentoSelecionado && (
                     <>
                       <span className="text-xs font-mono text-muted-foreground">{atendimentoSelecionado.protocolo}</span>
                       {atendimentoSelecionado.departamentoNome && (
@@ -1153,15 +972,9 @@ export default function Atendimento() {
                       )}
                     </>
                   )}
-                  {abaSelecionada === "conversas" && conversaSelecionada?.instancia && (
-                    <Badge variant="outline" className="h-4 px-1.5 text-[10px] gap-1">
-                      {setorIcon(conversaSelecionada.instancia.setor)}
-                      {setorLabel(conversaSelecionada.instancia.setor)}
-                    </Badge>
-                  )}
                 </div>
               </div>
-              {abaSelecionada !== "conversas" && atendimentoSelecionado && (
+              {atendimentoSelecionado && (
                 <div className="flex items-center gap-1.5">
                   <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => setModalTransferencia(true)}>
                     <Shuffle className="h-3.5 w-3.5" />Transferir
@@ -1170,20 +983,6 @@ export default function Atendimento() {
                     <XCircle className="h-3.5 w-3.5" />Finalizar
                   </Button>
                 </div>
-              )}
-              {abaSelecionada === "conversas" && conversaSelecionada && (
-                <Button
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold px-3"
-                  onClick={() => iniciarAtendimentoMutation.mutate({ conversaId: conversaSelecionada.conversa.id })}
-                  disabled={iniciarAtendimentoMutation.isPending}
-                >
-                  {iniciarAtendimentoMutation.isPending
-                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    : <ArrowRight className="h-3.5 w-3.5" />
-                  }
-                  Iniciar Atendimento
-                </Button>
               )}
             </div>
 
@@ -1285,7 +1084,7 @@ export default function Atendimento() {
           </div>
 
           {/* ── Coluna 4: Detalhes (apenas em atendimentos, não em conversas livres) */}
-          {abaSelecionada !== "conversas" && atendimentoSelecionado && (
+          {atendimentoSelecionado && (
             <div className="w-64 border-l flex flex-col shrink-0 bg-muted/10">
               <PainelDetalhes
                 atendimentoId={atendimentoSelecionado.id}
@@ -1304,35 +1103,23 @@ export default function Atendimento() {
           <h3 className="text-lg font-semibold mb-1">Central de Atendimento</h3>
           <p className="text-sm text-muted-foreground max-w-xs">
             {abaSelecionada === "fila" ? "Selecione um atendimento da fila para assumir."
-              : abaSelecionada === "conversas" ? "Selecione uma conversa ou inicie uma nova."
-              : "Selecione um atendimento na lista ao lado."}
+: "Selecione um atendimento na lista ao lado."}
           </p>
           <div className="flex gap-2 mt-4">
             <Button variant="outline" size="sm" className="gap-2" onClick={() => atualizarStatusMutation.mutate({ status: "online" })}>
               <div className="w-2 h-2 rounded-full bg-green-500" />Ficar Online
             </Button>
-            {abaSelecionada === "conversas" && (
-              <Button size="sm" className="gap-2 bg-green-600 hover:bg-green-700" onClick={() => setModalNovaConversa(true)}>
-                <Plus className="h-4 w-4" />Nova Conversa
-              </Button>
-            )}
           </div>
         </div>
       )}
 
       {/* Modais */}
-      {atendimentoSelecionado && abaSelecionada !== "conversas" && (
+      {atendimentoSelecionado && (
         <>
           <ModalTransferencia atendimentoId={atendimentoSelecionado.id} open={modalTransferencia} onClose={() => setModalTransferencia(false)} onSuccess={() => { refetchMeus(); setAtendimentoSelecionado(null); }} />
           <ModalFinalizacao atendimentoId={atendimentoSelecionado.id} open={modalFinalizacao} onClose={() => setModalFinalizacao(false)} onSuccess={() => { refetchMeus(); setAtendimentoSelecionado(null); }} />
         </>
       )}
-      <ModalNovaConversa
-        open={modalNovaConversa}
-        onClose={() => setModalNovaConversa(false)}
-        instancias={instancias as Instancia[]}
-        instanciaAtualId={instanciaSelecionada?.id}
-      />
     </div>
   );
 }
