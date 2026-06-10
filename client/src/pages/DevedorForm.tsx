@@ -310,24 +310,6 @@ export default function DevedorForm() {
                 </div>
               </div>
 
-              {/* Valor Devido */}
-              <div className="space-y-2">
-                <Label htmlFor="totalDue">Valor Total Devido (R$)</Label>
-                <Input
-                  id="totalDue"
-                  name="totalDue"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.totalDue}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Valor total da dívida atual do condômino
-                </p>
-              </div>
-
               {/* Botões */}
               <div className="flex gap-4 pt-4">
                 <Button
