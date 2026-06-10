@@ -809,6 +809,7 @@ function PainelSupervisor() {
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-muted-foreground">{a.protocolo}</span>
                         <Badge className={cn("text-[10px] h-4 px-1 gap-0.5", prio.color)}>{prio.icon}{prio.label}</Badge>
+                        {a.status === "automatico" && <Badge className="text-[10px] h-4 px-1 bg-purple-500 text-white gap-0.5">🤖 Bot</Badge>}
                         {a.slaViolado ? <Badge className="text-[10px] h-4 px-1 bg-red-500 text-white">SLA!</Badge> : null}
                       </div>
                       <p className="font-medium truncate mt-0.5">{a.nomeContato || a.telefone}</p>

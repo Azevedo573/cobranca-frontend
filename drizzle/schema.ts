@@ -767,6 +767,7 @@ export const atendimentos = mysqlTable("atendimentos", {
   cobrancaId: int("cobrancaId"), // vínculo com cobrança específica
   protocolo: varchar("protocolo", { length: 30 }).notNull(), // número único ex: "ATD-2024-00001"
   status: mysqlEnum("status", [
+    "automatico",   // sendo atendido pelo bot (fluxo automático)
     "aguardando",   // na fila, sem operador
     "em_atendimento", // com operador
     "transferido",  // aguardando novo operador após transferência

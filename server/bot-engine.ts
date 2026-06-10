@@ -1,12 +1,10 @@
 /**
  * Motor de execução dos Fluxos de Atendimento (Chatbot)
  *
- * Responsável por:
- * 1. Verificar se existe fluxo ativo para a instância/conversa
- * 2. Iniciar sessão do bot ao receber primeira mensagem
- * 3. Avançar o fluxo com base na resposta do usuário (texto ou botão)
- * 4. Enviar mensagens/botões via Z-API
- * 5. Encerrar sessão e criar atendimento na fila quando o fluxo terminar
+ * Retorna:
+ *  "automatico"  — bot processou e está aguardando próxima resposta do cliente
+ *  "transferir"  — bot chegou em nó de transferência (deve ir para fila humana)
+ *  "sem_fluxo"   — nenhum fluxo ativo encontrado (webhook cria atendimento normal)
  */
 
 import { getDb } from "./db";
@@ -15,6 +13,8 @@ import { eq, and, isNull, or } from "drizzle-orm";
 import { sendText, formatPhone } from "./zapi-service";
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
+
+type BotResultado = "automatico" | "transferir" | "sem_fluxo";
 
 interface ConteudoMensagem {
   tipo: "mensagem";
@@ -47,23 +47,20 @@ type ConteudoNo = ConteudoMensagem | ConteudoBotoes | ConteudoTransferir | Conte
 
 // ─── Função principal ─────────────────────────────────────────────────────────
 
-/**
- * Processa uma mensagem recebida e executa o fluxo do bot se aplicável.
- * Retorna true se o bot processou a mensagem (e o webhook não deve criar atendimento manual).
- * Retorna false se não há bot ativo (webhook deve criar atendimento normalmente).
- */
 export async function processarMensagemBot(params: {
   conversaId: number;
   instanciaId: number;
-  telefone: string; // número do contato (para enviar resposta)
-  texto: string;    // texto da mensagem recebida
+  telefone: string;
+  texto: string;
   instanceToken: string;
   instanceId: string;
-}): Promise<boolean> {
+  clientToken?: string | null;
+}): Promise<BotResultado> {
   const db = (await getDb())!;
-  const { conversaId, instanciaId, telefone, texto, instanceToken, instanceId } = params;
+  const { conversaId, instanciaId, telefone, texto, instanceToken, instanceId, clientToken } = params;
+  const zapiConfig = { token: instanceToken, instanceId, clientToken: clientToken || instanceToken };
 
-  console.log(`[BotEngine] Processando mensagem: conversaId=${conversaId}, instanciaId=${instanciaId}, texto="${texto}"`);
+  console.log(`[BotEngine] Processando: conversaId=${conversaId}, instanciaId=${instanciaId}, texto="${texto}"`);
 
   // 1. Verificar se há sessão ativa para esta conversa
   const [sessaoAtiva] = await db
@@ -72,67 +69,47 @@ export async function processarMensagemBot(params: {
     .where(and(eq(botSessoes.conversaId, conversaId), eq(botSessoes.status, "ativa")));
 
   if (sessaoAtiva) {
-    console.log(`[BotEngine] Sessão ativa encontrada: id=${sessaoAtiva.id}, noAtualId=${sessaoAtiva.noAtualId}`);
-    return await avancarFluxo({ db, sessao: sessaoAtiva, texto, telefone, instanceToken, instanceId });
+    console.log(`[BotEngine] Sessão ativa: id=${sessaoAtiva.id}, noAtualId=${sessaoAtiva.noAtualId}`);
+    return await avancarFluxo({ db, sessao: sessaoAtiva, texto, telefone, zapiConfig });
   }
 
-  // 2. Verificar se existe fluxo ativo para esta instância
-  // ATENÇÃO: MySQL retorna 1/0 para boolean, não true/false
-  // Usamos comparação com 1 para garantir compatibilidade
+  // 2. Buscar fluxos ativos para esta instância
+  // MySQL retorna 1/0 para boolean — filtrar manualmente
   const todosFluxos = await db
     .select()
     .from(botFluxos)
-    .where(
-      or(
-        isNull(botFluxos.instanciaId),
-        eq(botFluxos.instanciaId, instanciaId)
-      )
-    );
+    .where(or(isNull(botFluxos.instanciaId), eq(botFluxos.instanciaId, instanciaId)));
 
-  // Filtrar apenas os ativos (MySQL retorna 1 para true)
   const fluxos = todosFluxos.filter(f => f.ativo === true || (f.ativo as unknown as number) === 1);
 
-  console.log(`[BotEngine] Fluxos encontrados: ${todosFluxos.length} total, ${fluxos.length} ativos`);
+  console.log(`[BotEngine] Fluxos: ${todosFluxos.length} total, ${fluxos.length} ativos para instância ${instanciaId}`);
 
-  if (fluxos.length === 0) {
-    console.log(`[BotEngine] Nenhum fluxo ativo para instância ${instanciaId}`);
-    return false; // Nenhum fluxo ativo → atendimento normal
-  }
+  if (fluxos.length === 0) return "sem_fluxo";
 
-  // Pegar o primeiro fluxo compatível (prioridade: específico da instância > global)
+  // Prioridade: fluxo específico da instância > global
   const fluxo = fluxos.find(f => f.instanciaId === instanciaId) || fluxos[0];
   console.log(`[BotEngine] Fluxo selecionado: id=${fluxo.id}, nome="${fluxo.nome}", gatilho="${fluxo.gatilho}"`);
 
-  // Verificar gatilho
+  // Verificar gatilho de palavra-chave
   if (fluxo.gatilho === "palavra_chave" && fluxo.palavraChave) {
     const textoLower = texto.toLowerCase().trim();
     const palavraLower = fluxo.palavraChave.toLowerCase().trim();
     if (!textoLower.includes(palavraLower)) {
-      console.log(`[BotEngine] Gatilho palavra_chave não ativado: "${palavraLower}" não encontrado em "${textoLower}"`);
-      return false; // Não ativou o gatilho
+      console.log(`[BotEngine] Gatilho palavra_chave não ativado`);
+      return "sem_fluxo";
     }
   }
 
-  // 3. Buscar todos os nós do fluxo ordenados
+  // 3. Buscar nós do fluxo ordenados
   const nosDoFluxo = await db
     .select()
     .from(botNos)
     .where(eq(botNos.fluxoId, fluxo.id))
     .orderBy(botNos.ordem);
 
-  console.log(`[BotEngine] Nós do fluxo: ${nosDoFluxo.map(n => `${n.id}(${n.tipo},ordem=${n.ordem})`).join(', ')}`);
+  if (nosDoFluxo.length === 0) return "sem_fluxo";
 
-  if (nosDoFluxo.length === 0) {
-    console.log(`[BotEngine] Fluxo sem nós`);
-    return false;
-  }
-
-  // Buscar nó de início
   const noInicio = nosDoFluxo.find(n => n.tipo === "inicio") || nosDoFluxo[0];
-  if (!noInicio) {
-    console.log(`[BotEngine] Nó de início não encontrado`);
-    return false;
-  }
 
   // 4. Criar sessão
   const [r] = await db.insert(botSessoes).values({
@@ -145,79 +122,49 @@ export async function processarMensagemBot(params: {
   const sessaoId = (r as any).insertId;
   console.log(`[BotEngine] Sessão criada: id=${sessaoId}`);
 
-  const sessao = {
-    id: sessaoId,
-    conversaId,
-    fluxoId: fluxo.id,
-    noAtualId: noInicio.id,
-    status: "ativa" as const,
-    dados: {},
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  const sessao = { id: sessaoId, conversaId, fluxoId: fluxo.id, noAtualId: noInicio.id, status: "ativa" as const, dados: {}, createdAt: new Date(), updatedAt: new Date() };
 
-  // 5. Executar o nó de início
-  // O nó de início pode ter uma mensagem de boas-vindas no conteúdo
+  // 5. Enviar mensagem de boas-vindas do nó início (se houver)
   const conteudoInicio = noInicio.conteudo as ConteudoInicio;
   if (conteudoInicio.texto && conteudoInicio.texto.trim()) {
-    // Enviar mensagem de boas-vindas do nó de início
-    console.log(`[BotEngine] Enviando mensagem de boas-vindas do nó início`);
-    await enviarTexto(conteudoInicio.texto, telefone, instanceToken, instanceId);
+    console.log(`[BotEngine] Enviando boas-vindas do nó início`);
+    await enviarTexto(conteudoInicio.texto, telefone, zapiConfig);
   }
 
-  // Avançar para o próximo nó (após o início)
+  // 6. Avançar para o primeiro nó após o início
   const proximosNos = nosDoFluxo.filter(n => n.tipo !== "inicio").sort((a, b) => a.ordem - b.ordem);
   if (proximosNos.length === 0) {
-    // Fluxo só tem o nó de início — encerrar
-    await encerrarSessao(db, sessaoId, conversaId, fluxo.id);
-    return true;
+    await encerrarSessao(db, sessaoId);
+    return "automatico";
   }
 
   const proximoNo = proximosNos[0];
-  console.log(`[BotEngine] Avançando para próximo nó: id=${proximoNo.id}, tipo=${proximoNo.tipo}`);
   await db.update(botSessoes).set({ noAtualId: proximoNo.id, updatedAt: new Date() }).where(eq(botSessoes.id, sessaoId));
 
-  return await executarNo({
-    db,
-    sessao: { ...sessao, noAtualId: proximoNo.id },
-    no: proximoNo,
-    telefone,
-    instanceToken,
-    instanceId,
-    nosDoFluxo,
-  });
+  return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, zapiConfig, nosDoFluxo });
 }
 
-// ─── Avançar fluxo ────────────────────────────────────────────────────────────
+// ─── Avançar fluxo (sessão existente) ────────────────────────────────────────
 
 async function avancarFluxo(params: {
   db: any;
   sessao: any;
   texto: string;
   telefone: string;
-  instanceToken: string;
-  instanceId: string;
-}): Promise<boolean> {
-  const { db, sessao, texto, telefone, instanceToken, instanceId } = params;
+  zapiConfig: { token: string; instanceId: string; clientToken: string };
+}): Promise<BotResultado> {
+  const { db, sessao, texto, telefone, zapiConfig } = params;
 
-  // Buscar nó atual
   const [noAtual] = await db.select().from(botNos).where(eq(botNos.id, sessao.noAtualId));
   if (!noAtual) {
-    console.log(`[BotEngine] Nó atual não encontrado: ${sessao.noAtualId}`);
-    await encerrarSessao(db, sessao.id, sessao.conversaId, sessao.fluxoId);
-    return false;
+    await encerrarSessao(db, sessao.id);
+    return "sem_fluxo";
   }
 
-  console.log(`[BotEngine] Nó atual: id=${noAtual.id}, tipo=${noAtual.tipo}`);
-
-  // Buscar todos os nós do fluxo para navegação
-  const nosDoFluxo = await db
-    .select()
-    .from(botNos)
-    .where(eq(botNos.fluxoId, sessao.fluxoId))
-    .orderBy(botNos.ordem);
-
+  const nosDoFluxo = await db.select().from(botNos).where(eq(botNos.fluxoId, sessao.fluxoId)).orderBy(botNos.ordem);
   const conteudo = noAtual.conteudo as ConteudoNo;
+
+  console.log(`[BotEngine] Nó atual: id=${noAtual.id}, tipo=${conteudo.tipo}`);
 
   // Processar resposta do usuário para nó de botões
   if (conteudo.tipo === "botoes") {
@@ -225,42 +172,36 @@ async function avancarFluxo(params: {
     let botaoSelecionado: { label: string; proximoNoId: number | null } | undefined;
 
     for (let i = 0; i < conteudo.botoes.length; i++) {
-      const botao = conteudo.botoes[i];
-      if (
-        textoLower === botao.label.toLowerCase() ||
-        textoLower === String(i + 1) ||
-        textoLower.includes(botao.label.toLowerCase())
-      ) {
-        botaoSelecionado = botao;
+      const b = conteudo.botoes[i];
+      if (textoLower === b.label.toLowerCase() || textoLower === String(i + 1) || textoLower.includes(b.label.toLowerCase())) {
+        botaoSelecionado = b;
         break;
       }
     }
 
     if (!botaoSelecionado) {
-      // Resposta inválida — reenviar o menu
-      console.log(`[BotEngine] Resposta inválida para nó de botões, reenviando menu`);
-      await enviarNo(conteudo, telefone, instanceToken, instanceId);
-      return true;
+      // Resposta inválida — reenviar menu
+      await enviarNo(conteudo, telefone, zapiConfig);
+      return "automatico";
     }
 
     if (botaoSelecionado.proximoNoId === null) {
-      await encerrarSessao(db, sessao.id, sessao.conversaId, sessao.fluxoId);
-      return true;
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
     }
 
-    // Avançar para o próximo nó
     const [proximoNo] = await db.select().from(botNos).where(eq(botNos.id, botaoSelecionado.proximoNoId));
     if (!proximoNo) {
-      await encerrarSessao(db, sessao.id, sessao.conversaId, sessao.fluxoId);
-      return true;
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
     }
 
     await db.update(botSessoes).set({ noAtualId: proximoNo.id, updatedAt: new Date() }).where(eq(botSessoes.id, sessao.id));
-    return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, instanceToken, instanceId, nosDoFluxo });
+    return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, zapiConfig, nosDoFluxo });
   }
 
-  // Para outros tipos de nó (mensagem, transferir, encerrar), executar diretamente
-  return await executarNo({ db, sessao, no: noAtual, telefone, instanceToken, instanceId, nosDoFluxo });
+  // Para outros tipos de nó, executar diretamente
+  return await executarNo({ db, sessao, no: noAtual, telefone, zapiConfig, nosDoFluxo });
 }
 
 // ─── Executar nó ─────────────────────────────────────────────────────────────
@@ -270,77 +211,68 @@ async function executarNo(params: {
   sessao: any;
   no: any;
   telefone: string;
-  instanceToken: string;
-  instanceId: string;
+  zapiConfig: { token: string; instanceId: string; clientToken: string };
   nosDoFluxo: any[];
-}): Promise<boolean> {
-  const { db, sessao, no, telefone, instanceToken, instanceId, nosDoFluxo } = params;
+}): Promise<BotResultado> {
+  const { db, sessao, no, telefone, zapiConfig, nosDoFluxo } = params;
   const conteudo = no.conteudo as ConteudoNo;
 
   console.log(`[BotEngine] Executando nó: id=${no.id}, tipo=${conteudo.tipo}`);
 
-  await enviarNo(conteudo, telefone, instanceToken, instanceId);
+  await enviarNo(conteudo, telefone, zapiConfig);
 
   if (conteudo.tipo === "encerrar") {
-    await encerrarSessao(db, sessao.id, sessao.conversaId, sessao.fluxoId);
-    return true;
+    await encerrarSessao(db, sessao.id);
+    return "automatico";
   }
 
   if (conteudo.tipo === "transferir") {
-    // Encerrar sessão do bot e deixar o webhook criar o atendimento na fila
-    await db.update(botSessoes)
-      .set({ status: "transferida", noAtualId: null, updatedAt: new Date() })
-      .where(eq(botSessoes.id, sessao.id));
-    console.log(`[BotEngine] Sessão transferida para atendimento humano`);
-    return false; // Retorna false para o webhook criar o atendimento
+    await db.update(botSessoes).set({ status: "transferida", noAtualId: null, updatedAt: new Date() }).where(eq(botSessoes.id, sessao.id));
+    console.log(`[BotEngine] Sessão transferida para fila humana`);
+    return "transferir";
   }
 
   if (conteudo.tipo === "mensagem") {
-    // Após mensagem simples, buscar próximo nó em sequência
-    const nosRestantes = nosDoFluxo
-      .filter(n => n.tipo !== "inicio" && n.ordem > no.ordem)
-      .sort((a, b) => a.ordem - b.ordem);
+    // Buscar próximo nó em sequência
+    const nosRestantes = nosDoFluxo.filter(n => n.tipo !== "inicio" && n.ordem > no.ordem).sort((a, b) => a.ordem - b.ordem);
 
     if (nosRestantes.length === 0) {
-      await encerrarSessao(db, sessao.id, sessao.conversaId, sessao.fluxoId);
-      return true;
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
     }
 
     const proximoNo = nosRestantes[0];
     await db.update(botSessoes).set({ noAtualId: proximoNo.id, updatedAt: new Date() }).where(eq(botSessoes.id, sessao.id));
-    return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, instanceToken, instanceId, nosDoFluxo });
+    return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, zapiConfig, nosDoFluxo });
   }
 
   // Nó de botões: aguardar resposta do usuário
-  return true;
+  return "automatico";
 }
 
-// ─── Enviar nó via Z-API ──────────────────────────────────────────────────────
+// ─── Helpers de envio ─────────────────────────────────────────────────────────
 
-async function enviarTexto(texto: string, telefone: string, instanceToken: string, instanceId: string) {
-  const config = { token: instanceToken, instanceId, clientToken: instanceToken };
+async function enviarTexto(texto: string, telefone: string, zapiConfig: { token: string; instanceId: string; clientToken: string }) {
   const phone = formatPhone(telefone);
   try {
-    await sendText(config, phone, texto);
+    await sendText(zapiConfig, phone, texto);
   } catch (err) {
     console.error("[BotEngine] Erro ao enviar texto:", err);
   }
 }
 
-async function enviarNo(conteudo: ConteudoNo, telefone: string, instanceToken: string, instanceId: string) {
-  const config = { token: instanceToken, instanceId, clientToken: instanceToken };
+async function enviarNo(conteudo: ConteudoNo, telefone: string, zapiConfig: { token: string; instanceId: string; clientToken: string }) {
   const phone = formatPhone(telefone);
   try {
     if (conteudo.tipo === "mensagem" && conteudo.texto) {
-      await sendText(config, phone, conteudo.texto);
+      await sendText(zapiConfig, phone, conteudo.texto);
     } else if (conteudo.tipo === "botoes") {
-      // Enviar como texto numerado (Z-API lista de botões)
       const textoNumerado = conteudo.texto + "\n\n" + conteudo.botoes.map((b, i) => `${i + 1}. ${b.label}`).join("\n");
-      await sendText(config, phone, textoNumerado);
+      await sendText(zapiConfig, phone, textoNumerado);
     } else if (conteudo.tipo === "transferir" && conteudo.mensagem) {
-      await sendText(config, phone, conteudo.mensagem);
+      await sendText(zapiConfig, phone, conteudo.mensagem);
     } else if (conteudo.tipo === "encerrar" && conteudo.mensagem) {
-      await sendText(config, phone, conteudo.mensagem);
+      await sendText(zapiConfig, phone, conteudo.mensagem);
     }
   } catch (err) {
     console.error("[BotEngine] Erro ao enviar nó:", err);
@@ -349,9 +281,7 @@ async function enviarNo(conteudo: ConteudoNo, telefone: string, instanceToken: s
 
 // ─── Encerrar sessão ──────────────────────────────────────────────────────────
 
-async function encerrarSessao(db: any, sessaoId: number, conversaId: number, fluxoId: number) {
+async function encerrarSessao(db: any, sessaoId: number) {
   console.log(`[BotEngine] Encerrando sessão: id=${sessaoId}`);
-  await db.update(botSessoes)
-    .set({ status: "encerrada", noAtualId: null, updatedAt: new Date() })
-    .where(eq(botSessoes.id, sessaoId));
+  await db.update(botSessoes).set({ status: "encerrada", noAtualId: null, updatedAt: new Date() }).where(eq(botSessoes.id, sessaoId));
 }

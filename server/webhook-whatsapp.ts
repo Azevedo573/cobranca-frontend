@@ -166,7 +166,9 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       })
       .where(eq(whatsappConversas.id, conversa.id));
 
-    // ── Verificar se há atendimento humano ativo (não processar bot) ──────────
+    // ── Verificar se há operador humano ativo (em_atendimento) ──────────────
+    // Regra: bot só é bloqueado quando há operador HUMANO ativo (em_atendimento).
+    // Se o atendimento está aguardando ou transferido, o bot ainda pode responder.
     const [atendimentoHumano] = await db
       .select({ id: atendimentos.id })
       .from(atendimentos)
@@ -180,28 +182,56 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
 
     if (atendimentoHumano) {
       // Operador humano está atendendo — não processar bot
+      console.log(`[Webhook] Operador humano ativo para conversa ${conversa.id} — bot ignorado`);
       return;
     }
 
     // ── Tentar processar pelo motor do bot ────────────────────────────────────
     if (instancia) {
-      const botProcessou = await processarMensagemBot({
+      const botResultado = await processarMensagemBot({
         instanciaId,
         conversaId: conversa.id,
         telefone: phone,
         texto: conteudo ?? "",
         instanceToken: instancia.token,
         instanceId: instancia.instanceId,
+        clientToken: instancia.clientToken,
       });
 
-      if (botProcessou) {
-        // Bot processou a mensagem — não criar atendimento na fila
-        console.log(`[Webhook] Bot processou mensagem da conversa ${conversa.id}`);
+      if (botResultado === "automatico") {
+        // Bot está respondendo automaticamente — criar/manter atendimento como 'automatico'
+        const [atendAuto] = await db
+          .select({ id: atendimentos.id })
+          .from(atendimentos)
+          .where(and(eq(atendimentos.conversaId, conversa.id), eq(atendimentos.status, "automatico")))
+          .limit(1);
+        if (!atendAuto) {
+          const protocolo = gerarProtocolo();
+          await db.insert(atendimentos).values({
+            conversaId: conversa.id,
+            protocolo,
+            status: "automatico",
+            prioridade: "normal",
+            iniciadoEm: new Date(),
+          });
+          console.log(`[Webhook] Atendimento automático criado: ${protocolo} para conversa ${conversa.id}`);
+        }
         return;
       }
+
+      if (botResultado === "transferir") {
+        // Bot transferiu para fila humana — mudar atendimento automatico para aguardando
+        await db
+          .update(atendimentos)
+          .set({ status: "aguardando", updatedAt: new Date() })
+          .where(and(eq(atendimentos.conversaId, conversa.id), eq(atendimentos.status, "automatico")));
+        console.log(`[Webhook] Atendimento automático transferido para fila humana: conversa ${conversa.id}`);
+        // Cair no bloco abaixo para garantir que existe atendimento na fila
+      }
+      // botResultado === "sem_fluxo": não há fluxo ativo → criar atendimento normal na fila
     }
 
-    // ── Criar atendimento na fila se não houver um ativo ──────────────────────
+    // ── Criar atendimento na fila se não houver um aguardando/transferido ─────
     const [atendimentoExistente] = await db
       .select({ id: atendimentos.id })
       .from(atendimentos)
@@ -231,6 +261,8 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       });
 
       console.log(`[Webhook] Novo atendimento criado na fila: ${protocolo} para conversa ${conversa.id} (${phone})`);
+    } else {
+      console.log(`[Webhook] Atendimento já existe na fila para conversa ${conversa.id} — não duplicar`);
     }
   } catch (err) {
     console.error("[Webhook WhatsApp] Erro:", err);

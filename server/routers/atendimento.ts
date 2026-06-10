@@ -583,6 +583,7 @@ export const atendimentoRouter = router({
         .where(and(
           eq(atendimentos.conversaId, input.conversaId),
           or(
+            eq(atendimentos.status, "automatico"),
             eq(atendimentos.status, "aguardando"),
             eq(atendimentos.status, "em_atendimento"),
             eq(atendimentos.status, "transferido"),
@@ -739,6 +740,7 @@ export const atendimentoRouter = router({
     const [totais] = await db
       .select({
         aguardando: sql<number>`SUM(CASE WHEN ${atendimentos.status} = 'aguardando' THEN 1 ELSE 0 END)`,
+        automatico: sql<number>`SUM(CASE WHEN ${atendimentos.status} = 'automatico' THEN 1 ELSE 0 END)`,
         emAtendimento: sql<number>`SUM(CASE WHEN ${atendimentos.status} = 'em_atendimento' THEN 1 ELSE 0 END)`,
         slaViolados: sql<number>`SUM(CASE WHEN ${atendimentos.slaViolado} = 1 AND ${atendimentos.status} != 'resolvido' THEN 1 ELSE 0 END)`,
         resolvidosHoje: sql<number>`SUM(CASE WHEN ${atendimentos.status} = 'resolvido' AND DATE(${atendimentos.resolvidoEm}) = CURDATE() THEN 1 ELSE 0 END)`,
@@ -767,6 +769,7 @@ export const atendimentoRouter = router({
       .leftJoin(users, eq(atendimentos.operadorId, users.id))
       .leftJoin(atendimentoDepartamentos, eq(atendimentos.departamentoId, atendimentoDepartamentos.id))
       .where(or(
+        eq(atendimentos.status, "automatico"),
         eq(atendimentos.status, "aguardando"),
         eq(atendimentos.status, "em_atendimento"),
         eq(atendimentos.status, "transferido"),

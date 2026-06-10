@@ -1,0 +1,1 @@
+ALTER TABLE `atendimentos` MODIFY COLUMN `status` enum('automatico','aguardando','em_atendimento','transferido','resolvido','abandonado') NOT NULL DEFAULT 'aguardando';
