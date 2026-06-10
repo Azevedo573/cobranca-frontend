@@ -5476,5 +5476,56 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ─── Custas Judiciais ───────────────────────────────────────────────────────
+  custas: router({
+    getByDevedor: protectedProcedure
+      .input(z.object({ devedorId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getCustasByDevedor } = await import("./db-custas");
+        return getCustasByDevedor(input.devedorId);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        devedorId: z.number().int().positive(),
+        condominioId: z.number().int().positive(),
+        descricao: z.string().min(1).max(255),
+        valor: z.number().positive(),
+        data: z.string(),
+        tipo: z.enum(["distribuicao", "citacao", "pericia", "honorarios_periciais", "diligencia", "outros"]).default("outros"),
+        observacoes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createCusta } = await import("./db-custas");
+        await createCusta({
+          devedorId: input.devedorId,
+          condominioId: input.condominioId,
+          descricao: input.descricao,
+          valor: Math.round(input.valor * 100),
+          data: new Date(input.data),
+          tipo: input.tipo,
+          observacoes: input.observacoes ?? null,
+          createdBy: ctx.user.id,
+        });
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const { deleteCusta } = await import("./db-custas");
+        await deleteCusta(input.id);
+        return { success: true };
+      }),
+
+    getTotal: protectedProcedure
+      .input(z.object({ devedorId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getTotalCustasByDevedor } = await import("./db-custas");
+        const total = await getTotalCustasByDevedor(input.devedorId);
+        return { total };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

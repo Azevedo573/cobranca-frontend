@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake, MoreHorizontal, PhoneCall } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake, MoreHorizontal, PhoneCall, Gavel } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -36,6 +37,7 @@ import { NovaTentativaModal } from "@/components/NovaTentativaModal";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import EnviarEmailModal from "@/components/EnviarEmailModal";
 import { BTGEmitirBoletoModal } from "@/components/BTGEmitirBoletoModal";
+import { CustasJudiciais } from "@/components/CustasJudiciais";
 
 export default function DevedorDetalhes() {
   const { user } = useAuth();
@@ -58,6 +60,7 @@ export default function DevedorDetalhes() {
   const [modalAcordoOpen, setModalAcordoOpen] = useState(false);
   // BTG
   const [btgModalCobranca, setBtgModalCobranca] = useState<any | null>(null);
+  const [custasOpen, setCustasOpen] = useState(false);
   const utils = trpc.useUtils();
   const LIMITE_INICIAL = 5;
 
@@ -331,6 +334,10 @@ export default function DevedorDetalhes() {
                     <Mail className="h-4 w-4" />
                     Enviar E-mail
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setCustasOpen(true)} className="gap-2 cursor-pointer">
+                    <Gavel className="h-4 w-4" />
+                    Custas Judiciais
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href={`/devedores/${devedor.id}/editar`} className="flex items-center gap-2 cursor-pointer">
@@ -572,6 +579,7 @@ export default function DevedorDetalhes() {
                   </div>
                 )}
               </TabsContent>
+
             </Tabs>
           </div>
       </main>
@@ -739,6 +747,22 @@ export default function DevedorDetalhes() {
           </div>
         </div>
       )}
+
+      {/* Dialog: Custas Judiciais */}
+      <Dialog open={custasOpen} onOpenChange={setCustasOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gavel className="h-5 w-5" />
+              Custas Judiciais — {devedor.name ?? `Unidade ${devedor.unitNumber}`}
+            </DialogTitle>
+          </DialogHeader>
+          <CustasJudiciais
+            devedorId={devedor.id}
+            condominioId={devedor.condominioId}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

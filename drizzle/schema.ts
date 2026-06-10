@@ -936,3 +936,27 @@ export const botSessoes = mysqlTable("botSessoes", {
 });
 export type BotSessao = typeof botSessoes.$inferSelect;
 export type InsertBotSessao = typeof botSessoes.$inferInsert;
+
+// ─── Custas Judiciais ──────────────────────────────────────────────────────────
+// Lançamentos de custas judiciais por devedor (distribuição, citação, perícia, etc.)
+export const custasJudiciais = mysqlTable("custasJudiciais", {
+  id: int("id").autoincrement().primaryKey(),
+  devedorId: int("devedorId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  descricao: varchar("descricao", { length: 255 }).notNull(),
+  valor: int("valor").notNull(), // em centavos
+  data: timestamp("data").notNull(),
+  tipo: mysqlEnum("tipoCusta", [
+    "distribuicao",
+    "citacao",
+    "pericia",
+    "honorarios_periciais",
+    "diligencia",
+    "outros",
+  ]).default("outros").notNull(),
+  observacoes: text("observacoes"),
+  createdBy: int("createdBy"), // userId do operador que lançou
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type CustaJudicial = typeof custasJudiciais.$inferSelect;
+export type InsertCustaJudicial = typeof custasJudiciais.$inferInsert;

@@ -2225,3 +2225,13 @@
 - [x] Frontend: botão "Emitir BTG" disponível para parcelas de acordo sem boleto emitido
 - [x] Frontend: modal de Realizar Acordo recebe apenas cobranças originais (não parcelas)
 - [x] Testes: 298 testes passando
+
+## Custas Judiciais
+- [ ] Criar tabela custasJudiciais no schema: id, devedorId, condominioId, descricao, valor (int centavos), data, tipo (enum: distribuicao, citacao, pericia, honorarios_periciais, outros), observacoes, createdBy, createdAt
+- [ ] Aplicar migração no banco (db:push)
+- [ ] Criar helpers em server/db-custas.ts: getCustasByDevedor, createCusta, deleteCusta
+- [ ] Criar procedures tRPC: custas.getByDevedor, custas.create, custas.delete
+- [ ] Criar componente CustasJudiciais.tsx com formulário inline e listagem
+- [ ] Integrar CustasJudiciais na aba de detalhes do devedor (nova aba ou seção em Histórico)
+- [ ] Exibir total de custas judiciais nos cards de métricas do devedor
+- [ ] Incluir custas judiciais no cálculo do valor total devido do devedor
