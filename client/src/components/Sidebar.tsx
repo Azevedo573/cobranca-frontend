@@ -100,7 +100,6 @@ const menuGroups: MenuGroup[] = [
     modulo: "cobranca",
     items: [
       { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador"] },
-      { label: "Dívidas", href: "/processos", icon: FileText, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador"] },

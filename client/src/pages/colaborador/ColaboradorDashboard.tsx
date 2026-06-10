@@ -249,12 +249,12 @@ export default function ColaboradorDashboard() {
             </Link>
           )}
           {canView("cobrancas") && (
-            <Link href="/processos">
+            <Link href="/devedores">
               <Card className="cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors">
                 <CardContent className="pt-4 pb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <FileText className="h-5 w-5 text-amber-500" />
-                    <span className="text-sm font-medium">Dívidas</span>
+                    <span className="text-sm font-medium">Devedores</span>
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </CardContent>
