@@ -71,7 +71,7 @@ export function DashboardDevedorMetricas({
   const percentualJuros = valorOriginal > 0 ? ((jurosAcumulados / valorOriginal) * 100).toFixed(1) : "0.0";
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 grid-cols-2">
       <CardMetrica
         titulo="Valor Total Devido"
         valor={formatarMoeda(valorTotalDevido)}

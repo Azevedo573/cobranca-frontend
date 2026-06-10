@@ -315,41 +315,41 @@ export default function DevedorDetalhes() {
           {/* Coluna Esquerda: Informações Pessoais + Indicador de Risco */}
           <div className="lg:col-span-1 space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <User className="h-4 w-4" />
                   Informações Pessoais
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Nome</p>
-                  <p className="font-medium">{devedor.name}</p>
+              <CardContent className="px-4 pb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Nome</span>
+                  <span className="text-sm font-medium">{devedor.name}</span>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Unidade</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Home className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{devedor.unitNumber}{devedor.bloco ? ` - Bloco ${devedor.bloco}` : ""}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Unidade</span>
+                  <div className="flex items-center gap-1">
+                    <Home className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-medium">{devedor.unitNumber}{devedor.bloco ? ` - Bloco ${devedor.bloco}` : ""}</span>
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Telefone</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{devedor.phone}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Telefone</span>
+                  <div className="flex items-center gap-1">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-medium">{devedor.phone}</span>
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">E-mail</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium text-sm break-all">{devedor.email}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground flex-shrink-0">E-mail</span>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm font-medium truncate">{devedor.email}</span>
                   </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <div className="mt-1">{getStatusBadge(devedor.status)}</div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  <div>{getStatusBadge(devedor.status)}</div>
                 </div>
               </CardContent>
             </Card>
