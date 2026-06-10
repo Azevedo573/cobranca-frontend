@@ -365,6 +365,13 @@
       "when": 1781051092239,
       "tag": "0052_known_arclight",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "5",
+      "when": 1781115840910,
+      "tag": "0053_early_vampiro",
+      "breakpoints": true
     }
   ]
 }

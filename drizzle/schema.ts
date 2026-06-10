@@ -124,7 +124,10 @@ export const acordos = mysqlTable("acordos", {
   installments: int("installments").notNull(),
   firstPaymentDate: timestamp("firstPaymentDate").notNull(),
   paymentFrequency: mysqlEnum("paymentFrequency", ["mensal", "semanal", "quinzenal"]).default("mensal").notNull(),
-  status: mysqlEnum("status", ["ativo", "pago", "cancelado"]).default("ativo").notNull(),
+  status: mysqlEnum("status", ["ativo", "pago", "cancelado", "inadimplente"]).default("ativo").notNull(),
+  motivoQuebra: text("motivoQuebra"), // Motivo da quebra do acordo
+  dataQuebra: timestamp("dataQuebra"),  // Data em que o acordo foi quebrado
+  valorPagoAcordo: int("valorPagoAcordo").default(0), // Total efetivamente pago nas parcelas do acordo
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -145,7 +148,7 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   amount: int("amount").notNull(),
   dueDate: timestamp("dueDate").notNull(),
   paymentDate: timestamp("paymentDate"),
-  status: mysqlEnum("status", ["pendente", "pago", "atrasado"]).default("pendente").notNull(),
+  status: mysqlEnum("status", ["pendente", "pago", "atrasado", "cancelado"]).default("pendente").notNull(),
   // Campos de boleto CNAB 240
   nossoNumero: varchar("nossoNumero", { length: 30 }), // Nosso número BTG atribuído ao criar o acordo
   pixCopiaCola: text("pixCopiaCola"),                   // Pix copia e cola (EMV) retornado pelo banco no retorno D+1 (Bolepix)

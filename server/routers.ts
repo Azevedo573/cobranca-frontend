@@ -1392,6 +1392,98 @@ export const appRouter = router({
       };
     }),
 
+    quebrarAcordo: requirePermission("acordos", "aprovar").input(z.object({
+      acordoId: z.number(),
+      motivo: z.string().optional(),
+    })).mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
+
+      const { acordos, acordoCobrancas, parcelasAcordo, cobrancas } = await import("../drizzle/schema");
+      const { eq, and, inArray } = await import("drizzle-orm");
+
+      // 1. Buscar o acordo
+      const acordoRows = await db.select().from(acordos).where(eq(acordos.id, input.acordoId)).limit(1);
+      if (!acordoRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Acordo não encontrado" });
+      const acordo = acordoRows[0];
+
+      if (acordo.status === "pago") throw new TRPCError({ code: "BAD_REQUEST", message: "Não é possível quebrar um acordo já quitado" });
+
+      // 2. Buscar parcelas do acordo
+      const parcelas = await db.select().from(parcelasAcordo).where(eq(parcelasAcordo.acordoId, input.acordoId));
+      const parcelasPagas = parcelas.filter(p => p.status === "pago");
+      const parcelasPendentes = parcelas.filter(p => p.status !== "pago");
+
+      // 3. Calcular valor total já pago nas parcelas
+      const valorJaPago = parcelasPagas.reduce((acc, p) => acc + p.amount, 0);
+
+      // 4. Buscar cobranças originais vinculadas ao acordo
+      const vinculadas = await db.select().from(acordoCobrancas).where(eq(acordoCobrancas.acordoId, input.acordoId));
+      const cobrancaIds = vinculadas.map(v => v.cobrancaId);
+
+      if (cobrancaIds.length > 0) {
+        const cobsOriginais = await db.select().from(cobrancas).where(inArray(cobrancas.id, cobrancaIds));
+        const totalOriginal = cobsOriginais.reduce((acc, c) => acc + c.amount, 0);
+
+        if (parcelasPagas.length === 0) {
+          // CASO 1: Nenhuma parcela paga → dívidas voltam para em_cobranca
+          for (const cid of cobrancaIds) {
+            await db.update(cobrancas)
+              .set({ status: "em_cobranca" })
+              .where(eq(cobrancas.id, cid));
+          }
+        } else {
+          // CASO 2: Parcialmente pago → dívidas voltam com abatimento do valor já pago
+          // Distribuir o abatimento proporcionalmente entre as cobranças originais
+          const fatorAbatimento = valorJaPago / totalOriginal;
+          for (const cob of cobsOriginais) {
+            const abatimento = Math.round(cob.amount * fatorAbatimento);
+            const novoValor = Math.max(0, cob.amount - abatimento);
+            await db.update(cobrancas)
+              .set({
+                status: "em_cobranca",
+                amount: novoValor,
+                description: `${cob.description || ''} [Acordo #${input.acordoId} quebrado — abatimento R$ ${(abatimento / 100).toFixed(2)}]`.trim(),
+              })
+              .where(eq(cobrancas.id, cob.id));
+          }
+        }
+      }
+
+      // 5. Cancelar parcelas pendentes
+      if (parcelasPendentes.length > 0) {
+        const pendentesIds = parcelasPendentes.map(p => p.id);
+        await db.update(parcelasAcordo)
+          .set({ status: "cancelado" })
+          .where(inArray(parcelasAcordo.id, pendentesIds));
+      }
+
+      // 6. Atualizar status do acordo
+      const novoStatus = parcelasPagas.length === 0 ? "cancelado" : "inadimplente";
+      await db.update(acordos)
+        .set({
+          status: novoStatus,
+          motivoQuebra: input.motivo || (parcelasPagas.length === 0 ? "Nenhuma parcela paga" : "Parcialmente pago"),
+          dataQuebra: new Date(),
+          valorPagoAcordo: valorJaPago,
+        })
+        .where(eq(acordos.id, input.acordoId));
+
+      return {
+        success: true,
+        caso: parcelasPagas.length === 0 ? 1 : 2,
+        novoStatus,
+        parcelasPagas: parcelasPagas.length,
+        parcelasCanceladas: parcelasPendentes.length,
+        valorJaPago,
+        cobrancasReativadas: cobrancaIds.length,
+        mensagem: parcelasPagas.length === 0
+          ? `Acordo cancelado. ${cobrancaIds.length} cobrança(s) original(is) reativada(s) em cobrança.`
+          : `Acordo marcado como inadimplente. ${cobrancaIds.length} cobrança(s) original(is) reativada(s) com abatimento de R$ ${(valorJaPago / 100).toFixed(2)} já pago.`,
+      };
+    }),
+
     getVencimentosProximos: condominioAccessProcedure.input(z.object({
       condominioId: z.number().optional(),
       dias: z.number().default(7), // próximos 7, 15 ou 30 dias
