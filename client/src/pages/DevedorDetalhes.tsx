@@ -26,7 +26,6 @@ import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
 import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas";
-import { GraficoDistribuicaoCobrancas } from "@/components/GraficoDistribuicaoCobrancas";
 import { TimelineTentativas } from "@/components/TimelineTentativas";
 import { AcordosDevedor } from "@/components/AcordosDevedor";
 import { RealizarAcordoModal } from "@/components/RealizarAcordoModal";
@@ -398,9 +397,6 @@ export default function DevedorDetalhes() {
           <div className="lg:col-span-2 space-y-4">
             {metricas && (
               <DashboardDevedorMetricas {...metricas} />
-            )}
-            {cobrancas.length > 0 && (
-              <GraficoDistribuicaoCobrancas cobrancas={cobrancas as any} taxas={taxas} />
             )}
           </div>
         </div>
