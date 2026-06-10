@@ -21,7 +21,6 @@ import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
 import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas";
 import { GraficoDistribuicaoCobrancas } from "@/components/GraficoDistribuicaoCobrancas";
 import { TimelineTentativas } from "@/components/TimelineTentativas";
-import { IndicadorRiscoDevedor } from "@/components/IndicadorRiscoDevedor";
 import { AcordosDevedor } from "@/components/AcordosDevedor";
 import { RealizarAcordoModal } from "@/components/RealizarAcordoModal";
 import { useMemo, useState, useRef } from "react";
@@ -355,16 +354,7 @@ export default function DevedorDetalhes() {
               </CardContent>
             </Card>
 
-            {/* Indicador de Risco */}
-            {metricas && (
-              <IndicadorRiscoDevedor
-                valorDevido={metricas.valorTotalDevido}
-                diasAtraso={metricas.diasAtraso}
-                tentativasSemSucesso={metricas.tentativasSemSucesso}
-                taxaRecuperacao={metricas.taxaRecuperacao}
-                temAcordoAtivo={metricas.temAcordoAtivo}
-              />
-            )}
+
           </div>
 
           {/* Coluna Direita: 4 cards de métricas em grid 2×2 + gráfico */}
