@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake } from "lucide-react";
 import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -23,6 +23,7 @@ import { GraficoDistribuicaoCobrancas } from "@/components/GraficoDistribuicaoCo
 import { TimelineTentativas } from "@/components/TimelineTentativas";
 import { IndicadorRiscoDevedor } from "@/components/IndicadorRiscoDevedor";
 import { AcordosDevedor } from "@/components/AcordosDevedor";
+import { RealizarAcordoModal } from "@/components/RealizarAcordoModal";
 import { useMemo, useState, useRef } from "react";
 import { toast } from "sonner";
 import { NovaDividaModal } from "@/components/NovaDividaModal";
@@ -48,6 +49,7 @@ export default function DevedorDetalhes() {
   const [dadosBoleto, setDadosBoleto] = useState<Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>>({})
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [mostrarTodas, setMostrarTodas] = useState(false);
+  const [modalAcordoOpen, setModalAcordoOpen] = useState(false);
   const LIMITE_INICIAL = 5;
 
   const copiarTexto = (texto: string, tipo: "linha" | "pix", cobrancaId: number) => {
@@ -253,6 +255,16 @@ export default function DevedorDetalhes() {
             </div>
             <div className="flex items-center gap-2">
               {user?.role !== "sindico" && (
+                <Button
+                  size="sm"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
+                  onClick={() => setModalAcordoOpen(true)}
+                >
+                  <Handshake className="h-4 w-4" />
+                  Realizar Acordo
+                </Button>
+              )}
+              {user?.role !== "sindico" && (
                 <Button variant="outline" size="sm" onClick={() => setModalDividaOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   Nova Dívida
@@ -369,22 +381,15 @@ export default function DevedorDetalhes() {
 
           {/* Coluna Direita: Abas */}
           <div className="lg:col-span-2">
-            <Tabs defaultValue="historico" className="w-full">
-              <TabsList className="w-full mb-4 grid grid-cols-5">
-                <TabsTrigger value="historico">Histórico</TabsTrigger>
+            <Tabs defaultValue="cobrancas" className="w-full">
+              <TabsList className="w-full mb-4 grid grid-cols-3">
                 <TabsTrigger value="cobrancas">Cobranças ({cobrancas.length})</TabsTrigger>
-                <TabsTrigger value="acordos">Acordos & Boletos</TabsTrigger>
-                <TabsTrigger value="simulador">Simulador</TabsTrigger>
+                <TabsTrigger value="historico">Histórico & Acordos</TabsTrigger>
                 <TabsTrigger value="whatsapp" className="flex items-center gap-1">
                   <MessageCircle className="h-3.5 w-3.5 text-green-600" />
                   WhatsApp ({(atendimentosDevedor as any[]).length})
                 </TabsTrigger>
               </TabsList>
-
-              {/* ABA: Histórico */}
-              <TabsContent value="historico" className="space-y-6">
-                <TimelineTentativas tentativas={tentativas} limite={8} />
-              </TabsContent>
 
               {/* ABA: Cobranças */}
               <TabsContent value="cobrancas">
@@ -434,31 +439,14 @@ export default function DevedorDetalhes() {
             </Card>
               </TabsContent>
 
-              {/* ABA: Acordos & Boletos */}
-              <TabsContent value="acordos" className="space-y-6">
+              {/* ABA: Histórico & Acordos */}
+              <TabsContent value="historico" className="space-y-6">
+                <TimelineTentativas tentativas={tentativas} limite={8} />
                 <BoletosPorDevedor devedorId={devedor.id} condominioId={devedor.condominioId} />
                 <AcordosDevedor devedorId={devedor.id} />
               </TabsContent>
 
-              {/* ABA: Simulador de Acordo */}
-              <TabsContent value="simulador" className="space-y-6">
-                {condominio && cobrancas.length > 0 ? (
-                  <SimuladorAcordoMultiplo
-                    cobrancas={cobrancas as any}
-                    devedorId={devedor.id}
-                    devedorNome={getDevedorIdentificador(devedor)}
-                    condominioId={devedor.condominioId}
-                    condominioNome={condominio.name}
-                    taxaJurosMensal={Number(condominio.taxaJurosMensal || "1.00")}
-                    maxParcelas={(condominio as any).maxParcelas ?? 12}
-                    onAcordoCriado={() => { window.location.reload(); }}
-                  />
-                ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <p className="text-sm">Nenhuma cobrança pendente para simular acordo.</p>
-                  </div>
-                )}
-              </TabsContent>
+
               {/* ABA: Histórico WhatsApp */}
               <TabsContent value="whatsapp" className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -593,6 +581,18 @@ export default function DevedorDetalhes() {
         nomeDevedor={devedor.name ?? ""}
         emailDevedor={devedor.email ?? null}
         condominioId={devedor.condominioId}
+      />
+
+      {/* Modal de Realizar Acordo */}
+      <RealizarAcordoModal
+        open={modalAcordoOpen}
+        onOpenChange={setModalAcordoOpen}
+        cobrancas={cobrancas as any}
+        devedorId={devedor.id}
+        devedorNome={devedor.name ?? ""}
+        condominioId={devedor.condominioId}
+        condominioNome={condominio?.name ?? ""}
+        onAcordoCriado={() => { window.location.reload(); }}
       />
 
       {/* Modal de Iniciar Atendimento WhatsApp */}
