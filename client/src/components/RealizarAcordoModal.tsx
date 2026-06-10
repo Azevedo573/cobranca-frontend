@@ -279,7 +279,7 @@ export function RealizarAcordoModal({
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[92vw] w-[92vw] max-h-[92vh] h-[92vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden">
+      <DialogContent className="max-w-[98vw] w-[98vw] max-h-[92vh] h-[92vh] flex flex-col p-0 gap-0 rounded-xl overflow-hidden">
         {/* Header */}
         <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
