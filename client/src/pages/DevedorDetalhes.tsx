@@ -310,18 +310,11 @@ export default function DevedorDetalhes() {
         </div>
       </header>
 
-      <main className="container px-4 py-8">
-        {/* Seção 1: Métricas Principais */}
-        {metricas && (
-          <div className="mb-6">
-            <DashboardDevedorMetricas {...metricas} />
-          </div>
-        )}
-
+      <main className="container px-4 py-8 space-y-6">
+        {/* Seção 1: Topo — Informações Pessoais + Métricas lado a lado */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Coluna Esquerda: Informações e Indicadores */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Informações Pessoais */}
+          {/* Coluna Esquerda: Informações Pessoais + Indicador de Risco */}
+          <div className="lg:col-span-1 space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -372,15 +365,21 @@ export default function DevedorDetalhes() {
                 temAcordoAtivo={metricas.temAcordoAtivo}
               />
             )}
+          </div>
 
-            {/* Distribuição de Cobranças */}
+          {/* Coluna Direita: 4 cards de métricas em grid 2×2 + gráfico */}
+          <div className="lg:col-span-2 space-y-4">
+            {metricas && (
+              <DashboardDevedorMetricas {...metricas} />
+            )}
             {cobrancas.length > 0 && (
               <GraficoDistribuicaoCobrancas cobrancas={cobrancas as any} taxas={taxas} />
             )}
           </div>
+        </div>
 
-          {/* Coluna Direita: Abas */}
-          <div className="lg:col-span-2">
+        {/* Seção 2: Abas em largura total */}
+        <div>
             <Tabs defaultValue="cobrancas" className="w-full">
               <TabsList className="w-full mb-4 grid grid-cols-3">
                 <TabsTrigger value="cobrancas">Cobranças ({cobrancas.length})</TabsTrigger>
@@ -538,7 +537,6 @@ export default function DevedorDetalhes() {
               </TabsContent>
             </Tabs>
           </div>
-        </div>
       </main>
 
       {/* Modal de Nova Dívida */}
