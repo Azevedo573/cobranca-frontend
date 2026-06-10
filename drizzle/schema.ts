@@ -69,6 +69,14 @@ export const devedores = mysqlTable("devedores", {
   bloco: varchar("bloco", { length: 50 }),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
+  // Endereço (necessário para emissão de boleto BTG)
+  address: varchar("address", { length: 255 }),           // Logradouro
+  addressNumber: varchar("addressNumber", { length: 20 }), // Número
+  addressComplement: varchar("addressComplement", { length: 100 }), // Complemento
+  neighborhood: varchar("neighborhood", { length: 100 }), // Bairro
+  city: varchar("city", { length: 100 }),                 // Cidade
+  state: varchar("state", { length: 2 }),                 // UF
+  zipCode: varchar("zipCode", { length: 10 }),            // CEP
   totalDue: int("totalDue").default(0).notNull(),
   status: mysqlEnum("status", ["ativo", "pago", "acordo"]).default("ativo").notNull(),
   prioridade: mysqlEnum("prioridade", ["alta", "media", "baixa"]).default("media"),
@@ -95,6 +103,13 @@ export const cobrancas = mysqlTable("cobrancas", {
   pixCopiaCola: text("pixCopiaCola"),                   // Pix copia e cola (EMV) retornado pelo banco no retorno D+1 (Bolepix)
   statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "remessa_gerada", "enviado", "retorno_recebido"]).default("nao_enviado"),
   remessaId: int("remessaId"), // ID da remessa CNAB que gerou este boleto
+  // Campos de integração BTG API
+  btgCollectionId: varchar("btgCollectionId", { length: 100 }), // ID da cobrança no BTG
+  btgBankSlipUrl: text("btgBankSlipUrl"),                        // URL do boleto PDF no BTG
+  btgPixQrCode: text("btgPixQrCode"),                            // QR Code PIX (base64 ou URL)
+  btgPixCopiaECola: text("btgPixCopiaECola"),                    // PIX copia e cola BTG
+  btgStatus: varchar("btgStatus", { length: 30 }),               // Status no BTG: CREATED, PAID, CANCELED, EXPIRED...
+  btgEmitidoEm: timestamp("btgEmitidoEm"),                       // Quando o boleto foi emitido via BTG
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -154,6 +169,13 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   pixCopiaCola: text("pixCopiaCola"),                   // Pix copia e cola (EMV) retornado pelo banco no retorno D+1 (Bolepix)
   statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "remessa_gerada", "enviado", "retorno_recebido"]).default("nao_enviado"),
   remessaId: int("remessaId"), // ID da remessa CNAB que incluiu esta parcela
+  // Campos de integração BTG API
+  btgCollectionId: varchar("btgCollectionId", { length: 100 }),
+  btgBankSlipUrl: text("btgBankSlipUrl"),
+  btgPixQrCode: text("btgPixQrCode"),
+  btgPixCopiaECola: text("btgPixCopiaECola"),
+  btgStatus: varchar("btgStatus", { length: 30 }),
+  btgEmitidoEm: timestamp("btgEmitidoEm"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -171,6 +193,29 @@ export type AcordoCobranca = typeof acordoCobrancas.$inferSelect;
 export type InsertAcordoCobranca = typeof acordoCobrancas.$inferInsert;
 export type ParcelaAcordo = typeof parcelasAcordo.$inferSelect;
 export type InsertParcelaAcordo = typeof parcelasAcordo.$inferInsert;
+
+// ─── Configuração BTG Pactual API ─────────────────────────────────────────────
+// Credenciais de integração com a API BTG Empresas por condomínio
+export const btgConfig = mysqlTable("btgConfig", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId").notNull().unique(), // 1 config por condomínio
+  clientId: varchar("clientId", { length: 255 }).notNull(),
+  clientSecret: text("clientSecret").notNull(), // armazenado criptografado
+  companyId: varchar("companyId", { length: 50 }).notNull(), // CNPJ sem pontuação
+  webhookSecret: varchar("webhookSecret", { length: 255 }), // Secret para validar webhooks
+  // Token de acesso em cache
+  accessToken: text("accessToken"),
+  tokenExpiresAt: timestamp("tokenExpiresAt"),
+  // Configurações de emissão
+  diasVencimentoPadrao: int("diasVencimentoPadrao").default(30).notNull(), // dias até vencimento
+  diasLimitePagamento: int("diasLimitePagamento").default(60).notNull(),   // dias após vencimento
+  instrucoes: text("instrucoes"), // Instruções do boleto (texto livre)
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type BtgConfig = typeof btgConfig.$inferSelect;
+export type InsertBtgConfig = typeof btgConfig.$inferInsert;
 
 // Tabela para armazenar índices de correção monetária do Banco Central
 // Usa nome indicesBCB (com B maiúsculo) para manter compatibilidade com tabela existente

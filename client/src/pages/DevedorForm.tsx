@@ -26,6 +26,14 @@ export default function DevedorForm() {
     email: "",
     phone: "",
     totalDue: "",
+    // Endereço (necessário para boleto BTG)
+    address: "",
+    addressNumber: "",
+    addressComplement: "",
+    neighborhood: "",
+    city: "",
+    state: "",
+    zipCode: "",
   });
 
   const { data: devedor } = trpc.devedores.getById.useQuery(
@@ -49,6 +57,13 @@ export default function DevedorForm() {
         email: devedor.email || "",
         phone: devedor.phone || "",
         totalDue: (devedor.totalDue / 100).toFixed(2),
+        address: (devedor as Record<string, unknown>).address as string || "",
+        addressNumber: (devedor as Record<string, unknown>).addressNumber as string || "",
+        addressComplement: (devedor as Record<string, unknown>).addressComplement as string || "",
+        neighborhood: (devedor as Record<string, unknown>).neighborhood as string || "",
+        city: (devedor as Record<string, unknown>).city as string || "",
+        state: (devedor as Record<string, unknown>).state as string || "",
+        zipCode: (devedor as Record<string, unknown>).zipCode as string || "",
       });
     } else if (user?.condominioId && !isEdit) {
       // Pré-selecionar condomínio do usuário logado
@@ -102,6 +117,16 @@ export default function DevedorForm() {
 
     const totalDueInCents = Math.round(parseFloat(formData.totalDue || "0") * 100);
 
+    const enderecoPayload = {
+      address: formData.address || undefined,
+      addressNumber: formData.addressNumber || undefined,
+      addressComplement: formData.addressComplement || undefined,
+      neighborhood: formData.neighborhood || undefined,
+      city: formData.city || undefined,
+      state: formData.state || undefined,
+      zipCode: formData.zipCode || undefined,
+    };
+
     if (isEdit && devedorId) {
       updateMutation.mutate({
         id: devedorId,
@@ -112,6 +137,7 @@ export default function DevedorForm() {
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         totalDue: totalDueInCents,
+        ...enderecoPayload,
       });
     } else {
       createMutation.mutate({
@@ -123,6 +149,7 @@ export default function DevedorForm() {
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         totalDue: totalDueInCents,
+        ...enderecoPayload,
       });
     }
   };
@@ -307,6 +334,90 @@ export default function DevedorForm() {
                     onChange={handleChange}
                     placeholder="devedor@email.com"
                   />
+                </div>
+              </div>
+
+              {/* Endereço (Boleto BTG) */}
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium mb-3">
+                  Endereço
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">
+                    Necessário para emissão de boleto BTG
+                  </span>
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="address">Logradouro</Label>
+                    <Input
+                      id="address"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      placeholder="Rua, Av., etc."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="addressNumber">Número</Label>
+                    <Input
+                      id="addressNumber"
+                      name="addressNumber"
+                      value={formData.addressNumber}
+                      onChange={handleChange}
+                      placeholder="123"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="addressComplement">Complemento</Label>
+                    <Input
+                      id="addressComplement"
+                      name="addressComplement"
+                      value={formData.addressComplement}
+                      onChange={handleChange}
+                      placeholder="Apto, Sala..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="neighborhood">Bairro</Label>
+                    <Input
+                      id="neighborhood"
+                      name="neighborhood"
+                      value={formData.neighborhood}
+                      onChange={handleChange}
+                      placeholder="Bairro"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="zipCode">CEP</Label>
+                    <Input
+                      id="zipCode"
+                      name="zipCode"
+                      value={formData.zipCode}
+                      onChange={(e) => setFormData({ ...formData, zipCode: e.target.value.replace(/\D/g, "") })}
+                      placeholder="00000000"
+                      maxLength={8}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="city">Cidade</Label>
+                    <Input
+                      id="city"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleChange}
+                      placeholder="Cidade"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">UF</Label>
+                    <Input
+                      id="state"
+                      name="state"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value.toUpperCase().slice(0, 2) })}
+                      placeholder="SP"
+                      maxLength={2}
+                    />
+                  </div>
                 </div>
               </div>
 

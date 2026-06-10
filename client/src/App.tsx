@@ -66,6 +66,8 @@ import WhatsAppConfig from "./pages/configuracoes/WhatsAppConfig";
 import Atendimento from "./pages/Atendimento";
 import AtendimentoConfig from "./pages/AtendimentoConfig";
 import FluxosAtendimento from "./pages/FluxosAtendimento";
+import BTGConfig from "./pages/configuracoes/BTGConfig";
+import BTGConciliacao from "./pages/admin/BTGConciliacao";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -342,6 +344,12 @@ function Router() {
       </Route>
       <Route path="/configuracoes/fluxos">
         {() => <ProtectedRoute component={FluxosAtendimento} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/configuracoes/btg">
+        {() => <ProtectedRoute component={BTGConfig} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/btg-conciliacao">
+        {() => <ProtectedRoute component={BTGConciliacao} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

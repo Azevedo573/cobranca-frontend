@@ -2159,3 +2159,49 @@
 - [ ] Frontend: página FluxosAtendimento.tsx com lista de fluxos
 - [ ] Frontend: editor de fluxo com nós de texto e botões de ação
 - [ ] Frontend: rota /fluxos e item no menu lateral
+
+## Integração BTG Pactual API - Boleto Híbrido (BANKSLIP_PIX)
+
+### Schema e Banco de Dados
+- [x] Adicionar campos de endereço na tabela devedores: address, addressNumber, addressComplement, neighborhood, city, state, zipCode
+- [x] Adicionar campos BTG na tabela cobrancas: btgCollectionId, btgBankSlipUrl, btgPixQrCode, btgPixCopiaECola, btgStatus
+- [x] Adicionar campos BTG na tabela parcelasAcordo: btgCollectionId, btgBankSlipUrl, btgPixQrCode, btgPixCopiaECola, btgStatus
+- [x] Adicionar tabela btgConfig para credenciais BTG por condomínio: clientId, clientSecret, companyId, webhookSecret, ativo
+- [x] Executar db:push para aplicar mudanças
+
+### Backend - Serviço BTG
+- [x] Criar server/btg-service.ts com autenticação OAuth2 (Client Credentials) e helpers: getBtgAccessToken, criarCobrancaBtg, cancelarCobrancaBtg, buscarCobrancaBtg, listarCobrancasBtg
+- [x] Implementar cache de token de acesso BTG (evitar reautenticação a cada chamada)
+- [x] Criar server/routers/btg.ts com procedures: getConfig, saveConfig, emitirBoleto, cancelarBoleto, listarCobrancasBTG, sincronizarStatus
+
+### Backend - Webhook BTG
+- [x] Criar server/webhook-btg.ts para processar eventos do BTG
+- [x] Processar evento collections.paid → dar baixa automática na cobrança/parcela
+- [x] Processar evento collections.expired → atualizar status para vencido
+- [x] Processar evento collections.cancelled → atualizar status para cancelado
+- [x] Registrar endpoint POST /api/webhook/btg no server/_core/index.ts
+- [x] Validar assinatura HMAC do webhook BTG (segurança)
+
+### Frontend - Configuração BTG
+- [x] Criar página client/src/pages/configuracoes/BTGConfig.tsx com campos: clientId, clientSecret, companyId, webhookSecret
+- [x] Adicionar rota /configuracoes/btg no App.tsx
+- [x] Adicionar link no menu lateral de Configurações (Banco → BTG — Configuração)
+
+### Frontend - Emissão de Boleto BTG
+- [x] Adicionar botão "Emitir Boleto BTG" na página de detalhes do devedor (DevedorDetalhes.tsx)
+- [x] Criar modal BTGEmitirBoletoModal.tsx: verificar dados do pagador, confirmar emissão, mostrar resultado (URL do boleto + QR Code PIX)
+- [x] Exibir alerta quando devedor não tem endereço completo (redirecionar para edição)
+- [x] Adicionar campos de endereço no DevedorForm.tsx
+- [x] Atualizar procedures devedores.create e devedores.update para aceitar campos de endereço
+- [x] Mostrar botão BTG e link do boleto na listagem de cobranças
+
+### Frontend - Conciliação BTG
+- [x] Criar página client/src/pages/admin/BTGConciliacao.tsx
+- [x] Listar cobranças BTG vs cobranças do sistema com status
+- [x] Botão de conciliação manual para casos não batidos automaticamente
+- [x] Filtros por período, status BTG, condomínio
+- [x] Adicionar rota /admin/btg-conciliacao no App.tsx
+
+### Testes
+- [x] Escrever testes unitários para btg-service.ts (validação de módulo e funções)
+- [x] Escrever testes para router BTG (verificação de registro no appRouter)

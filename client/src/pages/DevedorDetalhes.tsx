@@ -36,6 +36,7 @@ import { NovaDividaModal } from "@/components/NovaDividaModal";
 import { NovaTentativaModal } from "@/components/NovaTentativaModal";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import EnviarEmailModal from "@/components/EnviarEmailModal";
+import { BTGEmitirBoletoModal } from "@/components/BTGEmitirBoletoModal";
 
 export default function DevedorDetalhes() {
   const { user } = useAuth();
@@ -52,10 +53,13 @@ export default function DevedorDetalhes() {
   const [copiadoLinhaId, setCopiadoLinhaId] = useState<number | null>(null);
   const [copiadoPixId, setCopiadoPixId] = useState<number | null>(null);
   // Cache dos dados do boleto gerado por cobrancaId
-  const [dadosBoleto, setDadosBoleto] = useState<Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>>({})
+  const [dadosBoleto, setDadosBoleto] = useState<Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>>({});
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [mostrarTodas, setMostrarTodas] = useState(false);
   const [modalAcordoOpen, setModalAcordoOpen] = useState(false);
+  // BTG
+  const [btgModalCobranca, setBtgModalCobranca] = useState<any | null>(null);
+  const utils = trpc.useUtils();
   const LIMITE_INICIAL = 5;
 
   const copiarTexto = (texto: string, tipo: "linha" | "pix", cobrancaId: number) => {
@@ -452,6 +456,7 @@ export default function DevedorDetalhes() {
                   copiadoLinhaId={copiadoLinhaId}
                   copiadoPixId={copiadoPixId}
                   copiarTexto={copiarTexto}
+                  onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                 />
               </CardContent>
             </Card>
@@ -600,6 +605,20 @@ export default function DevedorDetalhes() {
         condominioId={devedor.condominioId}
       />
 
+      {/* Modal BTG Emitir Boleto */}
+      {btgModalCobranca && devedor && (
+        <BTGEmitirBoletoModal
+          open={!!btgModalCobranca}
+          onClose={() => setBtgModalCobranca(null)}
+          cobranca={btgModalCobranca}
+          devedor={devedor as any}
+          onSuccess={() => {
+            setBtgModalCobranca(null);
+            utils.cobrancas.getComCalculos.invalidate({ devedorId: devedor.id });
+          }}
+        />
+      )}
+
       {/* Modal de Realizar Acordo */}
       <RealizarAcordoModal
         open={modalAcordoOpen}
@@ -715,7 +734,7 @@ export default function DevedorDetalhes() {
 function CobrancasTabela({
   cobrancas, filtroStatus, mostrarTodas, setMostrarTodas, limiteInicial,
   gerandoBoleto, setGerandoBoleto, dadosBoleto, gerarBoletoPDFMutation,
-  copiadoLinhaId, copiadoPixId, copiarTexto
+  copiadoLinhaId, copiadoPixId, copiarTexto, onEmitirBtg
 }: {
   cobrancas: any[];
   filtroStatus: string;
@@ -729,6 +748,7 @@ function CobrancasTabela({
   copiadoLinhaId: number | null;
   copiadoPixId: number | null;
   copiarTexto: (texto: string, tipo: "linha" | "pix", cobrancaId: number) => void;
+  onEmitirBtg: (cob: any) => void;
 }) {
   const cobFiltradas = filtroStatus === "todos" ? cobrancas : cobrancas.filter((c: any) => c.status === filtroStatus);
   const cobVisiveis = mostrarTodas ? cobFiltradas : cobFiltradas.slice(0, limiteInicial);
@@ -853,6 +873,18 @@ function CobrancasTabela({
                                 </div>
                               ) : (
                                 <span className="text-xs text-muted-foreground">Sem remessa</span>
+                              )}
+                              {/* Botão BTG */}
+                              {cob.status !== "pago" && cob.status !== "cancelado" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs w-full mt-1 border-blue-400 text-blue-700 hover:bg-blue-50"
+                                  onClick={() => onEmitirBtg(cob)}
+                                >
+                                  <span className="text-xs font-bold mr-1">BTG</span>
+                                  {cob.btgCollectionId ? "Ver/Reemitir" : "Emitir Boleto"}
+                                </Button>
                               )}
                             </TableCell>
                           </TableRow>

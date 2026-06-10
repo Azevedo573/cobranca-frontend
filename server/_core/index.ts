@@ -42,6 +42,9 @@ async function startServer() {
   // Webhook Z-API — recebe mensagens WhatsApp
   const { webhookWhatsappHandler } = await import("../webhook-whatsapp");
   app.post("/api/webhook/whatsapp/:instanciaId", webhookWhatsappHandler);
+  // Webhook BTG Pactual — recebe eventos de cobrança (paid, expired, cancelled)
+  const { webhookBtgHandler } = await import("../webhook-btg");
+  app.post("/api/webhook/btg/:condominioId", webhookBtgHandler);
 
   // tRPC API
   app.use(

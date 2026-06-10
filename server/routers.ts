@@ -10,11 +10,13 @@ import { getDb } from "./db";
 import { logAudit, auditLoginSuccess, auditLoginFailed, auditLogout } from "./audit";
 import { atendimentoRouter } from "./routers/atendimento";
 import { fluxosRouter } from "./routers/fluxos";
+import { btgRouter } from "./routers/btg";
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
+
   system: systemRouter,
   atendimento: atendimentoRouter,
   fluxos: fluxosRouter,
+  btg: btgRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(async ({ ctx }) => {
@@ -532,6 +534,14 @@ export const appRouter = router({
       email: z.string().optional(),
       phone: z.string().optional(),
       totalDue: z.number().default(0),
+      // Endereço (necessário para boleto BTG)
+      address: z.string().optional(),
+      addressNumber: z.string().optional(),
+      addressComplement: z.string().optional(),
+      neighborhood: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { createDevedor } = await import("./db-devedores");
       const result = await createDevedor(input);
@@ -548,6 +558,14 @@ export const appRouter = router({
       phone: z.string().optional(),
       totalDue: z.number().optional(),
       status: z.enum(["ativo", "pago", "acordo"]).optional(),
+      // Endereço (necessário para boleto BTG)
+      address: z.string().optional(),
+      addressNumber: z.string().optional(),
+      addressComplement: z.string().optional(),
+      neighborhood: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
       const { updateDevedor } = await import("./db-devedores");
