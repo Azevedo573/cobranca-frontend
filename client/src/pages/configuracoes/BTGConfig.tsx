@@ -79,16 +79,22 @@ export default function BTGConfig() {
           </p>
         </div>
         {config && (
-          <Badge
-            variant={config.credenciaisConfiguradas ? "default" : "destructive"}
-            className="ml-auto"
-          >
-            {config.credenciaisConfiguradas ? (
-              <><CheckCircle2 className="h-3 w-3 mr-1" /> Credenciais OK</>
-            ) : (
-              <><XCircle className="h-3 w-3 mr-1" /> Credenciais não configuradas</>
+          <div className="ml-auto flex items-center gap-2">
+            {config.isSandbox && (
+              <Badge variant="outline" className="border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950">
+                🧪 SANDBOX
+              </Badge>
             )}
-          </Badge>
+            <Badge
+              variant={config.credenciaisConfiguradas ? "default" : "destructive"}
+            >
+              {config.credenciaisConfiguradas ? (
+                <><CheckCircle2 className="h-3 w-3 mr-1" /> Credenciais OK</>
+              ) : (
+                <><XCircle className="h-3 w-3 mr-1" /> Credenciais não configuradas</>
+              )}
+            </Badge>
+          </div>
         )}
       </div>
 
@@ -156,6 +162,17 @@ export default function BTGConfig() {
                 As credenciais BTG não estão configuradas. Acesse o painel de <strong>Secrets</strong> do
                 projeto e defina <strong>BTG_CLIENT_ID</strong>, <strong>BTG_CLIENT_SECRET</strong> e{" "}
                 <strong>BTG_COMPANY_ID</strong>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {config?.isSandbox && (
+            <Alert className="mt-4 border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20">
+              <Info className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-700 dark:text-yellow-400">
+                <strong>Modo Sandbox ativo.</strong> As cobranças não são efetivamente criadas.
+                O Company ID usado automaticamente é <code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900 px-1 rounded">30306294000145</code> (empresa dedicada do sandbox BTG).
+                Para usar em produção, remova a variável <code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900 px-1 rounded">BTG_SANDBOX</code> ou defina como <code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900 px-1 rounded">false</code>.
               </AlertDescription>
             </Alert>
           )}

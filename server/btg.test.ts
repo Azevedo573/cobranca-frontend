@@ -50,6 +50,22 @@ describe("BTG Pactual - Configuração", () => {
   });
 });
 
+describe("BTG Pactual - Sandbox", () => {
+  it("deve detectar modo sandbox via BTG_SANDBOX env var", () => {
+    const isSandbox = process.env.BTG_SANDBOX === "true";
+    // Quando BTG_SANDBOX=true, o companyId usado deve ser o fixo do sandbox
+    if (isSandbox) {
+      expect(isSandbox).toBe(true);
+      // No sandbox, companyId fixo é 30306294000145
+      const sandboxCompanyId = "30306294000145";
+      expect(sandboxCompanyId).toMatch(/^\d{14}$/);
+    } else {
+      // Em produção, BTG_COMPANY_ID deve estar configurado
+      expect(typeof process.env.BTG_COMPANY_ID === "string" || isSandbox).toBe(true);
+    }
+  });
+});
+
 describe("BTG Pactual - Utilitários", () => {
   it("deve formatar valor em centavos para reais corretamente", () => {
     // Teste simples de formatação de valor

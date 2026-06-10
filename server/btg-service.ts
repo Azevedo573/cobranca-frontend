@@ -14,8 +14,20 @@ import { getDb } from "./db";
 import { btgConfig } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
-const BTG_AUTH_URL = "https://id.btgpactual.com/auth/realms/btg-empresas/protocol/openid-connect/token";
-const BTG_API_BASE = "https://api.empresas.btgpactual.com";
+// Detectar ambiente: sandbox ou produção
+// Defina BTG_SANDBOX=true nas env vars para usar o ambiente de sandbox
+const IS_SANDBOX = process.env.BTG_SANDBOX === "true";
+
+const BTG_AUTH_URL = IS_SANDBOX
+  ? "https://id.sandbox.btgpactual.com/oauth2/token"
+  : "https://id.btgpactual.com/oauth2/token";
+
+const BTG_API_BASE = IS_SANDBOX
+  ? "https://api.sandbox.empresas.btgpactual.com"
+  : "https://api.empresas.btgpactual.com";
+
+// No sandbox, o companyId é sempre este valor fixo (empresa dedicada do sandbox)
+const BTG_SANDBOX_COMPANY_ID = "30306294000145";
 
 // ─── Cache de token em memória ─────────────────────────────────────────────────
 let _cachedToken: string | null = null;
@@ -121,13 +133,22 @@ function getBtgCredentials(): { clientId: string; clientSecret: string; companyI
   const clientSecret = process.env.BTG_CLIENT_SECRET;
   const companyId = process.env.BTG_COMPANY_ID;
 
-  if (!clientId || !clientSecret || !companyId) {
+  if (!clientId || !clientSecret) {
     throw new Error(
-      "Credenciais BTG não configuradas. Defina BTG_CLIENT_ID, BTG_CLIENT_SECRET e BTG_COMPANY_ID nas variáveis de ambiente."
+      "Credenciais BTG não configuradas. Defina BTG_CLIENT_ID e BTG_CLIENT_SECRET nas variáveis de ambiente."
     );
   }
 
-  return { clientId, clientSecret, companyId };
+  if (!IS_SANDBOX && !companyId) {
+    throw new Error(
+      "BTG_COMPANY_ID não configurado. Defina BTG_COMPANY_ID nas variáveis de ambiente."
+    );
+  }
+
+  // No sandbox, o companyId é sempre o fixo da empresa dedicada do sandbox
+  const effectiveCompanyId = IS_SANDBOX ? BTG_SANDBOX_COMPANY_ID : companyId!;
+
+  return { clientId, clientSecret, companyId: effectiveCompanyId };
 }
 
 /**
@@ -141,14 +162,15 @@ export async function getBtgExtraConfig(): Promise<{
   instrucoes: string | null;
   webhookSecret: string | null;
   ativo: boolean;
+  isSandbox: boolean;
 }> {
   try {
     const db = await getDb();
-    if (!db) return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true };
+    if (!db) return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true, isSandbox: IS_SANDBOX };
 
     const config = await db.select().from(btgConfig).limit(1);
     if (!config.length) {
-      return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true };
+      return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true, isSandbox: IS_SANDBOX };
     }
 
     const cfg = config[0];
@@ -158,9 +180,10 @@ export async function getBtgExtraConfig(): Promise<{
       instrucoes: cfg.instrucoes ?? null,
       webhookSecret: cfg.webhookSecret ?? null,
       ativo: cfg.ativo === 1,
+      isSandbox: IS_SANDBOX,
     };
   } catch {
-    return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true };
+    return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true, isSandbox: IS_SANDBOX };
   }
 }
 
@@ -178,16 +201,20 @@ export async function getBtgAccessToken(): Promise<string> {
 
   const { clientId, clientSecret } = getBtgCredentials();
 
+  // BTG usa Basic Auth: Base64(client_id:client_secret) no header Authorization
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
   const params = new URLSearchParams({
     grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: "brn:btg:empresas:banking:collections openid",
+    scope: "collections",
   });
 
   const response = await fetch(BTG_AUTH_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": `Basic ${basicAuth}`,
+    },
     body: params.toString(),
   });
 

@@ -47,16 +47,24 @@ export const btgRouter = router({
       const clientIdConfigured = !!process.env.BTG_CLIENT_ID;
       const clientSecretConfigured = !!process.env.BTG_CLIENT_SECRET;
       const companyIdConfigured = !!process.env.BTG_COMPANY_ID;
+      const isSandbox = process.env.BTG_SANDBOX === "true";
+
+      // No sandbox, o companyId é sempre o fixo da empresa dedicada
+      const sandboxCompanyId = "30306294000145";
+      const effectiveCompanyId = isSandbox ? sandboxCompanyId : process.env.BTG_COMPANY_ID;
+
+      const { isSandbox: _isSandboxFromExtra, ...extraRest } = extra;
 
       return {
-        credenciaisConfiguradas: clientIdConfigured && clientSecretConfigured && companyIdConfigured,
+        credenciaisConfiguradas: clientIdConfigured && clientSecretConfigured && (isSandbox || companyIdConfigured),
         clientIdConfigured,
         clientSecretConfigured,
-        companyIdConfigured,
-        companyIdMasked: process.env.BTG_COMPANY_ID
-          ? `***${process.env.BTG_COMPANY_ID.slice(-4)}`
+        companyIdConfigured: isSandbox ? true : companyIdConfigured,
+        companyIdMasked: effectiveCompanyId
+          ? `***${effectiveCompanyId.slice(-4)}`
           : null,
-        ...extra,
+        isSandbox,
+        ...extraRest,
       };
     }),
 
