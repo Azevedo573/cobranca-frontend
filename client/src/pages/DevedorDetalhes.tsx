@@ -802,11 +802,11 @@ function CobrancasTabela({
           <TableRow>
             <TableHead>Descrição</TableHead>
             <TableHead>Vencimento</TableHead>
-            <TableHead className="hidden xl:table-cell">Valor Original</TableHead>
-            <TableHead className="hidden xl:table-cell">Juros</TableHead>
-            <TableHead className="hidden xl:table-cell">Multa</TableHead>
-            <TableHead className="hidden xl:table-cell">Honorários</TableHead>
-            <TableHead className="hidden xl:table-cell">Correção</TableHead>
+            <TableHead>Valor Original</TableHead>
+            <TableHead className="text-orange-600">Juros</TableHead>
+            <TableHead className="text-red-600">Multa</TableHead>
+            <TableHead className="text-purple-600">Honorários</TableHead>
+            <TableHead className="text-blue-600">Correção</TableHead>
             <TableHead>Valor Atualizado</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Boleto</TableHead>
