@@ -20,7 +20,7 @@ import {
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type TipoNo = "inicio" | "mensagem" | "botoes" | "transferir" | "encerrar";
+type TipoNo = "inicio" | "mensagem" | "botoes" | "lista_opcoes" | "transferir" | "encerrar";
 
 interface BotaoAcao {
   label: string;
@@ -29,10 +29,12 @@ interface BotaoAcao {
 
 interface ConteudoMensagem { tipo: "mensagem"; texto: string; }
 interface ConteudoBotoes { tipo: "botoes"; texto: string; botoes: BotaoAcao[]; }
+interface OpcaoLista { id: string; titulo: string; descricao?: string; proximoNoId: number | null; }
+interface ConteudoListaOpcoes { tipo: "lista_opcoes"; mensagem: string; titulo: string; labelBotao: string; opcoes: OpcaoLista[]; }
 interface ConteudoTransferir { tipo: "transferir"; mensagem?: string; departamentoId?: number | null; }
 interface ConteudoEncerrar { tipo: "encerrar"; mensagem?: string; }
 interface ConteudoInicio { tipo: "inicio"; texto?: string; }
-type ConteudoNo = ConteudoMensagem | ConteudoBotoes | ConteudoTransferir | ConteudoEncerrar | ConteudoInicio;
+type ConteudoNo = ConteudoMensagem | ConteudoBotoes | ConteudoListaOpcoes | ConteudoTransferir | ConteudoEncerrar | ConteudoInicio;
 
 interface No {
   id: number;
@@ -59,6 +61,7 @@ const iconeNo: Record<TipoNo, React.ReactNode> = {
   inicio: <Zap className="w-4 h-4 text-yellow-500" />,
   mensagem: <MessageSquare className="w-4 h-4 text-blue-500" />,
   botoes: <MousePointerClick className="w-4 h-4 text-purple-500" />,
+  lista_opcoes: <GitBranch className="w-4 h-4 text-teal-500" />,
   transferir: <ArrowRight className="w-4 h-4 text-orange-500" />,
   encerrar: <Square className="w-4 h-4 text-red-500" />,
 };
@@ -67,6 +70,7 @@ const corNo: Record<TipoNo, string> = {
   inicio: "border-yellow-500 bg-yellow-500/10",
   mensagem: "border-blue-500 bg-blue-500/10",
   botoes: "border-purple-500 bg-purple-500/10",
+  lista_opcoes: "border-teal-500 bg-teal-500/10",
   transferir: "border-orange-500 bg-orange-500/10",
   encerrar: "border-red-500 bg-red-500/10",
 };
@@ -75,6 +79,7 @@ const labelNo: Record<TipoNo, string> = {
   inicio: "Início",
   mensagem: "Mensagem",
   botoes: "Botões de Ação",
+  lista_opcoes: "Lista de Opções",
   transferir: "Transferir para Fila",
   encerrar: "Encerrar",
 };
@@ -143,6 +148,23 @@ function CardNo({
                   );
                 })}
               </div>
+            </div>
+          )}
+          {conteudo.tipo === "lista_opcoes" && (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs text-muted-foreground line-clamp-1">{conteudo.mensagem}</p>
+              <div className="flex flex-wrap gap-1">
+                {conteudo.opcoes.map((op, i) => {
+                  const proximo = todos.find(n => n.id === op.proximoNoId);
+                  return (
+                    <div key={i} className="flex items-center gap-1">
+                      <Badge variant="secondary" className="text-xs py-0 bg-teal-100 text-teal-700">{op.titulo}</Badge>
+                      {proximo && <span className="text-xs text-muted-foreground">→ {proximo.nome}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              {conteudo.opcoes.length === 0 && <p className="text-xs text-muted-foreground italic">Nenhuma opção configurada</p>}
             </div>
           )}
           {conteudo.tipo === "transferir" && (
@@ -218,6 +240,23 @@ function ModalEditarNo({
   const removerBotao = (idx: number) => {
     if (conteudo.tipo !== "botoes") return;
     setConteudo({ ...conteudo, botoes: conteudo.botoes.filter((_, i) => i !== idx) });
+  };
+
+  const adicionarOpcao = () => {
+    if (conteudo.tipo !== "lista_opcoes") return;
+    const novoId = `op${Date.now()}`;
+    setConteudo({ ...conteudo, opcoes: [...conteudo.opcoes, { id: novoId, titulo: "", descricao: "", proximoNoId: null }] });
+  };
+
+  const atualizarOpcao = (idx: number, campo: keyof OpcaoLista, valor: string | number | null) => {
+    if (conteudo.tipo !== "lista_opcoes") return;
+    const novas = conteudo.opcoes.map((op, i) => i === idx ? { ...op, [campo]: valor } : op);
+    setConteudo({ ...conteudo, opcoes: novas });
+  };
+
+  const removerOpcao = (idx: number) => {
+    if (conteudo.tipo !== "lista_opcoes") return;
+    setConteudo({ ...conteudo, opcoes: conteudo.opcoes.filter((_, i) => i !== idx) });
   };
 
   const nosDisponiveis = todos.filter(n => n.id !== no.id && n.tipo !== "inicio");
@@ -313,6 +352,94 @@ function ModalEditarNo({
             </div>
           )}
 
+          {conteudo.tipo === "lista_opcoes" && (
+            <div className="space-y-3">
+              <div>
+                <Label>Mensagem principal</Label>
+                <Textarea
+                  value={conteudo.mensagem}
+                  onChange={e => setConteudo({ ...conteudo, mensagem: e.target.value })}
+                  placeholder="Ex: Selecione uma das opções abaixo:"
+                  className="mt-1 min-h-[70px]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Título da lista</Label>
+                  <Input
+                    value={conteudo.titulo}
+                    onChange={e => setConteudo({ ...conteudo, titulo: e.target.value })}
+                    placeholder="Ex: Menu de opções"
+                    className="mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label>Texto do botão</Label>
+                  <Input
+                    value={conteudo.labelBotao}
+                    onChange={e => setConteudo({ ...conteudo, labelBotao: e.target.value })}
+                    placeholder="Ex: Ver opções"
+                    className="mt-1 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Opções da lista</Label>
+                  <Button size="sm" variant="outline" onClick={adicionarOpcao} disabled={(conteudo.opcoes?.length ?? 0) >= 10}>
+                    <Plus className="w-3 h-3 mr-1" /> Adicionar
+                  </Button>
+                </div>
+                <ScrollArea className="max-h-64">
+                  <div className="space-y-3 pr-1">
+                    {conteudo.opcoes.map((op, idx) => (
+                      <div key={idx} className="border rounded-lg p-3 space-y-2 bg-teal-50/50">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-teal-700">Opção {idx + 1}</span>
+                          <Button size="icon" variant="ghost" className="h-5 w-5 text-destructive" onClick={() => removerOpcao(idx)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <Input
+                          value={op.titulo}
+                          onChange={e => atualizarOpcao(idx, "titulo", e.target.value)}
+                          placeholder="Título da opção (ex: Cobrança)"
+                          className="text-sm"
+                        />
+                        <Input
+                          value={op.descricao ?? ""}
+                          onChange={e => atualizarOpcao(idx, "descricao", e.target.value)}
+                          placeholder="Descrição (opcional)"
+                          className="text-sm"
+                        />
+                        <Select
+                          value={op.proximoNoId?.toString() ?? "null"}
+                          onValueChange={v => atualizarOpcao(idx, "proximoNoId", v === "null" ? null : parseInt(v))}
+                        >
+                          <SelectTrigger className="text-sm">
+                            <SelectValue placeholder="Próximo nó..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="null">— Encerrar fluxo —</SelectItem>
+                            {nosDisponiveis.map(n => (
+                              <SelectItem key={n.id} value={n.id.toString()}>
+                                {labelNo[n.tipo]} — {n.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                    {conteudo.opcoes.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-2">Nenhuma opção adicionada</p>
+                    )}
+                  </div>
+                </ScrollArea>
+                <p className="text-xs text-muted-foreground mt-1">ℹ️ Máximo 10 opções por lista (Z-API)</p>
+              </div>
+            </div>
+          )}
+
           {conteudo.tipo === "transferir" && (
             <div>
               <Label>Mensagem antes de transferir (opcional)</Label>
@@ -383,6 +510,7 @@ function EditorFluxo({ fluxo, onVoltar }: { fluxo: Fluxo; onVoltar: () => void }
     const conteudoInicial: ConteudoNo =
       tipo === "mensagem" ? { tipo: "mensagem", texto: "" } :
       tipo === "botoes" ? { tipo: "botoes", texto: "", botoes: [] } :
+      tipo === "lista_opcoes" ? { tipo: "lista_opcoes", mensagem: "", titulo: "Menu de opções", labelBotao: "Ver opções", opcoes: [] } :
       tipo === "transferir" ? { tipo: "transferir", mensagem: "" } :
       tipo === "encerrar" ? { tipo: "encerrar", mensagem: "" } :
       { tipo: "inicio" };
@@ -428,7 +556,7 @@ function EditorFluxo({ fluxo, onVoltar }: { fluxo: Fluxo; onVoltar: () => void }
     });
   };
 
-  const tiposDisponiveis: TipoNo[] = ["mensagem", "botoes", "transferir", "encerrar"];
+  const tiposDisponiveis: TipoNo[] = ["mensagem", "botoes", "lista_opcoes", "transferir", "encerrar"];
 
   return (
     <div className="h-full flex flex-col">
@@ -499,7 +627,7 @@ function EditorFluxo({ fluxo, onVoltar }: { fluxo: Fluxo; onVoltar: () => void }
         <div className="w-64 border-l p-4 hidden lg:block">
           <h3 className="text-sm font-semibold mb-3">Tipos de nó</h3>
           <div className="space-y-3">
-            {(["inicio", "mensagem", "botoes", "transferir", "encerrar"] as TipoNo[]).map(tipo => (
+            {(["inicio", "mensagem", "botoes", "lista_opcoes", "transferir", "encerrar"] as TipoNo[]).map(tipo => (
               <div key={tipo} className="flex gap-2">
                 <div className="mt-0.5">{iconeNo[tipo]}</div>
                 <div>
@@ -507,7 +635,8 @@ function EditorFluxo({ fluxo, onVoltar }: { fluxo: Fluxo; onVoltar: () => void }
                   <p className="text-xs text-muted-foreground">
                     {tipo === "inicio" && "Ponto de entrada do fluxo"}
                     {tipo === "mensagem" && "Envia texto ao cliente"}
-                    {tipo === "botoes" && "Apresenta opções clicáveis"}
+                    {tipo === "botoes" && "Apresenta até 3 botões clicáveis"}
+                    {tipo === "lista_opcoes" && "Lista interativa com até 10 opções"}
                     {tipo === "transferir" && "Encaminha para fila humana"}
                     {tipo === "encerrar" && "Finaliza o fluxo"}
                   </p>

@@ -10,7 +10,7 @@
 import { getDb } from "./db";
 import { botFluxos, botNos, botSessoes } from "../drizzle/schema";
 import { eq, and, isNull, or } from "drizzle-orm";
-import { sendText, formatPhone } from "./zapi-service";
+import { sendText, sendOptionList, formatPhone } from "./zapi-service";
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
@@ -25,6 +25,19 @@ interface ConteudoBotoes {
   tipo: "botoes";
   texto: string;
   botoes: Array<{ label: string; proximoNoId: number | null }>;
+}
+
+interface ConteudoListaOpcoes {
+  tipo: "lista_opcoes";
+  mensagem: string;
+  titulo: string;         // título da lista
+  labelBotao: string;     // texto do botão que abre a lista
+  opcoes: Array<{
+    id: string;
+    titulo: string;
+    descricao?: string;
+    proximoNoId: number | null;
+  }>;
 }
 
 interface ConteudoTransferir {
@@ -43,7 +56,7 @@ interface ConteudoInicio {
   texto?: string;
 }
 
-type ConteudoNo = ConteudoMensagem | ConteudoBotoes | ConteudoTransferir | ConteudoEncerrar | ConteudoInicio;
+type ConteudoNo = ConteudoMensagem | ConteudoBotoes | ConteudoListaOpcoes | ConteudoTransferir | ConteudoEncerrar | ConteudoInicio;
 
 // ─── Função principal ─────────────────────────────────────────────────────────
 
@@ -200,6 +213,40 @@ async function avancarFluxo(params: {
     return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, zapiConfig, nosDoFluxo });
   }
 
+  // Processar resposta do usuário para nó de lista de opções
+  if (conteudo.tipo === "lista_opcoes") {
+    const textoLower = texto.toLowerCase().trim();
+    let opcaoSelecionada: { id: string; titulo: string; proximoNoId: number | null } | undefined;
+
+    for (const op of conteudo.opcoes) {
+      // Z-API retorna o id da opção selecionada ou o título
+      if (textoLower === op.id.toLowerCase() || textoLower === op.titulo.toLowerCase() || textoLower.includes(op.titulo.toLowerCase())) {
+        opcaoSelecionada = op;
+        break;
+      }
+    }
+
+    if (!opcaoSelecionada) {
+      // Resposta inválida — reenviar lista
+      await enviarNo(conteudo, telefone, zapiConfig);
+      return "automatico";
+    }
+
+    if (opcaoSelecionada.proximoNoId === null) {
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
+    }
+
+    const [proximoNo] = await db.select().from(botNos).where(eq(botNos.id, opcaoSelecionada.proximoNoId));
+    if (!proximoNo) {
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
+    }
+
+    await db.update(botSessoes).set({ noAtualId: proximoNo.id, updatedAt: new Date() }).where(eq(botSessoes.id, sessao.id));
+    return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, zapiConfig, nosDoFluxo });
+  }
+
   // Para outros tipos de nó, executar diretamente
   return await executarNo({ db, sessao, no: noAtual, telefone, zapiConfig, nosDoFluxo });
 }
@@ -246,7 +293,7 @@ async function executarNo(params: {
     return await executarNo({ db, sessao: { ...sessao, noAtualId: proximoNo.id }, no: proximoNo, telefone, zapiConfig, nosDoFluxo });
   }
 
-  // Nó de botões: aguardar resposta do usuário
+  // Nó de botões ou lista de opções: aguardar resposta do usuário
   return "automatico";
 }
 
@@ -269,6 +316,16 @@ async function enviarNo(conteudo: ConteudoNo, telefone: string, zapiConfig: { to
     } else if (conteudo.tipo === "botoes") {
       const textoNumerado = conteudo.texto + "\n\n" + conteudo.botoes.map((b, i) => `${i + 1}. ${b.label}`).join("\n");
       await sendText(zapiConfig, phone, textoNumerado);
+    } else if (conteudo.tipo === "lista_opcoes") {
+      await sendOptionList(zapiConfig, phone, conteudo.mensagem, {
+        title: conteudo.titulo,
+        buttonLabel: conteudo.labelBotao,
+        options: conteudo.opcoes.map(op => ({
+          id: op.id,
+          title: op.titulo,
+          description: op.descricao ?? "",
+        })),
+      });
     } else if (conteudo.tipo === "transferir" && conteudo.mensagem) {
       await sendText(zapiConfig, phone, conteudo.mensagem);
     } else if (conteudo.tipo === "encerrar" && conteudo.mensagem) {

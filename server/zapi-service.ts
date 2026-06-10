@@ -129,6 +129,34 @@ export async function sendAudio(
   };
 }
 
+// ─── Enviar lista de opções ──────────────────────────────────────────────────
+export interface OptionListItem {
+  title: string;
+  description?: string;
+  id: string;
+}
+
+export async function sendOptionList(
+  config: ZApiConfig,
+  phone: string,
+  message: string,
+  optionList: {
+    title: string;
+    buttonLabel: string;
+    options: OptionListItem[];
+  }
+): Promise<{ zaapId: string; messageId: string }> {
+  const data = await zapiRequest(config, "POST", "/send-option-list", {
+    phone,
+    message,
+    optionList,
+  }) as any;
+  return {
+    zaapId: data?.zaapId ?? "",
+    messageId: data?.messageId ?? "",
+  };
+}
+
 // ─── Formatar telefone para padrão Z-API ─────────────────────────────────────
 export function formatPhone(phone: string): string {
   // Remove tudo que não é número
