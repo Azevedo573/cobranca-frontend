@@ -148,7 +148,8 @@ export default function CobrancaPassiva() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/* grid removido - apenas listagem de devedores abaixo */}
+      <div className="hidden">
         {/* Busca de devedor */}
         <div className="lg:col-span-2 space-y-3">
           <Card>
@@ -472,9 +473,8 @@ export default function CobrancaPassiva() {
         </div>
       </div>
 
-      {/* ── Listagem de Todos os Devedores (somente admin) ── */}
-      {isAdmin && (
-        <Card className="mt-6">
+      {/* ── Listagem de Todos os Devedores ── */}
+      <Card className="mt-0">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
@@ -705,7 +705,6 @@ export default function CobrancaPassiva() {
             )}
           </CardContent>
         </Card>
-      )}
     </div>
   );
 }
