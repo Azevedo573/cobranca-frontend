@@ -354,7 +354,7 @@ export function RealizarAcordoModal({
 
                 {/* Despesa do devedor */}
                 <div>
-                  <Label className="text-xs">Despesa do devedor</Label>
+                  <Label className="text-xs">Honorários / Desp. Judiciais</Label>
                   <div className="flex gap-1 mt-1">
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-muted-foreground">%</span>
