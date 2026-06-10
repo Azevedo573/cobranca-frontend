@@ -12,6 +12,13 @@ const BotaoSchema = z.object({
   proximoNoId: z.number().nullable(),
 });
 
+const OpcaoListaSchema = z.object({
+  id: z.string(),
+  titulo: z.string().min(1).max(24),
+  descricao: z.string().max(72).optional(),
+  proximoNoId: z.number().nullable(),
+});
+
 const ConteudoNoSchema = z.discriminatedUnion("tipo", [
   z.object({
     tipo: z.literal("inicio"),
@@ -25,6 +32,13 @@ const ConteudoNoSchema = z.discriminatedUnion("tipo", [
     tipo: z.literal("botoes"),
     texto: z.string().min(1),
     botoes: z.array(BotaoSchema).min(1).max(3),
+  }),
+  z.object({
+    tipo: z.literal("lista_opcoes"),
+    mensagem: z.string().min(1),
+    titulo: z.string().min(1).max(60),
+    labelBotao: z.string().min(1).max(20),
+    opcoes: z.array(OpcaoListaSchema).min(1).max(10),
   }),
   z.object({
     tipo: z.literal("transferir"),
@@ -133,7 +147,7 @@ export const fluxosRouter = router({
   adicionarNo: protectedProcedure
     .input(z.object({
       fluxoId: z.number(),
-      tipo: z.enum(["mensagem", "botoes", "transferir", "encerrar"]),
+      tipo: z.enum(["mensagem", "botoes", "lista_opcoes", "transferir", "encerrar"]),
       titulo: z.string().min(1).max(100),
       conteudo: z.any(),
       ordem: z.number().optional(),
@@ -183,7 +197,7 @@ export const fluxosRouter = router({
       fluxoId: z.number(),
       nos: z.array(z.object({
         id: z.number().optional(), // undefined = novo nó
-        tipo: z.enum(["inicio", "mensagem", "botoes", "transferir", "encerrar"]),
+        tipo: z.enum(["inicio", "mensagem", "botoes", "lista_opcoes", "transferir", "encerrar"]),
         titulo: z.string().min(1).max(100),
         conteudo: z.any(),
         ordem: z.number(),
