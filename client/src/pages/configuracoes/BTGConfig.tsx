@@ -7,18 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Building2, CheckCircle2, XCircle, Loader2, Eye, EyeOff, Webhook, Info } from "lucide-react";
+import { Building2, CheckCircle2, XCircle, Loader2, Webhook, Info, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function BTGConfig() {
-  const { user } = useAuth();
-  const [showSecret, setShowSecret] = useState(false);
   const [formData, setFormData] = useState({
-    condominioId: "",
-    clientId: "",
-    clientSecret: "",
-    companyId: "",
     webhookSecret: "",
     diasVencimentoPadrao: "30",
     diasLimitePagamento: "60",
@@ -26,37 +19,17 @@ export default function BTGConfig() {
     ativo: "1",
   });
 
-  const { data: condominios } = trpc.condominios.list.useQuery(undefined, {
-    enabled: user?.role === "admin",
-  });
-
-  const condId = formData.condominioId
-    ? parseInt(formData.condominioId)
-    : user?.condominioId ?? undefined;
-
-  const { data: config, refetch } = trpc.btg.getConfig.useQuery(
-    { condominioId: condId },
-    { enabled: !!condId }
-  );
-
-  useEffect(() => {
-    if (!formData.condominioId && user?.condominioId) {
-      setFormData(prev => ({ ...prev, condominioId: user.condominioId!.toString() }));
-    }
-  }, [user]);
+  const { data: config, refetch } = trpc.btg.getConfig.useQuery();
 
   useEffect(() => {
     if (config) {
       setFormData(prev => ({
         ...prev,
-        clientId: config.clientId || "",
-        clientSecret: "", // nunca preencher com o valor mascarado
-        companyId: config.companyId || "",
         webhookSecret: config.webhookSecret || "",
         diasVencimentoPadrao: config.diasVencimentoPadrao?.toString() || "30",
         diasLimitePagamento: config.diasLimitePagamento?.toString() || "60",
-        instrucoes: config.instrucoes || "",
-        ativo: config.ativo?.toString() || "1",
+        instrucoes: config.instrucoes || "Pagável em qualquer banco até o vencimento. Após o vencimento, sujeito a multa e juros.",
+        ativo: config.ativo ? "1" : "0",
       }));
     }
   }, [config]);
@@ -82,15 +55,7 @@ export default function BTGConfig() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!condId) {
-      toast.error("Selecione um condomínio");
-      return;
-    }
     saveMutation.mutate({
-      condominioId: condId,
-      clientId: formData.clientId,
-      clientSecret: formData.clientSecret || undefined,
-      companyId: formData.companyId,
       webhookSecret: formData.webhookSecret || undefined,
       diasVencimentoPadrao: parseInt(formData.diasVencimentoPadrao) || 30,
       diasLimitePagamento: parseInt(formData.diasLimitePagamento) || 60,
@@ -99,17 +64,7 @@ export default function BTGConfig() {
     });
   };
 
-  const handleTestar = () => {
-    if (!condId) {
-      toast.error("Selecione um condomínio");
-      return;
-    }
-    testarMutation.mutate({ condominioId: condId });
-  };
-
-  const webhookUrl = condId
-    ? `${window.location.origin}/api/webhook/btg/${condId}`
-    : "Configure o condomínio primeiro";
+  const webhookUrl = `${window.location.origin}/api/webhook/btg`;
 
   return (
     <div className="space-y-6">
@@ -119,118 +74,116 @@ export default function BTGConfig() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">Integração BTG Pactual</h1>
-          <p className="text-muted-foreground text-sm">Configure as credenciais da API BTG Empresas para emissão de boletos híbridos</p>
+          <p className="text-muted-foreground text-sm">
+            Configurações da API BTG Empresas para emissão de boletos híbridos (Boleto + PIX)
+          </p>
         </div>
         {config && (
-          <Badge variant={config.tokenAtivo ? "default" : "secondary"} className="ml-auto">
-            {config.tokenAtivo ? (
-              <><CheckCircle2 className="h-3 w-3 mr-1" /> Conectado</>
+          <Badge
+            variant={config.credenciaisConfiguradas ? "default" : "destructive"}
+            className="ml-auto"
+          >
+            {config.credenciaisConfiguradas ? (
+              <><CheckCircle2 className="h-3 w-3 mr-1" /> Credenciais OK</>
             ) : (
-              <><XCircle className="h-3 w-3 mr-1" /> Desconectado</>
+              <><XCircle className="h-3 w-3 mr-1" /> Credenciais não configuradas</>
             )}
           </Badge>
         )}
       </div>
 
-      {user?.role === "admin" && condominios && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Condomínio</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <select
-              className="w-full border rounded-md px-3 py-2 bg-background text-sm"
-              value={formData.condominioId}
-              onChange={(e) => setFormData(prev => ({ ...prev, condominioId: e.target.value }))}
-            >
-              <option value="">Selecione o condomínio</option>
-              {condominios.map(c => (
-                <option key={c.id} value={c.id.toString()}>{c.name}</option>
-              ))}
-            </select>
-          </CardContent>
-        </Card>
-      )}
+      {/* Status das credenciais (env vars) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Credenciais BTG (Variáveis de Ambiente)
+          </CardTitle>
+          <CardDescription>
+            As credenciais BTG são configuradas como variáveis de ambiente seguras do servidor,
+            não ficam expostas no banco de dados. Para alterá-las, use o painel de Secrets do projeto.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
+              {config?.clientIdConfigured ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+              ) : (
+                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+              )}
+              <div>
+                <p className="text-sm font-medium">BTG_CLIENT_ID</p>
+                <p className="text-xs text-muted-foreground">
+                  {config?.clientIdConfigured ? "Configurado" : "Não configurado"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
+              {config?.clientSecretConfigured ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+              ) : (
+                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+              )}
+              <div>
+                <p className="text-sm font-medium">BTG_CLIENT_SECRET</p>
+                <p className="text-xs text-muted-foreground">
+                  {config?.clientSecretConfigured ? "Configurado" : "Não configurado"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
+              {config?.companyIdConfigured ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+              ) : (
+                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+              )}
+              <div>
+                <p className="text-sm font-medium">BTG_COMPANY_ID</p>
+                <p className="text-xs text-muted-foreground">
+                  {config?.companyIdConfigured
+                    ? `Configurado (${config.companyIdMasked})`
+                    : "Não configurado"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {!config?.credenciaisConfiguradas && (
+            <Alert variant="destructive" className="mt-4">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>
+                As credenciais BTG não estão configuradas. Acesse o painel de <strong>Secrets</strong> do
+                projeto e defina <strong>BTG_CLIENT_ID</strong>, <strong>BTG_CLIENT_SECRET</strong> e{" "}
+                <strong>BTG_COMPANY_ID</strong>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {config?.credenciaisConfiguradas && (
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => testarMutation.mutate()}
+                disabled={testarMutation.isPending}
+              >
+                {testarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Testar Conexão com BTG
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <form onSubmit={handleSave} className="space-y-6">
-        {/* Credenciais OAuth */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Credenciais OAuth2 (BTG Id)</CardTitle>
-            <CardDescription>
-              Obtenha as credenciais no portal BTG Empresas → Configurações → Integrações API
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="clientId">Client ID *</Label>
-                <Input
-                  id="clientId"
-                  value={formData.clientId}
-                  onChange={e => setFormData(prev => ({ ...prev, clientId: e.target.value }))}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="companyId">Company ID (CNPJ sem pontuação) *</Label>
-                <Input
-                  id="companyId"
-                  value={formData.companyId}
-                  onChange={e => setFormData(prev => ({ ...prev, companyId: e.target.value.replace(/\D/g, "") }))}
-                  placeholder="00000000000000"
-                  maxLength={14}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="clientSecret">
-                Client Secret {config?.hasClientSecret ? "(deixe em branco para manter o atual)" : "*"}
-              </Label>
-              <div className="relative">
-                <Input
-                  id="clientSecret"
-                  type={showSecret ? "text" : "password"}
-                  value={formData.clientSecret}
-                  onChange={e => setFormData(prev => ({ ...prev, clientSecret: e.target.value }))}
-                  placeholder={config?.hasClientSecret ? "••••••••••••••••" : "Cole o Client Secret aqui"}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowSecret(!showSecret)}
-                >
-                  {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {config?.hasClientSecret && (
-                <p className="text-xs text-muted-foreground">
-                  Secret atual: {config.clientSecretMasked}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="webhookSecret">Webhook Secret (opcional)</Label>
-              <Input
-                id="webhookSecret"
-                type="password"
-                value={formData.webhookSecret}
-                onChange={e => setFormData(prev => ({ ...prev, webhookSecret: e.target.value }))}
-                placeholder="Secret para validar assinatura HMAC dos webhooks"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Configurações de Emissão */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Configurações de Emissão</CardTitle>
+            <CardDescription>
+              Parâmetros padrão usados na emissão de boletos para todos os condomínios
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -244,7 +197,9 @@ export default function BTGConfig() {
                   value={formData.diasVencimentoPadrao}
                   onChange={e => setFormData(prev => ({ ...prev, diasVencimentoPadrao: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">Usado quando a cobrança não tem data de vencimento definida</p>
+                <p className="text-xs text-muted-foreground">
+                  Usado quando a cobrança não tem data de vencimento definida
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="diasLimite">Dias Limite para Pagamento Após Vencimento</Label>
@@ -256,7 +211,9 @@ export default function BTGConfig() {
                   value={formData.diasLimitePagamento}
                   onChange={e => setFormData(prev => ({ ...prev, diasLimitePagamento: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">Após este prazo o boleto expira automaticamente</p>
+                <p className="text-xs text-muted-foreground">
+                  Após este prazo o boleto expira automaticamente
+                </p>
               </div>
             </div>
 
@@ -269,6 +226,9 @@ export default function BTGConfig() {
                 placeholder="Texto que aparece no boleto..."
                 rows={3}
               />
+              <p className="text-xs text-muted-foreground">
+                Este texto aparece no campo de instruções do boleto emitido
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -278,13 +238,14 @@ export default function BTGConfig() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Webhook className="h-4 w-4" />
-              URL do Webhook BTG
+              Webhook de Pagamento Automático
             </CardTitle>
             <CardDescription>
-              Configure esta URL no portal BTG Empresas para receber notificações automáticas de pagamento
+              Configure esta URL no portal BTG Empresas para receber notificações automáticas de pagamento.
+              O sistema dará baixa automática nas cobranças ao receber o evento <strong>collections.paid</strong>.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono break-all">
                 {webhookUrl}
@@ -301,12 +262,27 @@ export default function BTGConfig() {
                 Copiar
               </Button>
             </div>
-            <Alert className="mt-3">
+
+            <div className="space-y-2">
+              <Label htmlFor="webhookSecret">Webhook Secret (opcional)</Label>
+              <Input
+                id="webhookSecret"
+                type="password"
+                value={formData.webhookSecret}
+                onChange={e => setFormData(prev => ({ ...prev, webhookSecret: e.target.value }))}
+                placeholder="Secret para validar assinatura HMAC dos webhooks BTG"
+              />
+              <p className="text-xs text-muted-foreground">
+                Se configurado, o sistema valida a assinatura HMAC-SHA256 de cada webhook recebido
+              </p>
+            </div>
+
+            <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                No portal BTG Empresas, vá em <strong>Configurações → Webhooks</strong> e cadastre esta URL para os eventos:
-                <strong> collections.paid</strong>, <strong>collections.expired</strong>, <strong>collections.cancelled</strong>.
-                O sistema dará baixa automática nas cobranças ao receber o evento <strong>collections.paid</strong>.
+                No portal BTG Empresas, acesse <strong>Configurações → Webhooks</strong> e cadastre
+                a URL acima para os eventos: <strong>collections.paid</strong>,{" "}
+                <strong>collections.expired</strong> e <strong>collections.cancelled</strong>.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -316,15 +292,6 @@ export default function BTGConfig() {
           <Button type="submit" disabled={saveMutation.isPending}>
             {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Salvar Configuração
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleTestar}
-            disabled={testarMutation.isPending || !config}
-          >
-            {testarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Testar Conexão
           </Button>
         </div>
       </form>

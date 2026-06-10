@@ -3,8 +3,11 @@
  * Integração com a API de Cobranças do BTG Pactual
  * Documentação: https://developers.empresas.btgpactual.com/reference/collection
  *
- * Fluxo de autenticação: Authorization Code (BTG Id)
- * Endpoint base: https://api.empresas.btgpactual.com/{companyId}/banking/collections
+ * Configuração: usa variáveis de ambiente globais do escritório
+ *   BTG_CLIENT_ID, BTG_CLIENT_SECRET, BTG_COMPANY_ID
+ *
+ * Configurações adicionais (instrucoes, diasVencimento, etc.) ficam na tabela
+ * btgConfig com id=1 (registro único global).
  */
 
 import { getDb } from "./db";
@@ -13,6 +16,10 @@ import { eq } from "drizzle-orm";
 
 const BTG_AUTH_URL = "https://id.btgpactual.com/auth/realms/btg-empresas/protocol/openid-connect/token";
 const BTG_API_BASE = "https://api.empresas.btgpactual.com";
+
+// ─── Cache de token em memória ─────────────────────────────────────────────────
+let _cachedToken: string | null = null;
+let _tokenExpiresAt: number = 0; // timestamp ms
 
 // ─── Tipos da API BTG ──────────────────────────────────────────────────────────
 
@@ -103,41 +110,78 @@ export interface BtgWebhookPayload {
   };
 }
 
+// ─── Configuração Global ───────────────────────────────────────────────────────
+
+/**
+ * Retorna as credenciais BTG das variáveis de ambiente globais.
+ * Lança erro se não estiverem configuradas.
+ */
+function getBtgCredentials(): { clientId: string; clientSecret: string; companyId: string } {
+  const clientId = process.env.BTG_CLIENT_ID;
+  const clientSecret = process.env.BTG_CLIENT_SECRET;
+  const companyId = process.env.BTG_COMPANY_ID;
+
+  if (!clientId || !clientSecret || !companyId) {
+    throw new Error(
+      "Credenciais BTG não configuradas. Defina BTG_CLIENT_ID, BTG_CLIENT_SECRET e BTG_COMPANY_ID nas variáveis de ambiente."
+    );
+  }
+
+  return { clientId, clientSecret, companyId };
+}
+
+/**
+ * Retorna configurações extras do BTG (instrucoes, diasVencimento, etc.)
+ * da tabela btgConfig (registro único global, id=1).
+ * Retorna defaults se não existir.
+ */
+export async function getBtgExtraConfig(): Promise<{
+  diasVencimentoPadrao: number;
+  diasLimitePagamento: number;
+  instrucoes: string | null;
+  webhookSecret: string | null;
+  ativo: boolean;
+}> {
+  try {
+    const db = await getDb();
+    if (!db) return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true };
+
+    const config = await db.select().from(btgConfig).limit(1);
+    if (!config.length) {
+      return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true };
+    }
+
+    const cfg = config[0];
+    return {
+      diasVencimentoPadrao: cfg.diasVencimentoPadrao ?? 30,
+      diasLimitePagamento: cfg.diasLimitePagamento ?? 60,
+      instrucoes: cfg.instrucoes ?? null,
+      webhookSecret: cfg.webhookSecret ?? null,
+      ativo: cfg.ativo === 1,
+    };
+  } catch {
+    return { diasVencimentoPadrao: 30, diasLimitePagamento: 60, instrucoes: null, webhookSecret: null, ativo: true };
+  }
+}
+
 // ─── Autenticação ──────────────────────────────────────────────────────────────
 
 /**
  * Obtém token de acesso BTG via Client Credentials.
- * Usa cache na tabela btgConfig para evitar reautenticação desnecessária.
+ * Usa cache em memória para evitar reautenticação desnecessária.
  */
-export async function getBtgAccessToken(condominioId: number): Promise<string> {
-  const db = await getDb();
-  if (!db) throw new Error("Banco de dados não disponível");
-
-  const config = await db.select().from(btgConfig)
-    .where(eq(btgConfig.condominioId, condominioId))
-    .limit(1);
-
-  if (!config.length) {
-    throw new Error("Configuração BTG não encontrada para este condomínio");
+export async function getBtgAccessToken(): Promise<string> {
+  // Verificar cache em memória (com 5 min de margem)
+  if (_cachedToken && Date.now() < _tokenExpiresAt - 5 * 60 * 1000) {
+    return _cachedToken;
   }
 
-  const cfg = config[0];
+  const { clientId, clientSecret } = getBtgCredentials();
 
-  // Verificar cache do token
-  if (cfg.accessToken && cfg.tokenExpiresAt) {
-    const now = new Date();
-    const expiresAt = new Date(cfg.tokenExpiresAt);
-    // Usar token em cache se ainda válido (com 5 min de margem)
-    if (expiresAt.getTime() - now.getTime() > 5 * 60 * 1000) {
-      return cfg.accessToken;
-    }
-  }
-
-  // Solicitar novo token
   const params = new URLSearchParams({
     grant_type: "client_credentials",
-    client_id: cfg.clientId,
-    client_secret: cfg.clientSecret,
+    client_id: clientId,
+    client_secret: clientSecret,
     scope: "brn:btg:empresas:banking:collections openid",
   });
 
@@ -158,19 +202,11 @@ export async function getBtgAccessToken(condominioId: number): Promise<string> {
     token_type: string;
   };
 
-  // Calcular expiração
-  const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+  // Salvar em cache
+  _cachedToken = tokenData.access_token;
+  _tokenExpiresAt = Date.now() + tokenData.expires_in * 1000;
 
-  // Salvar token em cache
-  await db.update(btgConfig)
-    .set({
-      accessToken: tokenData.access_token,
-      tokenExpiresAt: expiresAt,
-      updatedAt: new Date(),
-    })
-    .where(eq(btgConfig.condominioId, condominioId));
-
-  return tokenData.access_token;
+  return _cachedToken;
 }
 
 // ─── Funções de Cobrança ───────────────────────────────────────────────────────
@@ -179,24 +215,12 @@ export async function getBtgAccessToken(condominioId: number): Promise<string> {
  * Cria uma cobrança (boleto híbrido BANKSLIP_PIX) no BTG Pactual
  */
 export async function criarCobrancaBtg(
-  condominioId: number,
   payload: BtgCreateCollectionRequest
 ): Promise<BtgCollectionResponse> {
-  const db = await getDb();
-  if (!db) throw new Error("Banco de dados não disponível");
+  const { companyId } = getBtgCredentials();
+  const token = await getBtgAccessToken();
 
-  const config = await db.select().from(btgConfig)
-    .where(eq(btgConfig.condominioId, condominioId))
-    .limit(1);
-
-  if (!config.length) {
-    throw new Error("Configuração BTG não encontrada para este condomínio");
-  }
-
-  const cfg = config[0];
-  const token = await getBtgAccessToken(condominioId);
-
-  const url = `${BTG_API_BASE}/${cfg.companyId}/banking/collections`;
+  const url = `${BTG_API_BASE}/${companyId}/banking/collections`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -220,24 +244,12 @@ export async function criarCobrancaBtg(
  * Busca uma cobrança pelo ID no BTG Pactual
  */
 export async function buscarCobrancaBtg(
-  condominioId: number,
   collectionId: string
 ): Promise<BtgCollectionResponse> {
-  const db = await getDb();
-  if (!db) throw new Error("Banco de dados não disponível");
+  const { companyId } = getBtgCredentials();
+  const token = await getBtgAccessToken();
 
-  const config = await db.select().from(btgConfig)
-    .where(eq(btgConfig.condominioId, condominioId))
-    .limit(1);
-
-  if (!config.length) {
-    throw new Error("Configuração BTG não encontrada para este condomínio");
-  }
-
-  const cfg = config[0];
-  const token = await getBtgAccessToken(condominioId);
-
-  const url = `${BTG_API_BASE}/${cfg.companyId}/banking/collections/${collectionId}`;
+  const url = `${BTG_API_BASE}/${companyId}/banking/collections/${collectionId}`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -259,24 +271,12 @@ export async function buscarCobrancaBtg(
  * Cancela uma cobrança no BTG Pactual
  */
 export async function cancelarCobrancaBtg(
-  condominioId: number,
   collectionId: string
 ): Promise<void> {
-  const db = await getDb();
-  if (!db) throw new Error("Banco de dados não disponível");
+  const { companyId } = getBtgCredentials();
+  const token = await getBtgAccessToken();
 
-  const config = await db.select().from(btgConfig)
-    .where(eq(btgConfig.condominioId, condominioId))
-    .limit(1);
-
-  if (!config.length) {
-    throw new Error("Configuração BTG não encontrada para este condomínio");
-  }
-
-  const cfg = config[0];
-  const token = await getBtgAccessToken(condominioId);
-
-  const url = `${BTG_API_BASE}/${cfg.companyId}/banking/collections/${collectionId}`;
+  const url = `${BTG_API_BASE}/${companyId}/banking/collections/${collectionId}`;
 
   const response = await fetch(url, {
     method: "DELETE",
@@ -296,7 +296,6 @@ export async function cancelarCobrancaBtg(
  * Lista cobranças no BTG Pactual com filtros opcionais
  */
 export async function listarCobrancasBtg(
-  condominioId: number,
   params?: {
     page?: number;
     pageSize?: number;
@@ -305,19 +304,8 @@ export async function listarCobrancasBtg(
     endDate?: string;
   }
 ): Promise<{ items: BtgCollectionResponse[]; total: number }> {
-  const db = await getDb();
-  if (!db) throw new Error("Banco de dados não disponível");
-
-  const config = await db.select().from(btgConfig)
-    .where(eq(btgConfig.condominioId, condominioId))
-    .limit(1);
-
-  if (!config.length) {
-    throw new Error("Configuração BTG não encontrada para este condomínio");
-  }
-
-  const cfg = config[0];
-  const token = await getBtgAccessToken(condominioId);
+  const { companyId } = getBtgCredentials();
+  const token = await getBtgAccessToken();
 
   const queryParams = new URLSearchParams();
   if (params?.page) queryParams.set("page", params.page.toString());
@@ -326,7 +314,7 @@ export async function listarCobrancasBtg(
   if (params?.startDate) queryParams.set("startDate", params.startDate);
   if (params?.endDate) queryParams.set("endDate", params.endDate);
 
-  const url = `${BTG_API_BASE}/${cfg.companyId}/banking/collections?${queryParams.toString()}`;
+  const url = `${BTG_API_BASE}/${companyId}/banking/collections?${queryParams.toString()}`;
 
   const response = await fetch(url, {
     method: "GET",

@@ -1,7 +1,9 @@
 /**
  * Router tRPC para integração BTG Pactual
- * Procedures: getConfig, saveConfig, testarConexao, emitirBoleto, cancelarBoleto,
- *             sincronizarStatus, listarCobrancasBtg, conciliar
+ * Configuração global (nível escritório) via variáveis de ambiente.
+ * Procedures: getConfig, saveConfig, testarConexao, emitirBoleto, emitirBoletoParcela,
+ *             cancelarBoleto, sincronizarStatus, listarCobrancasBtg, conciliarTodas,
+ *             listarCobrancasComBtg
  */
 
 import { z } from "zod";
@@ -15,7 +17,7 @@ import {
   parcelasAcordo,
   acordos,
 } from "../../drizzle/schema";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, isNotNull, desc } from "drizzle-orm";
 import {
   criarCobrancaBtg,
   cancelarCobrancaBtg,
@@ -23,119 +25,80 @@ import {
   listarCobrancasBtg,
   montarPayloadCobranca,
   getBtgAccessToken,
+  getBtgExtraConfig,
 } from "../btg-service";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-async function getCondominioId(ctx: { user: { condominioId?: number | null; role: string } }): Promise<number | null> {
-  return ctx.user.condominioId ?? null;
-}
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const btgRouter = router({
 
-  // ── Configuração ────────────────────────────────────────────────────────────
+  // ── Configuração Global ──────────────────────────────────────────────────────
 
+  /**
+   * Retorna a configuração extra do BTG (instrucoes, diasVencimento, webhookSecret).
+   * As credenciais (clientId, clientSecret, companyId) vêm das env vars e nunca
+   * são expostas ao frontend — apenas indicamos se estão configuradas.
+   */
   getConfig: protectedProcedure
-    .input(z.object({ condominioId: z.number().optional() }))
-    .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("Banco não disponível");
+    .query(async () => {
+      const extra = await getBtgExtraConfig();
 
-      const condId = input.condominioId ?? (await getCondominioId(ctx));
-      if (!condId) return null;
+      // Indicar se as env vars estão configuradas (sem expor os valores)
+      const clientIdConfigured = !!process.env.BTG_CLIENT_ID;
+      const clientSecretConfigured = !!process.env.BTG_CLIENT_SECRET;
+      const companyIdConfigured = !!process.env.BTG_COMPANY_ID;
 
-      const config = await db.select({
-        id: btgConfig.id,
-        condominioId: btgConfig.condominioId,
-        clientId: btgConfig.clientId,
-        // Nunca retornar clientSecret completo ao frontend
-        clientSecretMasked: btgConfig.clientSecret,
-        companyId: btgConfig.companyId,
-        webhookSecret: btgConfig.webhookSecret,
-        diasVencimentoPadrao: btgConfig.diasVencimentoPadrao,
-        diasLimitePagamento: btgConfig.diasLimitePagamento,
-        instrucoes: btgConfig.instrucoes,
-        ativo: btgConfig.ativo,
-        tokenExpiresAt: btgConfig.tokenExpiresAt,
-        createdAt: btgConfig.createdAt,
-        updatedAt: btgConfig.updatedAt,
-      }).from(btgConfig)
-        .where(eq(btgConfig.condominioId, condId))
-        .limit(1);
-
-      if (!config.length) return null;
-
-      const cfg = config[0];
       return {
-        ...cfg,
-        // Mascarar o secret
-        clientSecretMasked: cfg.clientSecretMasked
-          ? `${"*".repeat(Math.max(0, cfg.clientSecretMasked.length - 4))}${cfg.clientSecretMasked.slice(-4)}`
-          : "",
-        hasClientSecret: !!cfg.clientSecretMasked,
-        tokenAtivo: cfg.tokenExpiresAt
-          ? new Date(cfg.tokenExpiresAt).getTime() > Date.now()
-          : false,
+        credenciaisConfiguradas: clientIdConfigured && clientSecretConfigured && companyIdConfigured,
+        clientIdConfigured,
+        clientSecretConfigured,
+        companyIdConfigured,
+        companyIdMasked: process.env.BTG_COMPANY_ID
+          ? `***${process.env.BTG_COMPANY_ID.slice(-4)}`
+          : null,
+        ...extra,
       };
     }),
 
+  /**
+   * Salva configurações extras do BTG (instrucoes, diasVencimento, webhookSecret).
+   * Credenciais são gerenciadas via env vars, não por esta tela.
+   */
   saveConfig: protectedProcedure
     .input(z.object({
-      condominioId: z.number().optional(),
-      clientId: z.string().min(1, "Client ID obrigatório"),
-      clientSecret: z.string().optional(), // opcional na edição (manter existente se vazio)
-      companyId: z.string().min(1, "Company ID obrigatório"),
       webhookSecret: z.string().optional(),
       diasVencimentoPadrao: z.number().min(1).max(365).default(30),
       diasLimitePagamento: z.number().min(1).max(365).default(60),
       instrucoes: z.string().optional(),
       ativo: z.number().default(1),
     }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
-      const condId = input.condominioId ?? (await getCondominioId(ctx));
-      if (!condId) throw new Error("Condomínio não identificado");
-
-      // Verificar se já existe configuração
-      const existing = await db.select({ id: btgConfig.id, clientSecret: btgConfig.clientSecret })
+      // Verificar se já existe registro global (id=1)
+      const existing = await db.select({ id: btgConfig.id })
         .from(btgConfig)
-        .where(eq(btgConfig.condominioId, condId))
         .limit(1);
-
-      const secretToSave = input.clientSecret && input.clientSecret.trim()
-        ? input.clientSecret.trim()
-        : (existing[0]?.clientSecret ?? "");
-
-      if (!secretToSave) {
-        throw new Error("Client Secret é obrigatório no primeiro cadastro");
-      }
 
       if (existing.length) {
         await db.update(btgConfig)
           .set({
-            clientId: input.clientId,
-            clientSecret: secretToSave,
-            companyId: input.companyId,
             webhookSecret: input.webhookSecret ?? null,
             diasVencimentoPadrao: input.diasVencimentoPadrao,
             diasLimitePagamento: input.diasLimitePagamento,
             instrucoes: input.instrucoes ?? null,
             ativo: input.ativo,
-            // Invalidar token ao alterar credenciais
-            ...(input.clientSecret ? { accessToken: null, tokenExpiresAt: null } : {}),
             updatedAt: new Date(),
           })
-          .where(eq(btgConfig.condominioId, condId));
+          .where(eq(btgConfig.id, existing[0].id));
       } else {
+        // Criar registro global com condominioId=0 (global)
         await db.insert(btgConfig).values({
-          condominioId: condId,
-          clientId: input.clientId,
-          clientSecret: secretToSave,
-          companyId: input.companyId,
+          condominioId: 0,
+          clientId: process.env.BTG_CLIENT_ID ?? "",
+          clientSecret: process.env.BTG_CLIENT_SECRET ?? "",
+          companyId: process.env.BTG_COMPANY_ID ?? "",
           webhookSecret: input.webhookSecret ?? null,
           diasVencimentoPadrao: input.diasVencimentoPadrao,
           diasLimitePagamento: input.diasLimitePagamento,
@@ -147,14 +110,13 @@ export const btgRouter = router({
       return { success: true };
     }),
 
+  /**
+   * Testa a conexão com a API BTG usando as credenciais das env vars.
+   */
   testarConexao: protectedProcedure
-    .input(z.object({ condominioId: z.number().optional() }))
-    .mutation(async ({ ctx, input }) => {
-      const condId = input.condominioId ?? (await getCondominioId(ctx));
-      if (!condId) throw new Error("Condomínio não identificado");
-
+    .mutation(async () => {
       try {
-        const token = await getBtgAccessToken(condId);
+        const token = await getBtgAccessToken();
         return { success: true, message: "Conexão com BTG estabelecida com sucesso!", tokenObtido: !!token };
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : String(error);
@@ -162,7 +124,7 @@ export const btgRouter = router({
       }
     }),
 
-  // ── Emissão de Boleto ────────────────────────────────────────────────────────
+  // ── Emissão de Boleto (Cobrança) ─────────────────────────────────────────────
 
   emitirBoleto: protectedProcedure
     .input(z.object({
@@ -179,10 +141,9 @@ export const btgRouter = router({
       payerCity: z.string().optional(),
       payerState: z.string().optional(),
       payerZipCode: z.string().optional(),
-      // Configurações de emissão
-      dueDate: z.string().optional(), // YYYY-MM-DD (se não informado, usa dataVencimento da cobrança)
+      dueDate: z.string().optional(), // YYYY-MM-DD
     }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
@@ -207,18 +168,12 @@ export const btgRouter = router({
       if (!devedorRows.length) throw new Error("Devedor não encontrado");
       const devedor = devedorRows[0];
 
-      // Buscar configuração BTG do condomínio
-      const condId = cobranca.condominioId;
-      const configRows = await db.select().from(btgConfig)
-        .where(eq(btgConfig.condominioId, condId))
-        .limit(1);
-
-      if (!configRows.length) throw new Error("Configuração BTG não encontrada para este condomínio");
-      const cfg = configRows[0];
+      // Buscar configuração extra BTG
+      const cfg = await getBtgExtraConfig();
 
       // Buscar dados do condomínio para juros/multa
       const condRows = await db.select().from(condominios)
-        .where(eq(condominios.id, condId))
+        .where(eq(condominios.id, cobranca.condominioId))
         .limit(1);
       const cond = condRows[0];
 
@@ -226,7 +181,7 @@ export const btgRouter = router({
       const dueDateStr = input.dueDate ?? (cobranca.dueDate ? cobranca.dueDate.toISOString().split("T")[0] : new Date().toISOString().split("T")[0]);
       const dueDate = new Date(dueDateStr + "T12:00:00");
 
-      // Montar dados do pagador (prioridade: input > devedor)
+      // Montar dados do pagador
       const payerName = input.payerName || devedor.name || `Unidade ${devedor.unitNumber}`;
       const payerDocument = input.payerDocument || devedor.cpfCnpj || "";
 
@@ -234,7 +189,6 @@ export const btgRouter = router({
         throw new Error("CPF/CNPJ do devedor é obrigatório para emissão de boleto BTG");
       }
 
-      // Montar payload
       const payload = montarPayloadCobranca({
         amount: cobranca.amount,
         dueDate,
@@ -263,7 +217,7 @@ export const btgRouter = router({
       });
 
       // Emitir no BTG
-      const resultado = await criarCobrancaBtg(condId, payload);
+      const resultado = await criarCobrancaBtg(payload);
 
       // Salvar resultado na cobrança
       await db.update(cobrancas)
@@ -292,6 +246,8 @@ export const btgRouter = router({
       };
     }),
 
+  // ── Emissão de Boleto (Parcela de Acordo) ────────────────────────────────────
+
   emitirBoletoParcela: protectedProcedure
     .input(z.object({
       parcelaId: z.number(),
@@ -307,11 +263,10 @@ export const btgRouter = router({
       payerState: z.string().optional(),
       payerZipCode: z.string().optional(),
     }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
-      // Buscar parcela
       const parcelaRows = await db.select().from(parcelasAcordo)
         .where(eq(parcelasAcordo.id, input.parcelaId))
         .limit(1);
@@ -323,7 +278,6 @@ export const btgRouter = router({
         throw new Error(`Parcela já possui boleto BTG ativo (Status: ${parcela.btgStatus})`);
       }
 
-      // Buscar acordo para obter devedorId e condominioId
       const acordoRows = await db.select().from(acordos)
         .where(eq(acordos.id, parcela.acordoId))
         .limit(1);
@@ -331,7 +285,6 @@ export const btgRouter = router({
       if (!acordoRows.length) throw new Error("Acordo não encontrado");
       const acordo = acordoRows[0];
 
-      // Buscar devedor
       const devedorRows = await db.select().from(devedores)
         .where(eq(devedores.id, acordo.devedorId))
         .limit(1);
@@ -339,18 +292,10 @@ export const btgRouter = router({
       if (!devedorRows.length) throw new Error("Devedor não encontrado");
       const devedor = devedorRows[0];
 
-      const condId = acordo.condominioId;
-
-      // Buscar configuração BTG
-      const configRows = await db.select().from(btgConfig)
-        .where(eq(btgConfig.condominioId, condId))
-        .limit(1);
-
-      if (!configRows.length) throw new Error("Configuração BTG não encontrada para este condomínio");
-      const cfg = configRows[0];
+      const cfg = await getBtgExtraConfig();
 
       const condRows = await db.select().from(condominios)
-        .where(eq(condominios.id, condId))
+        .where(eq(condominios.id, acordo.condominioId))
         .limit(1);
       const cond = condRows[0];
 
@@ -388,7 +333,7 @@ export const btgRouter = router({
           : 2.0,
       });
 
-      const resultado = await criarCobrancaBtg(condId, payload);
+      const resultado = await criarCobrancaBtg(payload);
 
       await db.update(parcelasAcordo)
         .set({
@@ -416,7 +361,7 @@ export const btgRouter = router({
 
   cancelarBoleto: protectedProcedure
     .input(z.object({ cobrancaId: z.number() }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
@@ -429,7 +374,7 @@ export const btgRouter = router({
 
       if (!cobranca.btgCollectionId) throw new Error("Cobrança não possui boleto BTG");
 
-      await cancelarCobrancaBtg(cobranca.condominioId, cobranca.btgCollectionId);
+      await cancelarCobrancaBtg(cobranca.btgCollectionId);
 
       await db.update(cobrancas)
         .set({ btgStatus: "CANCELED", updatedAt: new Date() })
@@ -442,7 +387,7 @@ export const btgRouter = router({
 
   sincronizarStatus: protectedProcedure
     .input(z.object({ cobrancaId: z.number() }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
@@ -455,14 +400,13 @@ export const btgRouter = router({
 
       if (!cobranca.btgCollectionId) throw new Error("Cobrança não possui boleto BTG");
 
-      const resultado = await buscarCobrancaBtg(cobranca.condominioId, cobranca.btgCollectionId);
+      const resultado = await buscarCobrancaBtg(cobranca.btgCollectionId);
 
       const updates: Record<string, unknown> = {
         btgStatus: resultado.status,
         updatedAt: new Date(),
       };
 
-      // Se pago, dar baixa automática
       if (resultado.status === "PAID") {
         updates.status = "pago";
         updates.paidAt = new Date();
@@ -483,20 +427,19 @@ export const btgRouter = router({
 
   // ── Listagem e Conciliação ───────────────────────────────────────────────────
 
+  /**
+   * Lista cobranças diretamente na API BTG (visão do banco)
+   */
   listarCobrancasBtg: protectedProcedure
     .input(z.object({
-      condominioId: z.number().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
       status: z.string().optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
     }))
-    .query(async ({ ctx, input }) => {
-      const condId = input.condominioId ?? (await getCondominioId(ctx));
-      if (!condId) throw new Error("Condomínio não identificado");
-
-      return listarCobrancasBtg(condId, {
+    .query(async ({ input }) => {
+      return listarCobrancasBtg({
         page: input.page,
         pageSize: input.pageSize,
         status: input.status,
@@ -505,19 +448,25 @@ export const btgRouter = router({
       });
     }),
 
+  /**
+   * Concilia todas as cobranças BTG ativas no sistema com o status real na API BTG.
+   * Dá baixa automática nas cobranças pagas.
+   */
   conciliarTodas: protectedProcedure
     .input(z.object({
       condominioId: z.number().optional(),
       limit: z.number().default(50),
     }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
-      const condId = input.condominioId ?? (await getCondominioId(ctx));
-      if (!condId) throw new Error("Condomínio não identificado");
-
       // Buscar cobranças com BTG ativo que não estão pagas/canceladas no sistema
+      const whereConditions = [isNotNull(cobrancas.btgCollectionId)];
+      if (input.condominioId) {
+        whereConditions.push(eq(cobrancas.condominioId, input.condominioId));
+      }
+
       const cobrancasPendentes = await db.select({
         id: cobrancas.id,
         btgCollectionId: cobrancas.btgCollectionId,
@@ -525,12 +474,7 @@ export const btgRouter = router({
         status: cobrancas.status,
         amount: cobrancas.amount,
       }).from(cobrancas)
-        .where(
-          and(
-            eq(cobrancas.condominioId, condId),
-            isNotNull(cobrancas.btgCollectionId)
-          )
-        )
+        .where(and(...whereConditions))
         .limit(input.limit);
 
       let atualizadas = 0;
@@ -539,11 +483,10 @@ export const btgRouter = router({
 
       for (const cob of cobrancasPendentes) {
         if (!cob.btgCollectionId) continue;
-        // Pular se já está no estado final
         if (["pago", "cancelado"].includes(cob.status)) continue;
 
         try {
-          const resultado = await buscarCobrancaBtg(condId, cob.btgCollectionId);
+          const resultado = await buscarCobrancaBtg(cob.btgCollectionId);
 
           const updates: Record<string, unknown> = {
             btgStatus: resultado.status,
@@ -577,8 +520,9 @@ export const btgRouter = router({
       };
     }),
 
-  // ── Cobranças com boleto BTG no sistema ─────────────────────────────────────
-
+  /**
+   * Lista cobranças do sistema que têm boleto BTG emitido
+   */
   listarCobrancasComBtg: protectedProcedure
     .input(z.object({
       condominioId: z.number().optional(),
@@ -586,16 +530,22 @@ export const btgRouter = router({
       pageSize: z.number().default(20),
       btgStatus: z.string().optional(),
     }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
-      const condId = input.condominioId ?? (await getCondominioId(ctx));
-      if (!condId) throw new Error("Condomínio não identificado");
+      const whereConditions = [isNotNull(cobrancas.btgCollectionId)];
+      if (input.condominioId) {
+        whereConditions.push(eq(cobrancas.condominioId, input.condominioId));
+      }
+      if (input.btgStatus) {
+        whereConditions.push(eq(cobrancas.btgStatus, input.btgStatus));
+      }
 
       const rows = await db.select({
         id: cobrancas.id,
         devedorId: cobrancas.devedorId,
+        condominioId: cobrancas.condominioId,
         description: cobrancas.description,
         amount: cobrancas.amount,
         dueDate: cobrancas.dueDate,
@@ -610,13 +560,8 @@ export const btgRouter = router({
         devedorBloco: devedores.bloco,
       }).from(cobrancas)
         .leftJoin(devedores, eq(devedores.id, cobrancas.devedorId))
-        .where(
-          and(
-            eq(cobrancas.condominioId, condId),
-            isNotNull(cobrancas.btgCollectionId)
-          )
-        )
-        .orderBy(cobrancas.btgEmitidoEm)
+        .where(and(...whereConditions))
+        .orderBy(desc(cobrancas.btgEmitidoEm))
         .limit(input.pageSize)
         .offset((input.page - 1) * input.pageSize);
 

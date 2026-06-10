@@ -32,13 +32,13 @@ export default function BTGConciliacao() {
     enabled: user?.role === "admin",
   });
 
+  // condominioId é opcional: se não selecionado, mostra todas as cobranças BTG
   const condId = condominioId
     ? parseInt(condominioId)
-    : user?.condominioId ?? undefined;
+    : (user?.role === "admin" ? undefined : user?.condominioId ?? undefined);
 
   const { data: cobrancas, refetch, isLoading } = trpc.btg.listarCobrancasComBtg.useQuery(
-    { condominioId: condId, page, pageSize: 20 },
-    { enabled: !!condId }
+    { condominioId: condId, page, pageSize: 20 }
   );
 
   const sincronizarMutation = trpc.btg.sincronizarStatus.useMutation({
@@ -96,8 +96,8 @@ export default function BTGConciliacao() {
           </div>
         </div>
         <Button
-          onClick={() => condId && conciliarTodasMutation.mutate({ condominioId: condId })}
-          disabled={!condId || conciliarTodasMutation.isPending}
+          onClick={() => conciliarTodasMutation.mutate({ condominioId: condId })}
+          disabled={conciliarTodasMutation.isPending}
         >
           {conciliarTodasMutation.isPending
             ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -112,9 +112,10 @@ export default function BTGConciliacao() {
           <CardContent className="pt-4">
             <Select value={condominioId} onValueChange={setCondominioId}>
               <SelectTrigger className="w-full md:w-80">
-                <SelectValue placeholder="Selecione o condomínio" />
+                <SelectValue placeholder="Todos os condomínios" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">Todos os condomínios</SelectItem>
                 {condominios.map(c => (
                   <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
                 ))}
@@ -154,10 +155,6 @@ export default function BTGConciliacao() {
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : !condId ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Selecione um condomínio para visualizar as cobranças
             </div>
           ) : !cobrancas?.length ? (
             <div className="text-center py-8 text-muted-foreground">

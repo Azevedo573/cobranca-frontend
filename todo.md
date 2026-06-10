@@ -2205,3 +2205,10 @@
 ### Testes
 - [x] Escrever testes unitários para btg-service.ts (validação de módulo e funções)
 - [x] Escrever testes para router BTG (verificação de registro no appRouter)
+
+## Refatoração BTG — Configuração Global (nível escritório)
+- [x] Refatorar btg-service.ts para usar BTG_CLIENT_ID, BTG_CLIENT_SECRET, BTG_COMPANY_ID das env vars globais (sem condominioId)
+- [x] Simplificar router btg.ts: remover getConfig/saveConfig por condomínio, usar config global
+- [x] Atualizar BTGConfig.tsx: tela de configuração global com status das env vars
+- [x] Atualizar BTGConciliacao.tsx: filtro de condomínio é opcional (admin pode ver todos)
+- [x] Manter tabela btgConfig no banco para configurações extras (instrucoes, diasVencimento, webhookSecret)
