@@ -287,6 +287,45 @@ function MsgBubble({ msg, onReenviar }: { msg: any; onReenviar?: (msg: any) => v
   );
 }
 
+// ─── Card de Atendimento Automático (Bot) ────────────────────────────────────
+function CardAutomatico({ atend, onAssumir }: { atend: any; onAssumir: (id: number) => void }) {
+  return (
+    <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-3 hover:shadow-md transition-all cursor-pointer group">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="relative shrink-0">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">{initials(atend.nomeContato)}</AvatarFallback>
+            </Avatar>
+            <span className="absolute -bottom-0.5 -right-0.5 text-sm">🤖</span>
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium text-sm truncate">{atend.nomeContato || atend.telefone}</p>
+            <p className="text-xs text-muted-foreground">{atend.protocolo}</p>
+          </div>
+        </div>
+        <Badge className="text-[10px] h-5 px-1.5 shrink-0 bg-purple-100 text-purple-700 border-purple-200">🤖 Bot</Badge>
+      </div>
+      {atend.ultimaMensagem && (
+        <p className="text-xs text-muted-foreground mt-2 truncate italic">"{atend.ultimaMensagem}"</p>
+      )}
+      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatElapsed(atend.iniciadoEm)}</span>
+        {atend.departamentoNome && (
+          <span className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: atend.departamentoCor ?? "#a855f7" }} />
+            {atend.departamentoNome}
+          </span>
+        )}
+      </div>
+      <Button size="sm" className="w-full mt-2 h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={() => onAssumir(atend.id)}>
+        Assumir do bot
+      </Button>
+    </div>
+  );
+}
+
 // ─── Card de Atendimento na Fila ──────────────────────────────────────────────
 function CardFila({ atend, onAssumir }: { atend: Atendimento; onAssumir: (id: number) => void }) {
   const prio = prioridadeConfig[atend.prioridade] ?? prioridadeConfig.normal;
@@ -833,7 +872,7 @@ export default function Atendimento() {
   const { user } = useAuth();
 
   // Modo de visualização da coluna esquerda
-  const [abaSelecionada, setAbaSelecionada] = useState<"meus" | "fila" | "supervisor">("meus");
+  const [abaSelecionada, setAbaSelecionada] = useState<"meus" | "fila" | "automatico" | "supervisor">("meus");
 
   // Atendimento selecionado (modo "meus" e "fila")
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<Atendimento | null>(null);
@@ -859,6 +898,7 @@ export default function Atendimento() {
   const { data: meuStatus, refetch: refetchStatus } = trpc.atendimento.meuStatusOperador.useQuery();
   const { data: meusAtendimentos = [], refetch: refetchMeus } = trpc.atendimento.meusAtendimentos.useQuery(undefined, { refetchInterval: 3000 });
   const { data: fila = [], refetch: refetchFila } = trpc.atendimento.filaAtendimento.useQuery(undefined, { refetchInterval: 3000 });
+  const { data: automaticos = [] } = trpc.atendimento.automaticosAtendimento.useQuery(undefined, { refetchInterval: 3000 });
   const { data: mensagensRapidas = [] } = trpc.atendimento.listarMensagensRapidas.useQuery();
 
   // Instâncias WhatsApp
@@ -1098,6 +1138,7 @@ export default function Atendimento() {
             {([
               { key: "meus", label: "Meus", count: meusAtendimentos.length },
               { key: "fila", label: "Fila", count: fila.length },
+              { key: "automatico", label: "Automático", count: automaticos.length },
               { key: "supervisor", label: "Supervisão", count: null },
             ] as const).map((aba) => (
               <button key={aba.key} onClick={() => setAbaSelecionada(aba.key)}
@@ -1114,7 +1155,7 @@ export default function Atendimento() {
           </div>
 
           {/* Busca */}
-          {(abaSelecionada === "meus" || abaSelecionada === "fila") && (
+          {(abaSelecionada === "meus" || abaSelecionada === "fila" || abaSelecionada === "automatico") && (
             <div className="relative mt-2">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input placeholder="Buscar..." value={buscaConversa} onChange={(e) => setBuscaConversa(e.target.value)} className="pl-8 h-7 text-xs" />
@@ -1150,6 +1191,26 @@ export default function Atendimento() {
                 </div>
               ) : (fila as Atendimento[]).map((a) => (
                 <CardFila key={a.id} atend={a} onAssumir={(id) => assumirMutation.mutate({ atendimentoId: id })} />
+              ))}
+            </div>
+          )}
+
+          {/* Automático */}
+          {abaSelecionada === "automatico" && (
+            <div className="p-3 space-y-2">
+              {(automaticos as any[]).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="text-4xl mb-3">🤖</div>
+                  <p className="text-sm text-muted-foreground">Nenhum atendimento automático</p>
+                  <p className="text-xs text-muted-foreground mt-1">O bot não está respondendo nenhuma conversa</p>
+                </div>
+              ) : (automaticos as any[]).filter(a =>
+                !buscaConversa ||
+                (a.nomeContato ?? "").toLowerCase().includes(buscaConversa.toLowerCase()) ||
+                (a.telefone ?? "").includes(buscaConversa) ||
+                (a.protocolo ?? "").toLowerCase().includes(buscaConversa.toLowerCase())
+              ).map((a: any) => (
+                <CardAutomatico key={a.id} atend={a} onAssumir={(id) => assumirMutation.mutate({ atendimentoId: id })} />
               ))}
             </div>
           )}

@@ -381,6 +381,38 @@ export const atendimentoRouter = router({
       return rows;
     }),
 
+  // Atendimentos em modo automático (bot respondendo)
+  automaticosAtendimento: protectedProcedure.query(async () => {
+    const db = (await getDb())!;
+    const rows = await db
+      .select({
+        id: atendimentos.id,
+        protocolo: atendimentos.protocolo,
+        status: atendimentos.status,
+        prioridade: atendimentos.prioridade,
+        slaLimite: atendimentos.slaLimite,
+        slaViolado: atendimentos.slaViolado,
+        iniciadoEm: atendimentos.iniciadoEm,
+        conversaId: atendimentos.conversaId,
+        departamentoId: atendimentos.departamentoId,
+        devedorId: atendimentos.devedorId,
+        telefone: whatsappConversas.telefone,
+        nomeContato: whatsappConversas.nomeContato,
+        ultimaMensagem: whatsappConversas.ultimaMensagem,
+        ultimaMensagemEm: whatsappConversas.ultimaMensagemEm,
+        departamentoNome: atendimentoDepartamentos.nome,
+        departamentoCor: atendimentoDepartamentos.cor,
+        devedorNome: devedores.name,
+      })
+      .from(atendimentos)
+      .leftJoin(whatsappConversas, eq(atendimentos.conversaId, whatsappConversas.id))
+      .leftJoin(atendimentoDepartamentos, eq(atendimentos.departamentoId, atendimentoDepartamentos.id))
+      .leftJoin(devedores, eq(atendimentos.devedorId, devedores.id))
+      .where(eq(atendimentos.status, "automatico"))
+      .orderBy(asc(atendimentos.iniciadoEm));
+    return rows;
+  }),
+
   // Meus atendimentos ativos (do operador logado)
   meusAtendimentos: protectedProcedure.query(async ({ ctx }) => {
     const db = (await getDb())!;
