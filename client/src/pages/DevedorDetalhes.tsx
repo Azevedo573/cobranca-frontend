@@ -13,7 +13,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake, MoreHorizontal, PhoneCall } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -253,6 +260,7 @@ export default function DevedorDetalhes() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Primário: Realizar Acordo */}
               {user?.role !== "sindico" && (
                 <Button
                   size="sm"
@@ -263,31 +271,20 @@ export default function DevedorDetalhes() {
                   Realizar Acordo
                 </Button>
               )}
+
+              {/* Separador visual */}
+              <div className="w-px h-6 bg-border mx-1" />
+
+              {/* Secundários: ações frequentes */}
               {user?.role !== "sindico" && (
                 <Button variant="outline" size="sm" onClick={() => setModalDividaOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="h-4 w-4 mr-1.5" />
                   Nova Dívida
                 </Button>
               )}
-              {user?.role !== "sindico" && (
-                <Link href={`/devedores/${devedor.id}/importar-dividas`}>
-                  <Button variant="outline" size="sm">
-                    <Upload className="mr-2 h-4 w-4" />
-                    Importar Dívidas
-                  </Button>
-                </Link>
-              )}
               <Button variant="outline" size="sm" onClick={() => setModalTentativaOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
+                <PhoneCall className="h-4 w-4 mr-1.5" />
                 Nova Tentativa
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setModalDocumentoOpen(true)}>
-                <FileText className="mr-2 h-4 w-4" />
-                Gerar Documento
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setModalEmailOpen(true)}>
-                <Mail className="mr-2 h-4 w-4" />
-                Enviar E-mail
               </Button>
               <Button
                 variant="outline"
@@ -295,15 +292,47 @@ export default function DevedorDetalhes() {
                 className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
                 onClick={() => setModalWhatsAppOpen(true)}
               >
-                <MessageCircle className="mr-2 h-4 w-4" />
-                Chamar no WhatsApp
+                <MessageCircle className="h-4 w-4 mr-1.5" />
+                WhatsApp
               </Button>
-              <Link href={`/devedores/${devedor.id}/editar`}>
-                <Button size="sm">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar
-                </Button>
-              </Link>
+
+              {/* Separador visual */}
+              <div className="w-px h-6 bg-border mx-1" />
+
+              {/* Dropdown: Mais ações */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <MoreHorizontal className="h-4 w-4" />
+                    Mais
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {user?.role !== "sindico" && (
+                    <DropdownMenuItem asChild>
+                      <Link href={`/devedores/${devedor.id}/importar-dividas`} className="flex items-center gap-2 cursor-pointer">
+                        <Upload className="h-4 w-4" />
+                        Importar Dívidas
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => setModalDocumentoOpen(true)} className="gap-2 cursor-pointer">
+                    <FileText className="h-4 w-4" />
+                    Gerar Documento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setModalEmailOpen(true)} className="gap-2 cursor-pointer">
+                    <Mail className="h-4 w-4" />
+                    Enviar E-mail
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href={`/devedores/${devedor.id}/editar`} className="flex items-center gap-2 cursor-pointer">
+                      <Edit className="h-4 w-4" />
+                      Editar Devedor
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
