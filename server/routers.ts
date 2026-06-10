@@ -659,13 +659,13 @@ export const appRouter = router({
      * É a query principal usada na tela de Cobranças do devedor.
      */
     getComAcordos: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
-      const { getCobrancasByDevedor, getParcelasAcordoAtivasByDevedor } = await import("./db-cobrancas");
-      const [cobrancasNormais, parcelasAcordoAtivas] = await Promise.all([
-        getCobrancasByDevedor(input.devedorId),
+      const { getCobrancasComCalculos, getParcelasAcordoAtivasByDevedor } = await import("./db-cobrancas");
+      const [cobrancasComCalc, parcelasAcordoAtivas] = await Promise.all([
+        getCobrancasComCalculos(input.devedorId),
         getParcelasAcordoAtivasByDevedor(input.devedorId),
       ]);
       return {
-        cobrancas: cobrancasNormais,
+        cobrancas: cobrancasComCalc,
         parcelasAcordo: parcelasAcordoAtivas,
         temAcordoAtivo: parcelasAcordoAtivas.length > 0,
       };

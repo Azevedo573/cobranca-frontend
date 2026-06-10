@@ -61,7 +61,7 @@ export function NovaDividaModal({ open, onOpenChange, devedorId, condominioId }:
       tipoCobranca: tipo as "condominio" | "salao_jogos" | "churrasqueira" | "cota_extra" | "multa" | "outros",
       monthReference: mesReferencia,
       amount: valorCentavos,
-      dueDate: new Date(dataVencimento),
+      dueDate: new Date(dataVencimento + "T12:00:00"),
       description: descricao || undefined,
     });
   };

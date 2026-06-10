@@ -845,7 +845,7 @@ function CobrancasTabela({
                                 <span>{descricao}</span>
                               </div>
                             </TableCell>
-                            <TableCell>{format(new Date(cob.dueDate), "dd/MM/yyyy")}</TableCell>
+                            <TableCell>{cob.dueDate ? format(new Date(new Date(cob.dueDate).getTime() + new Date(cob.dueDate).getTimezoneOffset() * 60000), "dd/MM/yyyy") : "-"}</TableCell>
                             <TableCell>{formatarMoeda(breakdown.valorOriginal)}</TableCell>
                             <TableCell className="text-orange-600">{formatarMoeda(breakdown.juros)}</TableCell>
                             <TableCell className="text-red-600">{formatarMoeda(breakdown.multa)}</TableCell>
