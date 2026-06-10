@@ -22,7 +22,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Calculator, HandshakeIcon, Loader2, AlertCircle } from "lucide-react";
+import { Calculator, HandshakeIcon, Loader2, AlertCircle, FileText, Mail, Printer, CheckCircle2 } from "lucide-react";
+import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
+import EnviarEmailModal from "@/components/EnviarEmailModal";
 import { calcularPlanoAcordo, formatarMoedaAcordo } from "@/../../shared/calculos-acordo";
 import { format } from "date-fns";
 
@@ -238,11 +240,29 @@ export function RealizarAcordoModal({
     });
   }, [totais.total, valorEntrada, numeroParcelas, dataPagamento, jurosParcelamentoPct, tipoParcelas, intervaloDias]);
 
+  // ── Estados dos modais de ação final ─────────────────────────────────────
+  const [acordoCriadoId, setAcordoCriadoId] = useState<number | null>(null);
+  const [modalDocOpen, setModalDocOpen] = useState(false);
+  const [modalEmailOpen, setModalEmailOpen] = useState(false);
+  const [emailDevedor, setEmailDevedor] = useState("");
+
+  // Parcelas do acordo criado para usar nos modais de documento
+  const parcelasParaDoc = useMemo(() => {
+    if (!plano) return [];
+    return plano.parcelas.map((p, i) => ({
+      id: i + 1,
+      installmentNumber: p.numeroParcela,
+      amount: p.valor,
+      dueDate: p.dataVencimento,
+      status: "pendente",
+    }));
+  }, [plano]);
+
   // ── Criar acordo ───────────────────────────────────────────────────────────
   const createAcordoMutation = trpc.acordos.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Acordo criado com sucesso!");
-      onOpenChange(false);
+      setAcordoCriadoId((data as any)?.id ?? null);
       onAcordoCriado?.();
     },
     onError: (e) => toast.error("Erro ao criar acordo: " + e.message),
@@ -693,33 +713,104 @@ export function RealizarAcordoModal({
         </ScrollArea>
 
         {/* Footer */}
-        <div className="border-t px-6 py-4 flex items-center justify-between flex-shrink-0 bg-background">
-          <div className="text-sm">
-            {selecionadas.size > 0 && (
-              <span className="text-muted-foreground">
-                <strong className="text-foreground">{selecionadas.size}</strong> título(s) selecionado(s) •
-                Total: <strong className="text-primary text-base">{fmt(totais.total)}</strong>
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+        <div className="border-t px-6 py-4 flex-shrink-0 bg-background">
+          {/* Linha de totais */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm">
+              {selecionadas.size > 0 && (
+                <span className="text-muted-foreground">
+                  <strong className="text-foreground">{selecionadas.size}</strong> título(s) selecionado(s) •
+                  Total: <strong className="text-primary text-base">{fmt(totais.total)}</strong>
+                </span>
+              )}
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-muted-foreground">
+              Fechar
             </Button>
+          </div>
+
+          {/* Botões de ação */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Finalizar */}
             <Button
               onClick={handleCriarAcordo}
-              disabled={selecionadas.size === 0 || createAcordoMutation.isPending}
-              className="gap-2"
+              disabled={selecionadas.size === 0 || createAcordoMutation.isPending || !!acordoCriadoId}
+              className="gap-2 bg-green-600 hover:bg-green-700 text-white"
             >
               {createAcordoMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+              ) : acordoCriadoId ? (
+                <CheckCircle2 className="h-4 w-4" />
               ) : (
                 <HandshakeIcon className="h-4 w-4" />
               )}
-              Confirmar Acordo
+              {acordoCriadoId ? "Acordo Finalizado" : "Finalizar"}
+            </Button>
+
+            {/* Dem. de Débito */}
+            <Button
+              variant="outline"
+              className="gap-2 border-green-600 text-green-700 hover:bg-green-50"
+              onClick={() => setModalDocOpen(true)}
+              disabled={selecionadas.size === 0}
+            >
+              <FileText className="h-4 w-4" />
+              Dem. de Débito
+            </Button>
+
+            {/* Termo de Acordo */}
+            <Button
+              variant="outline"
+              className="gap-2 border-green-600 text-green-700 hover:bg-green-50"
+              onClick={() => setModalDocOpen(true)}
+              disabled={selecionadas.size === 0}
+            >
+              <FileText className="h-4 w-4" />
+              Termo de Acordo
+            </Button>
+
+            {/* Boleto */}
+            <Button
+              variant="outline"
+              className="gap-2 border-green-600 text-green-700 hover:bg-green-50"
+              onClick={() => toast.info("Geração de boleto disponível após finalizar o acordo")}
+            >
+              <Printer className="h-4 w-4" />
+              Boleto
+            </Button>
+
+            {/* Email Boleto/Termo */}
+            <Button
+              variant="outline"
+              className="gap-2 border-green-600 text-green-700 hover:bg-green-50"
+              onClick={() => setModalEmailOpen(true)}
+              disabled={selecionadas.size === 0}
+            >
+              <Mail className="h-4 w-4" />
+              Email Boleto/Termo
             </Button>
           </div>
         </div>
+
+        {/* Modal de Gerar Documento */}
+        <GerarDocumentoModal
+          open={modalDocOpen}
+          onClose={() => setModalDocOpen(false)}
+          devedor={{ id: devedorId, name: devedorNome, condominioId }}
+          parcelasAcordo={parcelasParaDoc}
+          nomeCondominio={condominioNome}
+          emailDevedor={emailDevedor}
+        />
+
+        {/* Modal de Enviar Email */}
+        <EnviarEmailModal
+          open={modalEmailOpen}
+          onClose={() => setModalEmailOpen(false)}
+          devedorId={devedorId}
+          nomeDevedor={devedorNome}
+          emailDevedor={emailDevedor}
+          condominioId={condominioId}
+        />
       </DialogContent>
     </Dialog>
   );
