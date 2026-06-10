@@ -122,10 +122,14 @@ export default function DevedorDetalhes() {
     { enabled: !!devedorId }
   );
 
-  const { data: cobrancas = [] } = trpc.cobrancas.getComCalculos.useQuery(
+  // Nova query unificada: cobranças normais + parcelas de acordos ativos
+  const { data: cobrancasData } = trpc.cobrancas.getComAcordos.useQuery(
     { devedorId: devedorId! },
     { enabled: !!devedorId }
   );
+  const cobrancas = cobrancasData?.cobrancas ?? [];
+  const parcelasAcordoAtivas = cobrancasData?.parcelasAcordo ?? [];
+  const temAcordoAtivo = cobrancasData?.temAcordoAtivo ?? false;
 
   const { data: condominio } = trpc.condominios.getById.useQuery(
     { id: devedor?.condominioId! },
@@ -148,8 +152,8 @@ export default function DevedorDetalhes() {
 
     const cobrancasAtivas = cobrancas.filter((c: any) => c.status !== "pago");
     const cobrancasPendentes = cobrancas.filter((c: any) => c.status === "pendente");
-    const cobrancasEmAcordo = cobrancas.filter((c: any) => c.status === "em_acordo");
     const cobrancasPagas = cobrancas.filter((c: any) => c.status === "pago");
+    const cobrancasEmAcordo = parcelasAcordoAtivas.filter((p: any) => p.status !== "pago");
 
     const valorOriginal = cobrancasAtivas.reduce((sum: number, c: any) => sum + (c.amount / 100), 0);
     
@@ -405,7 +409,10 @@ export default function DevedorDetalhes() {
         <div>
             <Tabs defaultValue="cobrancas" className="w-full">
               <TabsList className="w-full mb-4 grid grid-cols-3">
-                <TabsTrigger value="cobrancas">Cobranças ({cobrancas.length})</TabsTrigger>
+                <TabsTrigger value="cobrancas">
+                  Cobranças ({temAcordoAtivo ? parcelasAcordoAtivas.length : cobrancas.length})
+                  {temAcordoAtivo && <span className="ml-1.5 px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 rounded-full font-semibold">Acordo</span>}
+                </TabsTrigger>
                 <TabsTrigger value="historico">Histórico & Acordos</TabsTrigger>
                 <TabsTrigger value="whatsapp" className="flex items-center gap-1">
                   <MessageCircle className="h-3.5 w-3.5 text-green-600" />
@@ -421,7 +428,11 @@ export default function DevedorDetalhes() {
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>Cobranças</CardTitle>
-                      <CardDescription>Total: {cobrancas.length} cobrança(s)</CardDescription>
+                      <CardDescription>
+                      {temAcordoAtivo
+                        ? `${parcelasAcordoAtivas.length} parcela(s) de acordo ativo`
+                        : `Total: ${cobrancas.length} cobrança(s)`}
+                    </CardDescription>
                     </div>
                   </div>
                   {/* Filtros de status */}
@@ -443,8 +454,14 @@ export default function DevedorDetalhes() {
                 </div>
               </CardHeader>
               <CardContent>
+                {temAcordoAtivo && (
+                  <div className="mb-3 flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                    <Handshake className="h-4 w-4 text-blue-600 shrink-0" />
+                    <span>As cobranças originais estão vinculadas a um <strong>acordo ativo</strong>. Abaixo são exibidas as parcelas do acordo.</span>
+                  </div>
+                )}
                 <CobrancasTabela
-                  cobrancas={cobrancas}
+                  cobrancas={temAcordoAtivo ? parcelasAcordoAtivas : cobrancas}
                   filtroStatus={filtroStatus}
                   mostrarTodas={mostrarTodas}
                   setMostrarTodas={setMostrarTodas}
@@ -614,7 +631,7 @@ export default function DevedorDetalhes() {
           devedor={devedor as any}
           onSuccess={() => {
             setBtgModalCobranca(null);
-            utils.cobrancas.getComCalculos.invalidate({ devedorId: devedor.id });
+            utils.cobrancas.getComAcordos.invalidate({ devedorId: devedor.id });
           }}
         />
       )}
@@ -623,7 +640,7 @@ export default function DevedorDetalhes() {
       <RealizarAcordoModal
         open={modalAcordoOpen}
         onOpenChange={setModalAcordoOpen}
-        cobrancas={cobrancas as any}
+        cobrancas={cobrancas as any} // Apenas cobranças originais (sem parcelas de acordo)
         devedorId={devedor.id}
         devedorNome={devedor.name ?? ""}
         condominioId={devedor.condominioId}
@@ -777,6 +794,8 @@ function CobrancasTabela({
         </TableHeader>
         <TableBody>
           {cobVisiveis.map((cob: any) => {
+                        // Detectar se é parcela de acordo
+                        const isParcela = cob._tipo === "parcela_acordo";
                         // Usar breakdown calculado pelo backend (inclui correção BCB)
                         const breakdown = cob.breakdown || {
                           valorOriginal: cob.amount / 100,
@@ -786,9 +805,26 @@ function CobrancasTabela({
                           correcaoMonetaria: 0,
                           valorTotal: cob.amount / 100,
                         };
+                        const descricao = isParcela
+                          ? `Parcela ${cob.installmentNumber}/${cob._acordo?.installments ?? "?"} — Acordo #${cob.acordoId}`
+                          : (cob.description || "-");
+                        const statusLabel: Record<string, string> = {
+                          pendente: "Pendente",
+                          pago: "Pago",
+                          atrasado: "Atrasado",
+                          cancelado: "Cancelado",
+                          em_cobranca: "Em Cobrança",
+                          em_acordo: "Em Acordo",
+                          acordo: "Acordo",
+                        };
                         return (
-                          <TableRow key={cob.id}>
-                            <TableCell className="font-medium">{cob.description || "-"}</TableCell>
+                          <TableRow key={`${isParcela ? "p" : "c"}-${cob.id}`} className={isParcela ? "bg-blue-50/40" : ""}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-1.5">
+                                {isParcela && <Handshake className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
+                                <span>{descricao}</span>
+                              </div>
+                            </TableCell>
                             <TableCell>{format(new Date(cob.dueDate), "dd/MM/yyyy")}</TableCell>
                             <TableCell>{formatarMoeda(breakdown.valorOriginal)}</TableCell>
                             <TableCell className="text-orange-600">{formatarMoeda(breakdown.juros)}</TableCell>
@@ -797,12 +833,31 @@ function CobrancasTabela({
                             <TableCell className="text-blue-600">{formatarMoeda(breakdown.correcaoMonetaria)}</TableCell>
                             <TableCell className="font-semibold">{formatarMoeda(breakdown.valorTotal)}</TableCell>
                             <TableCell>
-                              <Badge variant={cob.status === "pago" ? "outline" : "default"} className="text-xs">
-                                {cob.status}
+                              <Badge
+                                variant={cob.status === "pago" ? "outline" : cob.status === "atrasado" ? "destructive" : "default"}
+                                className={`text-xs ${isParcela && cob.status === "pendente" ? "bg-blue-100 text-blue-800 border-blue-300" : ""}`}
+                              >
+                                {statusLabel[cob.status] ?? cob.status}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {cob.nossoNumero ? (
+                              {/* Para parcelas de acordo: mostrar link do boleto BTG se disponível */}
+                              {isParcela && cob.btgBankSlipUrl ? (
+                                <div className="flex flex-col gap-1">
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => window.open(cob.btgBankSlipUrl, "_blank")}>
+                                    <FileDown className="h-3 w-3 mr-1" /> Boleto BTG
+                                  </Button>
+                                  {cob.btgPixCopiaECola && (
+                                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50" onClick={() => { navigator.clipboard.writeText(cob.btgPixCopiaECola); toast.success("PIX copiado!"); }}>
+                                      <QrCode className="h-3 w-3 mr-1" /> Copiar PIX
+                                    </Button>
+                                  )}
+                                </div>
+                              ) : isParcela ? (
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => onEmitirBtg(cob)}>
+                                  <QrCode className="h-3 w-3 mr-1" /> Emitir BTG
+                                </Button>
+                              ) : cob.nossoNumero ? (
                                 <div className="flex flex-col gap-1">
                                   {/* Botão PDF */}
                                   <Button
@@ -874,8 +929,8 @@ function CobrancasTabela({
                               ) : (
                                 <span className="text-xs text-muted-foreground">Sem remessa</span>
                               )}
-                              {/* Botão BTG */}
-                              {cob.status !== "pago" && cob.status !== "cancelado" && (
+                              {/* Botão BTG — apenas para cobranças originais (não parcelas de acordo) */}
+                              {!isParcela && cob.status !== "pago" && cob.status !== "cancelado" && (
                                 <Button
                                   size="sm"
                                   variant="outline"

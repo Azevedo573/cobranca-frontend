@@ -654,6 +654,29 @@ export const appRouter = router({
       const { getCobrancasComCalculos } = await import("./db-cobrancas");
       return await getCobrancasComCalculos(input.devedorId);
     }),
+    /**
+     * Retorna cobranças normais (excluindo em_acordo) + parcelas de acordos ativos.
+     * É a query principal usada na tela de Cobranças do devedor.
+     */
+    getComAcordos: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+      const { getCobrancasByDevedor, getParcelasAcordoAtivasByDevedor } = await import("./db-cobrancas");
+      const [cobrancasNormais, parcelasAcordoAtivas] = await Promise.all([
+        getCobrancasByDevedor(input.devedorId),
+        getParcelasAcordoAtivasByDevedor(input.devedorId),
+      ]);
+      return {
+        cobrancas: cobrancasNormais,
+        parcelasAcordo: parcelasAcordoAtivas,
+        temAcordoAtivo: parcelasAcordoAtivas.length > 0,
+      };
+    }),
+    /**
+     * Retorna cobranças em acordo (para histórico/auditoria)
+     */
+    getEmAcordo: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+      const { getCobrancasEmAcordoByDevedor } = await import("./db-cobrancas");
+      return await getCobrancasEmAcordoByDevedor(input.devedorId);
+    }),
     getById: requirePermission("cobrancas", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getCobrancaById } = await import("./db-cobrancas");
       return await getCobrancaById(input.id);

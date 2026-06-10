@@ -1,5 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { cobrancas, InsertCobranca, condominios } from "../drizzle/schema";
+import { and, eq, ne } from "drizzle-orm";
+import { cobrancas, InsertCobranca, condominios, acordos, acordoCobrancas, parcelasAcordo } from "../drizzle/schema";
 import { getDb } from "./db";
 import { calcularValorDevido, BreakdownValor } from "../shared/calculos";
 import { calcularCorrecaoBCB } from "./bcb-api";
@@ -7,13 +7,68 @@ import { calcularCorrecaoBCB } from "./bcb-api";
 export async function getCobrancasByCondominio(condominioId: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(cobrancas).where(eq(cobrancas.condominioId, condominioId));
+  // Excluir cobranças em acordo ativo — elas são substituídas pelas parcelas do acordo
+  return await db.select().from(cobrancas).where(
+    and(eq(cobrancas.condominioId, condominioId), ne(cobrancas.status, "em_acordo"))
+  );
 }
 
 export async function getCobrancasByDevedor(devedorId: number) {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(cobrancas).where(eq(cobrancas.devedorId, devedorId));
+  // Excluir cobranças em acordo ativo — elas são substituídas pelas parcelas do acordo
+  return await db.select().from(cobrancas).where(
+    and(eq(cobrancas.devedorId, devedorId), ne(cobrancas.status, "em_acordo"))
+  );
+}
+
+/**
+ * Busca cobranças em acordo de um devedor (para histórico/auditoria)
+ */
+export async function getCobrancasEmAcordoByDevedor(devedorId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(cobrancas).where(
+    and(eq(cobrancas.devedorId, devedorId), eq(cobrancas.status, "em_acordo"))
+  );
+}
+
+/**
+ * Busca parcelas ativas de acordos de um devedor para exibição na tela de cobranças.
+ * Retorna parcelas de acordos com status 'ativo' ou 'inadimplente'.
+ */
+export async function getParcelasAcordoAtivasByDevedor(devedorId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  // Buscar acordos ativos do devedor
+  const acordosAtivos = await db.select().from(acordos).where(
+    and(eq(acordos.devedorId, devedorId), eq(acordos.status, "ativo"))
+  );
+  if (acordosAtivos.length === 0) return [];
+  const acordoIds = acordosAtivos.map(a => a.id);
+  // Buscar parcelas pendentes/atrasadas desses acordos
+  const { inArray } = await import("drizzle-orm");
+  const parcelas = await db.select({
+    id: parcelasAcordo.id,
+    acordoId: parcelasAcordo.acordoId,
+    installmentNumber: parcelasAcordo.installmentNumber,
+    amount: parcelasAcordo.amount,
+    dueDate: parcelasAcordo.dueDate,
+    status: parcelasAcordo.status,
+    btgCollectionId: parcelasAcordo.btgCollectionId,
+    btgBankSlipUrl: parcelasAcordo.btgBankSlipUrl,
+    btgPixQrCode: parcelasAcordo.btgPixQrCode,
+    btgPixCopiaECola: parcelasAcordo.btgPixCopiaECola,
+    btgStatus: parcelasAcordo.btgStatus,
+  }).from(parcelasAcordo).where(
+    inArray(parcelasAcordo.acordoId, acordoIds)
+  ).orderBy(parcelasAcordo.installmentNumber);
+  // Enriquecer com info do acordo
+  return parcelas.map(p => ({
+    ...p,
+    _tipo: "parcela_acordo" as const,
+    _acordo: acordosAtivos.find(a => a.id === p.acordoId)!,
+  }));
 }
 
 export async function getCobrancaById(id: number) {
@@ -70,8 +125,10 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
   const db = await getDb();
   if (!db) return [];
   
-  // Buscar cobranças
-  const cobrancasList = await db.select().from(cobrancas).where(eq(cobrancas.devedorId, devedorId));
+  // Buscar cobranças (excluindo as em acordo ativo — substituídas pelas parcelas do acordo)
+  const cobrancasList = await db.select().from(cobrancas).where(
+    and(eq(cobrancas.devedorId, devedorId), ne(cobrancas.status, "em_acordo"))
+  );
   
   if (cobrancasList.length === 0) {
     return [];

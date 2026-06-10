@@ -2212,3 +2212,16 @@
 - [x] Atualizar BTGConfig.tsx: tela de configuração global com status das env vars
 - [x] Atualizar BTGConciliacao.tsx: filtro de condomínio é opcional (admin pode ver todos)
 - [x] Manter tabela btgConfig no banco para configurações extras (instrucoes, diasVencimento, webhookSecret)
+
+## Regra de Exibição de Cobranças e Acordos
+- [x] Backend: query getComAcordos retorna cobranças normais (excluindo em_acordo) + parcelas de acordos ativos
+- [x] Backend: ao criar acordo, cobranças vinculadas ficam com status "em_acordo"
+- [x] Backend: ao cancelar/inadimplir acordo, cobranças originais voltam ao status "em_cobranca"
+- [x] Backend: getCobrancasByDevedor e getCobrancasComCalculos filtram cobranças em_acordo
+- [x] Frontend: tela de Cobranças exibe parcelas do acordo no lugar das cobranças originais quando há acordo ativo
+- [x] Frontend: badge "Acordo" na aba de cobranças quando há acordo ativo
+- [x] Frontend: alerta informativo azul na aba de cobranças quando há acordo ativo
+- [x] Frontend: parcelas de acordo exibidas com ícone de aperto de mão e fundo azul diferenciado
+- [x] Frontend: botão "Emitir BTG" disponível para parcelas de acordo sem boleto emitido
+- [x] Frontend: modal de Realizar Acordo recebe apenas cobranças originais (não parcelas)
+- [x] Testes: 298 testes passando
