@@ -1102,12 +1102,31 @@ export const appRouter = router({
           status: todasPagas ? "pago" : "ativo"
         })
         .where(eq(acordos.id, parcela[0].acordoId));
+
+      // Etapa 6: Se todas as parcelas foram pagas, quitar as cobranças originais vinculadas ao acordo
+      if (todasPagas) {
+        const { acordoCobrancas, cobrancas } = await import("../drizzle/schema");
+        const { updateCobranca } = await import("./db-cobrancas");
+        // Buscar todas as cobranças vinculadas a este acordo
+        const cobrancasDoAcordo = await db
+          .select({ cobrancaId: acordoCobrancas.cobrancaId })
+          .from(acordoCobrancas)
+          .where(eq(acordoCobrancas.acordoId, parcela[0].acordoId));
+        // Atualizar cada cobrança para 'pago' com observação de quitação via acordo
+        for (const { cobrancaId } of cobrancasDoAcordo) {
+          await updateCobranca(cobrancaId, {
+            status: "pago",
+            description: `Quitado via Acordo #${parcela[0].acordoId}`,
+          });
+        }
+      }
       
-      await logAudit(ctx, { action: "pay_parcela", entity: "parcela", entityId: String(input.parcelaId), afterData: { acordoId: parcela[0].acordoId, valorPago: valorPagoTotal, statusAcordo: todasPagas ? "pago" : "ativo" }, severity: "info" });
+      await logAudit(ctx, { action: "pay_parcela", entity: "parcela", entityId: String(input.parcelaId), afterData: { acordoId: parcela[0].acordoId, valorPago: valorPagoTotal, statusAcordo: todasPagas ? "pago" : "ativo", cobrancasQuitadas: todasPagas }, severity: "info" });
       return { 
         success: true, 
         valorPagoTotal,
-        statusAcordo: todasPagas ? "pago" : "ativo"
+        statusAcordo: todasPagas ? "pago" : "ativo",
+        cobrancasQuitadas: todasPagas,
       };
     }),
     verificarAtrasos: adminProcedure.mutation(async () => {
@@ -1235,6 +1254,144 @@ export const appRouter = router({
           vencimento: dataVencimento.toISOString(),
         };
       }),
+    // Gerar boletos em lote para todas as parcelas de um acordo
+    gerarBoletosLoteAcordo: requirePermission("acordos", "criar").input(z.object({
+      acordoId: z.number(),
+    })).mutation(async ({ input }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
+
+      const { parcelasAcordo, acordos } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { getDevedorById } = await import("./db-devedores");
+      const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+      const { getCondominioById } = await import("./db-condominios");
+      const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
+      const { gerarPixCopiaCola } = await import("./pix-emv");
+      const { storagePut } = await import("./storage");
+
+      // Buscar acordo
+      const acordoRows = await db.select().from(acordos).where(eq(acordos.id, input.acordoId)).limit(1);
+      if (!acordoRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Acordo não encontrado" });
+      const acordo = acordoRows[0];
+
+      // Buscar todas as parcelas pendentes com nossoNumero
+      const parcelas = await db.select().from(parcelasAcordo)
+        .where(eq(parcelasAcordo.acordoId, input.acordoId));
+
+      const parcelasComNossoNumero = parcelas.filter(p => !!p.nossoNumero && p.status !== "pago");
+      const parcelasSemNossoNumero = parcelas.filter(p => !p.nossoNumero && p.status !== "pago");
+
+      if (parcelasComNossoNumero.length === 0) {
+        return {
+          success: false,
+          boletos: [],
+          semNossoNumero: parcelasSemNossoNumero.length,
+          mensagem: "Nenhuma parcela possui Nosso Número. Envie a remessa CNAB primeiro para gerar os boletos.",
+        };
+      }
+
+      const devedor = await getDevedorById(acordo.devedorId);
+      if (!devedor) throw new TRPCError({ code: "NOT_FOUND", message: "Devedor não encontrado" });
+
+      const config = await getConfiguracaoBoleto(acordo.condominioId);
+      if (!config) throw new TRPCError({ code: "NOT_FOUND", message: "Configuração de boleto não encontrada" });
+
+      const condominio = await getCondominioById(acordo.condominioId);
+      if (!condominio) throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado" });
+
+      const nomeSacado = devedor.name ||
+        `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
+
+      const boletos: Array<{ parcelaId: number; numeroParcela: number; url: string; linhaDigitavel: string; valor: number; vencimento: string }> = [];
+
+      for (const parcela of parcelasComNossoNumero) {
+        const dataVencimento = parcela.dueDate ? new Date(parcela.dueDate) : new Date();
+        const dataEmissao = new Date();
+
+        const instrucoes: string[] = [];
+        if (config.instrucoesCaixa) {
+          const taxa = parseFloat(config.taxaJurosDia || "0") * 30;
+          const multa = parseFloat(config.taxaMulta || "0");
+          instrucoes.push(
+            config.instrucoesCaixa
+              .replace(/#MULTA#/g, `${multa.toFixed(2)}%`)
+              .replace(/#JUROS#/g, `${taxa.toFixed(4)}% ao dia`)
+          );
+        }
+        instrucoes.push("Não receber após 30 dias do vencimento.");
+
+        let pixCopiaCola: string | undefined = parcela.pixCopiaCola || undefined;
+        if (!pixCopiaCola && config.habilitarPix && config.chavePix) {
+          pixCopiaCola = gerarPixCopiaCola({
+            chavePix: config.chavePix,
+            nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+            cidade: condominio.city || "SAO PAULO",
+            valor: parcela.amount,
+            txid: parcela.nossoNumero || undefined,
+            descricao: `Parcela ${parcela.nossoNumero}`,
+          }) || undefined;
+        }
+
+        const dados = {
+          nomeBeneficiario: config.nomeBeneficiario || condominio.name,
+          cnpjBeneficiario: config.cnpjBeneficiario || condominio.cnpj || "",
+          enderecoBeneficiario: config.enderecoBeneficiario || condominio.address || "",
+          banco: config.banco,
+          nomeBanco: config.nomeBanco,
+          agencia: config.agencia,
+          digitoAgencia: config.digitoAgencia,
+          conta: config.conta,
+          digitoConta: config.digitoConta,
+          carteira: config.carteira,
+          convenio: config.convenio,
+          nossoNumero: parcela.nossoNumero!,
+          dataVencimento,
+          dataEmissao,
+          valor: parcela.amount,
+          especieDocumento: config.especieDocumento,
+          aceite: config.aceite,
+          nomeSacado,
+          cpfCnpjSacado: devedor.cpfCnpj || "",
+          enderecoSacado: condominio.address || "",
+          cidadeSacado: condominio.city || "",
+          ufSacado: condominio.state || "",
+          cepSacado: condominio.zipCode || "",
+          localPagamento: config.localPagamento,
+          instrucoes,
+          seuNumero: parcela.nossoNumero!,
+          pixCopiaCola,
+        };
+
+        const pdfBuffer = await gerarBoletoPDF(dados);
+        const fileKey = `boletos/${acordo.condominioId}/${parcela.nossoNumero}-lote-${Date.now()}.pdf`;
+        const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+        const codigoBarras = calcularCodigoBarras(dados);
+        const linhaDigitavel = formatarLinhaDigitavel(calcularLinhaDigitavel(codigoBarras));
+
+        boletos.push({
+          parcelaId: parcela.id,
+          numeroParcela: parcela.installmentNumber,
+          url,
+          linhaDigitavel,
+          valor: parcela.amount,
+          vencimento: dataVencimento.toISOString(),
+        });
+      }
+
+      return {
+        success: true,
+        boletos,
+        semNossoNumero: parcelasSemNossoNumero.length,
+        mensagem: `${boletos.length} boleto(s) gerado(s) com sucesso.${
+          parcelasSemNossoNumero.length > 0
+            ? ` ${parcelasSemNossoNumero.length} parcela(s) sem Nosso Número foram ignoradas.`
+            : ""
+        }`,
+      };
+    }),
+
     getVencimentosProximos: condominioAccessProcedure.input(z.object({
       condominioId: z.number().optional(),
       dias: z.number().default(7), // próximos 7, 15 ou 30 dias
