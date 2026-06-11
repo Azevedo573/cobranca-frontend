@@ -302,6 +302,7 @@ export const appRouter = router({
       maxParcelas: z.number().int().min(1).max(60).default(12),
       cancelamentoAutoAtivo: z.number().int().min(0).max(1).default(0),
       cancelamentoPrazoDias: z.number().int().min(1).max(90).default(20),
+      modoBoleto: z.enum(["cnab240", "api_btg"]).default("cnab240"),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
@@ -316,6 +317,7 @@ export const appRouter = router({
         maxParcelas: input.maxParcelas ?? 12,
         cancelamentoAutoAtivo: input.cancelamentoAutoAtivo ?? 0,
         cancelamentoPrazoDias: input.cancelamentoPrazoDias ?? 20,
+        modoBoleto: input.modoBoleto ?? "cnab240",
       };
       const result = await createCondominio(payload);
       await logAudit(ctx, { action: "create", entity: "condominio", entityLabel: input.name, afterData: { name: input.name, cnpj: input.cnpj }, severity: "info" });
@@ -347,6 +349,7 @@ export const appRouter = router({
       maxParcelas: z.number().int().min(1).max(60).optional(),
       cancelamentoAutoAtivo: z.number().int().min(0).max(1).optional(),
       cancelamentoPrazoDias: z.number().int().min(1).max(90).optional(),
+      modoBoleto: z.enum(["cnab240", "api_btg"]).optional(),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {

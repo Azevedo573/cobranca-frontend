@@ -56,6 +56,8 @@ export const condominios = mysqlTable("condominios", {
   // Cancelamento automático de acordos com primeira parcela não paga
   cancelamentoAutoAtivo: int("cancelamentoAutoAtivo").default(0).notNull(),
   cancelamentoPrazoDias: int("cancelamentoPrazoDias").default(20).notNull(),
+  // Modo de emissão de boleto: cnab240 (padrão) ou api_btg (integração BTG em fase de testes)
+  modoBoleto: mysqlEnum("modoBoleto", ["cnab240", "api_btg"]).default("cnab240").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

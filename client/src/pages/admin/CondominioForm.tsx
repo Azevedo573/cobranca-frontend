@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink, Scale, FileText, ToggleLeft, ToggleRight, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink, Scale, FileText, ToggleLeft, ToggleRight, AlertCircle, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -93,6 +93,7 @@ export default function CondominioForm() {
     maxParcelas: 12,
     cancelamentoAutoAtivo: 0,
     cancelamentoPrazoDias: 20,
+    modoBoleto: "cnab240" as "cnab240" | "api_btg",
   });
 
   // Módulos ativos do condomínio
@@ -153,6 +154,7 @@ export default function CondominioForm() {
         maxParcelas: (condominio as any).maxParcelas ?? 12,
         cancelamentoAutoAtivo: (condominio as any).cancelamentoAutoAtivo ?? 0,
         cancelamentoPrazoDias: (condominio as any).cancelamentoPrazoDias ?? 20,
+        modoBoleto: ((condominio as any).modoBoleto || "cnab240") as "cnab240" | "api_btg",
       });
       // Carregar módulos ativos
       try {
@@ -738,6 +740,91 @@ export default function CondominioForm() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Modo de Emissão de Boleto */}
+              <div className="border-t pt-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">Modo de Emissão de Boleto</h3>
+                  <Badge variant="outline" className="text-xs font-normal text-primary border-primary/30 bg-primary/5">Integração Bancária</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Define como os boletos das parcelas de acordo serão gerados. O modo <strong>CNAB 240</strong> gera
+                  arquivos de remessa para envio ao banco. O modo <strong>API BTG</strong> emite boletos em tempo real
+                  via integração direta com o BTG Pactual (fase de testes).
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div
+                    className={`relative flex flex-col gap-2 rounded-xl border-2 p-4 cursor-pointer transition-all ${
+                      formData.modoBoleto === "cnab240"
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                    onClick={() => setFormData(prev => ({ ...prev, modoBoleto: "cnab240" }))}
+                  >
+                    {formData.modoBoleto === "cnab240" && (
+                      <span className="absolute top-3 right-3 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      <span className="font-semibold text-sm">CNAB 240</span>
+                      <Badge className="text-xs bg-green-100 text-green-700 border-green-200">Recomendado</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Gera arquivo de remessa CNAB 240 para envio ao banco. Compatível com qualquer banco que suporte
+                      o padrão FEBRABAN. Ideal para uso em produção.
+                    </p>
+                    <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                      <li className="flex items-center gap-1"><span className="text-green-600">✓</span> Compatível com qualquer banco</li>
+                      <li className="flex items-center gap-1"><span className="text-green-600">✓</span> Padrão FEBRABAN consolidado</li>
+                      <li className="flex items-center gap-1"><span className="text-green-600">✓</span> Pronto para produção</li>
+                    </ul>
+                  </div>
+                  <div
+                    className={`relative flex flex-col gap-2 rounded-xl border-2 p-4 cursor-pointer transition-all ${
+                      formData.modoBoleto === "api_btg"
+                        ? "border-amber-500 bg-amber-50 dark:bg-amber-950/20"
+                        : "border-border hover:border-amber-400/40"
+                    }`}
+                    onClick={() => setFormData(prev => ({ ...prev, modoBoleto: "api_btg" }))}
+                  >
+                    {formData.modoBoleto === "api_btg" && (
+                      <span className="absolute top-3 right-3 h-4 w-4 rounded-full bg-amber-500 flex items-center justify-center">
+                        <span className="h-2 w-2 rounded-full bg-white" />
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Settings2 className="h-5 w-5 text-amber-600" />
+                      <span className="font-semibold text-sm">API BTG Pactual</span>
+                      <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">Beta</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Emite boletos em tempo real via API do BTG Pactual. Requer configuração de credenciais BTG
+                      e está em fase de testes.
+                    </p>
+                    <ul className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                      <li className="flex items-center gap-1"><span className="text-green-600">✓</span> Emissão instantânea</li>
+                      <li className="flex items-center gap-1"><span className="text-green-600">✓</span> PIX integrado</li>
+                      <li className="flex items-center gap-1"><span className="text-amber-600">⚠</span> Apenas BTG Pactual</li>
+                      <li className="flex items-center gap-1"><span className="text-amber-600">⚠</span> Em fase de testes</li>
+                    </ul>
+                  </div>
+                </div>
+                {formData.modoBoleto === "api_btg" && (
+                  <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-800 dark:text-amber-300">
+                        <strong>Modo Beta:</strong> a integração com a API BTG está em fase de testes.
+                        Configure as credenciais em <strong>Configurações &gt; BTG Config</strong> antes de usar.
+                        Para uso em produção, recomendamos o modo CNAB 240.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Módulos do Condomínio */}

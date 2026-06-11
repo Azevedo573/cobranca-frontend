@@ -470,6 +470,7 @@ export default function DevedorDetalhes() {
                   setMostrarTodas={setMostrarTodas}
                   limiteInicial={LIMITE_INICIAL}
                   onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
+                  modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
                 />
               </CardContent>
             </Card>
@@ -763,7 +764,7 @@ export default function DevedorDetalhes() {
 // ===== Componente interno: tabela de cobranças =====
 function CobrancasTabela({
   cobrancas, filtroStatus, mostrarTodas, setMostrarTodas, limiteInicial,
-  onEmitirBtg
+  onEmitirBtg, modoBoleto
 }: {
   cobrancas: any[];
   filtroStatus: string;
@@ -771,6 +772,7 @@ function CobrancasTabela({
   setMostrarTodas: (fn: (v: boolean) => boolean) => void;
   limiteInicial: number;
   onEmitirBtg: (cob: any) => void;
+  modoBoleto?: "cnab240" | "api_btg";
 }) {
   const cobFiltradas = filtroStatus === "todos" ? cobrancas : cobrancas.filter((c: any) => c.status === filtroStatus);
   const cobVisiveis = mostrarTodas ? cobFiltradas : cobFiltradas.slice(0, limiteInicial);
@@ -847,23 +849,38 @@ function CobrancasTabela({
                             </TableCell>
                             <TableCell>
                               {/* Boleto: apenas para parcelas de acordo */}
-                              {isParcela && cob.btgBankSlipUrl ? (
-                                <div className="flex flex-col gap-1">
-                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => window.open(cob.btgBankSlipUrl, "_blank")}>
-                                    <FileDown className="h-3 w-3 mr-1" /> Boleto BTG
-                                  </Button>
-                                  {cob.btgPixCopiaECola && (
-                                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50" onClick={() => { navigator.clipboard.writeText(cob.btgPixCopiaECola); toast.success("PIX copiado!"); }}>
-                                      <QrCode className="h-3 w-3 mr-1" /> Copiar PIX
-                                    </Button>
-                                  )}
-                                </div>
-                              ) : isParcela ? (
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => onEmitirBtg(cob)}>
-                                  <QrCode className="h-3 w-3 mr-1" /> Emitir BTG
-                                </Button>
-                              ) : (
+                              {!isParcela ? (
                                 <span className="text-xs text-muted-foreground">—</span>
+                              ) : modoBoleto === "api_btg" ? (
+                                // Modo API BTG
+                                cob.btgBankSlipUrl ? (
+                                  <div className="flex flex-col gap-1">
+                                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => window.open(cob.btgBankSlipUrl, "_blank")}>
+                                      <FileDown className="h-3 w-3 mr-1" /> Boleto BTG
+                                    </Button>
+                                    {cob.btgPixCopiaECola && (
+                                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50" onClick={() => { navigator.clipboard.writeText(cob.btgPixCopiaECola); toast.success("PIX copiado!"); }}>
+                                        <QrCode className="h-3 w-3 mr-1" /> Copiar PIX
+                                      </Button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => onEmitirBtg(cob)}>
+                                    <QrCode className="h-3 w-3 mr-1" /> Emitir BTG
+                                  </Button>
+                                )
+                              ) : (
+                                // Modo CNAB 240 (padrão)
+                                cob.nossoNumero ? (
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-xs text-muted-foreground font-mono">{cob.nossoNumero}</span>
+                                    <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50 w-fit">
+                                      {cob.remessaId ? "Na remessa" : "Aguardando remessa"}
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Aguardando nosso número</span>
+                                )
                               )}
                             </TableCell>
                           </TableRow>

@@ -1,0 +1,1 @@
+ALTER TABLE `condominios` ADD `modoBoleto` enum('cnab240','api_btg') DEFAULT 'cnab240' NOT NULL;
