@@ -25,7 +25,7 @@ const BTG_STATUS_CONFIG: Record<string, { label: string; variant: "default" | "s
 
 export default function BTGConciliacao() {
   const { user } = useAuth();
-  const [condominioId, setCondominioId] = useState<string>("");
+  const [condominioId, setCondominioId] = useState<string>("todos");
   const [page, setPage] = useState(1);
 
   const { data: condominios } = trpc.condominios.list.useQuery(undefined, {
@@ -33,7 +33,7 @@ export default function BTGConciliacao() {
   });
 
   // condominioId é opcional: se não selecionado, mostra todas as cobranças BTG
-  const condId = condominioId
+  const condId = (condominioId && condominioId !== "todos")
     ? parseInt(condominioId)
     : (user?.role === "admin" ? undefined : user?.condominioId ?? undefined);
 
@@ -115,7 +115,7 @@ export default function BTGConciliacao() {
                 <SelectValue placeholder="Todos os condomínios" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os condomínios</SelectItem>
+                <SelectItem value="todos">Todos os condomínios</SelectItem>
                 {condominios.map(c => (
                   <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
                 ))}
