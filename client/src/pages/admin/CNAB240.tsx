@@ -749,17 +749,28 @@ export default function CNAB240() {
                             {r.status}
                           </Badge>
                           {r.urlArquivo ? (
-                            <a
-                              href={r.urlArquivo}
-                              download={r.nomeArquivo}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 gap-1"
+                              onClick={async () => {
+                                try {
+                                  const resp = await fetch(r.urlArquivo!);
+                                  const blob = await resp.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = r.nomeArquivo;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                } catch {
+                                  toast.error("Erro ao baixar o arquivo");
+                                }
+                              }}
                             >
-                              <Button size="sm" variant="outline" className="h-7 px-2 gap-1">
-                                <Download className="h-3 w-3" />
-                                <span className="text-xs">Baixar</span>
-                              </Button>
-                            </a>
+                              <Download className="h-3 w-3" />
+                              <span className="text-xs">Baixar</span>
+                            </Button>
                           ) : (
                             <Button size="sm" variant="outline" className="h-7 px-2 gap-1" disabled title="Arquivo não disponível">
                               <Download className="h-3 w-3" />
