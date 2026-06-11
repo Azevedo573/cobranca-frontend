@@ -1,6 +1,5 @@
 import { useState, useRef, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useAdminCondominio } from "@/hooks/useAdminCondominio";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,9 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Link } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
-  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock, Handshake, Settings2,
+  Download, Upload, FileText, CheckCircle2, XCircle, Building2, Send, MailCheck, Clock, Handshake, Settings2,
   BanknoteIcon, RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
@@ -55,8 +53,6 @@ interface TituloRetorno {
 
 export default function CNAB240() {
   const { user } = useAuth();
-  const { condominioId, condominios, selectedCondominioId, setSelectedCondominioId } = useAdminCondominio();
-  const effectiveCondominioId = user?.role === "admin" ? condominioId : user?.condominioId;
 
   const [cobrancasSelecionadas, setCobrancasSelecionadas] = useState<number[]>([]);
   const [resultadoRemessa, setResultadoRemessa] = useState<{ nomeArquivo: string; conteudo: string; totalTitulos: number; valorTotal: number } | null>(null);
@@ -75,18 +71,15 @@ export default function CNAB240() {
   const utils = trpc.useUtils();
 
   const { data: cobrancas, isLoading: loadingCobrancas } = trpc.cobrancas.list.useQuery(
-    { condominioId: effectiveCondominioId ?? 0 },
-    { enabled: !!effectiveCondominioId }
+    { condominioId: 0 }
   );
 
   const { data: remessas, isLoading: loadingRemessas } = trpc.cnab.listarRemessas.useQuery(
-    { condominioId: effectiveCondominioId ?? 0 },
-    { enabled: !!effectiveCondominioId }
+    { condominioId: 0 }
   );
 
   const { data: retornos, isLoading: loadingRetornos } = trpc.cnab.listarRetornos.useQuery(
-    { condominioId: effectiveCondominioId ?? 0 },
-    { enabled: !!effectiveCondominioId }
+    { condominioId: 0 }
   );
 
   const gerarRemessaMutation = trpc.cnab.gerarRemessa.useMutation({
@@ -124,8 +117,8 @@ export default function CNAB240() {
   });
 
   const { data: itensRetorno } = trpc.cnab.listarItensRetorno.useQuery(
-    { retornoId: itensRetornoRetornoId!, condominioId: effectiveCondominioId ?? 0 },
-    { enabled: !!itensRetornoRetornoId && !!effectiveCondominioId }
+    { retornoId: itensRetornoRetornoId!, condominioId: 0 },
+    { enabled: !!itensRetornoRetornoId }
   );
 
   const { data: parcelasParaRemessa, isLoading: loadingParcelas } = trpc.cnab.listarParcelasParaRemessaGlobal.useQuery(
@@ -231,12 +224,8 @@ export default function CNAB240() {
       toast.error("Selecione pelo menos uma cobrança");
       return;
     }
-    if (!effectiveCondominioId) {
-      toast.error("Selecione um condomínio");
-      return;
-    }
     gerarRemessaMutation.mutate({
-      condominioId: effectiveCondominioId,
+      condominioId: user?.condominioId ?? 0,
       cobrancaIds: cobrancasSelecionadas,
     });
   };
@@ -293,13 +282,6 @@ export default function CNAB240() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {user?.role === "admin" && setSelectedCondominioId && (
-            <AdminCondominioSelector
-              condominios={condominios}
-              selectedId={selectedCondominioId}
-              onSelect={setSelectedCondominioId}
-            />
-          )}
           <Link href="/admin/configuracao-boleto">
             <Button variant="outline" className="gap-2">
               <Settings2 className="h-4 w-4" />
@@ -339,12 +321,7 @@ export default function CNAB240() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {!effectiveCondominioId ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
-                  <p>Selecione um condomínio para continuar</p>
-                </div>
-              ) : loadingCobrancas ? (
+              {loadingCobrancas ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
                 </div>
@@ -732,12 +709,6 @@ export default function CNAB240() {
                 className="hidden"
                 onChange={handleRetornoFileChange}
               />
-
-              {!effectiveCondominioId && (
-                <p className="text-sm text-amber-600 flex items-center gap-1">
-                  <AlertTriangle className="h-4 w-4" /> Selecione um condomínio antes de processar
-                </p>
-              )}
 
               <Button
                 onClick={handleProcessarRetorno}

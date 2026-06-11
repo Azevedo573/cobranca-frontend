@@ -2917,7 +2917,11 @@ export const appRouter = router({
 
         for (const par of retorno.pares) {
           const { segmentoT, segmentoU } = par;
-          const nossoNumero = segmentoT.nossoNumero;
+          // O retorno BTG retorna o nosso número com zeros à esquerda (20 chars: '00000000001000000007')
+          // mas o banco armazena sem zeros à esquerda ('1000000007').
+          // Normalizar removendo zeros à esquerda para fazer o match correto.
+          const nossoNumeroRaw = segmentoT.nossoNumero;
+          const nossoNumero = nossoNumeroRaw.replace(/^0+/, '') || '0';
           const novoStatus = determinarNovoStatus(segmentoT.codMovimento, segmentoT.codOcorrencia);
           // Limitar ao máximo do MySQL INT para evitar overflow com arquivos externos
           const MAX_INT = 2147483647;

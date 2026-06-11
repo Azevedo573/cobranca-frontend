@@ -12,7 +12,7 @@
  *   - Trailer de Lote  (tipo 5)
  *   - Trailer de Arquivo (tipo 9)
  *
- * Segmento T — offsets confirmados via análise do arquivo real:
+ * Segmento T — offsets confirmados via análise do arquivo real (REMESSA_11062026(3)-202606114228.ret):
  *   001-003  banco (3)
  *   004-007  lote (4)
  *   008      tipo registro = '3' (1)
@@ -25,20 +25,19 @@
  *   024-035  conta (12)
  *   036      dígito conta (1)
  *   037      dígito ag/conta (1)
- *   038-057  nosso número (20)
+ *   038-057  nosso número (20) — com zeros à esquerda; normalizar com .lstrip('0') para match no banco
  *   058-060  carteira (3)
- *   061-073  número do documento (13)
- *   074-081  data de vencimento DDMMAAAA (8)
- *   082-096  valor do título (15, em centavos)
+ *   061-073  número do documento (13) — contém cobrancaId com zeros à esquerda
+ *   074-081  data de vencimento DDMMAAAA (8) — 0-based [73:81]
+ *   082-096  valor do título (15, em centavos) — 0-based [81:96]
  *   097-099  banco cobrador (3)
- *   100-103  agência cobradora (4)
- *   104-123  seu número (20)
- *   124-130  data da ocorrência DDMMAAAA (7 — pode estar vazio)
- *   131-133  código de ocorrência (3) — 091=entrada confirmada BTG
- *   134-137  quantidade de ocorrências (4)
- *   138-148  CPF/CNPJ do pagador (11 ou 14 chars — 11 para CPF)
- *   149-188  nome do pagador (40)
- *   189-240  brancos/complemento (52)
+ *   100-105  agência cobradora + dígito (6)
+ *   106-130  seu número (25) — 0-based [105:130]; contém cobrancaId com zeros à esquerda
+ *   131-137  data da ocorrência DDMMAAAA (7 — pode estar vazio) — 0-based [130:137]
+ *   138-140  código de ocorrência BTG (3) — 091=entrada confirmada — 0-based [137:140]
+ *   141-154  CPF/CNPJ do pagador (14) — 0-based [140:154]
+ *   155-194  nome do pagador (40) — 0-based [154:194]
+ *   195-240  brancos/complemento (46)
  *
  * Segmento U — offsets confirmados:
  *   001-017  identificação (banco/lote/tipo/seq/seg/branco/cod)
@@ -262,18 +261,28 @@ export function parseRetornoCNAB240(conteudo: string): RetornoArquivo {
         agencia: linha.substring(17, 22).trim(),
         conta: linha.substring(23, 35).trim(),
         nossoNumero: linha.substring(37, 57).trim(),
+        // Carteira: 3 chars após nosso número (pos 58-60)
         carteira: linha.substring(57, 60).trim(),
+        // Número do documento: 13 chars (pos 61-73) — contém o cobrancaId com zeros à esquerda
         numeroDocumento: linha.substring(60, 73).trim(),
+        // Data de vencimento: pos 74-81 (1-based) = 0-based 73-81 — confirmado no arquivo real
         dataVencimento: parseDateDDMMAAAA(linha.substring(73, 81)),
+        // Valor do título: 15 chars (pos 82-96) = 0-based 81-96 — confirmado no arquivo real
         valorTitulo: parseValor(linha.substring(81, 96)),
-        seuNumero: linha.substring(103, 123).trim(),
-        dataOcorrencia: parseDateDDMMAAAA(linha.substring(123, 130)),
-        codOcorrencia: linha.substring(130, 133).trim(),
-        descOcorrencia: CODIGOS_OCORRENCIA_BTG[linha.substring(130, 133).trim()] ||
+        // Seu número: 25 chars (pos 106-130) = 0-based 105-130 — confirmado no arquivo real
+        // Contém o cobrancaId com zeros à esquerda (ex: '0000000000000000000990002')
+        seuNumero: linha.substring(105, 130).trim(),
+        // Data da ocorrência: 7 chars (pos 131-137) = 0-based 130-137
+        dataOcorrencia: parseDateDDMMAAAA(linha.substring(130, 137)),
+        // Código de ocorrência BTG: 3 chars (pos 138-140) = 0-based 137-140
+        codOcorrencia: linha.substring(137, 140).trim(),
+        descOcorrencia: CODIGOS_OCORRENCIA_BTG[linha.substring(137, 140).trim()] ||
                         CODIGOS_MOVIMENTO[linha.substring(15, 17).trim()] ||
-                        `Ocorrência ${linha.substring(130, 133).trim()}`,
-        cpfCnpjPagador: linha.substring(137, 148).trim(),
-        nomePagador: linha.substring(148, 188).trim(),
+                        `Ocorrência ${linha.substring(137, 140).trim()}`,
+        // CPF/CNPJ do pagador: 14 chars (pos 141-154) = 0-based 140-154
+        cpfCnpjPagador: linha.substring(140, 154).trim(),
+        // Nome do pagador: 40 chars (pos 155-194) = 0-based 154-194
+        nomePagador: linha.substring(154, 194).trim(),
       };
 
       pendentesT.set(`${lote}-${sequencial}`, segT);

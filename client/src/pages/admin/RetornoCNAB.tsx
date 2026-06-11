@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useAdminCondominio } from "@/hooks/useAdminCondominio";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,9 +10,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
-  Upload, FileText, CheckCircle2, XCircle, AlertTriangle,
+  Upload, FileText, CheckCircle2, XCircle,
   Clock, TrendingUp, RefreshCw, ArrowRightLeft, Eye, QrCode,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -33,9 +31,7 @@ interface ResultadoRetorno {
 }
 
 export default function RetornoCNAB() {
-  const { user } = useAuth();
-  const { condominioId, condominios, selectedCondominioId, setSelectedCondominioId } = useAdminCondominio();
-  const effectiveCondominioId = user?.role === "admin" ? condominioId : user?.condominioId;
+  const { user: _user } = useAuth();
 
   const [retornoConteudo, setRetornoConteudo] = useState("");
   const [retornoNomeArquivo, setRetornoNomeArquivo] = useState("");
@@ -46,13 +42,12 @@ export default function RetornoCNAB() {
   const utils = trpc.useUtils();
 
   const { data: retornos, isLoading: loadingRetornos } = trpc.cnab.listarRetornos.useQuery(
-    { condominioId: effectiveCondominioId ?? 0 },
-    { enabled: !!effectiveCondominioId }
+    { condominioId: 0 }
   );
 
   const { data: itensDetalhes, isLoading: loadingItens } = trpc.cnab.listarItensRetorno.useQuery(
-    { retornoId: detalhesRetornoId ?? 0, condominioId: effectiveCondominioId ?? 0 },
-    { enabled: !!detalhesRetornoId && !!effectiveCondominioId }
+    { retornoId: detalhesRetornoId ?? 0, condominioId: 0 },
+    { enabled: !!detalhesRetornoId }
   );
 
   const processarRetornoMutation = trpc.cnab.processarRetorno.useMutation({
@@ -97,12 +92,8 @@ export default function RetornoCNAB() {
       toast.error("Selecione o arquivo de retorno");
       return;
     }
-    if (!effectiveCondominioId) {
-      toast.error("Selecione um condomínio");
-      return;
-    }
     processarRetornoMutation.mutate({
-      condominioId: effectiveCondominioId,
+      condominioId: 0,
       nomeArquivo: retornoNomeArquivo,
       conteudo: retornoConteudo,
     });
@@ -154,25 +145,9 @@ export default function RetornoCNAB() {
             Processe arquivos de retorno recebidos do BTG Pactual para baixar pagamentos automaticamente
           </p>
         </div>
-        {user?.role === "admin" && setSelectedCondominioId && (
-          <AdminCondominioSelector
-            condominios={condominios}
-            selectedId={selectedCondominioId}
-            onSelect={setSelectedCondominioId}
-          />
-        )}
       </div>
 
-      {!effectiveCondominioId ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            <AlertTriangle className="h-10 w-10 mx-auto mb-3" />
-            <p className="font-medium">Selecione um condomínio para continuar</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Upload */}
+      {/* Upload */}
           <Card>
             <CardHeader>
               <CardTitle>Importar Arquivo de Retorno</CardTitle>
@@ -381,8 +356,6 @@ export default function RetornoCNAB() {
               )}
             </CardContent>
           </Card>
-        </>
-      )}
 
       {/* Dialog de detalhes dos títulos */}
       <Dialog open={!!detalhesRetornoId} onOpenChange={(open) => !open && setDetalhesRetornoId(null)}>
