@@ -266,12 +266,8 @@ export default function CNAB240() {
       toast.error("Selecione o arquivo de retorno");
       return;
     }
-    if (!effectiveCondominioId) {
-      toast.error("Selecione um condomínio");
-      return;
-    }
     processarRetornoMutation.mutate({
-      condominioId: effectiveCondominioId,
+      condominioId: 0, // 0 = global: busca em todos os condomínios
       nomeArquivo: retornoNomeArquivo,
       conteudo: retornoConteudo,
     });
@@ -745,7 +741,7 @@ export default function CNAB240() {
 
               <Button
                 onClick={handleProcessarRetorno}
-                disabled={!retornoConteudo || !effectiveCondominioId || processarRetornoMutation.isPending}
+                disabled={!retornoConteudo || processarRetornoMutation.isPending}
                 className="w-full h-11 text-base"
               >
                 {processarRetornoMutation.isPending ? (

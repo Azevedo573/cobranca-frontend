@@ -2859,12 +2859,15 @@ export const appRouter = router({
 
     processarRetorno: condominioAccessProcedure
       .input(z.object({
-        condominioId: z.number(),
+        condominioId: z.number().optional(), // opcional — 0 ou omitido = global
         nomeArquivo: z.string(),
         conteudo: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
+        // condId = 0 significa global (todos os condomínios)
+        const condId = ctx.user.role === "admin"
+          ? (input.condominioId ?? 0)
+          : (ctx.user.condominioId ?? 0);
         const { parseRetornoCNAB240, determinarNovoStatus } = await import("./db-cnab-retorno");
         const { criarRetornoCNAB } = await import("./db-cnab");
         const { gerarPixCopiaCola } = await import("./pix-emv");
@@ -2927,13 +2930,14 @@ export const appRouter = router({
           let observacao = "";
 
           // 1. Buscar cobrança avulsa pelo nosso número
+          // Busca global: se condId=0 (remessa global), busca em todos os condomínios
+          const cobrancaWhere = condId > 0
+            ? and(eq(cobrancas.nossoNumero, nossoNumero), eq(cobrancas.condominioId, condId))
+            : eq(cobrancas.nossoNumero, nossoNumero);
           const [cobranca] = await db
             .select()
             .from(cobrancas)
-            .where(and(
-              eq(cobrancas.nossoNumero, nossoNumero),
-              eq(cobrancas.condominioId, condId)
-            ))
+            .where(cobrancaWhere)
             .limit(1);
 
           if (cobranca) {
@@ -3001,10 +3005,11 @@ export const appRouter = router({
               })
               .from(parcelasAcordo)
               .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
-              .where(and(
-                eq(parcelasAcordo.nossoNumero, nossoNumero),
-                eq(acordos.condominioId, condId)
-              ))
+              .where(
+                condId > 0
+                  ? and(eq(parcelasAcordo.nossoNumero, nossoNumero), eq(acordos.condominioId, condId))
+                  : eq(parcelasAcordo.nossoNumero, nossoNumero)
+              )
               .limit(1);
 
             if (parcela) {
