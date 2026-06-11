@@ -27,9 +27,13 @@ import {
   AlertOctagon,
   Loader2,
   History,
+  ExternalLink,
+  Copy,
+  QrCode,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { trpc as trpcHook } from "@/lib/trpc";
 
 interface AcordosDevedorProps {
   devedorId: number;
@@ -37,6 +41,16 @@ interface AcordosDevedorProps {
 
 function ParcelasAcordo({ acordoId }: { acordoId: number }) {
   const { data: parcelas, isLoading } = trpc.acordos.getParcelas.useQuery({ acordoId });
+  const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola?: string }>>({});
+  const [copiandoParcela, setCopiandoParcela] = useState<Record<number, string | null>>({});
+
+  const gerarPDFParcelaMutation = trpcHook.acordos.gerarBoletoPDFParcela.useMutation({
+    onSuccess: (data: { url: string; linhaDigitavel: string; pixCopiaCola?: string }, variables: { parcelaId: number }) => {
+      setBoletoParcelas(prev => ({ ...prev, [variables.parcelaId]: data }));
+      toast.success("Boleto gerado com sucesso!");
+    },
+    onError: (err: { message: string }) => toast.error("Erro ao gerar boleto: " + err.message),
+  });
 
   const formatarMoeda = (valor: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor / 100);
@@ -102,6 +116,65 @@ function ParcelasAcordo({ acordoId }: { acordoId: number }) {
               <span className={`font-semibold ${parcela.status === "cancelado" ? "line-through text-muted-foreground" : ""}`}>
                 {formatarMoeda(parcela.amount)}
               </span>
+              {/* Botão de boleto — só para parcelas com nossoNumero */}
+              {(parcela as any).nossoNumero && parcela.status !== "cancelado" && (
+                <div className="flex items-center gap-1">
+                  {!boletoParcelas[parcela.id] ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-5 text-xs px-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+                      onClick={() => gerarPDFParcelaMutation.mutate({ parcelaId: parcela.id })}
+                      disabled={gerarPDFParcelaMutation.isPending}
+                    >
+                      {gerarPDFParcelaMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <FileText className="h-3 w-3" />
+                      )}
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-5 text-xs px-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+                        onClick={() => window.open(boletoParcelas[parcela.id].url, '_blank')}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-5 text-xs px-1.5"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(boletoParcelas[parcela.id].linhaDigitavel);
+                          setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'linha' }));
+                          toast.success('Linha digitável copiada!');
+                          setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
+                        }}
+                      >
+                        {copiandoParcela[parcela.id] === 'linha' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                      </Button>
+                      {boletoParcelas[parcela.id]?.pixCopiaCola && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-5 text-xs px-1.5 border-green-300 text-green-700 hover:bg-green-50"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(boletoParcelas[parcela.id].pixCopiaCola!);
+                            setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'pix' }));
+                            toast.success('PIX copiado!');
+                            setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
+                          }}
+                        >
+                          {copiandoParcela[parcela.id] === 'pix' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <QrCode className="h-3 w-3" />}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
