@@ -419,8 +419,13 @@ export default function RetornoCNAB() {
                   <TableRow>
                     <TableHead>Nosso Número</TableHead>
                     <TableHead>Ocorrência</TableHead>
-                    <TableHead className="text-right">Valor Título</TableHead>
-                    <TableHead className="text-right">Valor Pago</TableHead>
+                    <TableHead className="text-right">Vl. Título</TableHead>
+                    <TableHead className="text-right">Juros Mora</TableHead>
+                    <TableHead className="text-right">Desconto</TableHead>
+                    <TableHead className="text-right">Abatimento</TableHead>
+                    <TableHead className="text-right">IOF</TableHead>
+                    <TableHead className="text-right">Vl. Pago</TableHead>
+                    <TableHead className="text-right">Vl. Líquido</TableHead>
                     <TableHead>Data Crédito</TableHead>
                     <TableHead>Status</TableHead>
                     {temBolepix && <TableHead>Bolepix</TableHead>}
@@ -439,12 +444,27 @@ export default function RetornoCNAB() {
                       <TableCell className="text-right text-sm">
                         {formatarMoeda(item.valorTitulo)}
                       </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {(item as any).jurosMora > 0 ? formatarMoeda((item as any).jurosMora) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {(item as any).desconto > 0 ? formatarMoeda((item as any).desconto) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {(item as any).abatimento > 0 ? formatarMoeda((item as any).abatimento) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {(item as any).iof > 0 ? formatarMoeda((item as any).iof) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell className="text-right text-sm font-semibold">
                         {item.valorPago > 0 ? (
                           <span className="text-green-700">{formatarMoeda(item.valorPago)}</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">
+                        {(item as any).valorLiquido > 0 ? formatarMoeda((item as any).valorLiquido) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {item.dataCredito
