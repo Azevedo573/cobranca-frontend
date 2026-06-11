@@ -2884,12 +2884,24 @@ export const appRouter = router({
         let naoEncontrados = 0;
         let valorTotalPago = 0;
 
+        // Salvar arquivo de retorno no S3
+        let urlArquivoRetorno: string | undefined;
+        try {
+          const { storagePut } = await import("./storage");
+          const fileKey = `retornos-cnab/${condId}/${Date.now()}-${input.nomeArquivo}`;
+          const { url } = await storagePut(fileKey, Buffer.from(input.conteudo, "utf-8"), "text/plain");
+          urlArquivoRetorno = url;
+        } catch (e) {
+          console.error("[CNAB] Falha ao salvar retorno no S3:", e);
+        }
+
         // Criar registro do retorno no banco
         const [retornoResult] = await db.insert(retornosCNAB).values({
           condominioId: condId,
           usuarioId: ctx.user.id,
           banco: "BTG",
           nomeArquivo: input.nomeArquivo,
+          urlArquivo: urlArquivoRetorno,
           totalTitulos: retorno.pares.length,
           titulosPagos: 0, // será atualizado ao final
           titulosRejeitados: 0,

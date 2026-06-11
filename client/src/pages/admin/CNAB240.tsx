@@ -18,7 +18,8 @@ import { Link } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
-  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock, Handshake, Settings2
+  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock, Handshake, Settings2,
+  BanknoteIcon, RefreshCw
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -67,6 +68,8 @@ export default function CNAB240() {
   const [parcelasSelecionadas, setParcelasSelecionadas] = useState<number[]>([]);
   const [resultadoRemessaAcordos, setResultadoRemessaAcordos] = useState<{ nomeArquivo: string; conteudo: string; totalParcelas: number; remessaId: number } | null>(null);
   const [diasAVencer, setDiasAVencer] = useState(30);
+  const [isDragging, setIsDragging] = useState(false);
+  const [itensRetornoRetornoId, setItensRetornoRetornoId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -109,13 +112,21 @@ export default function CNAB240() {
   const processarRetornoMutation = trpc.cnab.processarRetorno.useMutation({
     onSuccess: (data) => {
       setResultadoRetorno(data);
+      setItensRetornoRetornoId(data.retornoId);
       setRetornoResultadoOpen(true);
+      setRetornoConteudo("");
+      setRetornoNomeArquivo("");
       utils.cnab.listarRetornos.invalidate();
       utils.cobrancas.list.invalidate();
       toast.success(`Retorno processado: ${data.pagos} títulos pagos`);
     },
     onError: (err) => toast.error("Erro ao processar retorno: " + err.message),
   });
+
+  const { data: itensRetorno } = trpc.cnab.listarItensRetorno.useQuery(
+    { retornoId: itensRetornoRetornoId!, condominioId: effectiveCondominioId ?? 0 },
+    { enabled: !!itensRetornoRetornoId && !!effectiveCondominioId }
+  );
 
   const { data: parcelasParaRemessa, isLoading: loadingParcelas } = trpc.cnab.listarParcelasParaRemessa.useQuery(
     { condominioId: effectiveCondominioId ?? 0, diasAVencer },
@@ -673,27 +684,53 @@ export default function CNAB240() {
         <TabsContent value="retorno" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Processar Arquivo de Retorno</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5" />
+                Processar Arquivo de Retorno
+              </CardTitle>
               <CardDescription>
-                Faça upload do arquivo de retorno CNAB 240 recebido do BTG Pactual
+                Faça upload do arquivo de retorno CNAB 240 para dar baixa automática nos boletos pagos
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Drag and drop zone */}
               <div
-                className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
+                  isDragging ? "border-primary bg-primary/5" : retornoNomeArquivo ? "border-green-400 bg-green-50" : "hover:border-primary"
+                }`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const file = e.dataTransfer.files[0];
+                  if (!file) return;
+                  setRetornoNomeArquivo(file.name);
+                  const reader = new FileReader();
+                  reader.onload = (ev) => setRetornoConteudo(ev.target?.result as string);
+                  reader.readAsText(file, "latin1");
+                }}
               >
                 {retornoNomeArquivo ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <FileText className="h-6 w-6 text-primary" />
-                    <span className="font-medium">{retornoNomeArquivo}</span>
+                  <div className="space-y-2">
+                    <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto" />
+                    <p className="font-semibold text-green-700">{retornoNomeArquivo}</p>
+                    <p className="text-xs text-muted-foreground">Arquivo pronto para processamento</p>
+                    <Button
+                      size="sm" variant="ghost"
+                      className="text-xs h-7"
+                      onClick={(e) => { e.stopPropagation(); setRetornoNomeArquivo(""); setRetornoConteudo(""); }}
+                    >
+                      Trocar arquivo
+                    </Button>
                   </div>
                 ) : (
                   <>
-                    <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <p className="font-medium">Clique para selecionar o arquivo de retorno</p>
+                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="font-medium text-base">Arraste o arquivo aqui ou clique para selecionar</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Arquivos .ret, .txt ou .240 (CNAB 240 padrão Febraban)
+                      Formatos aceitos: .ret, .txt, .240 (CNAB 240 FEBRABAN)
                     </p>
                   </>
                 )}
@@ -706,12 +743,22 @@ export default function CNAB240() {
                 onChange={handleRetornoFileChange}
               />
 
+              {!effectiveCondominioId && (
+                <p className="text-sm text-amber-600 flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4" /> Selecione um condomínio antes de processar
+                </p>
+              )}
+
               <Button
                 onClick={handleProcessarRetorno}
                 disabled={!retornoConteudo || !effectiveCondominioId || processarRetornoMutation.isPending}
-                className="w-full"
+                className="w-full h-11 text-base"
               >
-                {processarRetornoMutation.isPending ? "Processando..." : "Processar Retorno"}
+                {processarRetornoMutation.isPending ? (
+                  <><RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Processando...</>
+                ) : (
+                  <><BanknoteIcon className="mr-2 h-4 w-4" /> Processar Retorno e Dar Baixa</>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -812,7 +859,33 @@ export default function CNAB240() {
                             {formatarMoeda(r.valorTotalPago)} recebido
                           </p>
                         </div>
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div className="flex items-center gap-2 shrink-0">
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                          {r.urlArquivo && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 gap-1"
+                              onClick={async () => {
+                                try {
+                                  const resp = await fetch(r.urlArquivo!);
+                                  const blob = await resp.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  a.download = r.nomeArquivo;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                } catch {
+                                  toast.error("Erro ao baixar o arquivo");
+                                }
+                              }}
+                            >
+                              <Download className="h-3 w-3" />
+                              <span className="text-xs">Baixar</span>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -825,42 +898,99 @@ export default function CNAB240() {
 
       {/* Dialog: Resultado do Retorno */}
       <Dialog open={retornoResultadoOpen} onOpenChange={setRetornoResultadoOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Resultado do Processamento de Retorno</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              Retorno Processado com Sucesso
+            </DialogTitle>
           </DialogHeader>
           {resultadoRetorno && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Card className="p-4 text-center">
+            <div className="space-y-5">
+              {/* Cards de resumo */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <Card className="p-3 text-center">
                   <p className="text-xs text-muted-foreground">Total</p>
                   <p className="text-2xl font-bold">{resultadoRetorno.totalTitulos}</p>
                 </Card>
-                <Card className="p-4 text-center bg-blue-50 border-blue-200">
+                <Card className="p-3 text-center bg-blue-50 border-blue-200">
                   <p className="text-xs text-blue-600">Entradas</p>
                   <p className="text-2xl font-bold text-blue-700">{resultadoRetorno.entradas}</p>
                 </Card>
-                <Card className="p-4 text-center bg-green-50 border-green-200">
+                <Card className="p-3 text-center bg-green-50 border-green-200">
                   <p className="text-xs text-green-600">Pagos</p>
                   <p className="text-2xl font-bold text-green-700">{resultadoRetorno.pagos}</p>
                 </Card>
-                <Card className="p-4 text-center bg-red-50 border-red-200">
+                <Card className="p-3 text-center bg-orange-50 border-orange-200">
+                  <p className="text-xs text-orange-600">Cancelados</p>
+                  <p className="text-2xl font-bold text-orange-700">{resultadoRetorno.cancelados}</p>
+                </Card>
+                <Card className="p-3 text-center bg-red-50 border-red-200">
                   <p className="text-xs text-red-600">Não encontrados</p>
                   <p className="text-2xl font-bold text-red-700">{resultadoRetorno.naoEncontrados}</p>
                 </Card>
               </div>
+
               {resultadoRetorno.valorTotalPago > 0 && (
-                <div className="text-center py-2">
-                  <p className="text-sm text-muted-foreground">Valor Total Recebido</p>
-                  <p className="text-2xl font-bold text-green-600">
+                <div className="text-center py-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-sm text-muted-foreground">Valor Total Baixado</p>
+                  <p className="text-3xl font-bold text-green-600">
                     {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(resultadoRetorno.valorTotalPago / 100)}
                   </p>
+                </div>
+              )}
+
+              {/* Tabela de detalhes por título */}
+              {itensRetorno && itensRetorno.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold mb-2">Detalhes por Título</p>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Nosso Nº</TableHead>
+                          <TableHead className="text-xs">Pagador</TableHead>
+                          <TableHead className="text-xs">Ocorrência</TableHead>
+                          <TableHead className="text-xs">Data</TableHead>
+                          <TableHead className="text-xs text-right">Valor Pago</TableHead>
+                          <TableHead className="text-xs">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {itensRetorno.map((item: any) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="text-xs font-mono">{item.nossoNumero}</TableCell>
+                            <TableCell className="text-xs">{item.nomePagador || "-"}</TableCell>
+                            <TableCell className="text-xs">{item.descOcorrencia || item.descMovimento || "-"}</TableCell>
+                            <TableCell className="text-xs">
+                              {item.dataCredito ? format(new Date(item.dataCredito), "dd/MM/yy") :
+                               item.dataOcorrencia ? format(new Date(item.dataOcorrencia), "dd/MM/yy") : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-semibold">
+                              {item.valorPago > 0 ? formatarMoeda(item.valorPago) : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {item.statusProcessamento === "processado" ? (
+                                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs h-5">
+                                  {item.statusNovo === "pago" ? "Baixado" :
+                                   item.statusNovo === "em_cobranca" ? "Confirmado" :
+                                   item.statusNovo === "cancelado" ? "Cancelado" : "Processado"}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-red-600 border-red-300 text-xs h-5">Não encontrado</Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               )}
             </div>
           )}
           <DialogFooter>
-            <Button onClick={() => setRetornoResultadoOpen(false)}>Fechar</Button>
+            <Button onClick={() => { setRetornoResultadoOpen(false); setItensRetornoRetornoId(null); }}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
