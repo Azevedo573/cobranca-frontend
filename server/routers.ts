@@ -2813,11 +2813,23 @@ export const appRouter = router({
           ? gerarNomeArquivoRemessaGlobal(configGlobal.padraoNomeArquivo)
           : `remessa_cnab240_${condId}_${Date.now()}.rem`;
 
+        // Salvar arquivo no S3 para permitir download posterior
+        let urlArquivo: string | undefined;
+        try {
+          const { storagePut } = await import("./storage");
+          const fileKey = `remessas-cnab/${condId}/${Date.now()}-${nomeArquivo}`;
+          const { url } = await storagePut(fileKey, Buffer.from(conteudo, "utf-8"), "text/plain");
+          urlArquivo = url;
+        } catch (e) {
+          console.error("[CNAB] Falha ao salvar remessa no S3:", e);
+        }
+
         await criarRemessaCNAB({
           condominioId: condId,
           usuarioId: ctx.user.id,
           banco: dadosBanco.codigoBanco,
           nomeArquivo,
+          urlArquivo,
           totalTitulos: titulos.length,
           valorTotal,
           nossoNumeroInicio: titulos[0]?.nossoNumero,
@@ -3284,12 +3296,24 @@ export const appRouter = router({
 
         const conteudo = gerarArquivoRemessaCNAB240(dadosBanco, titulos, numeroRemessa);
 
+        // Salvar arquivo no S3 para permitir download posterior
+        let urlArquivoAcordos: string | undefined;
+        try {
+          const { storagePut } = await import("./storage");
+          const fileKey = `remessas-cnab/${condId}/acordos-${Date.now()}-${nomeArquivo}`;
+          const { url } = await storagePut(fileKey, Buffer.from(conteudo, "utf-8"), "text/plain");
+          urlArquivoAcordos = url;
+        } catch (e) {
+          console.error("[CNAB] Falha ao salvar remessa de acordos no S3:", e);
+        }
+
         // Salvar remessa no banco
         const remessaResult = await criarRemessaCNAB({
           condominioId: condId,
           usuarioId: ctx.user.id,
           banco: dadosBanco.codigoBanco,
           nomeArquivo,
+          urlArquivo: urlArquivoAcordos,
           totalTitulos: titulos.length,
           nossoNumeroInicio: rows[0].nossoNumero || '',
           nossoNumeroFim: rows[rows.length - 1].nossoNumero || '',

@@ -737,16 +737,36 @@ export default function CNAB240() {
                 ) : (
                   <div className="space-y-2">
                     {remessas.map((r) => (
-                      <div key={r.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium">{r.nomeArquivo}</p>
+                      <div key={r.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{r.nomeArquivo}</p>
                           <p className="text-xs text-muted-foreground">
                             {formatarData(r.createdAt)} — {r.totalTitulos} títulos — {formatarMoeda(r.valorTotal)}
                           </p>
                         </div>
-                        <Badge variant={r.status === "processado" ? "default" : "secondary"}>
-                          {r.status}
-                        </Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant={r.status === "processado" ? "default" : "secondary"}>
+                            {r.status}
+                          </Badge>
+                          {r.urlArquivo ? (
+                            <a
+                              href={r.urlArquivo}
+                              download={r.nomeArquivo}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Button size="sm" variant="outline" className="h-7 px-2 gap-1">
+                                <Download className="h-3 w-3" />
+                                <span className="text-xs">Baixar</span>
+                              </Button>
+                            </a>
+                          ) : (
+                            <Button size="sm" variant="outline" className="h-7 px-2 gap-1" disabled title="Arquivo não disponível">
+                              <Download className="h-3 w-3" />
+                              <span className="text-xs">Baixar</span>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
