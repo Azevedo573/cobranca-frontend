@@ -225,4 +225,68 @@ describe("gerarSegmentoPCNAB240", () => {
     expect(conta).toBe("000000123456");
     expect(conta.length).toBe(12);
   });
+
+  it("data de juros mora nas posições 128-135 é vencimento + 1 dia", () => {
+    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
+    const dtJuros = linha.substring(128, 136);
+    // vencimento = 10/07/2026 → juros mora = 11/07/2026
+    expect(dtJuros).toBe("11072026");
+    expect(dtJuros).not.toContain("N"); // não deve ter NaN
+  });
+
+  it("data de juros mora é posterior à data de vencimento", () => {
+    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
+    const vencStr = linha.substring(73, 81); // DDMMAAAA
+    const jurosStr = linha.substring(128, 136); // DDMMAAAA
+    // Converter para comparação: DDMMAAAA → AAAAMMDD
+    const toComparableDate = (s: string) =>
+      `${s.substring(4, 8)}${s.substring(2, 4)}${s.substring(0, 2)}`;
+    expect(toComparableDate(jurosStr) > toComparableDate(vencStr)).toBe(true);
+  });
+
+  it("seu número nas posições 205-229 tem zeros à esquerda (não espaços)", () => {
+    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
+    const seuNum = linha.substring(205, 230);
+    expect(seuNum).toBe("0000000000000000000000001");
+    expect(seuNum.length).toBe(25);
+    // Não deve ter espaços (espaços à direita indicam padRight errado)
+    expect(seuNum).not.toContain(" ");
+  });
+
+  it("nosso número null/undefined não gera letras no campo", () => {
+    const tituloSemNossoNum = {
+      ...titulo,
+      nossoNumero: "", // vazio
+    };
+    const linha = gerarSegmentoPCNAB240(banco, tituloSemNossoNum, 1, 1);
+    const nossoNum = linha.substring(49, 69);
+    expect(nossoNum).toBe("00000000000000000000"); // apenas zeros
+    expect(/[a-zA-Z]/.test(nossoNum)).toBe(false); // sem letras
+  });
+
+  it("nosso número com apenas dígitos após limpeza", () => {
+    const tituloComLetras = {
+      ...titulo,
+      nossoNumero: "ABC1000000001XYZ", // letras serão removidas
+    };
+    const linha = gerarSegmentoPCNAB240(banco, tituloComLetras, 1, 1);
+    const nossoNum = linha.substring(49, 69);
+    expect(/[a-zA-Z]/.test(nossoNum)).toBe(false); // sem letras
+    expect(nossoNum).toBe("00000000001000000001");
+  });
+
+  it("data de vencimento não contém letras (sem NaN)", () => {
+    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
+    const vencimento = linha.substring(73, 81);
+    expect(/[a-zA-Z]/.test(vencimento)).toBe(false);
+    expect(vencimento.length).toBe(8);
+    expect(/^\d{8}$/.test(vencimento)).toBe(true);
+  });
+
+  it("valor não contém letras nem ponto decimal (sem NaN)", () => {
+    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
+    const valor = linha.substring(81, 96);
+    expect(/[a-zA-Z.]/.test(valor)).toBe(false);
+    expect(/^\d{15}$/.test(valor)).toBe(true);
+  });
 });

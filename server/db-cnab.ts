@@ -203,7 +203,7 @@ export function gerarSegmentoPCNAB240(
     padLeft(banco.conta, 12),                         // 036-047: Conta (12 chars)
     banco.digitoConta.substring(0, 1),                // 048: Dígito conta
     " ",                                              // 049: Branco
-    padLeft(titulo.nossoNumero.replace(/\D/g, ""), 20), // 050-069: Nosso número (20 chars, zeros à esquerda)
+    padLeft((titulo.nossoNumero || "").replace(/\D/g, ""), 20), // 050-069: Nosso número (20 chars, zeros à esquerda)
     // pos 070-073: Brancos (4 chars)
     " ".repeat(4),                                    // 070-073: Brancos
     formatarDataCNAB(titulo.dataVencimento),          // 074-081: Data de vencimento (DDMMAAAA)
@@ -217,14 +217,14 @@ export function gerarSegmentoPCNAB240(
     "N",                                              // 119: Aceite (N=não aceite)
     formatarDataCNAB(titulo.dataEmissao),             // 120-127: Data de emissão (DDMMAAAA)
     titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "1" : "3", // 128: Código juros (1=valor dia, 3=isento)
-    formatarDataCNAB((() => { const d = new Date(titulo.dataVencimento); d.setDate(d.getDate() + 1); return d; })()), // 129-136: Data início juros (vencimento + 1 dia)
+    formatarDataCNAB((() => { const d = new Date(titulo.dataVencimento.getFullYear(), titulo.dataVencimento.getMonth(), titulo.dataVencimento.getDate() + 1); return d; })()), // 129-136: Data início juros mora (vencimento + 1 dia, sem deslocamento UTC)
     padLeft(titulo.taxaJurosDia ?? 0, 15),            // 137-151: Valor/taxa juros (15 chars)
     "3",                                              // 152: Código desconto (3=sem desconto)
     "00000000",                                       // 153-160: Data desconto
     padLeft(0, 15),                                   // 161-175: Valor desconto (15 chars)
     padLeft(0, 15),                                   // 176-190: Valor IOF (15 chars)
     padLeft(0, 15),                                   // 191-205: Abatimento (15 chars)
-    padRight(String(titulo.cobrancaId), 25),          // 206-230: Identificação do título na empresa
+    padLeft(String(titulo.cobrancaId), 25),           // 206-230: Identificação do título na empresa (alinhado à direita com zeros)
     " ",                                              // 231: Código protesto
     "00",                                             // 232-233: Prazo protesto
     " ",                                              // 234: Código baixa

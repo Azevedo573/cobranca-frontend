@@ -2242,3 +2242,11 @@
 - [x] Adicionar coluna "Custas Jud." na tabela de resumo do modal (cabeçalho + células + totais)
 - [x] Corrigir: custas da tabela custasJudiciais (cadastradas no devedor) agora aparecem no modal de acordo (distribuídas proporcionalmente entre as cobranças)
 - [x] Remover campo manual "Honorários / Desp. Judiciais" do simulador (duplicava o valor das custas)
+
+## Correção Crítica CNAB 240 — Erros Reportados pelo BTG (11/06/2026)
+- [x] Bug: data de vencimento "NaNNaNNa" — parsing de dueDate como string ISO sem conversão local
+- [x] Bug: valor com ponto decimal "N00000000001201" — amount string não convertida para inteiro
+- [x] Bug: nosso número null/undefined pode gerar erro — adicionada proteção `(titulo.nossoNumero || "")`
+- [x] Bug: data de juros mora usava `new Date(titulo.dataVencimento)` sem preservar data local — corrigido para `new Date(y, m, d+1)`
+- [x] Bug: campo "Seu Número" (pos 205-229) usava `padRight` (espaços à direita) — corrigido para `padLeft` (zeros à esquerda)
+- [x] 7 novos testes unitários cobrindo os bugs corrigidos (332 testes passando no total)
