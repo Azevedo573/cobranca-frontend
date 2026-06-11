@@ -2463,7 +2463,46 @@ export const appRouter = router({
 
   // ===== CNAB 240 =====
   cnab: router({
-    // ---- Configuração de Boleto (Portador + Dados do Boleto + Arquivo) ----
+    // ---- Configuração Global CNAB (dados bancários do portador — nível sistema) ----
+    getCnabConfigGlobal: adminProcedure
+      .query(async () => {
+        const { getCnabConfigGlobal } = await import("./db-cnab-config-global");
+        return await getCnabConfigGlobal();
+      }),
+
+    salvarCnabConfigGlobal: adminProcedure
+      .input(z.object({
+        banco: z.string().default("208"),
+        nomeBanco: z.string().default("BTG PACTUAL"),
+        agencia: z.string(),
+        digitoAgencia: z.string().default("0"),
+        conta: z.string(),
+        digitoConta: z.string().default("0"),
+        convenio: z.string().default(""),
+        ativo: z.number().default(1),
+        minimosDiasAntesVencimento: z.number().default(0),
+        usarMinimoDias: z.number().default(0),
+        enviarParcelasApenasPrimeiraPaga: z.number().default(0),
+        enviarParcelasApenasAnteriorPaga: z.number().default(1),
+        carteira: z.string().default("1"),
+        especieDocumento: z.string().default("DD"),
+        aceite: z.string().default("N"),
+        localPagamento: z.string().default("PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO"),
+        instrucoesCaixa: z.string().default("APOS VENCIMENTO COBRAR MULTA DE #MULTA# e MORA DIARIA DE #JUROS#"),
+        taxaJurosDia: z.string().default("0.03330"),
+        taxaMulta: z.string().default("2.00"),
+        padraoNomeArquivo: z.string().default("REMESSA_ddmmyyyy.rem"),
+        layoutArquivo: z.string().default("CNAB240"),
+        enviarInstrucoesProtesto: z.number().default(0),
+        habilitarBoleto: z.number().default(1),
+        habilitarPix: z.number().default(1),
+      }))
+      .mutation(async ({ input }) => {
+        const { upsertCnabConfigGlobal } = await import("./db-cnab-config-global");
+        return await upsertCnabConfigGlobal(input);
+      }),
+
+    // ---- Configuração de Boleto por condomínio (beneficiário: nome, CNPJ, endereço, PIX) ----
     getConfiguracaoBoleto: condominioAccessProcedure
       .input(z.object({ condominioId: z.number() }))
       .query(async ({ input, ctx }) => {
@@ -2674,27 +2713,35 @@ export const appRouter = router({
         const { cobrancas, devedores, condominios } = await import("../drizzle/schema");
         const condId = ctx.user.role === "admin" ? input.condominioId : ctx.user.condominioId!;
 
-        // Buscar configuracao de boleto salva
-        const { getConfiguracaoBoleto, configParaDadosBanco, gerarNomeArquivoRemessa, incrementarSequencialArquivo } = await import("./db-configuracao-boleto");
+        // Buscar configuracao global CNAB (dados bancarios do portador)
+        const { getCnabConfigGlobal, cnabGlobalParaDadosBanco, gerarNomeArquivoRemessaGlobal, incrementarSequencialGlobal } = await import("./db-cnab-config-global");
+        const configGlobal = await getCnabConfigGlobal();
+
+        // Buscar configuracao por condominio (dados do beneficiario: nome, CNPJ, PIX)
+        const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         const configBoleto = await getConfiguracaoBoleto(condId);
 
         // Buscar nome do condominio para fallback
         const [cond] = await db.select().from(condominios).where(eq(condominios.id, condId)).limit(1);
         const nomeCondominio = cond?.name || "CONDOMINIO";
 
-        // Resolver dados bancarios: prioridade = config salva > input manual
-        const dadosBanco = configBoleto
-          ? configParaDadosBanco(configBoleto, nomeCondominio)
+        // Resolver dados bancarios: prioridade = config global > input manual
+        const dadosBanco = configGlobal
+          ? cnabGlobalParaDadosBanco(
+              configGlobal,
+              configBoleto?.nomeBeneficiario || nomeCondominio,
+              configBoleto?.cnpjBeneficiario || ""
+            )
           : input.dadosBanco;
 
-        if (!dadosBanco) throw new Error("Dados bancarios nao configurados. Configure o portador bancario antes de gerar remessa.");
+        if (!dadosBanco) throw new Error("Dados bancarios nao configurados. Configure o portador bancario em Banco > Configuracao CNAB 240 antes de gerar remessa.");
 
         // Validar CNPJ do beneficiario — obrigatorio para o BTG aceitar o arquivo
         const cnpjLimpo = dadosBanco.cnpjCedente?.replace(/[.\-\/]/g, "").trim();
         if (!cnpjLimpo || cnpjLimpo === "00000000000000" || cnpjLimpo.length < 11) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "CNPJ/CPF do beneficiario nao configurado. Acesse Banco > Configuracao de Boleto, aba Portador, e preencha o campo CNPJ/CPF Beneficiario antes de gerar a remessa.",
+            message: "CNPJ/CPF do beneficiario nao configurado. Acesse Banco > Configuracao de Boleto, aba Dados do Beneficiario, e preencha o campo CNPJ/CPF Beneficiario antes de gerar a remessa.",
           });
         }
 
@@ -2706,11 +2753,11 @@ export const appRouter = router({
 
         const { gerarArquivoRemessaCNAB240, criarRemessaCNAB } = await import("./db-cnab");
 
-        // Incrementar sequencial e obter nosso numero inicial
+        // Incrementar sequencial global e obter nosso numero inicial
         let nossoNumeroBase = 1000000001;
         let numeroRemessa = 1;
-        if (configBoleto) {
-          const seq = await incrementarSequencialArquivo(condId, cobList.length);
+        if (configGlobal) {
+          const seq = await incrementarSequencialGlobal(cobList.length);
           nossoNumeroBase = seq.nossoNumeroInicio;
           numeroRemessa = seq.numeroSequencial;
         } else {
@@ -2719,17 +2766,18 @@ export const appRouter = router({
           numeroRemessa = remessas.length + 1;
         }
 
-        // Converter taxas da config para centavos
-        const taxaJurosDia = configBoleto
-          ? Math.round(parseFloat(configBoleto.taxaJurosDia) * 100)
+        // Converter taxas da config global para centavos
+        const taxaJurosDia = configGlobal
+          ? Math.round(parseFloat(configGlobal.taxaJurosDia) * 100)
           : 33; // 0,033% ao dia = 1% ao mes
-        const taxaMulta = configBoleto
-          ? Math.round(parseFloat(configBoleto.taxaMulta) * 100)
+        const taxaMulta = configGlobal
+          ? Math.round(parseFloat(configGlobal.taxaMulta) * 100)
           : 200; // 2,00%
-        const instrucoesCaixa = configBoleto?.instrucoesCaixa
-          .replace("#MULTA#", `${configBoleto.taxaMulta}%`)
-          .replace("#JUROS#", `${configBoleto.taxaJurosDia}% ao dia`)
-          || "COBRAR JUROS DE 1% AO MES";
+        const instrucoesCaixa = configGlobal?.instrucoesCaixa
+          ? configGlobal.instrucoesCaixa
+              .replace("#MULTA#", `${configGlobal.taxaMulta}%`)
+              .replace("#JUROS#", `${configGlobal.taxaJurosDia}% ao dia`)
+          : "COBRAR JUROS DE 1% AO MES";
 
         const titulos = cobList.map((cob, idx) => {
           const dev = devMap.get(cob.devedorId);
@@ -2748,12 +2796,12 @@ export const appRouter = router({
             dataEmissao: new Date(cob.createdAt),
             instrucao1: instrucoesCaixa,
             instrucao2: "",
-            carteira: configBoleto?.carteira || "1",
-            especieDocumento: configBoleto?.especieDocumento || "12",
-            aceite: configBoleto?.aceite || "N",
+            carteira: configGlobal?.carteira || "1",
+            especieDocumento: configGlobal?.especieDocumento || "12",
+            aceite: configGlobal?.aceite || "N",
             taxaJurosDia,
             taxaMulta,
-            enviarProtesto: configBoleto ? configBoleto.enviarInstrucoesProtesto === 1 : false,
+            enviarProtesto: configGlobal ? configGlobal.enviarInstrucoesProtesto === 1 : false,
           };
         });
 
@@ -2761,8 +2809,8 @@ export const appRouter = router({
         const valorTotal = cobList.reduce((s, c) => s + c.amount, 0);
 
         // Nome do arquivo conforme padrao configurado
-        const nomeArquivo = configBoleto
-          ? gerarNomeArquivoRemessa(configBoleto.padraoNomeArquivo)
+        const nomeArquivo = configGlobal
+          ? gerarNomeArquivoRemessaGlobal(configGlobal.padraoNomeArquivo)
           : `remessa_cnab240_${condId}_${Date.now()}.rem`;
 
         await criarRemessaCNAB({
@@ -3138,20 +3186,28 @@ export const appRouter = router({
         const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
         const { eq, and, inArray } = await import("drizzle-orm");
 
-        // Buscar configuração BTG
-        const { getConfiguracaoBoleto, configParaDadosBanco, gerarNomeArquivoRemessa, incrementarSequencialArquivo } = await import("./db-configuracao-boleto");
-        const configBoleto = await getConfiguracaoBoleto(condId);
-        if (!configBoleto) throw new TRPCError({ code: "BAD_REQUEST", message: "Configure o portador bancário antes de gerar remessa." });
+        // Buscar configuracao global CNAB (dados bancarios do portador)
+        const { getCnabConfigGlobal, cnabGlobalParaDadosBanco, gerarNomeArquivoRemessaGlobal, incrementarSequencialGlobal } = await import("./db-cnab-config-global");
+        const configGlobalAcordos = await getCnabConfigGlobal();
+        if (!configGlobalAcordos) throw new TRPCError({ code: "BAD_REQUEST", message: "Configure o portador bancário global em Banco > Configuração CNAB 240 antes de gerar remessa." });
+
+        // Buscar configuracao por condominio (dados do beneficiario)
+        const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+        const configBoletoAcordos = await getConfiguracaoBoleto(condId);
 
         const [cond] = await db.select().from(condominios).where(eq(condominios.id, condId)).limit(1);
-        const dadosBanco = configParaDadosBanco(configBoleto, cond?.name || "CONDOMINIO");
+        const dadosBanco = cnabGlobalParaDadosBanco(
+          configGlobalAcordos,
+          configBoletoAcordos?.nomeBeneficiario || cond?.name || "CONDOMINIO",
+          configBoletoAcordos?.cnpjBeneficiario || ""
+        );
 
         // Validar CNPJ do beneficiario — obrigatorio para o BTG aceitar o arquivo
         const cnpjLimpoParcelas = dadosBanco.cnpjCedente?.replace(/[.\-\/]/g, "").trim();
         if (!cnpjLimpoParcelas || cnpjLimpoParcelas === "00000000000000" || cnpjLimpoParcelas.length < 11) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "CNPJ/CPF do beneficiario nao configurado. Acesse Banco > Configuracao de Boleto, aba Portador, e preencha o campo CNPJ/CPF Beneficiario antes de gerar a remessa.",
+            message: "CNPJ/CPF do beneficiario nao configurado. Acesse Banco > Configuracao de Boleto, aba Dados do Beneficiario, e preencha o campo CNPJ/CPF Beneficiario antes de gerar a remessa.",
           });
         }
 
@@ -3182,7 +3238,7 @@ export const appRouter = router({
         // Atribuir nossoNumero para parcelas que ainda não têm
         const semNossoNumero = rows.filter(r => !r.nossoNumero);
         if (semNossoNumero.length > 0) {
-          const seqExtra = await incrementarSequencialArquivo(condId, semNossoNumero.length);
+          const seqExtra = await incrementarSequencialGlobal(semNossoNumero.length);
           for (let i = 0; i < semNossoNumero.length; i++) {
             const nn = String(seqExtra.nossoNumeroInicio + i).padStart(10, '0');
             await db.update(parcelasAcordo)
@@ -3193,11 +3249,11 @@ export const appRouter = router({
         }
 
         // Montar títulos para CNAB (interface TituloRemessa)
-        const taxaJurosDia = Math.round(parseFloat(configBoleto.taxaJurosDia) * 100);
-        const taxaMulta = Math.round(parseFloat(configBoleto.taxaMulta) * 100);
-        const instrucoesCaixa = (configBoleto.instrucoesCaixa || '')
-          .replace('#MULTA#', configBoleto.taxaMulta + '%')
-          .replace('#JUROS#', configBoleto.taxaJurosDia + '% ao dia');
+        const taxaJurosDia = Math.round(parseFloat(configGlobalAcordos.taxaJurosDia) * 100);
+        const taxaMulta = Math.round(parseFloat(configGlobalAcordos.taxaMulta) * 100);
+        const instrucoesCaixa = (configGlobalAcordos.instrucoesCaixa || '')
+          .replace('#MULTA#', configGlobalAcordos.taxaMulta + '%')
+          .replace('#JUROS#', configGlobalAcordos.taxaJurosDia + '% ao dia');
         const hoje = new Date();
 
         const titulos = rows.map(r => ({
@@ -3213,18 +3269,18 @@ export const appRouter = router({
           dataVencimento: new Date(r.dueDate),
           dataEmissao: hoje,
           instrucao1: instrucoesCaixa,
-          instrucao2: configBoleto.localPagamento || 'PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO',
+          instrucao2: configGlobalAcordos.localPagamento || 'PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO',
           taxaJurosDia,
           taxaMulta,
-          carteira: configBoleto.carteira || '1',
-          especieDocumento: configBoleto.especieDocumento || '01',
-          aceite: configBoleto.aceite || 'N',
-          enviarProtesto: configBoleto.enviarInstrucoesProtesto === 1,
+          carteira: configGlobalAcordos.carteira || '1',
+          especieDocumento: configGlobalAcordos.especieDocumento || '01',
+          aceite: configGlobalAcordos.aceite || 'N',
+          enviarProtesto: configGlobalAcordos.enviarInstrucoesProtesto === 1,
         }));
 
         const { gerarArquivoRemessaCNAB240, criarRemessaCNAB } = await import("./db-cnab");
-        const numeroRemessa = configBoleto.numeroSequencialArquivo;
-        const nomeArquivo = gerarNomeArquivoRemessa(configBoleto.padraoNomeArquivo || 'BTG_ddmmyyyy', new Date());
+        const numeroRemessa = configGlobalAcordos.numeroSequencialArquivo;
+        const nomeArquivo = gerarNomeArquivoRemessaGlobal(configGlobalAcordos.padraoNomeArquivo || 'REMESSA_ddmmyyyy.rem', new Date());
 
         const conteudo = gerarArquivoRemessaCNAB240(dadosBanco, titulos, numeroRemessa);
 

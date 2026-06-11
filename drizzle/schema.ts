@@ -353,6 +353,50 @@ export const boletosUpload = mysqlTable("boletosUpload", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// ─── Configuração Global CNAB 240 ─────────────────────────────────────────────
+// Dados bancários do portador (empresa/escritório) — um único registro para toda a instalação.
+// Os dados do beneficiário (nome, CNPJ) continuam por condomínio em configuracaoBoleto.
+export const cnabConfigGlobal = mysqlTable("cnabConfigGlobal", {
+  id: int("id").autoincrement().primaryKey(), // Sempre id=1 (registro único)
+  // === Portador (Dados Bancários) ===
+  banco: varchar("banco", { length: 10 }).default("208").notNull(),
+  nomeBanco: varchar("nomeBanco", { length: 50 }).default("BTG PACTUAL").notNull(),
+  agencia: varchar("agencia", { length: 10 }).default("0001").notNull(),
+  digitoAgencia: varchar("digitoAgencia", { length: 2 }).default("0").notNull(),
+  conta: varchar("conta", { length: 20 }).default("").notNull(),
+  digitoConta: varchar("digitoConta", { length: 2 }).default("0").notNull(),
+  convenio: varchar("convenio", { length: 30 }).default("").notNull(),
+  ativo: int("ativo").default(1).notNull(),
+  // === Configuração de Remessa ===
+  minimosDiasAntesVencimento: int("minimosDiasAntesVencimento").default(0).notNull(),
+  usarMinimoDias: int("usarMinimoDias").default(0).notNull(),
+  enviarParcelasApenasPrimeiraPaga: int("enviarParcelasApenasPrimeiraPaga").default(0).notNull(),
+  enviarParcelasApenasAnteriorPaga: int("enviarParcelasApenasAnteriorPaga").default(1).notNull(),
+  // === Dados do Boleto ===
+  carteira: varchar("carteira", { length: 5 }).default("1").notNull(),
+  especieDocumento: varchar("especieDocumento", { length: 5 }).default("DD").notNull(),
+  aceite: varchar("aceite", { length: 1 }).default("N").notNull(),
+  localPagamento: varchar("localPagamento", { length: 500 }).default("PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO").notNull(),
+  instrucoesCaixa: varchar("instrucoesCaixa", { length: 500 }).default("APOS VENCIMENTO COBRAR MULTA DE #MULTA# e MORA DIARIA DE #JUROS#").notNull(),
+  taxaJurosDia: varchar("taxaJurosDia", { length: 10 }).default("0.03330").notNull(),
+  taxaMulta: varchar("taxaMulta", { length: 10 }).default("2.00").notNull(),
+  // === Configuração do Arquivo CNAB ===
+  numeroSequencialArquivo: int("numeroSequencialArquivo").default(1).notNull(),
+  padraoNomeArquivo: varchar("padraoNomeArquivo", { length: 100 }).default("REMESSA_ddmmyyyy.rem").notNull(),
+  layoutArquivo: varchar("layoutArquivo", { length: 20 }).default("CNAB240").notNull(),
+  enviarInstrucoesProtesto: int("enviarInstrucoesProtesto").default(0).notNull(),
+  // === Forma de Pagamento ===
+  habilitarBoleto: int("habilitarBoleto").default(1).notNull(),
+  habilitarPix: int("habilitarPix").default(1).notNull(),
+  // === Nosso Número (sequencial global) ===
+  nossoNumeroAtual: int("nossoNumeroAtual").default(1000000001).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CnabConfigGlobal = typeof cnabConfigGlobal.$inferSelect;
+export type InsertCnabConfigGlobal = typeof cnabConfigGlobal.$inferInsert;
+
 // Configuração de Boleto/CNAB por condomínio (portador bancário + dados do boleto + config arquivo)
 export const configuracaoBoleto = mysqlTable("configuracaoBoleto", {
   id: int("id").autoincrement().primaryKey(),
