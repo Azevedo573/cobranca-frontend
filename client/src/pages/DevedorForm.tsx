@@ -13,9 +13,11 @@ import { toast } from "sonner";
 export default function DevedorForm() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/devedores/:id");
-  const isEdit = params?.id && params.id !== "novo";
-  const devedorId = isEdit ? parseInt(params.id) : null;
+  const [, paramsNovo] = useRoute("/devedores/:id");
+  const [, paramsEditar] = useRoute("/devedores/:id/editar");
+  const params = paramsEditar || paramsNovo;
+  const isEdit = !!(paramsEditar?.id) || (paramsNovo?.id && paramsNovo.id !== "novo");
+  const devedorId = isEdit ? parseInt(params!.id) : null;
 
   const [formData, setFormData] = useState({
     condominioId: "",
