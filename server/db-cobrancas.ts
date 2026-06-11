@@ -1,5 +1,5 @@
 import { and, eq, ne } from "drizzle-orm";
-import { cobrancas, InsertCobranca, condominios, acordos, acordoCobrancas, parcelasAcordo } from "../drizzle/schema";
+import { cobrancas, InsertCobranca, condominios, acordos, acordoCobrancas, parcelasAcordo, custasJudiciais as custasJudiciaisTable } from "../drizzle/schema";
 import { getDb } from "./db";
 import { calcularValorDevido, BreakdownValor } from "../shared/calculos";
 import { calcularCorrecaoBCB } from "./bcb-api";
@@ -154,6 +154,13 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
                              condominio.indiceCorrecao && 
                              condominio.indiceCorrecao !== "NENHUM";
   
+  // Buscar total de custas judiciais da tabela separada (cadastradas no perfil do devedor)
+  const custasRows = await db.select().from(custasJudiciaisTable).where(eq(custasJudiciaisTable.devedorId, devedorId));
+  const totalCustasDevedor = custasRows.reduce((sum, c) => sum + c.valor, 0) / 100; // em reais
+
+  // Distribuir custas proporcionalmente entre as cobranças ativas (por valor original)
+  const totalAmountCobrancas = cobrancasList.reduce((sum, c) => sum + c.amount, 0);
+
   // Calcular valores para cada cobrança
   const cobrancasComCalculos: CobrancaComCalculos[] = [];
   
@@ -161,7 +168,12 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
     const valorOriginal = cobranca.amount / 100; // converter de centavos
     if (!cobranca.dueDate) continue; // pular cobranças sem data de vencimento
     const dataVencimento = new Date(cobranca.dueDate);
-    const custasJudiciais = cobranca.custasJudiciais ? cobranca.custasJudiciais / 100 : 0;
+    // Custas: campo da própria cobrança + proporção das custas do devedor (tabela separada)
+    const custasPropriaCobranca = cobranca.custasJudiciais ? cobranca.custasJudiciais / 100 : 0;
+    const custasProporcionais = totalAmountCobrancas > 0
+      ? (cobranca.amount / totalAmountCobrancas) * totalCustasDevedor
+      : 0;
+    const custasJudiciais = custasPropriaCobranca + custasProporcionais;
     
     // Calcular valores base (juros, multa, honorários)
     let breakdown = calcularValorDevido(valorOriginal, dataVencimento, taxas, custasJudiciais);

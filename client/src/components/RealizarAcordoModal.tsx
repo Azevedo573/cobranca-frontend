@@ -101,9 +101,7 @@ export function RealizarAcordoModal({
   const [jurosPct, setJurosPct] = useState("1.0000");
   const [honorarioPct, setHonorarioPct] = useState("10.0000");
   const [honorarioRS, setHonorarioRS] = useState("0.00");
-  const [despesaPct, setDespesaPct] = useState("0.00");
-  const [despesaRS, setDespesaRS] = useState("0.00");
-  const [despesaDescr, setDespesaDescr] = useState("");
+
   const [descontoPct, setDescontoPct] = useState("0.0000");
   const [descontoRS, setDescontoRS] = useState("0.00");
 
@@ -160,13 +158,10 @@ export function RealizarAcordoModal({
       // Honorários (% sobre subTotal + valor fixo)
       const honorario = (parseFloat(honorarioPct) / 100) * subTotal + parseFloat(honorarioRS || "0");
 
-      // Despesa
-      const despesa = (parseFloat(despesaPct || "0") / 100) * subTotal + parseFloat(despesaRS || "0");
-
       // Desconto
-      const desconto = (parseFloat(descontoPct || "0") / 100) * (subTotal + honorario + despesa) + parseFloat(descontoRS || "0");
+      const desconto = (parseFloat(descontoPct || "0") / 100) * (subTotal + honorario) + parseFloat(descontoRS || "0");
 
-      const total = subTotal + honorario + despesa - desconto;
+      const total = subTotal + honorario - desconto;
 
       return {
         id: c.id,
@@ -183,12 +178,11 @@ export function RealizarAcordoModal({
         juros,
         subTotal,
         honorario,
-        despesa,
         desconto,
         total: Math.max(0, total),
       };
     });
-  }, [cobrancasDisponiveis, dataCalculo, usarCorrecao, multaPct, jurosPct, honorarioPct, honorarioRS, despesaPct, despesaRS, descontoPct, descontoRS]);
+  }, [cobrancasDisponiveis, dataCalculo, usarCorrecao, multaPct, jurosPct, honorarioPct, honorarioRS, descontoPct, descontoRS]);
 
   // Totais das selecionadas
   const totais = useMemo(() => {
@@ -201,7 +195,6 @@ export function RealizarAcordoModal({
       juros: sel.reduce((s, t) => s + t.juros, 0),
       subTotal: sel.reduce((s, t) => s + t.subTotal, 0),
       honorario: sel.reduce((s, t) => s + t.honorario, 0),
-      despesa: sel.reduce((s, t) => s + t.despesa, 0),
       desconto: sel.reduce((s, t) => s + t.desconto, 0),
       total: sel.reduce((s, t) => s + t.total, 0),
     };
@@ -405,21 +398,6 @@ export function RealizarAcordoModal({
                   </div>
                 </div>
 
-                {/* Despesa do devedor */}
-                <div>
-                  <Label className="text-xs">Honorários / Desp. Judiciais</Label>
-                  <div className="flex gap-1 mt-1">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">%</span>
-                      <Input value={despesaPct} onChange={(e) => setDespesaPct(e.target.value)} className="w-16 h-8 text-sm" />
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">R$</span>
-                      <Input value={despesaRS} onChange={(e) => setDespesaRS(e.target.value)} className="w-16 h-8 text-sm" />
-                    </div>
-                    <Input value={despesaDescr} onChange={(e) => setDespesaDescr(e.target.value)} placeholder="Descr" className="w-24 h-8 text-sm" />
-                  </div>
-                </div>
 
                 {/* Desconto */}
                 <div>
@@ -462,7 +440,6 @@ export function RealizarAcordoModal({
                       <th className="p-2 text-right font-medium">Juros</th>
                       <th className="p-2 text-right font-medium">Sub Total</th>
                       <th className="p-2 text-right font-medium">Honorário</th>
-                      <th className="p-2 text-right font-medium">Desp.</th>
                       <th className="p-2 text-right font-medium">Desconto</th>
                       <th className="p-2 text-right font-medium text-primary">Total</th>
                     </tr>
@@ -492,7 +469,6 @@ export function RealizarAcordoModal({
                         <td className="p-2 text-right">{fmt(t.juros)}</td>
                         <td className="p-2 text-right">{fmt(t.subTotal)}</td>
                         <td className="p-2 text-right">{fmt(t.honorario)}</td>
-                        <td className="p-2 text-right">{fmt(t.despesa)}</td>
                         <td className="p-2 text-right text-green-700">{fmt(t.desconto)}</td>
                         <td className="p-2 text-right font-bold text-primary">{fmt(t.total)}</td>
                       </tr>
@@ -509,7 +485,6 @@ export function RealizarAcordoModal({
                       <td className="p-2 text-right">{fmt(totais.juros)}</td>
                       <td className="p-2 text-right">{fmt(totais.subTotal)}</td>
                       <td className="p-2 text-right">{fmt(totais.honorario)}</td>
-                      <td className="p-2 text-right">{fmt(totais.despesa)}</td>
                       <td className="p-2 text-right text-green-700">{fmt(totais.desconto)}</td>
                       <td className="p-2 text-right text-primary">{fmt(totais.total)}</td>
                     </tr>

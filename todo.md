@@ -2240,3 +2240,5 @@
 - [x] Incluir custasJudiciais no cálculo do subTotal do RealizarAcordoModal (extraído do breakdown)
 - [x] Adicionar custasJudiciais nos totais agregados (useMemo totais)
 - [x] Adicionar coluna "Custas Jud." na tabela de resumo do modal (cabeçalho + células + totais)
+- [x] Corrigir: custas da tabela custasJudiciais (cadastradas no devedor) agora aparecem no modal de acordo (distribuídas proporcionalmente entre as cobranças)
+- [x] Remover campo manual "Honorários / Desp. Judiciais" do simulador (duplicava o valor das custas)
