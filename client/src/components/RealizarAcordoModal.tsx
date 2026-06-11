@@ -141,6 +141,9 @@ export function RealizarAcordoModal({
       const dias = c.dueDate ? Math.max(0, Math.floor((dataAlvo.getTime() - new Date(c.dueDate).getTime()) / (1000 * 60 * 60 * 24))) : 0;
       const meses = dias / 30;
 
+      // Custas judiciais (do breakdown calculado pelo backend)
+      const custasJudiciais = b ? (b.custasJudiciais || 0) : 0;
+
       // Correção monetária
       const corMonetaria = usarCorrecao && b ? b.correcaoMonetaria : 0;
       const baseCorrigida = valorOriginal + corMonetaria;
@@ -151,8 +154,8 @@ export function RealizarAcordoModal({
       // Juros (% ao mês sobre valor original × meses)
       const juros = (parseFloat(jurosPct) / 100) * valorOriginal * meses;
 
-      // Sub total antes de honorários
-      const subTotal = baseCorrigida + multa + juros;
+      // Sub total antes de honorários (inclui custas judiciais)
+      const subTotal = baseCorrigida + multa + juros + custasJudiciais;
 
       // Honorários (% sobre subTotal + valor fixo)
       const honorario = (parseFloat(honorarioPct) / 100) * subTotal + parseFloat(honorarioRS || "0");
@@ -175,6 +178,7 @@ export function RealizarAcordoModal({
         dias,
         valorOriginal,
         corMonetaria,
+        custasJudiciais,
         multa,
         juros,
         subTotal,
@@ -192,6 +196,7 @@ export function RealizarAcordoModal({
     return {
       valorOriginal: sel.reduce((s, t) => s + t.valorOriginal, 0),
       corMonetaria: sel.reduce((s, t) => s + t.corMonetaria, 0),
+      custasJudiciais: sel.reduce((s, t) => s + t.custasJudiciais, 0),
       multa: sel.reduce((s, t) => s + t.multa, 0),
       juros: sel.reduce((s, t) => s + t.juros, 0),
       subTotal: sel.reduce((s, t) => s + t.subTotal, 0),
@@ -452,6 +457,7 @@ export function RealizarAcordoModal({
                       <th className="p-2 text-center font-medium">Dias</th>
                       <th className="p-2 text-right font-medium">Vl. Original</th>
                       <th className="p-2 text-right font-medium">Cor. Monetária</th>
+                      <th className="p-2 text-right font-medium">Custas Jud.</th>
                       <th className="p-2 text-right font-medium">Multa</th>
                       <th className="p-2 text-right font-medium">Juros</th>
                       <th className="p-2 text-right font-medium">Sub Total</th>
@@ -481,6 +487,7 @@ export function RealizarAcordoModal({
                         <td className="p-2 text-center">{t.dias}</td>
                         <td className="p-2 text-right">{fmt(t.valorOriginal)}</td>
                         <td className="p-2 text-right">{fmt(t.corMonetaria)}</td>
+                        <td className="p-2 text-right">{t.custasJudiciais > 0 ? fmt(t.custasJudiciais) : <span className="text-muted-foreground">-</span>}</td>
                         <td className="p-2 text-right">{fmt(t.multa)}</td>
                         <td className="p-2 text-right">{fmt(t.juros)}</td>
                         <td className="p-2 text-right">{fmt(t.subTotal)}</td>
@@ -497,6 +504,7 @@ export function RealizarAcordoModal({
                       <td colSpan={5} className="p-2 text-right text-xs">Totais selecionados:</td>
                       <td className="p-2 text-right">{fmt(totais.valorOriginal)}</td>
                       <td className="p-2 text-right">{fmt(totais.corMonetaria)}</td>
+                      <td className="p-2 text-right">{totais.custasJudiciais > 0 ? fmt(totais.custasJudiciais) : <span className="text-muted-foreground">-</span>}</td>
                       <td className="p-2 text-right">{fmt(totais.multa)}</td>
                       <td className="p-2 text-right">{fmt(totais.juros)}</td>
                       <td className="p-2 text-right">{fmt(totais.subTotal)}</td>

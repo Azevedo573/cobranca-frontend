@@ -2235,3 +2235,8 @@
 - [ ] Integrar CustasJudiciais na aba de detalhes do devedor (nova aba ou seção em Histórico)
 - [ ] Exibir total de custas judiciais nos cards de métricas do devedor
 - [ ] Incluir custas judiciais no cálculo do valor total devido do devedor
+
+## Custas Judiciais no Acordo
+- [x] Incluir custasJudiciais no cálculo do subTotal do RealizarAcordoModal (extraído do breakdown)
+- [x] Adicionar custasJudiciais nos totais agregados (useMemo totais)
+- [x] Adicionar coluna "Custas Jud." na tabela de resumo do modal (cabeçalho + células + totais)
