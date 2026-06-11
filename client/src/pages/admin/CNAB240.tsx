@@ -941,8 +941,14 @@ export default function CNAB240() {
                           <TableHead className="text-xs">Nosso Nº</TableHead>
                           <TableHead className="text-xs">Pagador</TableHead>
                           <TableHead className="text-xs">Ocorrência</TableHead>
-                          <TableHead className="text-xs">Data</TableHead>
-                          <TableHead className="text-xs text-right">Valor Pago</TableHead>
+                          <TableHead className="text-xs">Data Crédito</TableHead>
+                          <TableHead className="text-xs text-right">Vl. Título</TableHead>
+                          <TableHead className="text-xs text-right">Juros Mora</TableHead>
+                          <TableHead className="text-xs text-right">Desconto</TableHead>
+                          <TableHead className="text-xs text-right">Abatimento</TableHead>
+                          <TableHead className="text-xs text-right">IOF</TableHead>
+                          <TableHead className="text-xs text-right">Vl. Pago</TableHead>
+                          <TableHead className="text-xs text-right">Vl. Líquido</TableHead>
                           <TableHead className="text-xs">Status</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -956,8 +962,26 @@ export default function CNAB240() {
                               {item.dataCredito ? format(new Date(item.dataCredito), "dd/MM/yy") :
                                item.dataOcorrencia ? format(new Date(item.dataOcorrencia), "dd/MM/yy") : "-"}
                             </TableCell>
+                            <TableCell className="text-xs text-right">
+                              {item.valorTitulo > 0 ? formatarMoeda(item.valorTitulo) : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs text-right">
+                              {item.jurosMora > 0 ? formatarMoeda(item.jurosMora) : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs text-right">
+                              {item.desconto > 0 ? formatarMoeda(item.desconto) : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs text-right">
+                              {item.abatimento > 0 ? formatarMoeda(item.abatimento) : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs text-right">
+                              {item.iof > 0 ? formatarMoeda(item.iof) : "-"}
+                            </TableCell>
                             <TableCell className="text-xs text-right font-semibold">
                               {item.valorPago > 0 ? formatarMoeda(item.valorPago) : "-"}
+                            </TableCell>
+                            <TableCell className="text-xs text-right">
+                              {item.valorLiquido > 0 ? formatarMoeda(item.valorLiquido) : "-"}
                             </TableCell>
                             <TableCell className="text-xs">
                               {item.statusProcessamento === "processado" ? (

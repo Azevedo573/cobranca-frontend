@@ -400,6 +400,13 @@
       "when": 1781140416404,
       "tag": "0057_lush_nehzno",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "5",
+      "when": 1781145510748,
+      "tag": "0058_elite_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

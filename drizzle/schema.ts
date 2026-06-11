@@ -473,6 +473,11 @@ export const retornoItens = mysqlTable("retornoItens", {
   dataVencimento: timestamp("dataVencimento"),
   valorTitulo: int("valorTitulo").default(0).notNull(),  // em centavos
   valorPago: int("valorPago").default(0).notNull(),      // em centavos
+  valorLiquido: int("valorLiquido").default(0),          // em centavos
+  jurosMora: int("jurosMora").default(0),                // em centavos
+  desconto: int("desconto").default(0),                  // em centavos
+  abatimento: int("abatimento").default(0),              // em centavos
+  iof: int("iof").default(0),                            // em centavos
   dataOcorrencia: timestamp("dataOcorrencia"),
   dataCredito: timestamp("dataCredito"),
   cpfCnpjPagador: varchar("cpfCnpjPagador", { length: 20 }),
