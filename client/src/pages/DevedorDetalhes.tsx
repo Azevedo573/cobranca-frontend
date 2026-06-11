@@ -469,13 +469,6 @@ export default function DevedorDetalhes() {
                   mostrarTodas={mostrarTodas}
                   setMostrarTodas={setMostrarTodas}
                   limiteInicial={LIMITE_INICIAL}
-                  gerandoBoleto={gerandoBoleto}
-                  setGerandoBoleto={setGerandoBoleto}
-                  dadosBoleto={dadosBoleto}
-                  gerarBoletoPDFMutation={gerarBoletoPDFMutation}
-                  copiadoLinhaId={copiadoLinhaId}
-                  copiadoPixId={copiadoPixId}
-                  copiarTexto={copiarTexto}
                   onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                 />
               </CardContent>
@@ -770,21 +763,13 @@ export default function DevedorDetalhes() {
 // ===== Componente interno: tabela de cobranças =====
 function CobrancasTabela({
   cobrancas, filtroStatus, mostrarTodas, setMostrarTodas, limiteInicial,
-  gerandoBoleto, setGerandoBoleto, dadosBoleto, gerarBoletoPDFMutation,
-  copiadoLinhaId, copiadoPixId, copiarTexto, onEmitirBtg
+  onEmitirBtg
 }: {
   cobrancas: any[];
   filtroStatus: string;
   mostrarTodas: boolean;
   setMostrarTodas: (fn: (v: boolean) => boolean) => void;
   limiteInicial: number;
-  gerandoBoleto: number | null;
-  setGerandoBoleto: (id: number | null) => void;
-  dadosBoleto: Record<number, { linhaDigitavel: string; pixCopiaCola: string | null; url: string }>;
-  gerarBoletoPDFMutation: any;
-  copiadoLinhaId: number | null;
-  copiadoPixId: number | null;
-  copiarTexto: (texto: string, tipo: "linha" | "pix", cobrancaId: number) => void;
   onEmitirBtg: (cob: any) => void;
 }) {
   const cobFiltradas = filtroStatus === "todos" ? cobrancas : cobrancas.filter((c: any) => c.status === filtroStatus);
@@ -861,7 +846,7 @@ function CobrancasTabela({
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {/* Para parcelas de acordo: mostrar link do boleto BTG se disponível */}
+                              {/* Boleto: apenas para parcelas de acordo */}
                               {isParcela && cob.btgBankSlipUrl ? (
                                 <div className="flex flex-col gap-1">
                                   <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => window.open(cob.btgBankSlipUrl, "_blank")}>
@@ -877,89 +862,8 @@ function CobrancasTabela({
                                 <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => onEmitirBtg(cob)}>
                                   <QrCode className="h-3 w-3 mr-1" /> Emitir BTG
                                 </Button>
-                              ) : cob.nossoNumero ? (
-                                <div className="flex flex-col gap-1">
-                                  {/* Botão PDF */}
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-xs w-full"
-                                    disabled={gerandoBoleto === cob.id}
-                                    onClick={() => {
-                                      if (dadosBoleto[cob.id]) {
-                                        window.open(dadosBoleto[cob.id].url, "_blank");
-                                      } else {
-                                        setGerandoBoleto(cob.id);
-                                        gerarBoletoPDFMutation.mutate({ cobrancaId: cob.id });
-                                      }
-                                    }}
-                                  >
-                                    {gerandoBoleto === cob.id ? (
-                                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                    ) : (
-                                      <FileDown className="h-3 w-3 mr-1" />
-                                    )}
-                                    {dadosBoleto[cob.id] ? "Abrir PDF" : "Gerar PDF"}
-                                  </Button>
-
-                                  {/* Botão Copiar Linha Digitável */}
-                                  {dadosBoleto[cob.id] ? (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-7 px-2 text-xs w-full border-blue-300 text-blue-700 hover:bg-blue-50"
-                                      onClick={() => copiarTexto(dadosBoleto[cob.id].linhaDigitavel, "linha", cob.id)}
-                                    >
-                                      {copiadoLinhaId === cob.id ? (
-                                        <Check className="h-3 w-3 mr-1 text-green-600" />
-                                      ) : (
-                                        <Copy className="h-3 w-3 mr-1" />
-                                      )}
-                                      {copiadoLinhaId === cob.id ? "Copiado!" : "Copiar Linha"}
-                                    </Button>
-                                  ) : null}
-
-                                  {/* Botão Copiar Pix — usa o Bolepix do banco (retorno D+1) ou o gerado ao criar PDF */}
-                                  {(dadosBoleto[cob.id]?.pixCopiaCola || (cob as any).pixCopiaCola) ? (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50"
-                                      onClick={() => copiarTexto(
-                                        dadosBoleto[cob.id]?.pixCopiaCola || (cob as any).pixCopiaCola,
-                                        "pix",
-                                        cob.id
-                                      )}
-                                    >
-                                      {copiadoPixId === cob.id ? (
-                                        <Check className="h-3 w-3 mr-1 text-green-600" />
-                                      ) : (
-                                        <QrCode className="h-3 w-3 mr-1" />
-                                      )}
-                                      {copiadoPixId === cob.id ? "Copiado!" : "Copiar Pix"}
-                                    </Button>
-                                  ) : null}
-
-                                  {!dadosBoleto[cob.id] && !(cob as any).pixCopiaCola && (
-                                    <span className="text-xs text-muted-foreground text-center">
-                                      Gere o PDF para copiar
-                                    </span>
-                                  )}
-                                </div>
                               ) : (
-                                <span className="text-xs text-muted-foreground">Sem remessa</span>
-                              )}
-                              {/* Botão BTG — apenas para cobranças originais (não parcelas de acordo) */}
-                              {!isParcela && cob.status !== "pago" && cob.status !== "cancelado" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-xs w-full mt-1 border-blue-400 text-blue-700 hover:bg-blue-50"
-                                  onClick={() => onEmitirBtg(cob)}
-                                >
-                                  <span className="text-xs font-bold mr-1">BTG</span>
-                                  {cob.btgCollectionId ? "Ver/Reemitir" : "Emitir Boleto"}
-                                </Button>
+                                <span className="text-xs text-muted-foreground">—</span>
                               )}
                             </TableCell>
                           </TableRow>
