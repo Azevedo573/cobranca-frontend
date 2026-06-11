@@ -3347,6 +3347,195 @@ export const appRouter = router({
           remessaId,
         };
       }),
+
+    // Lista TODAS as parcelas de acordo pendentes de remessa (todos os condomínios)
+    listarParcelasParaRemessaGlobal: protectedProcedure
+      .input(z.object({
+        diasAVencer: z.number().min(1).max(365).default(90),
+      }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
+        const { eq, and, lte, isNull, or } = await import("drizzle-orm");
+
+        const dataLimite = new Date();
+        dataLimite.setDate(dataLimite.getDate() + input.diasAVencer);
+
+        const rows = await db
+          .select({
+            parcelaId: parcelasAcordo.id,
+            acordoId: parcelasAcordo.acordoId,
+            installmentNumber: parcelasAcordo.installmentNumber,
+            amount: parcelasAcordo.amount,
+            dueDate: parcelasAcordo.dueDate,
+            nossoNumero: parcelasAcordo.nossoNumero,
+            statusRemessa: parcelasAcordo.statusRemessa,
+            remessaId: parcelasAcordo.remessaId,
+            statusParcela: parcelasAcordo.status,
+            devedorId: devedores.id,
+            devedorNome: devedores.name,
+            devedorCpfCnpj: devedores.cpfCnpj,
+            condominioId: acordos.condominioId,
+            condominioNome: condominios.name,
+          })
+          .from(parcelasAcordo)
+          .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+          .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+          .innerJoin(condominios, eq(acordos.condominioId, condominios.id))
+          .where(
+            and(
+              eq(acordos.status, "ativo"),
+              eq(parcelasAcordo.status, "pendente"),
+              or(
+                isNull(parcelasAcordo.statusRemessa),
+                eq(parcelasAcordo.statusRemessa, "nao_enviado")
+              ),
+              lte(parcelasAcordo.dueDate, dataLimite)
+            )
+          )
+          .orderBy(parcelasAcordo.dueDate);
+
+        return rows;
+      }),
+
+    // Gera remessa CNAB 240 global (todos os condomínios) a partir de parcelas selecionadas
+    gerarRemessaAcordosGlobal: protectedProcedure
+      .input(z.object({
+        parcelaIds: z.array(z.number()).min(1).max(1000),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
+        const { eq, and, inArray } = await import("drizzle-orm");
+
+        // Buscar configuracao global CNAB
+        const { getCnabConfigGlobal, cnabGlobalParaDadosBanco, gerarNomeArquivoRemessaGlobal, incrementarSequencialGlobal } = await import("./db-cnab-config-global");
+        const configGlobal = await getCnabConfigGlobal();
+        if (!configGlobal) throw new TRPCError({ code: "BAD_REQUEST", message: "Configure o portador bancário global em Banco > Configuração CNAB 240 antes de gerar remessa." });
+
+        // Para remessa global usamos os dados do portador sem beneficiário específico
+        // O CNPJ do cedente vem da configuração global (campo cnpjCedente)
+        const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
+
+        // Buscar parcelas com dados do devedor e condomínio
+        const rows = await db
+          .select({
+            parcelaId: parcelasAcordo.id,
+            acordoId: parcelasAcordo.acordoId,
+            installmentNumber: parcelasAcordo.installmentNumber,
+            amount: parcelasAcordo.amount,
+            dueDate: parcelasAcordo.dueDate,
+            nossoNumero: parcelasAcordo.nossoNumero,
+            devedorId: devedores.id,
+            devedorNome: devedores.name,
+            devedorCpfCnpj: devedores.cpfCnpj,
+            condominioId: acordos.condominioId,
+          })
+          .from(parcelasAcordo)
+          .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
+          .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+          .where(inArray(parcelasAcordo.id, input.parcelaIds));
+
+        if (rows.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Nenhuma parcela encontrada." });
+
+        // Atribuir nossoNumero para parcelas que ainda não têm
+        const semNossoNumero = rows.filter(r => !r.nossoNumero);
+        if (semNossoNumero.length > 0) {
+          const seqExtra = await incrementarSequencialGlobal(semNossoNumero.length);
+          for (let i = 0; i < semNossoNumero.length; i++) {
+            const nn = String(seqExtra.nossoNumeroInicio + i).padStart(10, '0');
+            await db.update(parcelasAcordo)
+              .set({ nossoNumero: nn })
+              .where(eq(parcelasAcordo.id, semNossoNumero[i].parcelaId));
+            semNossoNumero[i].nossoNumero = nn;
+          }
+        }
+
+        // Buscar config do primeiro condomínio encontrado para dados do beneficiário
+        // (ou usar o campo cedente da config global se disponível)
+        const primeiroCondId = rows[0].condominioId;
+        const configBoleto = await getConfiguracaoBoleto(primeiroCondId);
+        const [primeiroCond] = await db.select().from(condominios).where(eq(condominios.id, primeiroCondId)).limit(1);
+        const dadosBanco = cnabGlobalParaDadosBanco(
+          configGlobal,
+          configBoleto?.nomeBeneficiario || primeiroCond?.name || 'CEDENTE',
+          configBoleto?.cnpjBeneficiario || ''
+        );
+
+        const cnpjLimpo = dadosBanco.cnpjCedente?.replace(/[.\-\/]/g, "").trim();
+        if (!cnpjLimpo || cnpjLimpo === "00000000000000" || cnpjLimpo.length < 11) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "CNPJ/CPF do cedente não configurado. Acesse Banco > Configuração CNAB 240 e preencha o campo CNPJ/CPF Cedente.",
+          });
+        }
+
+        const taxaJurosDia = Math.round(parseFloat(configGlobal.taxaJurosDia) * 100);
+        const taxaMulta = Math.round(parseFloat(configGlobal.taxaMulta) * 100);
+        const instrucoesCaixa = (configGlobal.instrucoesCaixa || '')
+          .replace('#MULTA#', configGlobal.taxaMulta + '%')
+          .replace('#JUROS#', configGlobal.taxaJurosDia + '% ao dia');
+        const hoje = new Date();
+
+        const titulos = rows.map(r => ({
+          cobrancaId: r.parcelaId,
+          nossoNumero: r.nossoNumero || String(Date.now()),
+          devedorNome: r.devedorNome || 'NAO INFORMADO',
+          devedorCpfCnpj: r.devedorCpfCnpj || '',
+          devedorEndereco: '',
+          devedorCidade: '',
+          devedorUF: '',
+          devedorCEP: '',
+          valorNominal: r.amount,
+          dataVencimento: new Date(r.dueDate),
+          dataEmissao: hoje,
+          instrucao1: instrucoesCaixa,
+          instrucao2: configGlobal.localPagamento || 'PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO',
+          taxaJurosDia,
+          taxaMulta,
+          carteira: configGlobal.carteira || '1',
+          especieDocumento: configGlobal.especieDocumento || '01',
+          aceite: configGlobal.aceite || 'N',
+          enviarProtesto: configGlobal.enviarInstrucoesProtesto === 1,
+        }));
+
+        const { gerarArquivoRemessaCNAB240, criarRemessaCNAB } = await import("./db-cnab");
+        const nomeArquivo = gerarNomeArquivoRemessaGlobal(configGlobal.padraoNomeArquivo || 'REMESSA_ddmmyyyy.rem', new Date());
+        const conteudo = gerarArquivoRemessaCNAB240(dadosBanco, titulos, configGlobal.numeroSequencialArquivo);
+
+        // Salvar no S3
+        let urlArquivo: string | undefined;
+        try {
+          const { storagePut } = await import("./storage");
+          const fileKey = `remessas-cnab/global/${Date.now()}-${nomeArquivo}`;
+          const { url } = await storagePut(fileKey, Buffer.from(conteudo, "utf-8"), "text/plain");
+          urlArquivo = url;
+        } catch (e) {
+          console.error("[CNAB] Falha ao salvar remessa global no S3:", e);
+        }
+
+        // Salvar remessa no banco (condominioId = 0 para indicar global)
+        const remessaResult = await criarRemessaCNAB({
+          condominioId: 0,
+          usuarioId: ctx.user.id,
+          banco: dadosBanco.codigoBanco,
+          nomeArquivo,
+          urlArquivo,
+          totalTitulos: titulos.length,
+          nossoNumeroInicio: rows[0].nossoNumero || '',
+          nossoNumeroFim: rows[rows.length - 1].nossoNumero || '',
+        });
+        const remessaId = Number((remessaResult as any)?.[0]?.insertId || 0);
+
+        // Atualizar statusRemessa das parcelas
+        await db.update(parcelasAcordo)
+          .set({ statusRemessa: "remessa_gerada", remessaId: remessaId || null })
+          .where(inArray(parcelasAcordo.id, input.parcelaIds));
+
+        return { nomeArquivo, conteudo, totalParcelas: titulos.length, remessaId };
+      }),
   }),
   operacoes: router({
     // Cobrança Ativa: fila priorizada para o operador

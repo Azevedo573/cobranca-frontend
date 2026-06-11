@@ -128,17 +128,16 @@ export default function CNAB240() {
     { enabled: !!itensRetornoRetornoId && !!effectiveCondominioId }
   );
 
-  const { data: parcelasParaRemessa, isLoading: loadingParcelas } = trpc.cnab.listarParcelasParaRemessa.useQuery(
-    { condominioId: effectiveCondominioId ?? 0, diasAVencer },
-    { enabled: !!effectiveCondominioId }
+  const { data: parcelasParaRemessa, isLoading: loadingParcelas } = trpc.cnab.listarParcelasParaRemessaGlobal.useQuery(
+    { diasAVencer }
   );
 
-  const gerarRemessaAcordosMutation = trpc.cnab.gerarRemessaAcordos.useMutation({
+  const gerarRemessaAcordosMutation = trpc.cnab.gerarRemessaAcordosGlobal.useMutation({
     onSuccess: (data) => {
       setResultadoRemessaAcordos(data);
       setParcelasSelecionadas([]);
       utils.cnab.listarRemessas.invalidate();
-      utils.cnab.listarParcelasParaRemessa.invalidate();
+      utils.cnab.listarParcelasParaRemessaGlobal.invalidate();
       toast.success(`Remessa de acordos gerada: ${data.totalParcelas} parcela(s)`);
     },
     onError: (err) => toast.error("Erro ao gerar remessa de acordos: " + err.message),
@@ -149,12 +148,7 @@ export default function CNAB240() {
       toast.error("Selecione pelo menos uma parcela");
       return;
     }
-    if (!effectiveCondominioId) {
-      toast.error("Selecione um condomínio");
-      return;
-    }
     gerarRemessaAcordosMutation.mutate({
-      condominioId: effectiveCondominioId,
       parcelaIds: parcelasSelecionadas,
     });
   };
@@ -178,10 +172,11 @@ export default function CNAB240() {
 
   const toggleTodasParcelas = () => {
     if (!parcelasParaRemessa) return;
-    if (parcelasSelecionadas.length === parcelasParaRemessa.length) {
+    const ids = parcelasParaRemessa.map(p => p.parcelaId);
+    if (parcelasSelecionadas.length === ids.length) {
       setParcelasSelecionadas([]);
     } else {
-      setParcelasSelecionadas(parcelasParaRemessa.map(p => p.parcelaId));
+      setParcelasSelecionadas(ids);
     }
   };
 
@@ -529,8 +524,8 @@ export default function CNAB240() {
                 <Handshake className="h-5 w-5 text-primary" />
                 Parcelas de Acordo — Gerar Remessa
               </CardTitle>
-              <CardDescription>
-                Selecione as parcelas de acordos ativos para incluir no arquivo CNAB 240 e registrar os boletos no BTG Pactual
+                <CardDescription>
+                Selecione as parcelas de acordos ativos de <strong>todos os condomínios</strong> para incluir em um único arquivo CNAB 240
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -554,12 +549,7 @@ export default function CNAB240() {
                 </div>
               </div>
 
-              {!effectiveCondominioId ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
-                  <p>Selecione um condomínio para continuar</p>
-                </div>
-              ) : loadingParcelas ? (
+              {loadingParcelas ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
                 </div>
@@ -596,6 +586,7 @@ export default function CNAB240() {
                         <TableRow>
                           <TableHead className="w-10"></TableHead>
                           <TableHead>Devedor</TableHead>
+                          <TableHead>Condomínio</TableHead>
                           <TableHead>Acordo</TableHead>
                           <TableHead className="text-center">Parcela</TableHead>
                           <TableHead>Vencimento</TableHead>
@@ -618,6 +609,9 @@ export default function CNAB240() {
                             </TableCell>
                             <TableCell className="text-sm font-medium">
                               {p.devedorNome || `Dev. #${p.devedorId}`}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {(p as any).condominioNome || `Cond. #${p.condominioId}`}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               Acordo #{p.acordoId}
