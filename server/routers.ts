@@ -2792,7 +2792,7 @@ export const appRouter = router({
             devedorUF: "SP",
             devedorCEP: "01310100",
             valorNominal: Math.round(Number(cob.amount)),
-            dataVencimento: cob.dueDate ? (() => { const s = String(cob.dueDate).substring(0, 10); const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); })() : new Date(),
+            dataVencimento: cob.dueDate ? (() => { const raw = cob.dueDate; const iso = raw instanceof Date ? raw.toISOString() : String(raw); const [y, m, d] = iso.substring(0, 10).split('-').map(Number); return new Date(y, m - 1, d); })() : new Date(),
             dataEmissao: new Date(cob.createdAt),
             instrucao1: instrucoesCaixa,
             instrucao2: "",
@@ -3301,8 +3301,8 @@ export const appRouter = router({
           devedorCidade: '',
           devedorUF: '',
           devedorCEP: '',
-          valorNominal: r.amount, // já em centavos no banco (int)
-          dataVencimento: new Date(r.dueDate),
+          valorNominal: Math.round(Number(r.amount)), // converter string "1107.00" para inteiro 1107
+          dataVencimento: (() => { const raw = r.dueDate; const iso = raw instanceof Date ? raw.toISOString() : String(raw); const [y, m, d] = iso.substring(0, 10).split('-').map(Number); return new Date(y, m - 1, d); })(),
           dataEmissao: hoje,
           instrucao1: instrucoesCaixa,
           instrucao2: configGlobalAcordos.localPagamento || 'PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO',
@@ -3501,7 +3501,7 @@ export const appRouter = router({
           devedorUF: '',
           devedorCEP: '',
           valorNominal: Math.round(Number(r.amount)),
-          dataVencimento: (() => { const s = String(r.dueDate).substring(0, 10); const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); })(),
+          dataVencimento: (() => { const raw = r.dueDate; const iso = raw instanceof Date ? raw.toISOString() : String(raw); const [y, m, d] = iso.substring(0, 10).split('-').map(Number); return new Date(y, m - 1, d); })(),
           dataEmissao: hoje,
           instrucao1: instrucoesCaixa,
           instrucao2: configGlobal.localPagamento || 'PAGAVEL EM QUALQUER BANCO ATE O VENCIMENTO',
