@@ -14,25 +14,15 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { Link } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import {
-  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock, Handshake
+  Download, Upload, FileText, CheckCircle2, XCircle, Building2, AlertTriangle, Send, MailCheck, Clock, Handshake, Settings2
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-
-interface DadosBanco {
-  codigoBanco: string;
-  agencia: string;
-  digitoAgencia: string;
-  conta: string;
-  digitoConta: string;
-  convenio: string;
-  cedente: string;
-  cnpjCedente: string;
-}
 
 interface ResultadoRetornoNovo {
   retornoId: number;
@@ -62,29 +52,16 @@ interface TituloRetorno {
   cobrancaId?: number;
 }
 
-const DEFAULT_BANCO: DadosBanco = {
-  codigoBanco: "208",
-  agencia: "00001",
-  digitoAgencia: "0",
-  conta: "000000000001",
-  digitoConta: "0",
-  convenio: "0000000000000000000",
-  cedente: "CONDOMINIO",
-  cnpjCedente: "00000000000000",
-};
-
 export default function CNAB240() {
   const { user } = useAuth();
   const { condominioId, condominios, selectedCondominioId, setSelectedCondominioId } = useAdminCondominio();
   const effectiveCondominioId = user?.role === "admin" ? condominioId : user?.condominioId;
 
-  const [dadosBanco, setDadosBanco] = useState<DadosBanco>(DEFAULT_BANCO);
   const [cobrancasSelecionadas, setCobrancasSelecionadas] = useState<number[]>([]);
   const [resultadoRemessa, setResultadoRemessa] = useState<{ nomeArquivo: string; conteudo: string; totalTitulos: number; valorTotal: number } | null>(null);
   const [resultadoRetorno, setResultadoRetorno] = useState<ResultadoRetornoNovo | null>(null);
   const [retornoConteudo, setRetornoConteudo] = useState("");
   const [retornoNomeArquivo, setRetornoNomeArquivo] = useState("");
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [retornoResultadoOpen, setRetornoResultadoOpen] = useState(false);
   const [remessaEnviada, setRemessaEnviada] = useState(false);
   const [parcelasSelecionadas, setParcelasSelecionadas] = useState<number[]>([]);
@@ -255,7 +232,6 @@ export default function CNAB240() {
     gerarRemessaMutation.mutate({
       condominioId: effectiveCondominioId,
       cobrancaIds: cobrancasSelecionadas,
-      dadosBanco,
     });
   };
 
@@ -308,7 +284,7 @@ export default function CNAB240() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Building2 className="h-6 w-6 text-primary" />
-            Integração CNAB 240 — BTG Pactual
+            Remessa CNAB 240
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Geração de remessas e processamento de retornos bancários
@@ -322,9 +298,12 @@ export default function CNAB240() {
               onSelect={setSelectedCondominioId}
             />
           )}
-          <Button variant="outline" onClick={() => setConfigDialogOpen(true)}>
-            Configurar Banco
-          </Button>
+          <Link href="/admin/configuracao-boleto">
+            <Button variant="outline" className="gap-2">
+              <Settings2 className="h-4 w-4" />
+              Configuração CNAB
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -812,83 +791,6 @@ export default function CNAB240() {
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Dialog: Configuração do Banco */}
-      <Dialog open={configDialogOpen} onOpenChange={setConfigDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Configuração do Banco (BTG Pactual)</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-2">
-              <Label>Código do Banco</Label>
-              <Input
-                value={dadosBanco.codigoBanco}
-                onChange={e => setDadosBanco(p => ({ ...p, codigoBanco: e.target.value }))}
-                placeholder="208 (BTG)"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Agência</Label>
-              <Input
-                value={dadosBanco.agencia}
-                onChange={e => setDadosBanco(p => ({ ...p, agencia: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Dígito Agência</Label>
-              <Input
-                value={dadosBanco.digitoAgencia}
-                onChange={e => setDadosBanco(p => ({ ...p, digitoAgencia: e.target.value }))}
-                maxLength={1}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Conta</Label>
-              <Input
-                value={dadosBanco.conta}
-                onChange={e => setDadosBanco(p => ({ ...p, conta: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Dígito Conta</Label>
-              <Input
-                value={dadosBanco.digitoConta}
-                onChange={e => setDadosBanco(p => ({ ...p, digitoConta: e.target.value }))}
-                maxLength={1}
-              />
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Convênio</Label>
-              <Input
-                value={dadosBanco.convenio}
-                onChange={e => setDadosBanco(p => ({ ...p, convenio: e.target.value }))}
-              />
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>Nome do Cedente (Condomínio)</Label>
-              <Input
-                value={dadosBanco.cedente}
-                onChange={e => setDadosBanco(p => ({ ...p, cedente: e.target.value }))}
-              />
-            </div>
-            <div className="col-span-2 space-y-2">
-              <Label>CNPJ do Cedente</Label>
-              <Input
-                value={dadosBanco.cnpjCedente}
-                onChange={e => setDadosBanco(p => ({ ...p, cnpjCedente: e.target.value }))}
-                placeholder="00000000000000"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={() => { setConfigDialogOpen(false); toast.success("Configurações salvas"); }}>
-              Salvar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog: Resultado do Retorno */}
       <Dialog open={retornoResultadoOpen} onOpenChange={setRetornoResultadoOpen}>
