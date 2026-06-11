@@ -203,7 +203,7 @@ export function gerarSegmentoPCNAB240(
     padLeft(banco.conta, 12),                         // 036-047: Conta (12 chars)
     banco.digitoConta.substring(0, 1),                // 048: Dígito conta
     " ",                                              // 049: Branco
-    padRight(titulo.nossoNumero, 20),                 // 050-069: Nosso número (20 chars, alinhado esquerda)
+    padLeft(titulo.nossoNumero.replace(/\D/g, ""), 20), // 050-069: Nosso número (20 chars, zeros à esquerda)
     // pos 070-073: Brancos (4 chars)
     " ".repeat(4),                                    // 070-073: Brancos
     formatarDataCNAB(titulo.dataVencimento),          // 074-081: Data de vencimento (DDMMAAAA)
@@ -217,7 +217,7 @@ export function gerarSegmentoPCNAB240(
     "N",                                              // 119: Aceite (N=não aceite)
     formatarDataCNAB(titulo.dataEmissao),             // 120-127: Data de emissão (DDMMAAAA)
     titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "1" : "3", // 128: Código juros (1=valor dia, 3=isento)
-    formatarDataCNAB(titulo.dataVencimento),          // 129-136: Data início juros
+    formatarDataCNAB((() => { const d = new Date(titulo.dataVencimento); d.setDate(d.getDate() + 1); return d; })()), // 129-136: Data início juros (vencimento + 1 dia)
     padLeft(titulo.taxaJurosDia ?? 0, 15),            // 137-151: Valor/taxa juros (15 chars)
     "3",                                              // 152: Código desconto (3=sem desconto)
     "00000000",                                       // 153-160: Data desconto
