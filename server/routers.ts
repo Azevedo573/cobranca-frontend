@@ -2919,7 +2919,15 @@ export const appRouter = router({
           const { segmentoT, segmentoU } = par;
           const nossoNumero = segmentoT.nossoNumero;
           const novoStatus = determinarNovoStatus(segmentoT.codMovimento, segmentoT.codOcorrencia);
-          const valorPago = segmentoU.valorPago || 0;
+          // Sanitizar valor: CNAB 240 usa 15 dígitos com 2 casas decimais implícitas
+          // Se o valor vier sem divisão (ex: 4852600000 = R$48526.00), dividir por 100
+          // Limite MySQL INT: 2.147.483.647 (~R$21.474.836,47 em centavos)
+          const MAX_INT = 2147483647;
+          const rawValorPago = segmentoU.valorPago || 0;
+          // Se valor > 100 milhões de centavos (R$1.000.000), provavelmente está sem divisão
+          const valorPago = rawValorPago > 100000000
+            ? Math.min(Math.round(rawValorPago / 100), MAX_INT)
+            : Math.min(rawValorPago, MAX_INT);
           const dataVencimento = segmentoT.dataVencimento ? new Date(segmentoT.dataVencimento) : null;
           const dataOcorrencia = segmentoU.dataOcorrencia ? new Date(segmentoU.dataOcorrencia) : null;
           const dataCredito = segmentoU.dataCredito ? new Date(segmentoU.dataCredito) : null;
@@ -3086,7 +3094,7 @@ export const appRouter = router({
             codOcorrencia: segmentoT.codOcorrencia || null,
             descOcorrencia: segmentoT.descOcorrencia || null,
             dataVencimento,
-            valorTitulo: segmentoT.valorTitulo,
+            valorTitulo: Math.min(segmentoT.valorTitulo || 0, MAX_INT),
             valorPago,
             dataOcorrencia,
             dataCredito,
