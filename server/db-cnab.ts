@@ -114,24 +114,24 @@ export function gerarHeaderArquivoCNAB240(
     "0",                                      // 008: Tipo de registro
     " ".repeat(9),                            // 009-017: Brancos
     "2",                                      // 018: Tipo de inscrição (2=CNPJ)
-    padLeft(limparDocumento(banco.cnpjCedente), 14), // 019-032: CNPJ
-    "0".repeat(20),                          // 033-052: Convênio (BTG usa 20 zeros no Header Arquivo)
-    padLeft(banco.agencia, 5),                // 053-057: Agência (5 dígitos com zero à esquerda)
+    padLeft(limparDocumento(banco.cnpjCedente), 14), // 019-032: CNPJ (14 chars)
+    padRight(banco.convenio, 20),             // 033-052: CONVÊIO (20 chars, espaços à direita)
+    padLeft(banco.agencia, 5),                // 053-057: Agência (5)
     banco.digitoAgencia.substring(0, 1),      // 058: Dígito agência
-    padLeft(banco.conta, 12),                 // 059-070: Conta (12 dígitos com zero à esquerda)
+    padLeft(banco.conta, 12),                 // 059-070: Conta (12)
     banco.digitoConta.substring(0, 1),        // 071: Dígito conta
-    " ",                                      // 072: Dígito verificador ag/conta (branco BTG)
-    padRight(limparTexto(banco.cedente), 30), // 073-102: Nome da empresa (30 chars)
-    padRight("BTG PACTUAL S/A", 30),          // 103-132: Nome do banco
+    " ",                                      // 072: DV ag/conta (branco BTG)
+    padRight(limparTexto(banco.cedente), 30), // 073-102: Nome da empresa (30)
+    padRight("BANCO BTG PACTUAL S.A.", 30),   // 103-132: Nome do banco (30)
     " ".repeat(10),                           // 133-142: Brancos
-    "1",                                      // 143: Código de remessa (1=remessa)
-    formatarDataCNAB(dataGeracao),            // 144-151: Data de geração
+    "1",                                      // 143: Código remessa (1=remessa)
+    formatarDataCNAB(dataGeracao),            // 144-151: Data de geração DDMMAAAA
     padLeft(dataGeracao.getHours().toString().padStart(2,"0") +
             dataGeracao.getMinutes().toString().padStart(2,"0") +
-            dataGeracao.getSeconds().toString().padStart(2,"0"), 6), // 152-157: Hora
+            dataGeracao.getSeconds().toString().padStart(2,"0"), 6), // 152-157: Hora HHMMSS
     padLeft(numeroRemessa, 6),                // 158-163: Número sequencial do arquivo
-    "103",                                    // 164-166: Versão do layout (103 = BTG CNAB240)
-    " ".repeat(5),                            // 167-171: Densidade (BTG usa 5 espaços, não zeros)
+    "083",                                    // 164-166: Versão do layout (083 = BTG CNAB240)
+    "00000",                                  // 167-171: Densidade (00000)
     " ".repeat(20),                           // 172-191: Reservado banco
     " ".repeat(20),                           // 192-211: Reservado empresa
     " ".repeat(29),                           // 212-240: Brancos
@@ -145,33 +145,57 @@ export function gerarHeaderLoteCNAB240(
   numeroLote: number,
   totalTitulos: number
 ): string {
+  // Layout FEBRABAN V10.9 — Header de Lote Cobrança (p. 54)
+  // Confirmado pelo arquivo de exemplo BTG (exemplo_arquivo_remessa_layout_240.rem)
+  // Posições 1-based:
+  //  1- 3: banco (3)
+  //  4- 7: lote (4)
+  //  8   : tipo registro = '1' (1)
+  //  9   : operação = 'R' (1)
+  // 10-11: tipo serviço = '01' (2)
+  // 12-13: forma lançamento = '  ' (2)
+  // 14-16: versão layout lote = '000' (3) ← BTG usa '000', não '060'
+  // 17   : branco (1)
+  // 18   : tipo inscrição = '2' (1)
+  // 19-33: CNPJ (15)
+  // 34-53: CONVÊIO (20) ← número do convênio BTG, preenchido com espaços à direita
+  // 54-58: agência (5)
+  // 59   : dígito agência (1)
+  // 60-71: conta corrente (12)
+  // 72   : dígito conta (1)
+  // 73   : DV ag/conta (1)
+  // 74-103: nome cedente (30)
+  // 104-143: informação 1 (40)
+  // 144-183: informação 2 (40)
+  // 184-191: nº remessa/retorno (8)
+  // 192-199: data gravação (8)
+  // 200-207: data crédito (8)
+  // 208-240: brancos (33)
+
   const linha = [
     padLeft(banco.codigoBanco, 3),            // 001-003
-    padLeft(numeroLote, 4),                   // 004-007: Número do lote
-    "1",                                      // 008: Tipo de registro
-    "R",                                      // 009: Operação (R=remessa, conforme BTG)
-    "01",                                     // 010-011: Tipo de serviço (01=cobrança BTG)
-    "  ",                                     // 012-013: Forma de lançamento (brancos no BTG)
-    "060",                                    // 014-016: Versão do layout do lote (060=BTG)
-    " ",                                      // 017: Brancos
-    "2",                                      // 018: Tipo inscrição empresa
-    // Pos 019-033: CNPJ no Header de Lote BTG usa 15 chars (com zero à esquerda)
-    // Conforme BTG_27042026.txt: '032311089000101' (CNPJ 14 chars + zero à esquerda = 15)
-    padLeft(limparDocumento(banco.cnpjCedente), 15), // 019-033: CNPJ (15 chars BTG)
-    // Pos 034-053: Convênio no Header de Lote BTG = 20 espaços (brancos)
-    // Conforme BTG_27042026.txt: '                    ' (20 espaços)
-    " ".repeat(20),                           // 034-053: Convênio (20 espaços BTG)
-    padLeft(banco.agencia, 5),                // 054-058: Agência (5 dígitos, igual Header Arquivo)
-    banco.digitoAgencia.substring(0, 1),      // 059: Dígito agência
-    padLeft(banco.conta, 12),                 // 060-071: Conta (12 dígitos, igual Header Arquivo)
-    banco.digitoConta.substring(0, 1),        // 072: Dígito conta
-    " ",                                      // 073: Dígito verificador ag/conta (branco BTG)
-    padRight(limparTexto(banco.cedente), 30), // 074-103: Cedente (30 chars, sem espaço inicial)
-    " ".repeat(40),                           // 103-142: Informação 1
-    " ".repeat(40),                           // 143-182: Informação 2
-    " ".repeat(29),                           // 183-211: Brancos
-    " ".repeat(10),                           // 212-221: Ocorrências
-    " ".repeat(19),                           // 222-240: Brancos
+    padLeft(numeroLote, 4),                   // 004-007
+    "1",                                      // 008: tipo registro
+    "R",                                      // 009: operação (R=remessa)
+    "01",                                     // 010-011: tipo serviço (01=cobrança)
+    "  ",                                     // 012-013: forma lançamento
+    "000",                                    // 014-016: versão layout lote (BTG usa '000')
+    " ",                                      // 017: branco
+    "2",                                      // 018: tipo inscrição (2=CNPJ)
+    padLeft(limparDocumento(banco.cnpjCedente), 15), // 019-033: CNPJ (15 chars)
+    padRight(banco.convenio, 20),             // 034-053: CONVÊIO (20 chars, espaços à direita)
+    padLeft(banco.agencia, 5),                // 054-058: agência (5)
+    banco.digitoAgencia.substring(0, 1),      // 059: dígito agência
+    padLeft(banco.conta, 12),                 // 060-071: conta (12)
+    banco.digitoConta.substring(0, 1),        // 072: dígito conta
+    " ",                                      // 073: DV ag/conta (branco BTG)
+    padRight(limparTexto(banco.cedente), 30), // 074-103: nome cedente (30)
+    " ".repeat(40),                           // 104-143: informação 1
+    " ".repeat(40),                           // 144-183: informação 2
+    "00000000",                               // 184-191: nº remessa (8 zeros)
+    "00000000",                               // 192-199: data gravação (8 zeros)
+    "00000000",                               // 200-207: data crédito (8 zeros)
+    " ".repeat(33),                           // 208-240: brancos
   ].join("");
 
   return linha.substring(0, 240);
@@ -183,54 +207,98 @@ export function gerarSegmentoPCNAB240(
   numeroLote: number,
   sequencial: number
 ): string {
+  // Layout FEBRABAN V10.9 — Segmento P (Obrigatório Remessa) — Cobrança
+  // Fonte: LayoutFebraban240-V-10.9.pdf, página 55
+  // Posições 1-based:
+  //  1- 3: banco (3)
+  //  4- 7: lote (4)
+  //  8   : tipo registro = '3' (1)
+  //  9-13: nº sequencial (5)
+  // 14   : segmento = 'P' (1)
+  // 15   : CNAB/branco (1)
+  // 16-17: código movimento (2)
+  // 18-22: agência (5)
+  // 23   : dígito agência (1)
+  // 24-35: CONTA CORRENTE (12) ← NÃO é convênio; convênio fica no header de lote
+  // 36   : dígito conta (1)
+  // 37   : DV ag/conta (1)
+  // 38-57: NOSSO NÚMERO (20) ← identificação do título no banco
+  // 58   : código da carteira (1)
+  // 59   : forma de cadastramento (1)
+  // 60   : tipo de documento (1)
+  // 61   : identificação emissão boleto (1)
+  // 62   : identificação distribuição (1)
+  // 63-77: número do documento de cobrança (15)
+  // 78-85: DATA DE VENCIMENTO DDMMAAAA (8)
+  // 86-100: VALOR NOMINAL (15)
+  // 101-105: agência cobradora (5)
+  // 106  : DV agência cobradora (1)
+  // 107-108: espécie do título (2)
+  // 109  : aceite (1)
+  // 110-117: data de emissão DDMMAAAA (8)
+  // 118  : código juros mora (1)
+  // 119-126: data juros mora DDMMAAAA (8)
+  // 127-141: taxa juros mora (15)
+  // 142  : código desconto 1 (1)
+  // 143-150: data desconto 1 (8)
+  // 151-165: valor desconto (15)
+  // 166-180: valor IOF (15)
+  // 181-195: abatimento (15)
+  // 196-220: SEU NÚMERO / identificação do título na empresa (25)
+  // 221  : código protesto (1)
+  // 222-223: prazo protesto (2)
+  // 224  : código baixa (1)
+  // 225-227: prazo baixa (3)
+  // 228-229: código moeda (2)
+  // 230-239: nº contrato (10)
+  // 240  : uso livre (1)
+
+  const venc = titulo.dataVencimento;
+  const dtJurosMora = new Date(venc.getFullYear(), venc.getMonth(), venc.getDate() + 1);
+
   const linha = [
-    padLeft(banco.codigoBanco, 3),                    // 001-003
-    padLeft(numeroLote, 4),                           // 004-007
-    "3",                                              // 008: Tipo registro (detalhe)
-    padLeft(sequencial, 5),                           // 009-013: Nº sequencial
-    "P",                                              // 014: Código segmento
-    " ",                                              // 015: Brancos
-    "01",                                             // 016-017: Movimento (01=entrada)
-    padLeft(banco.agencia, 5),                        // 018-022: Agência (5 dígitos)
-    banco.digitoAgencia.substring(0, 1),              // 023: Dígito agência
-    // Layout BTG real (confirmado pelo arquivo do banco):
-    // pos 024-035: Convênio (12 chars) — campo separado da conta
-    // pos 036-047: Conta (12 chars)
-    // pos 048: Dígito conta (1 char)
-    // pos 049: Branco (1 char)
-    // pos 050-069: Nosso número (20 chars, alinhado à esquerda com espaços)
-    padLeft(banco.convenio, 12),                       // 024-035: Convênio (12 chars)
-    padLeft(banco.conta, 12),                         // 036-047: Conta (12 chars)
-    banco.digitoConta.substring(0, 1),                // 048: Dígito conta
-    " ",                                              // 049: Branco
-    padLeft((titulo.nossoNumero || "").replace(/\D/g, ""), 20), // 050-069: Nosso número (20 chars, zeros à esquerda)
-    // pos 070-073: Brancos (4 chars)
-    " ".repeat(4),                                    // 070-073: Brancos
-    formatarDataCNAB(titulo.dataVencimento),          // 074-081: Data de vencimento (DDMMAAAA)
-    formatarValorCNAB(titulo.valorNominal, 15),       // 082-096: Valor nominal (15 chars)
-    padLeft(banco.agencia, 5),                        // 097-101: Agência cobradora BTG
-    banco.digitoAgencia.substring(0, 1),              // 102: Dígito agência cobradora
-    padLeft(banco.conta, 12),                         // 103-114: Conta cobradora
-    banco.digitoConta.substring(0, 1),                // 115: Dígito conta cobradora
-    " ",                                              // 116: Branco
-    "01",                                             // 117-118: Espécie documento (01=DM)
-    "N",                                              // 119: Aceite (N=não aceite)
-    formatarDataCNAB(titulo.dataEmissao),             // 120-127: Data de emissão (DDMMAAAA)
-    titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "1" : "3", // 128: Código juros (1=valor dia, 3=isento)
-    formatarDataCNAB((() => { const d = new Date(titulo.dataVencimento.getFullYear(), titulo.dataVencimento.getMonth(), titulo.dataVencimento.getDate() + 1); return d; })()), // 129-136: Data início juros mora (vencimento + 1 dia, sem deslocamento UTC)
-    padLeft(titulo.taxaJurosDia ?? 0, 15),            // 137-151: Valor/taxa juros (15 chars)
-    "3",                                              // 152: Código desconto (3=sem desconto)
-    "00000000",                                       // 153-160: Data desconto
-    padLeft(0, 15),                                   // 161-175: Valor desconto (15 chars)
-    padLeft(0, 15),                                   // 176-190: Valor IOF (15 chars)
-    padLeft(0, 15),                                   // 191-205: Abatimento (15 chars)
-    padLeft(String(titulo.cobrancaId), 25),           // 206-230: Identificação do título na empresa (alinhado à direita com zeros)
-    " ",                                              // 231: Código protesto
-    "00",                                             // 232-233: Prazo protesto
-    " ",                                              // 234: Código baixa
-    "000",                                            // 235-237: Prazo baixa
-    "09",                                             // 238-239: Moeda (09=Real)
-    padLeft(0, 1),                                    // 240: Brancos
+    padLeft(banco.codigoBanco, 3),                           // 001-003
+    padLeft(numeroLote, 4),                                  // 004-007
+    "3",                                                     // 008
+    padLeft(sequencial, 5),                                  // 009-013
+    "P",                                                     // 014
+    " ",                                                     // 015: CNAB
+    "01",                                                    // 016-017: movimento (01=entrada)
+    padLeft(banco.agencia, 5),                               // 018-022
+    banco.digitoAgencia.substring(0, 1),                     // 023
+    padLeft(banco.conta, 12),                                // 024-035: CONTA CORRENTE (12)
+    banco.digitoConta.substring(0, 1),                       // 036: dígito conta
+    " ",                                                     // 037: DV ag/conta (branco BTG)
+    padLeft((titulo.nossoNumero || "").replace(/\D/g, ""), 20), // 038-057: NOSSO NÚMERO (20)
+    titulo.carteira ? padLeft(titulo.carteira, 1) : "1",     // 058: carteira
+    "1",                                                     // 059: forma cadastramento (1=com cadastro)
+    " ",                                                     // 060: tipo documento
+    "2",                                                     // 061: emissão boleto (2=banco emite)
+    "2",                                                     // 062: distribuição (2=banco distribui)
+    padLeft(String(titulo.cobrancaId), 15),                  // 063-077: número do documento (15)
+    formatarDataCNAB(venc),                                  // 078-085: VENCIMENTO DDMMAAAA
+    formatarValorCNAB(titulo.valorNominal, 15),              // 086-100: VALOR (15)
+    "00000",                                                 // 101-105: agência cobradora (zeros)
+    " ",                                                     // 106: DV agência cobradora
+    padLeft(titulo.especieDocumento || "01", 2),             // 107-108: espécie (01=DM)
+    titulo.aceite || "N",                                    // 109: aceite
+    formatarDataCNAB(titulo.dataEmissao),                    // 110-117: emissão DDMMAAAA
+    titulo.taxaJurosDia && titulo.taxaJurosDia > 0 ? "1" : "3", // 118: cód juros (1=valor/dia, 3=isento)
+    formatarDataCNAB(dtJurosMora),                           // 119-126: data juros mora (venc+1)
+    padLeft(titulo.taxaJurosDia ?? 0, 15),                   // 127-141: taxa juros (15)
+    "3",                                                     // 142: cód desconto (3=sem desconto)
+    "00000000",                                              // 143-150: data desconto
+    padLeft(0, 15),                                          // 151-165: valor desconto
+    padLeft(0, 15),                                          // 166-180: IOF
+    padLeft(0, 15),                                          // 181-195: abatimento
+    padLeft(String(titulo.cobrancaId), 25),                  // 196-220: SEU NÚMERO (25, zeros à esq)
+    titulo.enviarProtesto ? "1" : " ",                       // 221: cód protesto
+    "00",                                                    // 222-223: prazo protesto
+    " ",                                                     // 224: cód baixa
+    "   ",                                                   // 225-227: prazo baixa
+    "09",                                                    // 228-229: moeda (09=Real)
+    padLeft(0, 10),                                          // 230-239: nº contrato
+    " ",                                                     // 240: uso livre
   ].join("");
 
   return linha.substring(0, 240);

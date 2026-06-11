@@ -1,6 +1,7 @@
 /**
  * Testes unitários para o gerador CNAB 240.
- * Valida o parsing de dueDate (Date object vs string ISO) e valorNominal (string vs number).
+ * Valida o layout FEBRABAN V10.9 — posições 1-based conforme documentação oficial.
+ * Confirmado pelo arquivo de exemplo BTG (exemplo_arquivo_remessa_layout_240.rem).
  */
 import { describe, it, expect } from "vitest";
 import {
@@ -149,7 +150,51 @@ describe("parsing de amount para valorNominal", () => {
   });
 });
 
-// ─── Segmento P completo ──────────────────────────────────────────────────────
+// ─── Segmento P — Layout FEBRABAN V10.9 ──────────────────────────────────────
+//
+// Posições 1-based (conforme documentação FEBRABAN e arquivo de exemplo BTG):
+//  1- 3: banco (3)
+//  4- 7: lote (4)
+//  8   : tipo registro = '3' (1)
+//  9-13: nº sequencial (5)
+// 14   : segmento = 'P' (1)
+// 15   : CNAB/branco (1)
+// 16-17: código movimento (2)
+// 18-22: agência (5)
+// 23   : dígito agência (1)
+// 24-35: CONTA CORRENTE (12)
+// 36   : dígito conta (1)
+// 37   : DV ag/conta (1)
+// 38-57: NOSSO NÚMERO (20)
+// 58   : código carteira (1)
+// 59   : forma cadastramento (1)
+// 60   : tipo documento (1)
+// 61   : identificação emissão (1)
+// 62   : identificação distribuição (1)
+// 63-77: número do documento (15)
+// 78-85: DATA VENCIMENTO DDMMAAAA (8)
+// 86-100: VALOR NOMINAL (15)
+// 101-105: agência cobradora (5)
+// 106  : DV agência cobradora (1)
+// 107-108: espécie título (2)
+// 109  : aceite (1)
+// 110-117: data emissão DDMMAAAA (8)
+// 118  : código juros mora (1)
+// 119-126: DATA JUROS MORA DDMMAAAA (8)
+// 127-141: taxa juros mora (15)
+// 142  : código desconto (1)
+// 143-150: data desconto (8)
+// 151-165: valor desconto (15)
+// 166-180: valor IOF (15)
+// 181-195: abatimento (15)
+// 196-220: SEU NÚMERO (25)
+// 221  : código protesto (1)
+// 222-223: prazo protesto (2)
+// 224  : código baixa (1)
+// 225-227: prazo baixa (3)
+// 228-229: código moeda (2)
+// 230-239: nº contrato (10)
+// 240  : uso livre (1)
 
 describe("gerarSegmentoPCNAB240", () => {
   const banco = {
@@ -185,50 +230,48 @@ describe("gerarSegmentoPCNAB240", () => {
     expect(linha.length).toBe(240);
   });
 
-  it("posição 013 é 'P' (segmento P)", () => {
+  it("posição 013 (0-based) é 'P' (segmento P)", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
     expect(linha[13]).toBe("P");
   });
 
-  it("nosso número nas posições 049-068 (20 chars, zeros à esquerda)", () => {
+  // Conta: posições 24-35 (1-based) → 0-based: 23-35
+  it("conta corrente nas posições 24-35 (12 chars, zeros à esquerda)", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const nossoNum = linha.substring(49, 69);
+    const conta = linha.substring(23, 35);
+    expect(conta).toBe("000000123456");
+    expect(conta.length).toBe(12);
+  });
+
+  // Nosso número: posições 38-57 (1-based) → 0-based: 37-57
+  it("nosso número nas posições 38-57 (20 chars, zeros à esquerda)", () => {
+    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
+    const nossoNum = linha.substring(37, 57);
     expect(nossoNum).toBe("00000000001000000001");
     expect(nossoNum.length).toBe(20);
   });
 
-  it("data de vencimento nas posições 073-080 (DDMMAAAA)", () => {
+  // Vencimento: posições 78-85 (1-based) → 0-based: 77-85
+  it("data de vencimento nas posições 78-85 (DDMMAAAA)", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const vencimento = linha.substring(73, 81);
+    const vencimento = linha.substring(77, 85);
     expect(vencimento).toBe("10072026");
     expect(vencimento).not.toContain("N"); // não deve ter NaN
   });
 
-  it("valor nas posições 081-095 (15 chars, sem ponto decimal)", () => {
+  // Valor: posições 86-100 (1-based) → 0-based: 85-100
+  it("valor nas posições 86-100 (15 chars, sem ponto decimal)", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const valor = linha.substring(81, 96);
+    const valor = linha.substring(85, 100);
     expect(valor).toBe("000000000003787");
     expect(valor).not.toContain(".");
     expect(valor.length).toBe(15);
   });
 
-  it("convênio nas posições 023-034 (12 chars)", () => {
+  // Data juros mora: posições 119-126 (1-based) → 0-based: 118-126
+  it("data de juros mora nas posições 119-126 é vencimento + 1 dia", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const convenio = linha.substring(23, 35);
-    expect(convenio).toBe("987654321012");
-    expect(convenio.length).toBe(12);
-  });
-
-  it("conta nas posições 035-046 (12 chars, zeros à esquerda)", () => {
-    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const conta = linha.substring(35, 47);
-    expect(conta).toBe("000000123456");
-    expect(conta.length).toBe(12);
-  });
-
-  it("data de juros mora nas posições 128-135 é vencimento + 1 dia", () => {
-    const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const dtJuros = linha.substring(128, 136);
+    const dtJuros = linha.substring(118, 126);
     // vencimento = 10/07/2026 → juros mora = 11/07/2026
     expect(dtJuros).toBe("11072026");
     expect(dtJuros).not.toContain("N"); // não deve ter NaN
@@ -236,48 +279,49 @@ describe("gerarSegmentoPCNAB240", () => {
 
   it("data de juros mora é posterior à data de vencimento", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const vencStr = linha.substring(73, 81); // DDMMAAAA
-    const jurosStr = linha.substring(128, 136); // DDMMAAAA
-    // Converter para comparação: DDMMAAAA → AAAAMMDD
+    const vencStr = linha.substring(77, 85);   // posições 78-85
+    const jurosStr = linha.substring(118, 126); // posições 119-126
+    // Converter DDMMAAAA → AAAAMMDD para comparação lexicográfica
     const toComparableDate = (s: string) =>
       `${s.substring(4, 8)}${s.substring(2, 4)}${s.substring(0, 2)}`;
     expect(toComparableDate(jurosStr) > toComparableDate(vencStr)).toBe(true);
   });
 
-  it("seu número nas posições 205-229 tem zeros à esquerda (não espaços)", () => {
+  // Seu número: posições 196-220 (1-based) → 0-based: 195-220
+  it("seu número nas posições 196-220 tem zeros à esquerda (não espaços)", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const seuNum = linha.substring(205, 230);
+    const seuNum = linha.substring(195, 220);
     expect(seuNum).toBe("0000000000000000000000001");
     expect(seuNum.length).toBe(25);
     // Não deve ter espaços (espaços à direita indicam padRight errado)
     expect(seuNum).not.toContain(" ");
   });
 
-  it("nosso número null/undefined não gera letras no campo", () => {
+  it("nosso número vazio não gera letras no campo", () => {
     const tituloSemNossoNum = {
       ...titulo,
       nossoNumero: "", // vazio
     };
     const linha = gerarSegmentoPCNAB240(banco, tituloSemNossoNum, 1, 1);
-    const nossoNum = linha.substring(49, 69);
+    const nossoNum = linha.substring(37, 57); // posições 38-57
     expect(nossoNum).toBe("00000000000000000000"); // apenas zeros
     expect(/[a-zA-Z]/.test(nossoNum)).toBe(false); // sem letras
   });
 
-  it("nosso número com apenas dígitos após limpeza", () => {
+  it("nosso número com letras é limpo (apenas dígitos)", () => {
     const tituloComLetras = {
       ...titulo,
       nossoNumero: "ABC1000000001XYZ", // letras serão removidas
     };
     const linha = gerarSegmentoPCNAB240(banco, tituloComLetras, 1, 1);
-    const nossoNum = linha.substring(49, 69);
+    const nossoNum = linha.substring(37, 57); // posições 38-57
     expect(/[a-zA-Z]/.test(nossoNum)).toBe(false); // sem letras
     expect(nossoNum).toBe("00000000001000000001");
   });
 
   it("data de vencimento não contém letras (sem NaN)", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const vencimento = linha.substring(73, 81);
+    const vencimento = linha.substring(77, 85); // posições 78-85
     expect(/[a-zA-Z]/.test(vencimento)).toBe(false);
     expect(vencimento.length).toBe(8);
     expect(/^\d{8}$/.test(vencimento)).toBe(true);
@@ -285,8 +329,46 @@ describe("gerarSegmentoPCNAB240", () => {
 
   it("valor não contém letras nem ponto decimal (sem NaN)", () => {
     const linha = gerarSegmentoPCNAB240(banco, titulo, 1, 1);
-    const valor = linha.substring(81, 96);
+    const valor = linha.substring(85, 100); // posições 86-100
     expect(/[a-zA-Z.]/.test(valor)).toBe(false);
     expect(/^\d{15}$/.test(valor)).toBe(true);
+  });
+
+  it("layout idêntico ao arquivo de exemplo BTG para os campos principais", () => {
+    // Dados do arquivo de exemplo BTG (exemplo_arquivo_remessa_layout_240.rem)
+    const bancoExemplo = {
+      codigoBanco: "208",
+      agencia: "1",
+      digitoAgencia: " ",
+      conta: "999999",
+      digitoConta: "0",
+      convenio: "001100983001401000",
+      cedente: "EMPRESA CEDENTE",
+      cnpjCedente: "30306294000145",
+    };
+    const tituloExemplo = {
+      cobrancaId: 23845,
+      nossoNumero: "999999",
+      devedorNome: "EMPRESA SACADO EXEMPLO",
+      devedorCpfCnpj: "99999990000130",
+      devedorEndereco: "RUA LAURO MULLER 1116",
+      devedorCidade: "BOTAFOGO",
+      devedorUF: "RJ",
+      devedorCEP: "22290160",
+      valorNominal: 20000,
+      dataVencimento: new Date(2024, 4, 6), // 06/05/2024
+      dataEmissao: new Date(2024, 4, 2),    // 02/05/2024
+      instrucao1: "",
+      instrucao2: "",
+      taxaJurosDia: 33,
+      carteira: "9",
+    };
+    const linha = gerarSegmentoPCNAB240(bancoExemplo, tituloExemplo, 1, 9);
+    // Verificar campos principais contra o arquivo de exemplo
+    expect(linha.substring(23, 35)).toBe("000000999999"); // conta
+    expect(linha.substring(37, 57)).toBe("00000000000000999999"); // nosso número
+    expect(linha.substring(77, 85)).toBe("06052024"); // vencimento
+    expect(linha.substring(85, 100)).toBe("000000000020000"); // valor
+    expect(linha.substring(118, 126)).toBe("07052024"); // data juros mora
   });
 });

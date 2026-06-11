@@ -2250,3 +2250,17 @@
 - [x] Bug: data de juros mora usava `new Date(titulo.dataVencimento)` sem preservar data local — corrigido para `new Date(y, m, d+1)`
 - [x] Bug: campo "Seu Número" (pos 205-229) usava `padRight` (espaços à direita) — corrigido para `padLeft` (zeros à esquerda)
 - [x] 7 novos testes unitários cobrindo os bugs corrigidos (332 testes passando no total)
+
+## Correção Crítica CNAB 240 — Layout FEBRABAN V10.9 (11/06/2026)
+- [x] Reescrever gerarSegmentoPCNAB240 com layout FEBRABAN V10.9 correto
+- [x] Conta corrente: posições 24-35 (não convênio)
+- [x] Nosso número: posições 38-57 (20 chars, zeros à esquerda)
+- [x] Data vencimento: posições 78-85 (DDMMAAAA, sem NaN)
+- [x] Valor nominal: posições 86-100 (centavos inteiros, sem ponto decimal)
+- [x] Data juros mora: posições 119-126 (vencimento+1 dia, sem deslocamento UTC)
+- [x] Seu número: posições 196-220 (zeros à esquerda, não espaços)
+- [x] Corrigir gerarHeaderLoteCNAB240: versão 000, convênio 20 chars (padRight)
+- [x] Corrigir gerarHeaderArquivoCNAB240: convênio 20 chars, versão 083, densidade 00000
+- [x] Atualizar testes unitários com offsets corretos do novo layout
+- [x] Validar layout idêntico ao arquivo de exemplo BTG
+- [x] 332 testes passando
