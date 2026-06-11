@@ -292,18 +292,22 @@ export function parseRetornoCNAB240(conteudo: string): RetornoArquivo {
       const chaveT = `${lote}-${seqT}`;
       const segTRef = pendentesT.get(chaveT);
 
+      // Layout BTG Pactual CNAB 240 (verificado com arquivo real):
+      // 17-31: juros mora | 32-46: desconto | 47-61: abatimento | 62-76: IOF
+      // 77-91: valor pago | 92-106: valor líquido
+      // 137-144: data ocorrência | 157-164: data crédito
       const segU: RetornoSegmentoU = {
         lote,
         sequencial,
         codMovimento,
-        jurosMora: parseValor(linha.substring(37, 52)),
-        desconto: parseValor(linha.substring(52, 67)),
-        abatimento: parseValor(linha.substring(67, 82)),
-        iof: parseValor(linha.substring(82, 97)),
-        valorPago: parseValor(linha.substring(97, 112)),
-        valorLiquido: parseValor(linha.substring(112, 127)),
+        jurosMora: parseValor(linha.substring(17, 32)),
+        desconto: parseValor(linha.substring(32, 47)),
+        abatimento: parseValor(linha.substring(47, 62)),
+        iof: parseValor(linha.substring(62, 77)),
+        valorPago: parseValor(linha.substring(77, 92)),
+        valorLiquido: parseValor(linha.substring(92, 107)),
         dataOcorrencia: parseDateDDMMAAAA(linha.substring(137, 145)),
-        dataCredito: parseDateDDMMAAAA(linha.substring(145, 153)),
+        dataCredito: parseDateDDMMAAAA(linha.substring(157, 165)),
       };
 
       if (segTRef) {
