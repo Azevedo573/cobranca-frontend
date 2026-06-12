@@ -2264,3 +2264,27 @@
 - [x] Atualizar testes unitários com offsets corretos do novo layout
 - [x] Validar layout idêntico ao arquivo de exemplo BTG
 - [x] 332 testes passando
+
+## Módulo Jurídico — Central de Demandas
+
+- [ ] Schema: tabela demandas (id, numero, condominioId, solicitante, canal, assunto, descricao, prioridade, responsavel, prazo, status, tipo, subtipo, criadoEm)
+- [ ] Schema: tabela colunasDemanda (id, nome, cor, ordem, icone, padrao)
+- [ ] Schema: tabela timelineDemanda (id, demandaId, tipo, descricao, usuarioId, criadoEm)
+- [ ] Schema: tabela anexosDemanda (id, demandaId, nome, url, tamanho, criadoEm)
+- [ ] Schema: tabela assembleias (id, condominioId, data, hora, endereco, advogadoId, tipo, status, horasGastas, criadoEm)
+- [ ] Migration: pnpm db:push para criar as tabelas
+- [ ] tRPC: CRUD de demandas (criar, listar, atualizar, mover coluna)
+- [ ] tRPC: CRUD de colunas kanban (criar, renomear, reordenar, colorir)
+- [ ] tRPC: timeline da demanda (adicionar evento, listar)
+- [ ] tRPC: CRUD de assembleias
+- [ ] tRPC: dashboard jurídico (métricas agregadas)
+- [ ] UI: Central de Demandas — listagem com filtros
+- [ ] UI: Modal de criação de demanda
+- [ ] UI: Quadro Kanban com drag-and-drop
+- [ ] UI: Cards do Kanban com número, condomínio, solicitante, responsável, prioridade, SLA
+- [ ] UI: Colunas customizáveis (criar, renomear, colorir, reordenar)
+- [ ] UI: Tela de detalhe da demanda com timeline
+- [ ] UI: Upload de anexos na demanda
+- [ ] UI: Tela de Assembleias com listagem e criação
+- [ ] UI: Dashboard Gerencial Jurídico (demandas abertas, SLA, por responsável, por canal)
+- [ ] Integrar menu Jurídico na sidebar (Central de Demandas, Kanban, Assembleias, Dashboard)

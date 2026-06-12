@@ -272,17 +272,18 @@ export function parseRetornoCNAB240(conteudo: string): RetornoArquivo {
         // Seu número: 25 chars (pos 106-130) = 0-based 105-130 — confirmado no arquivo real
         // Contém o cobrancaId com zeros à esquerda (ex: '0000000000000000000990002')
         seuNumero: linha.substring(105, 130).trim(),
-        // Data da ocorrência: 7 chars (pos 131-137) = 0-based 130-137
-        dataOcorrencia: parseDateDDMMAAAA(linha.substring(130, 137)),
-        // Código de ocorrência BTG: 3 chars (pos 138-140) = 0-based 137-140
-        codOcorrencia: linha.substring(137, 140).trim(),
-        descOcorrencia: CODIGOS_OCORRENCIA_BTG[linha.substring(137, 140).trim()] ||
+        // Código de ocorrência BTG: 3 chars (pos 131-133) = 0-based 130-133 — confirmado no arquivo real
+        codOcorrencia: linha.substring(130, 133).trim(),
+        descOcorrencia: CODIGOS_OCORRENCIA_BTG[linha.substring(130, 133).trim()] ||
                         CODIGOS_MOVIMENTO[linha.substring(15, 17).trim()] ||
-                        `Ocorrência ${linha.substring(137, 140).trim()}`,
-        // CPF/CNPJ do pagador: 14 chars (pos 141-154) = 0-based 140-154
-        cpfCnpjPagador: linha.substring(140, 154).trim(),
-        // Nome do pagador: 40 chars (pos 155-194) = 0-based 154-194
-        nomePagador: linha.substring(154, 194).trim(),
+                        `Ocorrência ${linha.substring(130, 133).trim()}`,
+        // Tipo sacador/avalista: 1 char (pos 134) = 0-based 133 + brancos 3 chars = 4 chars total
+        // CPF/CNPJ do pagador: 11-14 chars (pos 138-148) = 0-based 137-148
+        cpfCnpjPagador: linha.substring(137, 148).trim(),
+        // Nome do pagador: 40 chars (pos 149-188) = 0-based 148-188
+        nomePagador: linha.substring(148, 188).trim(),
+        // Data da ocorrência: não presente no segmento T (está no segmento U)
+        dataOcorrencia: "",
       };
 
       pendentesT.set(`${lote}-${sequencial}`, segT);

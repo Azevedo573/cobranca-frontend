@@ -68,6 +68,11 @@ import AtendimentoConfig from "./pages/AtendimentoConfig";
 import FluxosAtendimento from "./pages/FluxosAtendimento";
 import BTGConfig from "./pages/configuracoes/BTGConfig";
 import BTGConciliacao from "./pages/admin/BTGConciliacao";
+import CentralDemandas from "./pages/admin/juridico/CentralDemandas";
+import KanbanDemandas from "./pages/admin/juridico/KanbanDemandas";
+import DemandaDetalhes from "./pages/admin/juridico/DemandaDetalhes";
+import Assembleias from "./pages/admin/juridico/Assembleias";
+import DashboardJuridico from "./pages/admin/juridico/DashboardJuridico";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -305,7 +310,24 @@ function Router() {
         {() => <ProtectedRoute component={ModeloEditor} />}
       </Route>
 
-      {/* Rotas do Módulo Jurídico */}
+      {/* Módulo Jurídico — Central de Demandas */}
+      <Route path="/admin/juridico">
+        {() => <ProtectedRoute component={CentralDemandas} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/kanban">
+        {() => <ProtectedRoute component={KanbanDemandas} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/demanda/:id">
+        {() => <ProtectedRoute component={DemandaDetalhes} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/assembleias">
+        {() => <ProtectedRoute component={Assembleias} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/dashboard">
+        {() => <ProtectedRoute component={DashboardJuridico} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Rotas do Módulo Jurídico (legado) */}
       <Route path="/juridico/solicitacoes">
         {() => <ProtectedRoute component={Solicitacoes} />}
       </Route>

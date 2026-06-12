@@ -5827,5 +5827,234 @@ export const appRouter = router({
         return { total };
       }),
   }),
+
+  // ─── Módulo Jurídico — Central de Demandas ────────────────────────────────────
+  juridicoDemandas: router({
+    seedColunas: protectedProcedure.mutation(async () => {
+      const { seedColunasPadrao } = await import("./db-demandas");
+      await seedColunasPadrao();
+      return { success: true };
+    }),
+    getColunas: protectedProcedure.query(async () => {
+      const { getColunasDemanda } = await import("./db-demandas");
+      return getColunasDemanda();
+    }),
+    createColuna: protectedProcedure
+      .input(z.object({
+        nome: z.string().min(1).max(100),
+        icone: z.string().optional(),
+        cor: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createColunaDemanda } = await import("./db-demandas");
+        await createColunaDemanda(input);
+        return { success: true };
+      }),
+    updateColuna: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        nome: z.string().min(1).max(100).optional(),
+        icone: z.string().optional(),
+        cor: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateColunaDemanda } = await import("./db-demandas");
+        const { id, ...data } = input;
+        await updateColunaDemanda(id, data);
+        return { success: true };
+      }),
+    deleteColuna: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const { deleteColunaDemanda } = await import("./db-demandas");
+        await deleteColunaDemanda(input.id);
+        return { success: true };
+      }),
+    reordenarColunas: protectedProcedure
+      .input(z.object({ colunaIds: z.array(z.number().int().positive()) }))
+      .mutation(async ({ input }) => {
+        const { reordenarColunas } = await import("./db-demandas");
+        await reordenarColunas(input.colunaIds);
+        return { success: true };
+      }),
+    listar: protectedProcedure
+      .input(z.object({
+        condominioId: z.number().int().positive().optional(),
+        colunaId: z.number().int().positive().optional(),
+        responsavelId: z.number().int().positive().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const { getDemandas } = await import("./db-demandas");
+        return getDemandas(input);
+      }),
+    getById: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getDemandaById } = await import("./db-demandas");
+        return getDemandaById(input.id);
+      }),
+    create: protectedProcedure
+      .input(z.object({
+        condominioId: z.number().int().positive().optional().nullable(),
+        colunaId: z.number().int().positive(),
+        solicitante: z.string().optional(),
+        solicitanteTipo: z.string().optional(),
+        canal: z.enum(["whatsapp", "email", "portal", "telefone", "presencial", "assembleia", "processo_interno", "manual"]),
+        assunto: z.string().min(1).max(255),
+        descricao: z.string().optional(),
+        tipo: z.enum(["parecer", "convencao", "assembleia", "multa", "notificacao", "contratos", "cobranca_judicial", "processo", "audiencia", "execucao", "acompanhamento", "documentacao", "relatorio", "cadastro", "outro"]),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+        prazo: z.string().optional().nullable(),
+        responsavelId: z.number().int().positive().optional().nullable(),
+        responsavelNome: z.string().optional(),
+        devedorId: z.number().int().positive().optional().nullable(),
+        cobrancaId: z.number().int().positive().optional().nullable(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createDemanda } = await import("./db-demandas");
+        const result = await createDemanda({
+          ...input,
+          prazo: input.prazo ? new Date(input.prazo) : null,
+          criadoPorId: ctx.user.id,
+        });
+        return result;
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        colunaId: z.number().int().positive().optional(),
+        solicitante: z.string().optional(),
+        solicitanteTipo: z.string().optional(),
+        canal: z.enum(["whatsapp", "email", "portal", "telefone", "presencial", "assembleia", "processo_interno", "manual"]).optional(),
+        assunto: z.string().min(1).max(255).optional(),
+        descricao: z.string().optional(),
+        tipo: z.enum(["parecer", "convencao", "assembleia", "multa", "notificacao", "contratos", "cobranca_judicial", "processo", "audiencia", "execucao", "acompanhamento", "documentacao", "relatorio", "cadastro", "outro"]).optional(),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+        prazo: z.string().optional().nullable(),
+        responsavelId: z.number().int().positive().optional().nullable(),
+        responsavelNome: z.string().optional(),
+        condominioId: z.number().int().positive().optional().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateDemanda } = await import("./db-demandas");
+        const { id, prazo, ...rest } = input;
+        await updateDemanda(id, {
+          ...rest,
+          ...(prazo !== undefined ? { prazo: prazo ? new Date(prazo) : null } : {}),
+        });
+        return { success: true };
+      }),
+    mover: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        novaColunaId: z.number().int().positive(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { moverDemanda } = await import("./db-demandas");
+        await moverDemanda(input.id, input.novaColunaId, ctx.user.id, ctx.user.name ?? undefined);
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const { deleteDemanda } = await import("./db-demandas");
+        await deleteDemanda(input.id);
+        return { success: true };
+      }),
+    getTimeline: protectedProcedure
+      .input(z.object({ demandaId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getTimelineDemanda } = await import("./db-demandas");
+        return getTimelineDemanda(input.demandaId);
+      }),
+    addComentario: protectedProcedure
+      .input(z.object({
+        demandaId: z.number().int().positive(),
+        descricao: z.string().min(1),
+        tipo: z.enum(["criacao", "atribuicao", "movimentacao", "comentario", "anexo", "email", "whatsapp", "conclusao", "cancelamento", "outro"]).default("comentario"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { addTimelineEvento } = await import("./db-demandas");
+        await addTimelineEvento({
+          demandaId: input.demandaId,
+          tipo: input.tipo,
+          descricao: input.descricao,
+          usuarioId: ctx.user.id,
+          usuarioNome: ctx.user.name ?? undefined,
+        });
+        return { success: true };
+      }),
+    listarAssembleias: protectedProcedure
+      .input(z.object({
+        condominioId: z.number().int().positive().optional(),
+        status: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const { getAssembleias } = await import("./db-demandas");
+        return getAssembleias(input);
+      }),
+    getAssembleiaById: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getAssembleiaById } = await import("./db-demandas");
+        return getAssembleiaById(input.id);
+      }),
+    createAssembleia: protectedProcedure
+      .input(z.object({
+        condominioId: z.number().int().positive().optional().nullable(),
+        tipo: z.enum(["ordinaria", "extraordinaria", "prestacao_contas", "eleicao", "outro"]),
+        data: z.string(),
+        hora: z.string().regex(/^\d{2}:\d{2}$/),
+        endereco: z.string().optional(),
+        advogadoResponsavelId: z.number().int().positive().optional().nullable(),
+        advogadoNome: z.string().optional(),
+        pauta: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { createAssembleia } = await import("./db-demandas");
+        await createAssembleia({
+          ...input,
+          data: new Date(input.data),
+          criadoPorId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+    updateAssembleia: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        tipo: z.enum(["ordinaria", "extraordinaria", "prestacao_contas", "eleicao", "outro"]).optional(),
+        data: z.string().optional(),
+        hora: z.string().optional(),
+        endereco: z.string().optional(),
+        advogadoResponsavelId: z.number().int().positive().optional().nullable(),
+        advogadoNome: z.string().optional(),
+        status: z.enum(["agendada", "realizada", "cancelada"]).optional(),
+        pauta: z.string().optional(),
+        ata: z.string().optional(),
+        horasGastas: z.string().optional(),
+        observacoes: z.string().optional(),
+        condominioId: z.number().int().positive().optional().nullable(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateAssembleia } = await import("./db-demandas");
+        const { id, data, ...rest } = input;
+        await updateAssembleia(id, {
+          ...rest,
+          ...(data ? { data: new Date(data) } : {}),
+        });
+        return { success: true };
+      }),
+    deleteAssembleia: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const { deleteAssembleia } = await import("./db-demandas");
+        await deleteAssembleia(input.id);
+        return { success: true };
+      }),
+    dashboard: protectedProcedure.query(async () => {
+      const { getDashboardJuridico } = await import("./db-demandas");
+      return getDashboardJuridico();
+    }),
+  }),
 });
 export type AppRouter = typeof appRouter;

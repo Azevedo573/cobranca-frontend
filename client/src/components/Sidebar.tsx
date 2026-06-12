@@ -36,6 +36,8 @@ import {
   Scale,
   MessageSquare,
   Plus,
+  Kanban,
+  BarChart2,
   UserCog,
   KeyRound,
   Mail,
@@ -114,9 +116,10 @@ const menuGroups: MenuGroup[] = [
     roles: ["admin", "sindico", "colaborador"],
     modulo: "juridico",
     items: [
-      { label: "Solicitações", href: "/juridico/solicitacoes", icon: MessageSquare, roles: ["admin", "sindico", "colaborador"] },
-      { label: "Kanban", href: "/juridico/kanban", icon: LayoutDashboard, roles: ["admin", "colaborador"] },
-      { label: "Novo Ticket", href: "/juridico/solicitacoes/novo", icon: Plus, roles: ["admin", "colaborador"] },
+      { label: "Dashboard", href: "/admin/juridico/dashboard", icon: BarChart2, roles: ["admin"] },
+      { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin"] },
+      { label: "Kanban", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin"] },
+      { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin"] },
     ],
   },
 

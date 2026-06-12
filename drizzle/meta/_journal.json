@@ -407,6 +407,13 @@
       "when": 1781145510748,
       "tag": "0058_elite_franklin_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "5",
+      "when": 1781227669043,
+      "tag": "0059_square_marrow",
+      "breakpoints": true
     }
   ]
 }

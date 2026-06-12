@@ -1011,3 +1011,145 @@ export const custasJudiciais = mysqlTable("custasJudiciais", {
 });
 export type CustaJudicial = typeof custasJudiciais.$inferSelect;
 export type InsertCustaJudicial = typeof custasJudiciais.$inferInsert;
+
+// ─── Módulo Jurídico — Central de Demandas ────────────────────────────────────
+
+// Colunas do quadro Kanban de demandas (customizáveis pelo admin)
+export const colunasDemanda = mysqlTable("colunasDemanda", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 100 }).notNull(),
+  icone: varchar("icone", { length: 10 }).default("📋").notNull(),
+  cor: varchar("cor", { length: 30 }).default("slate").notNull(), // tailwind color name
+  ordem: int("ordem").default(0).notNull(),
+  padrao: int("padrao").default(0).notNull(), // 1 = coluna padrão do sistema (não pode ser excluída)
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ColunaDemanda = typeof colunasDemanda.$inferSelect;
+export type InsertColunaDemanda = typeof colunasDemanda.$inferInsert;
+
+// Demandas jurídicas
+export const demandas = mysqlTable("demandas", {
+  id: int("id").autoincrement().primaryKey(),
+  numero: varchar("numero", { length: 20 }).notNull().unique(), // ex: #1258
+  condominioId: int("condominioId"),
+  colunaId: int("colunaId").notNull(), // FK para colunasDemanda.id
+  // Solicitante
+  solicitante: varchar("solicitante", { length: 255 }),
+  solicitanteTipo: varchar("solicitanteTipo", { length: 50 }), // Síndico, Morador, Administradora, etc.
+  // Canal de origem
+  canal: mysqlEnum("canalDemanda", [
+    "whatsapp",
+    "email",
+    "portal",
+    "telefone",
+    "presencial",
+    "assembleia",
+    "processo_interno",
+    "manual",
+  ]).default("manual").notNull(),
+  // Classificação
+  assunto: varchar("assunto", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  tipo: mysqlEnum("tipoDemanda", [
+    // Jurídico Consultivo
+    "parecer",
+    "convencao",
+    "assembleia",
+    "multa",
+    "notificacao",
+    "contratos",
+    // Jurídico Contencioso
+    "cobranca_judicial",
+    "processo",
+    "audiencia",
+    "execucao",
+    "acompanhamento",
+    // Administrativo
+    "documentacao",
+    "relatorio",
+    "cadastro",
+    "outro",
+  ]).default("outro").notNull(),
+  // Prioridade e SLA
+  prioridade: mysqlEnum("prioridadeDemanda", ["baixa", "media", "alta", "urgente"]).default("media").notNull(),
+  prazo: timestamp("prazo"), // data limite (SLA)
+  // Responsável
+  responsavelId: int("responsavelId"), // FK para users.id
+  responsavelNome: varchar("responsavelNome", { length: 255 }), // nome livre (caso não seja usuário do sistema)
+  // Vinculação com devedor/cobrança (opcional)
+  devedorId: int("devedorId"),
+  cobrancaId: int("cobrancaId"),
+  // Controle
+  criadoPorId: int("criadoPorId"), // userId
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Demanda = typeof demandas.$inferSelect;
+export type InsertDemanda = typeof demandas.$inferInsert;
+
+// Timeline de eventos de cada demanda
+export const timelineDemanda = mysqlTable("timelineDemanda", {
+  id: int("id").autoincrement().primaryKey(),
+  demandaId: int("demandaId").notNull(),
+  tipo: mysqlEnum("tipoEventoDemanda", [
+    "criacao",
+    "atribuicao",
+    "movimentacao",
+    "comentario",
+    "anexo",
+    "email",
+    "whatsapp",
+    "conclusao",
+    "cancelamento",
+    "outro",
+  ]).default("outro").notNull(),
+  descricao: text("descricao").notNull(),
+  usuarioId: int("usuarioId"),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type TimelineEventoDemanda = typeof timelineDemanda.$inferSelect;
+export type InsertTimelineEventoDemanda = typeof timelineDemanda.$inferInsert;
+
+// Anexos de demandas
+export const anexosDemanda = mysqlTable("anexosDemanda", {
+  id: int("id").autoincrement().primaryKey(),
+  demandaId: int("demandaId").notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  url: text("url").notNull(),
+  fileKey: varchar("fileKey", { length: 500 }),
+  tamanho: int("tamanho"), // bytes
+  mimeType: varchar("mimeType", { length: 100 }),
+  uploadadoPorId: int("uploadadoPorId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AnexoDemanda = typeof anexosDemanda.$inferSelect;
+export type InsertAnexoDemanda = typeof anexosDemanda.$inferInsert;
+
+// Assembleias
+export const assembleias = mysqlTable("assembleias", {
+  id: int("id").autoincrement().primaryKey(),
+  condominioId: int("condominioId"),
+  tipo: mysqlEnum("tipoAssembleia", [
+    "ordinaria",
+    "extraordinaria",
+    "prestacao_contas",
+    "eleicao",
+    "outro",
+  ]).default("ordinaria").notNull(),
+  data: timestamp("data").notNull(),
+  hora: varchar("hora", { length: 5 }).notNull(), // "HH:MM"
+  endereco: varchar("endereco", { length: 500 }),
+  advogadoResponsavelId: int("advogadoResponsavelId"), // FK para users.id
+  advogadoNome: varchar("advogadoNome", { length: 255 }),
+  status: mysqlEnum("statusAssembleia", ["agendada", "realizada", "cancelada"]).default("agendada").notNull(),
+  pauta: text("pauta"),
+  ata: text("ata"),
+  horasGastas: decimal("horasGastas", { precision: 5, scale: 2 }),
+  observacoes: text("observacoes"),
+  criadoPorId: int("criadoPorId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Assembleia = typeof assembleias.$inferSelect;
+export type InsertAssembleia = typeof assembleias.$inferInsert;
