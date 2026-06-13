@@ -79,6 +79,7 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
   const utils = trpc.useUtils();
   const { data: colunas = [] } = trpc.juridicoDemandas.getColunas.useQuery();
   const { data: condominios = [] } = trpc.condominios.list.useQuery();
+  const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
 
   const [form, setForm] = useState({
     assunto: "",
@@ -236,7 +237,20 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
           {/* Responsável */}
           <div className="col-span-2">
             <Label>Responsável pelo Atendimento</Label>
-            <Input placeholder="Nome do advogado/responsável" value={form.responsavelNome} onChange={e => setForm(f => ({ ...f, responsavelNome: e.target.value }))} />
+            <Select value={form.responsavelNome} onValueChange={v => setForm(f => ({ ...f, responsavelNome: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione um advogado..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Nenhum</SelectItem>
+                {advogados.map(adv => (
+                  <SelectItem key={adv.id} value={adv.name ?? ""}>{adv.name ?? "(sem nome)"}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {advogados.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">Nenhum advogado cadastrado. Acesse Configurações → Usuários para adicionar.</p>
+            )}
           </div>
           {/* Descrição */}
           <div className="col-span-2">

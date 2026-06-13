@@ -7,6 +7,7 @@ import {
   anexosDemanda,
   assembleias,
   condominios,
+  users,
 } from "../drizzle/schema";
 
 // ─── Colunas Kanban ───────────────────────────────────────────────────────────
@@ -508,4 +509,25 @@ export async function getDashboardJuridico() {
     assembleiasMes: assembleiasMes?.total ?? 0,
     horasTotaisAssembleias: Number(horasAssembleias?.total ?? 0),
   };
+}
+
+// ─── Advogados ────────────────────────────────────────────────────────────────
+
+/**
+ * Retorna todos os usuários com role "advogado" e isActive=1.
+ * Usado para popular selects de responsável nas demandas e assembleias.
+ */
+export async function getAdvogados() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      isActive: users.isActive,
+    })
+    .from(users)
+    .where(and(eq(users.role, "advogado"), eq(users.isActive, 1)))
+    .orderBy(asc(users.name));
 }

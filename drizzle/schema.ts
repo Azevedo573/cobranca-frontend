@@ -12,7 +12,7 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["admin", "sindico", "cobrador", "colaborador"]).default("cobrador").notNull(),
+  role: mysqlEnum("role", ["admin", "sindico", "cobrador", "colaborador", "advogado"]).default("cobrador").notNull(),
   condominioId: int("condominioId"),
   isPrimaryAdmin: int("isPrimaryAdmin").default(0).notNull(), // 1 = administrador principal do condomínio
   isActive: int("isActive").default(1).notNull(),

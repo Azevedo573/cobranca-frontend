@@ -130,6 +130,7 @@ export default function DemandaDetalhes() {
   const { data: demanda, isLoading } = trpc.juridicoDemandas.getById.useQuery({ id: demandaId });
   const { data: timeline = [] } = trpc.juridicoDemandas.getTimeline.useQuery({ demandaId });
   const { data: colunas = [] } = trpc.juridicoDemandas.getColunas.useQuery();
+  const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
 
   const updateMutation = trpc.juridicoDemandas.update.useMutation({
     onSuccess: () => {
@@ -386,11 +387,26 @@ export default function DemandaDetalhes() {
               <Separator />
 
               {/* Responsável */}
-              <CampoEditavel
-                label="Responsável"
-                value={d.responsavelNome || ""}
-                onSave={v => handleUpdate("responsavelNome", v)}
-              />
+              <div className="group">
+                <Label className="text-xs text-muted-foreground">Responsável</Label>
+                <Select
+                  value={d.responsavelNome || ""}
+                  onValueChange={v => handleUpdate("responsavelNome", v)}
+                >
+                  <SelectTrigger className="mt-0.5 h-8 text-sm">
+                    <SelectValue placeholder="Selecione um advogado..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum</SelectItem>
+                    {advogados.map(adv => (
+                      <SelectItem key={adv.id} value={adv.name ?? ""}>{adv.name ?? "(sem nome)"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {advogados.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">Nenhum advogado cadastrado.</p>
+                )}
+              </div>
 
               <Separator />
 

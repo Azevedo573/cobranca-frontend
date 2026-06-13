@@ -50,6 +50,7 @@ function ModalAssembleia({ open, onClose, assembleia }: {
 }) {
   const utils = trpc.useUtils();
   const { data: condominios = [] } = trpc.condominios.list.useQuery();
+  const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
   const isEditing = !!assembleia;
 
   const [form, setForm] = useState({
@@ -144,7 +145,18 @@ function ModalAssembleia({ open, onClose, assembleia }: {
           </div>
           <div>
             <Label>Advogado Responsável</Label>
-            <Input placeholder="Nome do advogado" value={form.advogadoNome} onChange={e => setForm(f => ({ ...f, advogadoNome: e.target.value }))} />
+            <Select value={form.advogadoNome} onValueChange={v => setForm(f => ({ ...f, advogadoNome: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecione um advogado..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Nenhum</SelectItem>
+                {advogados.map(adv => (
+                  <SelectItem key={adv.id} value={adv.name ?? ""}>{adv.name ?? "(sem nome)"}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {advogados.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">Nenhum advogado cadastrado.</p>
+            )}
           </div>
           <div className="col-span-2">
             <Label>Local / Endereço</Label>

@@ -6055,6 +6055,11 @@ export const appRouter = router({
       const { getDashboardJuridico } = await import("./db-demandas");
       return getDashboardJuridico();
     }),
+    // Listar todos os usuários com role "advogado" para usar como responsáveis
+    getAdvogados: protectedProcedure.query(async () => {
+      const { getAdvogados } = await import("./db-demandas");
+      return getAdvogados();
+    }),
   }),
 });
 export type AppRouter = typeof appRouter;
