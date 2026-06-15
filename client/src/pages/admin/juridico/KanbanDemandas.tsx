@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Plus, List, GripVertical, Clock, AlertTriangle, User, Building2, MessageSquare, Mail, Phone, Globe, Users, FileText } from "lucide-react";
+import { Plus, List, GripVertical, Clock, AlertTriangle, User, Building2, MessageSquare, Mail, Phone, Globe, Users, FileText, Scale } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +97,18 @@ function KanbanCard({ demanda, onClick }: { demanda: any; onClick: () => void })
             <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
               <Building2 className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{demanda.condominioNome}</span>
+            </div>
+          )}
+          {/* Indicador de cobrança vinculada */}
+          {demanda.devedorId && demanda.valorDivida != null && (
+            <div className="flex items-center gap-1 text-xs mt-1.5 px-1.5 py-0.5 rounded bg-red-50 border border-red-100 text-red-700">
+              <Scale className="h-3 w-3 flex-shrink-0" />
+              <span className="font-medium">
+                R$ {(demanda.valorDivida / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </span>
+              {demanda.unidadeDevedor && (
+                <span className="text-red-500 truncate">— {demanda.unidadeDevedor}</span>
+              )}
             </div>
           )}
           <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">

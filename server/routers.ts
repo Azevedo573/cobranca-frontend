@@ -6060,6 +6060,36 @@ export const appRouter = router({
       const { getAdvogados } = await import("./db-demandas");
       return getAdvogados();
     }),
+    // Escalar devedor inadimplente para o jurídico
+    escalarParaJuridico: protectedProcedure
+      .input(z.object({
+        devedorId: z.number().int().positive(),
+        condominioId: z.number().int().positive().optional(),
+        nomeDevedor: z.string().min(1),
+        cpfDevedor: z.string().optional(),
+        unidadeDevedor: z.string().min(1),
+        valorDivida: z.number().int().min(0),
+        qtdCobrancas: z.number().int().min(0),
+        assunto: z.string().min(1).max(255),
+        descricao: z.string().optional(),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { escalarParaJuridico } = await import("./db-demandas");
+        const result = await escalarParaJuridico({
+          ...input,
+          criadoPorId: ctx.user.id,
+          criadoPorNome: ctx.user.name ?? undefined,
+        });
+        return { demandaId: result.demandaId, numero: result.numero };
+      }),
+    // Obter dados do devedor vinculado a uma demanda
+    getCobrancasVinculadas: protectedProcedure
+      .input(z.object({ demandaId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getCobrancasVinculadas } = await import("./db-demandas");
+        return getCobrancasVinculadas(input.demandaId);
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;

@@ -1079,6 +1079,12 @@ export const demandas = mysqlTable("demandas", {
   // Vinculação com devedor/cobrança (opcional)
   devedorId: int("devedorId"),
   cobrancaId: int("cobrancaId"),
+  // Dados do devedor no momento da escalada (snapshot)
+  valorDivida: int("valorDivida"), // em centavos
+  nomeDevedor: varchar("nomeDevedor", { length: 255 }),
+  cpfDevedor: varchar("cpfDevedor", { length: 20 }),
+  unidadeDevedor: varchar("unidadeDevedor", { length: 50 }),
+  qtdCobrancas: int("qtdCobrancas"),
   // Controle
   criadoPorId: int("criadoPorId"), // userId
   createdAt: timestamp("createdAt").defaultNow().notNull(),

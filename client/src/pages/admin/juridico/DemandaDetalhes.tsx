@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
   ArrowLeft, Clock, AlertTriangle, User, Building2, MessageSquare, Mail, Phone,
-  Globe, Users, FileText, Calendar, Edit2, Check, X, Send, Tag, Kanban, Trash2
+  Globe, Users, FileText, Calendar, Edit2, Check, X, Send, Tag, Kanban, Trash2,
+  Scale, ExternalLink, Banknote, HandCoins
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -251,6 +252,65 @@ export default function DemandaDetalhes() {
               />
             </CardContent>
           </Card>
+
+          {/* Cobrança Vinculada */}
+          {d.devedorId && (
+            <Card className="border-red-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-red-700">
+                  <Scale className="h-4 w-4" />
+                  Cobrança Vinculada
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Snapshot da dívida */}
+                  <div className="rounded-lg bg-red-50 border border-red-100 p-3 space-y-2">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                      {d.nomeDevedor && (
+                        <>
+                          <span className="text-muted-foreground text-xs">Devedor</span>
+                          <span className="font-medium text-xs">{d.nomeDevedor}</span>
+                        </>
+                      )}
+                      {d.unidadeDevedor && (
+                        <>
+                          <span className="text-muted-foreground text-xs">Unidade</span>
+                          <span className="font-medium text-xs">{d.unidadeDevedor}</span>
+                        </>
+                      )}
+                      {d.cpfDevedor && (
+                        <>
+                          <span className="text-muted-foreground text-xs">CPF/CNPJ</span>
+                          <span className="font-medium text-xs">{d.cpfDevedor}</span>
+                        </>
+                      )}
+                      {d.valorDivida != null && (
+                        <>
+                          <span className="text-muted-foreground text-xs">Valor (na escalada)</span>
+                          <span className="font-semibold text-xs text-red-700">
+                            R$ {(d.valorDivida / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </span>
+                        </>
+                      )}
+                      {d.qtdCobrancas != null && (
+                        <>
+                          <span className="text-muted-foreground text-xs">Cobranças em aberto</span>
+                          <span className="font-medium text-xs">{d.qtdCobrancas}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <Link href={`/devedores/${d.devedorId}/detalhes`}>
+                    <button className="w-full flex items-center justify-center gap-2 text-xs text-primary hover:text-primary/80 border border-primary/20 rounded-md px-3 py-2 hover:bg-primary/5 transition-colors">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Ver dashboard completo do devedor
+                    </button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Timeline */}
           <Card>

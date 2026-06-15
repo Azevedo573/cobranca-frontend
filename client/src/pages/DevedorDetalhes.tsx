@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake, MoreHorizontal, PhoneCall, Gavel } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake, MoreHorizontal, PhoneCall, Gavel, Scale, AlertTriangle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,7 +61,22 @@ export default function DevedorDetalhes() {
   // BTG
   const [btgModalCobranca, setBtgModalCobranca] = useState<any | null>(null);
   const [custasOpen, setCustasOpen] = useState(false);
+  const [modalEscalarOpen, setModalEscalarOpen] = useState(false);
+  const [escalarAssunto, setEscalarAssunto] = useState("");
+  const [escalarDescricao, setEscalarDescricao] = useState("");
+  const [escalarPrioridade, setEscalarPrioridade] = useState<"baixa"|"media"|"alta"|"urgente">("media");
   const utils = trpc.useUtils();
+
+  const escalarParaJuridicoMutation = trpc.juridicoDemandas.escalarParaJuridico.useMutation({
+    onSuccess: (data) => {
+      toast.success("Demanda jurídica criada com sucesso!");
+      setModalEscalarOpen(false);
+      setEscalarAssunto("");
+      setEscalarDescricao("");
+      navigate(`/admin/juridico/demanda/${data.demandaId}`);
+    },
+    onError: (err) => toast.error("Erro ao escalar: " + err.message),
+  });
   const LIMITE_INICIAL = 5;
 
   const copiarTexto = (texto: string, tipo: "linha" | "pix", cobrancaId: number) => {
@@ -337,6 +352,17 @@ export default function DevedorDetalhes() {
                   <DropdownMenuItem onClick={() => setCustasOpen(true)} className="gap-2 cursor-pointer">
                     <Gavel className="h-4 w-4" />
                     Custas Judiciais
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setEscalarAssunto(`Cobrança judicial — ${devedor.name ?? `Unidade ${devedor.unitNumber}`}`);
+                      setModalEscalarOpen(true);
+                    }}
+                    className="gap-2 cursor-pointer text-red-600 focus:text-red-600"
+                  >
+                    <Scale className="h-4 w-4" />
+                    Escalar para Jurídico
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
@@ -741,6 +767,109 @@ export default function DevedorDetalhes() {
           </div>
         </div>
       )}
+
+      {/* Dialog: Escalar para Jurídico */}
+      <Dialog open={modalEscalarOpen} onOpenChange={setModalEscalarOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Scale className="h-5 w-5" />
+              Escalar para Jurídico
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Resumo do devedor */}
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
+              <div className="flex items-center gap-2 text-sm font-medium text-red-800">
+                <AlertTriangle className="h-4 w-4" />
+                Resumo da inadimplência
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs">
+                <span className="text-muted-foreground">Devedor</span>
+                <span className="font-medium">{devedor.name}</span>
+                <span className="text-muted-foreground">Unidade</span>
+                <span className="font-medium">{devedor.unitNumber}{devedor.bloco ? ` - Bloco ${devedor.bloco}` : ""}</span>
+                <span className="text-muted-foreground">Cobranças em aberto</span>
+                <span className="font-medium">{cobrancas.filter((c: any) => c.status !== "pago").length}</span>
+                <span className="text-muted-foreground">Valor total devido</span>
+                <span className="font-medium text-red-700">
+                  {metricas ? `R$ ${metricas.valorTotalDevido.toFixed(2).replace(".", ",")}` : "—"}
+                </span>
+                <span className="text-muted-foreground">Tentativas sem sucesso</span>
+                <span className="font-medium">{metricas?.tentativasSemSucesso ?? 0}</span>
+              </div>
+            </div>
+
+            {/* Assunto */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Assunto da demanda *</label>
+              <input
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                placeholder="Ex: Cobrança judicial — Unidade 101"
+                value={escalarAssunto}
+                onChange={(e) => setEscalarAssunto(e.target.value)}
+              />
+            </div>
+
+            {/* Prioridade */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Prioridade</label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={escalarPrioridade}
+                onChange={(e) => setEscalarPrioridade(e.target.value as any)}
+              >
+                <option value="baixa">Baixa</option>
+                <option value="media">Média</option>
+                <option value="alta">Alta</option>
+                <option value="urgente">Urgente</option>
+              </select>
+            </div>
+
+            {/* Descrição */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Observações adicionais</label>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[80px] resize-none"
+                placeholder="Descreva o histórico, tentativas realizadas, motivo da escalada..."
+                value={escalarDescricao}
+                onChange={(e) => setEscalarDescricao(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setModalEscalarOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white gap-2"
+                disabled={!escalarAssunto.trim() || escalarParaJuridicoMutation.isPending}
+                onClick={() => {
+                  const cobrancasAbertas = cobrancas.filter((c: any) => c.status !== "pago");
+                  escalarParaJuridicoMutation.mutate({
+                    devedorId: devedor.id,
+                    condominioId: devedor.condominioId ?? undefined,
+                    nomeDevedor: devedor.name ?? `Unidade ${devedor.unitNumber}`,
+                    cpfDevedor: devedor.cpfCnpj ?? undefined,
+                    unidadeDevedor: `${devedor.unitNumber}${devedor.bloco ? ` - Bloco ${devedor.bloco}` : ""}`,
+                    valorDivida: metricas ? Math.round(metricas.valorTotalDevido * 100) : 0,
+                    qtdCobrancas: cobrancasAbertas.length,
+                    assunto: escalarAssunto.trim(),
+                    descricao: escalarDescricao.trim() || undefined,
+                    prioridade: escalarPrioridade,
+                  });
+                }}
+              >
+                {escalarParaJuridicoMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Criando...</>
+                ) : (
+                  <><Scale className="h-4 w-4" /> Escalar para Jurídico</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: Custas Judiciais */}
       <Dialog open={custasOpen} onOpenChange={setCustasOpen}>

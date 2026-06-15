@@ -182,6 +182,11 @@ export async function getDemandas(filters?: {
       responsavelNome: demandas.responsavelNome,
       devedorId: demandas.devedorId,
       cobrancaId: demandas.cobrancaId,
+      valorDivida: demandas.valorDivida,
+      nomeDevedor: demandas.nomeDevedor,
+      cpfDevedor: demandas.cpfDevedor,
+      unidadeDevedor: demandas.unidadeDevedor,
+      qtdCobrancas: demandas.qtdCobrancas,
       criadoPorId: demandas.criadoPorId,
       createdAt: demandas.createdAt,
       updatedAt: demandas.updatedAt,
@@ -217,6 +222,11 @@ export async function getDemandaById(id: number) {
       responsavelNome: demandas.responsavelNome,
       devedorId: demandas.devedorId,
       cobrancaId: demandas.cobrancaId,
+      valorDivida: demandas.valorDivida,
+      nomeDevedor: demandas.nomeDevedor,
+      cpfDevedor: demandas.cpfDevedor,
+      unidadeDevedor: demandas.unidadeDevedor,
+      qtdCobrancas: demandas.qtdCobrancas,
       criadoPorId: demandas.criadoPorId,
       createdAt: demandas.createdAt,
       updatedAt: demandas.updatedAt,
@@ -530,4 +540,113 @@ export async function getAdvogados() {
     .from(users)
     .where(and(eq(users.role, "advogado"), eq(users.isActive, 1)))
     .orderBy(asc(users.name));
+}
+
+// ─── Integração Jurídico ↔ Cobrança ──────────────────────────────────────────
+
+/**
+ * Cria uma demanda jurídica a partir de um devedor inadimplente.
+ */
+export async function escalarParaJuridico(params: {
+  devedorId: number;
+  condominioId?: number;
+  nomeDevedor: string;
+  cpfDevedor?: string;
+  unidadeDevedor: string;
+  valorDivida: number; // em centavos
+  qtdCobrancas: number;
+  assunto: string;
+  descricao?: string;
+  prioridade?: "baixa" | "media" | "alta" | "urgente";
+  criadoPorId: number;
+  criadoPorNome?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+
+  // Buscar a primeira coluna do kanban (menor ordem)
+  const [primeiraColuna] = await db
+    .select({ id: colunasDemanda.id })
+    .from(colunasDemanda)
+    .orderBy(asc(colunasDemanda.ordem))
+    .limit(1);
+
+  if (!primeiraColuna) {
+    throw new Error("Nenhuma coluna do kanban encontrada. Configure o módulo jurídico primeiro.");
+  }
+
+  // Gerar número sequencial
+  const [ultimaDemanda] = await db
+    .select({ numero: demandas.numero })
+    .from(demandas)
+    .orderBy(desc(demandas.id))
+    .limit(1);
+
+  let proximoNumero = 1;
+  if (ultimaDemanda?.numero) {
+    const match = ultimaDemanda.numero.match(/\d+/);
+    if (match) proximoNumero = parseInt(match[0]) + 1;
+  }
+  const numero = `#${String(proximoNumero).padStart(4, "0")}`;
+
+  const [result] = await db.insert(demandas).values({
+    numero,
+    condominioId: params.condominioId ?? null,
+    colunaId: primeiraColuna.id,
+    canal: "manual",
+    assunto: params.assunto,
+    descricao: params.descricao ?? null,
+    tipo: "cobranca_judicial",
+    prioridade: params.prioridade ?? "media",
+    devedorId: params.devedorId,
+    valorDivida: params.valorDivida,
+    nomeDevedor: params.nomeDevedor,
+    cpfDevedor: params.cpfDevedor ?? null,
+    unidadeDevedor: params.unidadeDevedor,
+    qtdCobrancas: params.qtdCobrancas,
+    criadoPorId: params.criadoPorId,
+  });
+
+  const demandaId = (result as any).insertId as number;
+
+  // Adicionar evento na timeline
+  await db.insert(timelineDemanda).values({
+    demandaId,
+    tipo: "criacao",
+    descricao: `Demanda criada via escalada de cobrança. Devedor: ${params.nomeDevedor} (${params.unidadeDevedor}). Valor devido: R$ ${(params.valorDivida / 100).toFixed(2).replace(".", ",")}. Cobranças em aberto: ${params.qtdCobrancas}.`,
+    usuarioId: params.criadoPorId,
+    usuarioNome: params.criadoPorNome ?? undefined,
+  });
+
+  return { demandaId, numero };
+}
+
+/**
+ * Retorna dados do devedor vinculado a uma demanda (snapshot salvo na demanda).
+ */
+export async function getCobrancasVinculadas(demandaId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [demanda] = await db
+    .select({
+      devedorId: demandas.devedorId,
+      nomeDevedor: demandas.nomeDevedor,
+      unidadeDevedor: demandas.unidadeDevedor,
+      valorDivida: demandas.valorDivida,
+      qtdCobrancas: demandas.qtdCobrancas,
+    })
+    .from(demandas)
+    .where(eq(demandas.id, demandaId))
+    .limit(1);
+
+  if (!demanda?.devedorId) return null;
+
+  return {
+    devedorId: demanda.devedorId,
+    nomeDevedor: demanda.nomeDevedor,
+    unidadeDevedor: demanda.unidadeDevedor,
+    valorDivida: demanda.valorDivida,
+    qtdCobrancas: demanda.qtdCobrancas,
+  };
 }

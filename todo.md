@@ -2288,3 +2288,18 @@
 - [ ] UI: Tela de Assembleias com listagem e criação
 - [ ] UI: Dashboard Gerencial Jurídico (demandas abertas, SLA, por responsável, por canal)
 - [ ] Integrar menu Jurídico na sidebar (Central de Demandas, Kanban, Assembleias, Dashboard)
+
+## Integração Jurídico ↔ Cobrança
+- [x] Schema: campos devedorId, valorDivida, nomeDevedor, cpfDevedor, unidadeDevedor, qtdCobrancas na tabela demandas
+- [x] db:push aplicado (campos já existiam no banco da sessão anterior)
+- [x] db-demandas.ts: função escalarParaJuridico (cria demanda com snapshot da dívida)
+- [x] db-demandas.ts: função getCobrancasVinculadas (retorna snapshot da dívida vinculada à demanda)
+- [x] db-demandas.ts: getDemandas e getDemandaById agora retornam campos de cobrança vinculada
+- [x] router juridicoDemandas: procedure escalarParaJuridico
+- [x] router juridicoDemandas: procedure getCobrancasVinculadas
+- [x] DevedorDetalhes.tsx: botão "Escalar para Jurídico" no dropdown "Mais"
+- [x] DevedorDetalhes.tsx: modal de confirmação com resumo da inadimplência (valor, unidade, cobranças em aberto, tentativas sem sucesso)
+- [x] DemandaDetalhes.tsx: card "Cobrança Vinculada" com snapshot da dívida e link para o devedor
+- [x] KanbanDemandas.tsx: indicador visual de valor da dívida nos cards com cobrança vinculada
+- [x] Corrigido erro TypeScript: comentário JSX mal fechado na linha 874 do DevedorDetalhes.tsx
+- [x] 332 testes passando, 0 erros TypeScript
