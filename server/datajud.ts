@@ -79,18 +79,43 @@ export const TRIBUNAIS_ALIASES: Record<string, string> = {
   TRT24: "api_publica_trt24",
 };
 
+export interface DataJudComplemento {
+  codigo?: number;
+  valor?: number | string;
+  nome: string;
+  descricao?: string;
+}
+
 export interface DataJudMovimento {
   codigo: number;
   nome: string;
   dataHora: string;
-  complementosTabelados?: Array<{ codigo: number; valor: number; nome: string; descricao: string }>;
+  // Complementos tabelados (códigos numéricos, ex: tipo de recurso)
+  complementosTabelados?: DataJudComplemento[];
+  // Complementos textuais livres (inteiro teor, publicações, etc.)
+  complementosTextuais?: Array<{ nome: string; valor: string }>;
+  // Dados de publicação no Diário Oficial
+  tipoPublicacao?: string;
+  meioPublicacao?: string;
+  nomeOrgao?: string;
+  dataDisponibilizacao?: string;
+  dataPublicacao?: string;
+  tipoComunicacao?: string;
+}
+
+export interface DataJudAdvogado {
+  nome: string;
+  documento?: string; // número OAB
+  codigoOAB?: string;
+  tipoDocumento?: string;
 }
 
 export interface DataJudParte {
   nome: string;
   tipo?: string;
   documento?: string;
-  advogados?: Array<{ nome: string; documento?: string }>;
+  tipoPessoa?: string;
+  advogados?: DataJudAdvogado[];
 }
 
 export interface DataJudProcesso {

@@ -89,6 +89,250 @@ function formatarCNJ(numero: string): string {
   return numero;
 }
 
+// ─── Componente: Timeline estilo Astrea ──────────────────────────────────────
+
+type MovimentacaoRich = {
+  id: number;
+  data: Date | string;
+  descricao: string;
+  tipo: string;
+  origem: string;
+  codigoDatajud?: number | null;
+  complementosJson?: string | null;
+  nomeOrgao?: string | null;
+  tipoComunicacao?: string | null;
+  meioPublicacao?: string | null;
+  usuarioNome?: string | null;
+};
+
+type ParteRich = {
+  id: number;
+  tipo: string;
+  nome: string;
+  cpfCnpj?: string | null;
+  representante?: string | null;
+  advogadosJson?: string | null;
+};
+
+function parseComplementos(json?: string | null): Array<{ nome: string; valor: string }> {
+  if (!json) return [];
+  try { return JSON.parse(json); } catch { return []; }
+}
+
+function parseAdvogados(json?: string | null): Array<{ nome: string; oab?: string | null }> {
+  if (!json) return [];
+  try { return JSON.parse(json); } catch { return []; }
+}
+
+const TIPO_MOV_ICON: Record<string, string> = {
+  distribuicao: "📌", citacao: "📨", contestacao: "📝", audiencia: "🏛️",
+  sentenca: "⚖️", recurso: "🔄", despacho: "💬", decisao: "🔨",
+  peticao: "📄", transito_julgado: "✅", execucao: "💰", outro: "🟡",
+};
+
+function TimelineAstrea({
+  movimentacoes,
+  partes,
+  onAddMov,
+  onDeleteMov,
+}: {
+  movimentacoes: MovimentacaoRich[];
+  partes: ParteRich[];
+  onAddMov: () => void;
+  onDeleteMov: (id: number) => void;
+}) {
+  const [selecionada, setSelecionada] = useState<MovimentacaoRich | null>(
+    movimentacoes.length > 0 ? movimentacoes[0] : null
+  );
+
+  const complementos = parseComplementos(selecionada?.complementosJson);
+
+  return (
+    <div className="flex gap-4">
+      {/* Coluna esquerda: detalhe da movimentação selecionada */}
+      <div className="flex-1 min-w-0">
+        {selecionada ? (
+          <Card className="bg-[#1a1f2e] border-white/10">
+            <CardContent className="p-5 space-y-4">
+              {/* Cabeçalho */}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-lg">{TIPO_MOV_ICON[selecionada.tipo] ?? "🟡"}</span>
+                    <h3 className="text-base font-semibold text-white">{selecionada.descricao}</h3>
+                    {selecionada.origem === "datajud" && (
+                      <Badge className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/20">DataJud</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-white/40">
+                    {new Date(selecionada.data).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+                {selecionada.origem === "manual" && (
+                  <Button variant="ghost" size="sm"
+                    onClick={() => onDeleteMov(selecionada.id)}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0 shrink-0">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Metadados da publicação */}
+              {(selecionada.nomeOrgao || selecionada.tipoComunicacao || selecionada.meioPublicacao) && (
+                <div className="bg-white/5 rounded-lg p-3 space-y-1.5 border border-white/8">
+                  {selecionada.nomeOrgao && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-white/40 w-28 shrink-0">Diário / Órgão:</span>
+                      <span className="text-xs text-white font-medium">{selecionada.nomeOrgao}</span>
+                    </div>
+                  )}
+                  {selecionada.tipoComunicacao && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-white/40 w-28 shrink-0">Tipo:</span>
+                      <span className="text-xs text-white">{selecionada.tipoComunicacao}</span>
+                    </div>
+                  )}
+                  {selecionada.meioPublicacao && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-white/40 w-28 shrink-0">Meio:</span>
+                      <span className="text-xs text-white">{selecionada.meioPublicacao}</span>
+                    </div>
+                  )}
+                  {selecionada.codigoDatajud && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-white/40 w-28 shrink-0">Cód. CNJ:</span>
+                      <span className="text-xs text-white/60 font-mono">{selecionada.codigoDatajud}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Partes com advogados e OAB */}
+              {partes.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/40 uppercase tracking-wide mb-2">Partes</p>
+                  <div className="space-y-2">
+                    {partes.map((parte) => {
+                      const advs = parseAdvogados(parte.advogadosJson);
+                      return (
+                        <div key={parte.id} className="bg-white/5 rounded-lg p-2.5 border border-white/8">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge className={`text-xs py-0 ${
+                              parte.tipo === "autor" ? "bg-blue-500/15 text-blue-400" :
+                              parte.tipo === "reu" ? "bg-red-500/15 text-red-400" :
+                              "bg-slate-500/15 text-slate-400"
+                            }`}>
+                              {parte.tipo === "autor" ? "Autor" : parte.tipo === "reu" ? "Réu" : parte.tipo === "terceiro" ? "Terceiro" : "Outro"}
+                            </Badge>
+                            <span className="text-sm text-white font-medium">{parte.nome}</span>
+                          </div>
+                          {advs.length > 0 && (
+                            <div className="mt-1.5 space-y-0.5">
+                              {advs.map((adv, i) => (
+                                <p key={i} className="text-xs text-white/50">
+                                  Advogado: <span className="text-white/80">{adv.nome}</span>
+                                  {adv.oab && (
+                                    <span className="ml-1.5 bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                                      OAB {adv.oab}
+                                    </span>
+                                  )}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Complementos / Detalhes */}
+              {complementos.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/40 uppercase tracking-wide mb-2">Detalhes da Movimentação</p>
+                  <div className="space-y-2">
+                    {complementos.map((c, i) => (
+                      <div key={i} className="bg-white/5 rounded-lg p-3 border border-white/8">
+                        <p className="text-xs text-white/40 mb-1 font-medium">{c.nome}</p>
+                        <p className="text-xs text-white/80 leading-relaxed whitespace-pre-wrap">{c.valor}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Estado vazio */}
+              {complementos.length === 0 && !selecionada.nomeOrgao && selecionada.origem === "datajud" && (
+                <div className="text-center py-4 text-white/20">
+                  <p className="text-xs">DataJud não retornou complementos para este andamento</p>
+                </div>
+              )}
+              {complementos.length === 0 && selecionada.origem === "manual" && (
+                <div className="text-center py-4 text-white/20">
+                  <FileText className="w-5 h-5 mx-auto mb-1" />
+                  <p className="text-xs">Movimentação manual — sem detalhes adicionais</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-48 text-white/20">
+            <Activity className="w-8 h-8 mb-2" />
+            <p className="text-sm">Selecione uma movimentação para ver os detalhes</p>
+          </div>
+        )}
+      </div>
+
+      {/* Coluna direita: lista de histórico */}
+      <div className="w-72 shrink-0">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-white/40 uppercase tracking-wide">Histórico ({movimentacoes.length})</p>
+          <Button size="sm" onClick={onAddMov} className="bg-blue-600 hover:bg-blue-700 text-white h-7 px-2 text-xs">
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Adicionar
+          </Button>
+        </div>
+        <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
+          {movimentacoes.length === 0 ? (
+            <div className="text-center py-8 text-white/20">
+              <Activity className="w-6 h-6 mx-auto mb-1" />
+              <p className="text-xs">Nenhuma movimentação</p>
+            </div>
+          ) : (
+            movimentacoes.map((mov) => {
+              const isSelected = selecionada?.id === mov.id;
+              return (
+                <button
+                  key={mov.id}
+                  onClick={() => setSelecionada(mov)}
+                  className={`w-full text-left rounded-lg p-2.5 transition-colors border ${
+                    isSelected
+                      ? "bg-blue-600/20 border-blue-500/40"
+                      : "bg-white/3 border-white/5 hover:bg-white/8 hover:border-white/15"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-sm">{TIPO_MOV_ICON[mov.tipo] ?? "🟡"}</span>
+                    <span className="text-xs text-white/40">
+                      {new Date(mov.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
+                    </span>
+                    {mov.origem === "datajud" && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="DataJud" />
+                    )}
+                  </div>
+                  <p className="text-xs text-white line-clamp-2 leading-relaxed">{mov.descricao}</p>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Modal: Adicionar Movimentação ────────────────────────────────────────────
 
 function ModalMovimentacao({ processoId, open, onClose, onSuccess }: {
@@ -599,66 +843,14 @@ export default function ProcessoDetalhes() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ─── Timeline ──────────────────────────────────────────────────────── */}
+        {/* ─── Timeline (layout estilo Astrea) ─────────────────────────────────── */}
         <TabsContent value="timeline">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-medium text-white/70">Movimentações Processuais</h3>
-            <Button size="sm" onClick={() => setModalMov(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Plus className="w-4 h-4 mr-1" />
-              Adicionar
-            </Button>
-          </div>
-
-          {processo.movimentacoes?.length === 0 ? (
-            <div className="text-center py-10 text-white/30">
-              <Activity className="w-8 h-8 mx-auto mb-2" />
-              <p>Nenhuma movimentação registrada</p>
-            </div>
-          ) : (
-            <div className="relative">
-              <div className="absolute left-4 top-0 bottom-0 w-px bg-white/10" />
-              <div className="space-y-4 pl-10">
-                {processo.movimentacoes?.map((mov) => (
-                  <div key={mov.id} className="relative">
-                    <div className={`absolute -left-6 top-1.5 w-3 h-3 rounded-full border-2 ${
-                      mov.origem === "datajud" ? "bg-emerald-500 border-emerald-400" : "bg-blue-500 border-blue-400"
-                    }`} />
-                    <div className="bg-[#1a1f2e] border border-white/10 rounded-lg p-3 group">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="text-xs text-white/40">
-                              {new Date(mov.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
-                            </span>
-                            {mov.origem === "datajud" && (
-                              <Badge className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/20 py-0">DataJud</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-white">{mov.descricao}</p>
-                          {mov.usuarioNome && (
-                            <p className="text-xs text-white/30 mt-1">por {mov.usuarioNome}</p>
-                          )}
-                        </div>
-                        {mov.origem === "manual" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={async () => {
-                              await deleteMov.mutateAsync({ id: mov.id });
-                              refetch();
-                            }}
-                            className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <TimelineAstrea
+            movimentacoes={processo.movimentacoes ?? []}
+            partes={processo.partes ?? []}
+            onAddMov={() => setModalMov(true)}
+            onDeleteMov={async (id) => { await deleteMov.mutateAsync({ id }); refetch(); }}
+          />
         </TabsContent>
 
         {/* ─── Partes ─────────────────────────────────────────────────────────── */}
@@ -678,39 +870,67 @@ export default function ProcessoDetalhes() {
             </div>
           ) : (
             <div className="space-y-3">
-              {processo.partes?.map((parte) => (
-                <Card key={parte.id} className="bg-[#1a1f2e] border-white/10 group">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge className={`text-xs ${
-                            parte.tipo === "autor" ? "bg-blue-500/15 text-blue-400" :
-                            parte.tipo === "reu" ? "bg-red-500/15 text-red-400" :
-                            "bg-slate-500/15 text-slate-400"
-                          }`}>
-                            {parte.tipo === "autor" ? "Autor" : parte.tipo === "reu" ? "Réu" : parte.tipo === "terceiro" ? "Terceiro" : "Outro"}
-                          </Badge>
+              {processo.partes?.map((parte) => {
+                const advs = parseAdvogados((parte as any).advogadosJson);
+                return (
+                  <Card key={parte.id} className="bg-[#1a1f2e] border-white/10 group">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          {/* Tipo + Nome */}
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <Badge className={`text-xs ${
+                              parte.tipo === "autor" ? "bg-blue-500/15 text-blue-400" :
+                              parte.tipo === "reu" ? "bg-red-500/15 text-red-400" :
+                              "bg-slate-500/15 text-slate-400"
+                            }`}>
+                              {parte.tipo === "autor" ? "Autor" : parte.tipo === "reu" ? "Réu" : parte.tipo === "terceiro" ? "Terceiro" : "Outro"}
+                            </Badge>
+                            <p className="text-sm font-semibold text-white">{parte.nome}</p>
+                          </div>
+                          {/* CPF/CNPJ */}
+                          {parte.cpfCnpj && (
+                            <p className="text-xs text-white/40 mb-1">
+                              CPF/CNPJ: <span className="font-mono text-white/60">{parte.cpfCnpj}</span>
+                            </p>
+                          )}
+                          {/* Representante */}
+                          {parte.representante && (
+                            <p className="text-xs text-white/40 mb-1">Repr.: {parte.representante}</p>
+                          )}
+                          {/* Advogados com OAB destacada */}
+                          {advs.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-white/8 space-y-1">
+                              {advs.map((adv, i) => (
+                                <div key={i} className="flex items-center gap-2 flex-wrap">
+                                  <User className="w-3 h-3 text-white/30 shrink-0" />
+                                  <span className="text-xs text-white/70">{adv.nome}</span>
+                                  {adv.oab && (
+                                    <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold">
+                                      OAB {adv.oab}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <p className="text-sm font-medium text-white">{parte.nome}</p>
-                        {parte.cpfCnpj && <p className="text-xs text-white/40 mt-0.5">CPF/CNPJ: {parte.cpfCnpj}</p>}
-                        {parte.representante && <p className="text-xs text-white/40 mt-0.5">Repr.: {parte.representante}</p>}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            await removeParte.mutateAsync({ id: parte.id });
+                            refetch();
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0 shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          await removeParte.mutateAsync({ id: parte.id });
-                          refetch();
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </TabsContent>

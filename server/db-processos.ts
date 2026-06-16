@@ -151,6 +151,13 @@ export async function removeParte(id: number): Promise<boolean> {
   return true;
 }
 
+export async function updateParteAdvogados(id: number, advogadosJson: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  await db.update(partesProcesso).set({ advogadosJson }).where(eq(partesProcesso.id, id));
+  return true;
+}
+
 // ─── Movimentações ────────────────────────────────────────────────────────────
 
 export async function getMovimentacoes(processoId: number): Promise<MovimentacaoProcesso[]> {

@@ -19,6 +19,7 @@ import {
   updateFinanceiro,
   deleteFinanceiro,
   getResumoFinanceiro,
+  updateParteAdvogados,
 } from "../db-processos";
 import {
   getPrazos,
@@ -38,6 +39,35 @@ import {
   buscarProcessosPorNomeAdvogadoMultiTribunal,
   TRIBUNAIS_ALIASES,
 } from "../datajud";
+
+// ─── Funções auxiliares ─────────────────────────────────────────────────────────
+
+/** Mapeia código CNJ de movimento para o tipo interno */
+function resolverTipoMovimentacao(codigo: number, nome: string): "distribuicao" | "citacao" | "contestacao" | "audiencia" | "sentenca" | "recurso" | "despacho" | "decisao" | "peticao" | "transito_julgado" | "execucao" | "outro" {
+  const n = nome.toLowerCase();
+  if (n.includes("distribuição") || n.includes("distribuicao") || codigo === 26) return "distribuicao";
+  if (n.includes("citação") || n.includes("citacao") || codigo === 7) return "citacao";
+  if (n.includes("contestação") || n.includes("contestacao")) return "contestacao";
+  if (n.includes("audiência") || n.includes("audiencia")) return "audiencia";
+  if (n.includes("sentença") || n.includes("sentenca")) return "sentenca";
+  if (n.includes("recurso") || n.includes("apelação") || n.includes("apelacao") || n.includes("agravo")) return "recurso";
+  if (n.includes("despacho")) return "despacho";
+  if (n.includes("decisão") || n.includes("decisao")) return "decisao";
+  if (n.includes("petição") || n.includes("peticao")) return "peticao";
+  if (n.includes("trânsito") || n.includes("transito em julgado")) return "transito_julgado";
+  if (n.includes("execução") || n.includes("execucao") || n.includes("cumprimento de sentença")) return "execucao";
+  return "outro";
+}
+
+/** Normaliza o tipo de parte do DataJud para o enum interno */
+function normalizarTipoParte(tipo?: string): "autor" | "reu" | "terceiro" | "outro" {
+  if (!tipo) return "outro";
+  const t = tipo.toLowerCase();
+  if (t.includes("ativo") || t.includes("autor") || t.includes("requerente") || t.includes("exequente") || t.includes("reclamante") || t.includes("apelante")) return "autor";
+  if (t.includes("passivo") || t.includes("réu") || t.includes("reu") || t.includes("requerido") || t.includes("executado") || t.includes("reclamado") || t.includes("apelado")) return "reu";
+  if (t.includes("terceiro") || t.includes("interveniente") || t.includes("amicus")) return "terceiro";
+  return "outro";
+}
 
 // ─── Processos ────────────────────────────────────────────────────────────────
 
@@ -458,17 +488,64 @@ export const processosRouter = router({
       let novas = 0;
       for (const mov of src.movimentos ?? []) {
         if (codigosExistentes.has(mov.codigo)) continue;
+
+        // Montar complementos (tabelados + textuais) em JSON
+        const todosComplementos: Array<{ nome: string; valor: string }> = [];
+        for (const c of mov.complementosTabelados ?? []) {
+          todosComplementos.push({ nome: c.nome, valor: String(c.valor ?? c.descricao ?? "") });
+        }
+        for (const c of mov.complementosTextuais ?? []) {
+          todosComplementos.push({ nome: c.nome, valor: c.valor });
+        }
+
+        // Determinar tipo de movimentação pelo código CNJ
+        const tipoMovimentacao = resolverTipoMovimentacao(mov.codigo, mov.nome);
+
         await addMovimentacao({
           processoId: input.processoId,
           data: new Date(mov.dataHora),
           descricao: mov.nome,
-          tipo: "outro",
+          tipo: tipoMovimentacao,
           origem: "datajud",
           codigoDatajud: mov.codigo,
+          complementosJson: todosComplementos.length > 0 ? JSON.stringify(todosComplementos) : null,
+          nomeOrgao: mov.nomeOrgao ?? null,
+          tipoComunicacao: mov.tipoComunicacao ?? null,
+          meioPublicacao: mov.meioPublicacao ?? null,
           usuarioId: ctx.user.id,
           usuarioNome: ctx.user.name ?? undefined,
         });
         novas++;
+      }
+
+      // Sincronizar partes com advogados e OAB
+      const partesExistentes = await getPartes(input.processoId);
+      const nomesExistentes = new Set(partesExistentes.map((p) => p.nome.toLowerCase()));
+      let novasPartes = 0;
+      for (const parte of src.partes ?? []) {
+        if (nomesExistentes.has(parte.nome.toLowerCase())) {
+          // Atualizar advogados se ainda não tem
+          const existente = partesExistentes.find((p) => p.nome.toLowerCase() === parte.nome.toLowerCase());
+          if (existente && !existente.advogadosJson && parte.advogados && parte.advogados.length > 0) {
+            await updateParteAdvogados(existente.id, JSON.stringify(
+              parte.advogados.map((a) => ({ nome: a.nome, oab: a.documento ?? a.codigoOAB ?? null }))
+            ));
+          }
+          continue;
+        }
+        const tipoParteNorm = normalizarTipoParte(parte.tipo);
+        await addParte({
+          processoId: input.processoId,
+          tipo: tipoParteNorm,
+          nome: parte.nome,
+          cpfCnpj: parte.documento ?? null,
+          representante: null,
+          advogadosJson: parte.advogados && parte.advogados.length > 0
+            ? JSON.stringify(parte.advogados.map((a) => ({ nome: a.nome, oab: a.documento ?? a.codigoOAB ?? null })))
+            : null,
+        });
+        nomesExistentes.add(parte.nome.toLowerCase());
+        novasPartes++;
       }
 
       // Atualizar metadados do processo
@@ -480,7 +557,7 @@ export const processosRouter = router({
           : undefined,
       });
 
-      return { sincronizado: true, novasMovimentacoes: novas };
+      return { sincronizado: true, novasMovimentacoes: novas, novasPartes };
     }),
 });
 

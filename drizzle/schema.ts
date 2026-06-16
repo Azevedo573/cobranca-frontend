@@ -1205,6 +1205,8 @@ export const partesProcesso = mysqlTable("partesProcesso", {
   cpfCnpj: varchar("cpfCnpj", { length: 20 }),
   representante: varchar("representante", { length: 255 }),
   observacoes: varchar("observacoes", { length: 500 }),
+  // Advogados estruturados (JSON array: [{nome, oab}])
+  advogadosJson: text("advogadosJson"), // JSON serializado
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ParteProcesso = typeof partesProcesso.$inferSelect;
@@ -1221,6 +1223,12 @@ export const movimentacoesProcesso = mysqlTable("movimentacoesProcesso", {
   ]).default("outro").notNull(),
   origem: mysqlEnum("origemMovimentacao", ["manual", "datajud"]).default("manual").notNull(),
   codigoDatajud: int("codigoDatajud"),
+  // Complementos do DataJud (inteiro teor, publicação, etc.) — JSON array
+  complementosJson: text("complementosJson"), // JSON serializado [{nome, valor}]
+  // Dados de publicação
+  nomeOrgao: varchar("nomeOrgao", { length: 255 }),
+  tipoComunicacao: varchar("tipoComunicacao", { length: 100 }),
+  meioPublicacao: varchar("meioPublicacao", { length: 100 }),
   usuarioId: int("usuarioId"),
   usuarioNome: varchar("usuarioNome", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
