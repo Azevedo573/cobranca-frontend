@@ -11,12 +11,15 @@ import { logAudit, auditLoginSuccess, auditLoginFailed, auditLogout } from "./au
 import { atendimentoRouter } from "./routers/atendimento";
 import { fluxosRouter } from "./routers/fluxos";
 import { btgRouter } from "./routers/btg";
+import { processosRouter, prazosRouter } from "./routers/processos";
 export const appRouter = router({
 
   system: systemRouter,
   atendimento: atendimentoRouter,
   fluxos: fluxosRouter,
   btg: btgRouter,
+  processos: processosRouter,
+  prazos: prazosRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(async ({ ctx }) => {

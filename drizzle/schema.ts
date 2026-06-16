@@ -1159,3 +1159,114 @@ export const assembleias = mysqlTable("assembleias", {
 });
 export type Assembleia = typeof assembleias.$inferSelect;
 export type InsertAssembleia = typeof assembleias.$inferInsert;
+
+// ─── Processos Judiciais ──────────────────────────────────────────────────────
+export const processosJudiciais = mysqlTable("processosJudiciais", {
+  id: int("id").autoincrement().primaryKey(),
+  numeroCNJ: varchar("numeroCNJ", { length: 30 }).notNull(),
+  tribunal: varchar("tribunal", { length: 20 }).notNull(),
+  tribunalAlias: varchar("tribunalAlias", { length: 50 }),
+  comarca: varchar("comarca", { length: 255 }),
+  vara: varchar("vara", { length: 255 }),
+  classe: varchar("classe", { length: 255 }),
+  assunto: varchar("assunto", { length: 500 }),
+  tipo: mysqlEnum("tipoProcesso", [
+    "civel", "trabalhista", "previdenciario", "criminal", "tributario", "administrativo", "outro",
+  ]).default("civel").notNull(),
+  faseProcessual: mysqlEnum("faseProcessual", [
+    "distribuicao", "citacao", "contestacao", "instrucao", "audiencia",
+    "sentenca", "recurso", "transito_julgado", "execucao", "arquivado", "outro",
+  ]).default("distribuicao").notNull(),
+  status: mysqlEnum("statusProcesso", ["ativo", "suspenso", "arquivado", "encerrado"]).default("ativo").notNull(),
+  dataAjuizamento: timestamp("dataAjuizamento"),
+  dataUltimaMovimentacao: timestamp("dataUltimaMovimentacao"),
+  condominioId: int("condominioId"),
+  condominioNome: varchar("condominioNome", { length: 255 }),
+  demandaId: int("demandaId"),
+  advogadoId: int("advogadoId"),
+  advogadoNome: varchar("advogadoNome", { length: 255 }),
+  valorCausa: int("valorCausa"),
+  valorCondenacao: int("valorCondenacao"),
+  datajudId: varchar("datajudId", { length: 200 }),
+  datajudSincronizadoEm: timestamp("datajudSincronizadoEm"),
+  observacoes: text("observacoes"),
+  criadoPorId: int("criadoPorId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ProcessoJudicial = typeof processosJudiciais.$inferSelect;
+export type InsertProcessoJudicial = typeof processosJudiciais.$inferInsert;
+
+export const partesProcesso = mysqlTable("partesProcesso", {
+  id: int("id").autoincrement().primaryKey(),
+  processoId: int("processoId").notNull(),
+  tipo: mysqlEnum("tipoParteProcesso", ["autor", "reu", "terceiro", "outro"]).default("autor").notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  cpfCnpj: varchar("cpfCnpj", { length: 20 }),
+  representante: varchar("representante", { length: 255 }),
+  observacoes: varchar("observacoes", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ParteProcesso = typeof partesProcesso.$inferSelect;
+export type InsertParteProcesso = typeof partesProcesso.$inferInsert;
+
+export const movimentacoesProcesso = mysqlTable("movimentacoesProcesso", {
+  id: int("id").autoincrement().primaryKey(),
+  processoId: int("processoId").notNull(),
+  data: timestamp("data").notNull(),
+  descricao: text("descricao").notNull(),
+  tipo: mysqlEnum("tipoMovimentacao", [
+    "distribuicao", "citacao", "contestacao", "audiencia", "sentenca",
+    "recurso", "despacho", "decisao", "peticao", "transito_julgado", "execucao", "outro",
+  ]).default("outro").notNull(),
+  origem: mysqlEnum("origemMovimentacao", ["manual", "datajud"]).default("manual").notNull(),
+  codigoDatajud: int("codigoDatajud"),
+  usuarioId: int("usuarioId"),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type MovimentacaoProcesso = typeof movimentacoesProcesso.$inferSelect;
+export type InsertMovimentacaoProcesso = typeof movimentacoesProcesso.$inferInsert;
+
+export const financeirosProcesso = mysqlTable("financeirosProcesso", {
+  id: int("id").autoincrement().primaryKey(),
+  processoId: int("processoId").notNull(),
+  tipo: mysqlEnum("tipoFinanceiroProcesso", [
+    "custas", "honorarios", "despesas", "deposito", "condenacao", "reembolso", "outro",
+  ]).default("custas").notNull(),
+  descricao: varchar("descricao", { length: 500 }).notNull(),
+  valor: int("valor").notNull(),
+  data: timestamp("data").notNull(),
+  pago: boolean("pago").default(false).notNull(),
+  dataPagamento: timestamp("dataPagamento"),
+  criadoPorId: int("criadoPorId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type FinanceiroProcesso = typeof financeirosProcesso.$inferSelect;
+export type InsertFinanceiroProcesso = typeof financeirosProcesso.$inferInsert;
+
+// ─── Prazos Jurídicos ─────────────────────────────────────────────────────────
+export const prazosJuridicos = mysqlTable("prazosJuridicos", {
+  id: int("id").autoincrement().primaryKey(),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  tipo: mysqlEnum("tipoPrazo", [
+    "processual", "contratual", "administrativo", "audiencia", "recurso", "interno", "outro",
+  ]).default("processual").notNull(),
+  processoId: int("processoId"),
+  demandaId: int("demandaId"),
+  condominioId: int("condominioId"),
+  condominioNome: varchar("condominioNome", { length: 255 }),
+  responsavelId: int("responsavelId"),
+  responsavelNome: varchar("responsavelNome", { length: 255 }),
+  dataLimite: timestamp("dataLimite").notNull(),
+  alertas: text("alertas"),
+  status: mysqlEnum("statusPrazo", ["pendente", "concluido", "cancelado", "atrasado"]).default("pendente").notNull(),
+  concluidoEm: timestamp("concluidoEm"),
+  observacoes: text("observacoes"),
+  criadoPorId: int("criadoPorId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PrazoJuridico = typeof prazosJuridicos.$inferSelect;
+export type InsertPrazoJuridico = typeof prazosJuridicos.$inferInsert;

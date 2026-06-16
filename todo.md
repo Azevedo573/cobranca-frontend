@@ -2303,3 +2303,27 @@
 - [x] KanbanDemandas.tsx: indicador visual de valor da dívida nos cards com cobrança vinculada
 - [x] Corrigido erro TypeScript: comentário JSX mal fechado na linha 874 do DevedorDetalhes.tsx
 - [x] 332 testes passando, 0 erros TypeScript
+
+## Módulo Processos Judiciais + Prazos (com DataJud)
+- [x] Schema: tabela processosJudiciais (id, numeroCNJ, tribunal, tribunalAlias, comarca, vara, classe, assunto, faseProcessual, status, condominioId, advogadoId, advogadoNome, valorCausa, valorCondenacao, observacoes, demandaId, criadoPorId, criadoEm, atualizadoEm)
+- [x] Schema: tabela partesProcesso (id, processoId, tipo, nome, cpfCnpj, representante, advogadoContrario)
+- [x] Schema: tabela movimentacoesProcesso (id, processoId, data, descricao, tipo, origem, usuarioId, criadoEm)
+- [x] Schema: tabela financeirosProcesso (id, processoId, tipo, descricao, valor, data, pago, dataPagamento, criadoEm)
+- [x] Schema: tabela prazosJuridicos (id, titulo, tipo, processoId, demandaId, condominioId, responsavelId, responsavelNome, dataLimite, alertas, status, observacoes, criadoEm)
+- [x] db:push para criar as novas tabelas
+- [x] db-processos.ts: helpers CRUD de processos, partes, movimentações, financeiro
+- [x] db-prazos.ts: helpers CRUD de prazos com filtros de urgência
+- [x] server/datajud.ts: helper para consultar API DataJud por número CNJ e por tribunal alias
+- [x] routers.ts: procedures processos.listar, getById, create, update, delete
+- [x] routers.ts: procedures processos.addMovimentacao, getMovimentacoes
+- [x] routers.ts: procedures processos.addParte, getPartes, removeParte
+- [x] routers.ts: procedures processos.addFinanceiro, getFinanceiro
+- [x] routers.ts: procedures processos.buscarDataJud (integração DataJud)
+- [x] routers.ts: procedures prazos.listar, create, update, concluir, delete
+- [x] Frontend: /admin/juridico/processos — listagem com filtros e modal de criação + importação DataJud
+- [x] Frontend: /admin/juridico/processos/:id — detalhe com timeline visual, partes, financeiro, prazos
+- [x] Frontend: /admin/juridico/prazos — listagem com badges de urgência (Atrasado/Hoje/7d/15d/30d)
+- [x] Sidebar: adicionar links Processos e Prazos no menu jurídico
+- [x] App.tsx: registrar rotas /admin/juridico/processos e /admin/juridico/prazos
+- [x] Testes unitários para helpers de processos e prazos (332 testes passando)
+- [x] Verificar 0 erros TypeScript e todos os testes passando

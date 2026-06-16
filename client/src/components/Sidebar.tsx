@@ -44,6 +44,7 @@ import {
   MessageCircle,
   Headphones,
   GitBranch,
+  Timer,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -120,6 +121,8 @@ const menuGroups: MenuGroup[] = [
       { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin"] },
       { label: "Kanban", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin"] },
       { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin"] },
+      { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin"] },
+      { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin"] },
     ],
   },
 

@@ -73,6 +73,9 @@ import KanbanDemandas from "./pages/admin/juridico/KanbanDemandas";
 import DemandaDetalhes from "./pages/admin/juridico/DemandaDetalhes";
 import Assembleias from "./pages/admin/juridico/Assembleias";
 import DashboardJuridico from "./pages/admin/juridico/DashboardJuridico";
+import ProcessosJudiciais from "./pages/admin/juridico/ProcessosJudiciais";
+import ProcessoDetalhes from "./pages/admin/juridico/ProcessoDetalhes";
+import PrazosJuridicos from "./pages/admin/juridico/PrazosJuridicos";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -325,6 +328,15 @@ function Router() {
       </Route>
       <Route path="/admin/juridico/dashboard">
         {() => <ProtectedRoute component={DashboardJuridico} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/processos">
+        {() => <ProtectedRoute component={ProcessosJudiciais} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/processos/:id">
+        {() => <ProtectedRoute component={ProcessoDetalhes} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/prazos">
+        {() => <ProtectedRoute component={PrazosJuridicos} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas do Módulo Jurídico (legado) */}
