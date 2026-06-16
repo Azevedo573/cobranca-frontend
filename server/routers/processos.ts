@@ -34,6 +34,9 @@ import {
   buscarProcessoPorNumero,
   detectarTribunalPorCNJ,
   listarTribunais,
+  buscarProcessosPorNomeAdvogado,
+  buscarProcessosPorNomeAdvogadoMultiTribunal,
+  TRIBUNAIS_ALIASES,
 } from "../datajud";
 
 // ─── Processos ────────────────────────────────────────────────────────────────
@@ -303,6 +306,126 @@ export const processosRouter = router({
           })),
           partes: src.partes ?? [],
         },
+      };
+    }),
+
+  // Buscar processos no DataJud pelo nome do advogado
+  buscarPorNomeAdvogado: protectedProcedure
+    .input(z.object({
+      nomeAdvogado: z.string().min(3, "Informe ao menos 3 caracteres"),
+      tribunaisAliases: z.array(z.string()).optional(), // se vazio, busca nos principais tribunais
+      pagina: z.number().int().min(0).default(0),
+      tamanho: z.number().int().min(1).max(50).default(20),
+    }))
+    .mutation(async ({ input }) => {
+      const { nomeAdvogado, tribunaisAliases, pagina, tamanho } = input;
+
+      // Se tribunais específicos foram informados, busca neles
+      if (tribunaisAliases && tribunaisAliases.length > 0) {
+        if (tribunaisAliases.length === 1) {
+          // Busca em um único tribunal com paginação
+          const resultado = await buscarProcessosPorNomeAdvogado(
+            nomeAdvogado,
+            tribunaisAliases[0],
+            pagina,
+            tamanho
+          );
+          if (resultado.error) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: resultado.error,
+            });
+          }
+          return {
+            multiTribunal: false,
+            total: resultado.total,
+            processos: resultado.processos.map((hit) => ({
+              id: hit._id,
+              tribunal: hit._source.tribunal,
+              numeroProcesso: hit._source.numeroProcesso,
+              classe: hit._source.classe?.nome ?? null,
+              assunto: hit._source.assuntos?.[0]?.nome ?? null,
+              vara: hit._source.orgaoJulgador?.nome ?? null,
+              dataAjuizamento: hit._source.dataAjuizamento ?? null,
+              partes: (hit._source.partes ?? []).map((p) => ({
+                nome: p.nome,
+                tipo: p.tipo ?? null,
+                advogados: p.advogados ?? [],
+              })),
+            })),
+          };
+        } else {
+          // Busca em múltiplos tribunais (sem paginação)
+          const resultados = await buscarProcessosPorNomeAdvogadoMultiTribunal(
+            nomeAdvogado,
+            tribunaisAliases,
+            tamanho
+          );
+          const processos = resultados.flatMap((r) =>
+            r.resultado.processos.map((hit) => ({
+              id: hit._id,
+              tribunal: hit._source.tribunal,
+              numeroProcesso: hit._source.numeroProcesso,
+              classe: hit._source.classe?.nome ?? null,
+              assunto: hit._source.assuntos?.[0]?.nome ?? null,
+              vara: hit._source.orgaoJulgador?.nome ?? null,
+              dataAjuizamento: hit._source.dataAjuizamento ?? null,
+              partes: (hit._source.partes ?? []).map((p) => ({
+                nome: p.nome,
+                tipo: p.tipo ?? null,
+                advogados: p.advogados ?? [],
+              })),
+            }))
+          );
+          return {
+            multiTribunal: true,
+            total: processos.length,
+            processos,
+          };
+        }
+      }
+
+      // Sem tribunal específico: busca nos principais tribunais em paralelo
+      const principaisTribunais = [
+        TRIBUNAIS_ALIASES["TJSP"],
+        TRIBUNAIS_ALIASES["TJRJ"],
+        TRIBUNAIS_ALIASES["TJMG"],
+        TRIBUNAIS_ALIASES["TJRS"],
+        TRIBUNAIS_ALIASES["TJPR"],
+        TRIBUNAIS_ALIASES["STJ"],
+        TRIBUNAIS_ALIASES["TST"],
+        TRIBUNAIS_ALIASES["TRT2"],
+        TRIBUNAIS_ALIASES["TRT15"],
+      ].filter(Boolean) as string[];
+
+      const resultados = await buscarProcessosPorNomeAdvogadoMultiTribunal(
+        nomeAdvogado,
+        principaisTribunais,
+        10
+      );
+
+      const processos = resultados.flatMap((r) =>
+        r.resultado.processos.map((hit) => ({
+          id: hit._id,
+          tribunal: hit._source.tribunal,
+          numeroProcesso: hit._source.numeroProcesso,
+          classe: hit._source.classe?.nome ?? null,
+          assunto: hit._source.assuntos?.[0]?.nome ?? null,
+          vara: hit._source.orgaoJulgador?.nome ?? null,
+          dataAjuizamento: hit._source.dataAjuizamento ?? null,
+          partes: (hit._source.partes ?? []).map((p) => ({
+            nome: p.nome,
+            tipo: p.tipo ?? null,
+            advogados: p.advogados ?? [],
+          })),
+        }))
+      );
+
+      return {
+        multiTribunal: true,
+        total: processos.length,
+        processos,
+        tribunaisConsultados: principaisTribunais.length,
       };
     }),
 

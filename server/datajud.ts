@@ -235,6 +235,101 @@ export function detectarTribunalPorCNJ(numeroCNJ: string): { tribunal: string; a
 }
 
 /**
+ * Busca processos pelo nome do advogado (campo partes.nome) em um tribunal específico.
+ * Usa match para busca full-text — funciona bem para nomes únicos.
+ * Para nomes comuns, combine com filtros adicionais (tribunal, período).
+ */
+export async function buscarProcessosPorNomeAdvogado(
+  nomeAdvogado: string,
+  tribunalAlias: string,
+  pagina = 0,
+  tamanho = 20
+): Promise<DataJudSearchResult> {
+  const url = `${DATAJUD_BASE_URL}/${tribunalAlias}/_search`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: DATAJUD_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: {
+          bool: {
+            should: [
+              // Busca no nome das partes (inclui advogados representantes)
+              { match: { "partes.nome": { query: nomeAdvogado, operator: "and" } } },
+              // Busca nos advogados das partes (campo aninhado)
+              { match: { "partes.advogados.nome": { query: nomeAdvogado, operator: "and" } } },
+            ],
+            minimum_should_match: 1,
+          },
+        },
+        from: pagina * tamanho,
+        size: tamanho,
+        sort: [{ dataAjuizamento: { order: "desc" } }],
+        _source: [
+          "numeroProcesso", "tribunal", "grau", "dataAjuizamento",
+          "dataHoraUltimaAtualizacao", "classe", "assuntos",
+          "orgaoJulgador", "partes",
+        ],
+      }),
+      signal: AbortSignal.timeout(20000), // 20s timeout (busca por nome é mais pesada)
+    });
+
+    if (!response.ok) {
+      return {
+        total: 0,
+        processos: [],
+        error: `DataJud retornou status ${response.status}: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json() as {
+      hits?: {
+        total?: { value: number };
+        hits?: DataJudProcesso[];
+      };
+    };
+
+    return {
+      total: data.hits?.total?.value ?? 0,
+      processos: data.hits?.hits ?? [],
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      total: 0,
+      processos: [],
+      error: `Erro ao consultar DataJud: ${msg}`,
+    };
+  }
+}
+
+/**
+ * Busca processos por nome do advogado em múltiplos tribunais simultaneamente.
+ * Retorna resultados consolidados de todos os tribunais informados.
+ */
+export async function buscarProcessosPorNomeAdvogadoMultiTribunal(
+  nomeAdvogado: string,
+  tribunaisAliases: string[],
+  tamanho = 10
+): Promise<{ tribunal: string; resultado: DataJudSearchResult }[]> {
+  const resultados = await Promise.allSettled(
+    tribunaisAliases.map(async (alias) => ({
+      tribunal: alias,
+      resultado: await buscarProcessosPorNomeAdvogado(nomeAdvogado, alias, 0, tamanho),
+    }))
+  );
+
+  return resultados
+    .filter((r): r is PromiseFulfilledResult<{ tribunal: string; resultado: DataJudSearchResult }> => r.status === "fulfilled")
+    .map((r) => r.value)
+    .filter((r) => r.resultado.total > 0 || r.resultado.error);
+}
+
+/**
  * Lista todos os tribunais disponíveis com suas siglas e aliases.
  */
 export function listarTribunais(): Array<{ sigla: string; alias: string; nome: string }> {

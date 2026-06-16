@@ -45,6 +45,7 @@ import {
   Headphones,
   GitBranch,
   Timer,
+  Search,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -123,6 +124,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin"] },
       { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin"] },
       { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin"] },
+      { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
     ],
   },
 

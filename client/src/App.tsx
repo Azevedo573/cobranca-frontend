@@ -76,6 +76,7 @@ import DashboardJuridico from "./pages/admin/juridico/DashboardJuridico";
 import ProcessosJudiciais from "./pages/admin/juridico/ProcessosJudiciais";
 import ProcessoDetalhes from "./pages/admin/juridico/ProcessoDetalhes";
 import PrazosJuridicos from "./pages/admin/juridico/PrazosJuridicos";
+import BuscaAdvogado from "./pages/admin/juridico/BuscaAdvogado";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -337,6 +338,9 @@ function Router() {
       </Route>
       <Route path="/admin/juridico/prazos">
         {() => <ProtectedRoute component={PrazosJuridicos} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/busca-advogado">
+        {() => <ProtectedRoute component={BuscaAdvogado} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas do Módulo Jurídico (legado) */}
