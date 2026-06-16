@@ -124,6 +124,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin"] },
       { label: "Kanban", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin"] },
       { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin"] },
+      { label: "Condomínios", href: "/admin/juridico/condominios", icon: Building2, roles: ["admin"] },
       { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin"] },
       { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin"] },
       { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },

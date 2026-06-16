@@ -79,6 +79,8 @@ import PrazosJuridicos from "./pages/admin/juridico/PrazosJuridicos";
 import BuscaAdvogado from "./pages/admin/juridico/BuscaAdvogado";
 import CentralIntimacoes from "./pages/admin/juridico/CentralIntimacoes";
 import ConfiguracoesMNI from "./pages/admin/juridico/ConfiguracoesMNI";
+import CondominiosJuridico from "./pages/admin/juridico/CondominiosJuridico";
+import DashboardJuridicoCondominio from "./pages/admin/juridico/DashboardJuridicoCondominio";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -349,6 +351,12 @@ function Router() {
       </Route>
       <Route path="/admin/juridico/busca-advogado">
         {() => <ProtectedRoute component={BuscaAdvogado} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/condominios">
+        {() => <ProtectedRoute component={CondominiosJuridico} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/condominios/:id">
+        {() => <ProtectedRoute component={DashboardJuridicoCondominio} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas do Módulo Jurídico (legado) */}
