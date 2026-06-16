@@ -46,6 +46,8 @@ import {
   GitBranch,
   Timer,
   Search,
+  Bell,
+  Settings2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -125,6 +127,8 @@ const menuGroups: MenuGroup[] = [
       { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin"] },
       { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin"] },
       { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
+      { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin"] },
+      { label: "Configurações MNI", href: "/admin/juridico/mni-config", icon: Settings2, roles: ["admin"] },
     ],
   },
 

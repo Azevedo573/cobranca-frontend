@@ -12,6 +12,7 @@ import { atendimentoRouter } from "./routers/atendimento";
 import { fluxosRouter } from "./routers/fluxos";
 import { btgRouter } from "./routers/btg";
 import { processosRouter, prazosRouter } from "./routers/processos";
+import { mniRouter } from "./routers/mni";
 export const appRouter = router({
 
   system: systemRouter,
@@ -20,6 +21,7 @@ export const appRouter = router({
   btg: btgRouter,
   processos: processosRouter,
   prazos: prazosRouter,
+  mni: mniRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(async ({ ctx }) => {

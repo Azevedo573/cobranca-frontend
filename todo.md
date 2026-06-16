@@ -2327,3 +2327,18 @@
 - [x] App.tsx: registrar rotas /admin/juridico/processos e /admin/juridico/prazos
 - [x] Testes unitários para helpers de processos e prazos (332 testes passando)
 - [x] Verificar 0 erros TypeScript e todos os testes passando
+
+## Integração MNI TJRJ
+
+- [ ] Schema: tabela mniCredenciais (id, tribunal, idConsultante, senhaConsultante, ambiente, ativo, criadoEm)
+- [ ] Schema: tabela intimacoesMNI (id, idAviso, processoId, numeroCNJ, tipoAviso, tipoComunicacao, dataDisponibilizacao, dataPublicacao, orgao, teor, parametros JSON, status, tratadoPorId, tratadoEm, observacoes, criadoEm)
+- [ ] Schema: tabela sincronizacoesMNI (id, processoId, ultimaSincronizacao, status, erro)
+- [ ] db:push para criar as novas tabelas
+- [ ] server/mni-client.ts: cliente SOAP para consultarProcesso, consultarAvisosPendentes, consultarTeorComunicacao, consultarAlteracao
+- [ ] server/db-mni.ts: helpers CRUD para credenciais, intimações e sincronizações
+- [ ] server/routers/mni.ts: procedures tRPC para sincronizarProcesso, listarIntimacoes, marcarCiencia, tratarAviso, descartarAviso, testarConexao
+- [ ] Frontend: /admin/juridico/configuracoes-mni — tela de cadastro de credenciais TJRJ com teste de conexão
+- [ ] Frontend: /admin/juridico/intimacoes — Central de Intimações com fila de trabalho estilo Astrea
+- [ ] Integrar botão "Sincronizar via MNI" no ProcessoDetalhes quando credenciais estiverem configuradas
+- [ ] Sidebar: adicionar links Intimações e Configurações MNI no menu Jurídico
+- [ ] Verificar 0 erros TypeScript e todos os testes passando

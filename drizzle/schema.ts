@@ -1278,3 +1278,66 @@ export const prazosJuridicos = mysqlTable("prazosJuridicos", {
 });
 export type PrazoJuridico = typeof prazosJuridicos.$inferSelect;
 export type InsertPrazoJuridico = typeof prazosJuridicos.$inferInsert;
+
+// ─── MNI TJRJ — Credenciais ───────────────────────────────────────────────────
+export const mniCredenciais = mysqlTable("mniCredenciais", {
+  id: int("id").autoincrement().primaryKey(),
+  tribunal: varchar("tribunal", { length: 50 }).notNull().default("TJRJ"),
+  idConsultante: varchar("idConsultante", { length: 255 }).notNull(),
+  senhaConsultante: varchar("senhaConsultante", { length: 500 }).notNull(),
+  ambiente: mysqlEnum("ambienteMNI", ["homologacao", "producao"]).default("homologacao").notNull(),
+  urlWsdl: varchar("urlWsdl", { length: 500 }),
+  ativo: boolean("ativo").default(false).notNull(),
+  ultimoTesteEm: timestamp("ultimoTesteEm"),
+  ultimoTesteStatus: varchar("ultimoTesteStatus", { length: 50 }),
+  criadoPorId: int("criadoPorId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MniCredencial = typeof mniCredenciais.$inferSelect;
+export type InsertMniCredencial = typeof mniCredenciais.$inferInsert;
+
+// ─── MNI TJRJ — Intimações / Avisos ──────────────────────────────────────────
+export const intimacoesMNI = mysqlTable("intimacoesMNI", {
+  id: int("id").autoincrement().primaryKey(),
+  idAviso: varchar("idAviso", { length: 255 }).unique(),
+  processoId: int("processoId"),
+  numeroCNJ: varchar("numeroCNJ", { length: 30 }),
+  tipoAviso: varchar("tipoAviso", { length: 100 }),
+  tipoComunicacao: varchar("tipoComunicacao", { length: 100 }),
+  dataDisponibilizacao: timestamp("dataDisponibilizacao"),
+  dataPublicacao: timestamp("dataPublicacao"),
+  orgao: varchar("orgao", { length: 255 }),
+  vara: varchar("vara", { length: 255 }),
+  comarca: varchar("comarca", { length: 255 }),
+  teor: text("teor"),
+  parametrosJson: text("parametrosJson"),
+  partesJson: text("partesJson"),
+  status: mysqlEnum("statusIntimacao", [
+    "pendente", "visualizado", "tratado", "descartado",
+  ]).default("pendente").notNull(),
+  tratadoPorId: int("tratadoPorId"),
+  tratadoPorNome: varchar("tratadoPorNome", { length: 255 }),
+  tratadoEm: timestamp("tratadoEm"),
+  observacoes: text("observacoes"),
+  prazoGeradoId: int("prazoGeradoId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type IntimacaoMNI = typeof intimacoesMNI.$inferSelect;
+export type InsertIntimacaoMNI = typeof intimacoesMNI.$inferInsert;
+
+// ─── MNI TJRJ — Log de Sincronizações ────────────────────────────────────────
+export const sincronizacoesMNI = mysqlTable("sincronizacoesMNI", {
+  id: int("id").autoincrement().primaryKey(),
+  processoId: int("processoId"),
+  numeroCNJ: varchar("numeroCNJ", { length: 30 }),
+  tipo: mysqlEnum("tipoSincMNI", ["processo", "avisos", "teor"]).default("processo").notNull(),
+  status: mysqlEnum("statusSincMNI", ["sucesso", "erro", "parcial"]).default("sucesso").notNull(),
+  movimentacoesImportadas: int("movimentacoesImportadas").default(0),
+  avisosImportados: int("avisosImportados").default(0),
+  erroMsg: text("erroMsg"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type SincronizacaoMNI = typeof sincronizacoesMNI.$inferSelect;
+export type InsertSincronizacaoMNI = typeof sincronizacoesMNI.$inferInsert;
