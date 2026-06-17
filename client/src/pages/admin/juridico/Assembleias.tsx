@@ -148,9 +148,9 @@ function ModalAssembleia({ open, onClose, assembleia }: {
             <Select value={form.advogadoNome} onValueChange={v => setForm(f => ({ ...f, advogadoNome: v }))}>
               <SelectTrigger><SelectValue placeholder="Selecione um advogado..." /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Nenhum</SelectItem>
+                <SelectItem value="__none__">Nenhum</SelectItem>
                 {advogados.map(adv => (
-                  <SelectItem key={adv.id} value={adv.name ?? ""}>{adv.name ?? "(sem nome)"}</SelectItem>
+                  <SelectItem key={adv.id} value={adv.name ?? "__none__"}>{adv.name ?? "(sem nome)"}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

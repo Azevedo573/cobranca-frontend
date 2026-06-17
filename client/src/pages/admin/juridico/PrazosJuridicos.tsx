@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -36,49 +36,76 @@ import {
   Trash2,
   Scale,
   ExternalLink,
-  Filter,
 } from "lucide-react";
 
 // ─── Configurações de urgência ────────────────────────────────────────────────
 
 const URGENCIA_CONFIG: Record<string, {
-  label: string; color: string; bg: string; border: string; icon: React.ReactNode; ordem: number;
+  label: string;
+  textColor: string;
+  badgeClass: string;
+  cardClass: string;
+  icon: React.ReactNode;
+  ordem: number;
 }> = {
   atrasado: {
-    label: "Atrasado", color: "text-red-400",
-    bg: "bg-red-500/10", border: "border-red-500/30",
-    icon: <AlertTriangle className="w-3.5 h-3.5" />, ordem: 0,
+    label: "Atrasado",
+    textColor: "text-red-600 dark:text-red-400",
+    badgeClass: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30",
+    cardClass: "bg-red-500/5 border-red-500/20 hover:border-red-500/40",
+    icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    ordem: 0,
   },
   hoje: {
-    label: "Vence hoje", color: "text-orange-400",
-    bg: "bg-orange-500/10", border: "border-orange-500/30",
-    icon: <Clock className="w-3.5 h-3.5" />, ordem: 1,
+    label: "Vence hoje",
+    textColor: "text-orange-600 dark:text-orange-400",
+    badgeClass: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30",
+    cardClass: "bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40",
+    icon: <Clock className="w-3.5 h-3.5" />,
+    ordem: 1,
   },
   "7dias": {
-    label: "7 dias", color: "text-amber-400",
-    bg: "bg-amber-500/10", border: "border-amber-500/30",
-    icon: <Timer className="w-3.5 h-3.5" />, ordem: 2,
+    label: "7 dias",
+    textColor: "text-amber-600 dark:text-amber-400",
+    badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+    cardClass: "border-border hover:border-amber-500/30",
+    icon: <Timer className="w-3.5 h-3.5" />,
+    ordem: 2,
   },
   "15dias": {
-    label: "15 dias", color: "text-yellow-400",
-    bg: "bg-yellow-500/10", border: "border-yellow-500/30",
-    icon: <Timer className="w-3.5 h-3.5" />, ordem: 3,
+    label: "15 dias",
+    textColor: "text-yellow-600 dark:text-yellow-400",
+    badgeClass: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/30",
+    cardClass: "border-border hover:border-yellow-500/30",
+    icon: <Timer className="w-3.5 h-3.5" />,
+    ordem: 3,
   },
   "30dias": {
-    label: "30 dias", color: "text-blue-400",
-    bg: "bg-blue-500/10", border: "border-blue-500/30",
-    icon: <Timer className="w-3.5 h-3.5" />, ordem: 4,
+    label: "30 dias",
+    textColor: "text-blue-600 dark:text-blue-400",
+    badgeClass: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
+    cardClass: "border-border hover:border-blue-500/30",
+    icon: <Timer className="w-3.5 h-3.5" />,
+    ordem: 4,
   },
   futuro: {
-    label: "No prazo", color: "text-emerald-400",
-    bg: "bg-emerald-500/10", border: "border-emerald-500/30",
-    icon: <CheckCircle2 className="w-3.5 h-3.5" />, ordem: 5,
+    label: "No prazo",
+    textColor: "text-emerald-600 dark:text-emerald-400",
+    badgeClass: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+    cardClass: "border-border hover:border-emerald-500/30",
+    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+    ordem: 5,
   },
 };
 
 const TIPO_PRAZO_LABELS: Record<string, string> = {
-  processual: "Processual", contratual: "Contratual", administrativo: "Administrativo",
-  audiencia: "Audiência", recurso: "Recurso", interno: "Interno", outro: "Outro",
+  processual: "Processual",
+  contratual: "Contratual",
+  administrativo: "Administrativo",
+  audiencia: "Audiência",
+  recurso: "Recurso",
+  interno: "Interno",
+  outro: "Outro",
 };
 
 // ─── Modal: Criar Prazo ───────────────────────────────────────────────────────
@@ -86,7 +113,6 @@ const TIPO_PRAZO_LABELS: Record<string, string> = {
 function ModalCriarPrazo({ open, onClose, onSuccess }: {
   open: boolean; onClose: () => void; onSuccess: () => void;
 }) {
-
   const [form, setForm] = useState({
     titulo: "",
     tipo: "processual" as const,
@@ -123,80 +149,74 @@ function ModalCriarPrazo({ open, onClose, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#1a1f2e] border-white/10 text-white max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
-            <Timer className="w-5 h-5 text-blue-400" />
+          <DialogTitle className="flex items-center gap-2">
+            <Timer className="w-5 h-5 text-amber-500" />
             Novo Prazo Jurídico
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-white/80">Título *</Label>
+            <Label>Título *</Label>
             <Input
               value={form.titulo}
               onChange={(e) => setForm(p => ({ ...p, titulo: e.target.value }))}
               placeholder="Ex: Prazo para contestação"
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Tipo</Label>
+              <Label>Tipo</Label>
               <Select value={form.tipo} onValueChange={(v: any) => setForm(p => ({ ...p, tipo: v }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
                   {Object.entries(TIPO_PRAZO_LABELS).map(([v, l]) => (
-                    <SelectItem key={v} value={v} className="text-white hover:bg-white/10">{l}</SelectItem>
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Data Limite *</Label>
+              <Label>Data Limite *</Label>
               <Input
                 type="date"
                 value={form.dataLimite}
                 onChange={(e) => setForm(p => ({ ...p, dataLimite: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white"
               />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Condomínio</Label>
+              <Label>Condomínio</Label>
               <Input
                 value={form.condominioNome}
                 onChange={(e) => setForm(p => ({ ...p, condominioNome: e.target.value }))}
                 placeholder="Nome do condomínio"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Responsável</Label>
+              <Label>Responsável</Label>
               <Input
                 value={form.responsavelNome}
                 onChange={(e) => setForm(p => ({ ...p, responsavelNome: e.target.value }))}
                 placeholder="Nome do advogado"
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
               />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Observações</Label>
+            <Label>Observações</Label>
             <Textarea
               value={form.observacoes}
               onChange={(e) => setForm(p => ({ ...p, observacoes: e.target.value }))}
               rows={2}
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 resize-none"
+              className="resize-none"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} className="text-white/60 hover:text-white">Cancelar</Button>
-          <Button onClick={handleSalvar} disabled={createPrazo.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSalvar} disabled={createPrazo.isPending}>
             {createPrazo.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
             Criar Prazo
           </Button>
@@ -211,7 +231,6 @@ function ModalCriarPrazo({ open, onClose, onSuccess }: {
 type FiltroUrgencia = "todos" | "atrasado" | "hoje" | "7dias" | "15dias" | "30dias" | "futuro" | "concluido";
 
 export default function PrazosJuridicos() {
-
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroUrgencia, setFiltroUrgencia] = useState<FiltroUrgencia>("todos");
   const [filtroStatus, setFiltroStatus] = useState<"pendente" | "concluido" | "todos">("pendente");
@@ -268,23 +287,23 @@ export default function PrazosJuridicos() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white p-6">
+    <div className="min-h-screen bg-background text-foreground p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-amber-600/20 rounded-xl flex items-center justify-center">
-            <Timer className="w-5 h-5 text-amber-400" />
+          <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center">
+            <Timer className="w-5 h-5 text-amber-500" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-white">Prazos Jurídicos</h1>
-            <p className="text-sm text-white/50">Controle de prazos processuais e administrativos</p>
+            <h1 className="text-xl font-semibold">Prazos Jurídicos</h1>
+            <p className="text-sm text-muted-foreground">Controle de prazos processuais e administrativos</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-white/60 hover:text-white">
+          <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
-          <Button onClick={() => setModalAberto(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
+          <Button onClick={() => setModalAberto(true)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Novo Prazo
           </Button>
@@ -295,17 +314,17 @@ export default function PrazosJuridicos() {
       {resumo && (
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
           {[
-            { key: "atrasados", label: "Atrasados", value: resumo.atrasados, color: "text-red-400", bg: "bg-red-500/10 border-red-500/20" },
-            { key: "vencemHoje", label: "Vencem hoje", value: resumo.vencemHoje, color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
-            { key: "vencemEm7Dias", label: "Em 7 dias", value: resumo.vencemEm7Dias, color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/20" },
-            { key: "vencemEm15Dias", label: "Em 15 dias", value: resumo.vencemEm15Dias, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/20" },
-            { key: "vencemEm30Dias", label: "Em 30 dias", value: resumo.vencemEm30Dias, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/20" },
-            { key: "total", label: "Total pendentes", value: resumo.total, color: "text-white", bg: "bg-white/5 border-white/10" },
-          ].map((item) => (
-            <Card key={item.key} className={`border ${item.bg}`}>
+            { key: "atrasados",     label: "Atrasados",     value: resumo.atrasados,     color: "text-red-600 dark:text-red-400" },
+            { key: "vencemHoje",    label: "Vencem hoje",   value: resumo.vencemHoje,    color: "text-orange-600 dark:text-orange-400" },
+            { key: "em7dias",       label: "Em 7 dias",     value: resumo.vencemEm7Dias, color: "text-amber-600 dark:text-amber-400" },
+            { key: "em15dias",      label: "Em 15 dias",    value: resumo.vencemEm15Dias,color: "text-yellow-600 dark:text-yellow-400" },
+            { key: "em30dias",      label: "Em 30 dias",    value: resumo.vencemEm30Dias,color: "text-blue-600 dark:text-blue-400" },
+            { key: "total",         label: "Total pend.",   value: resumo.total,         color: "text-foreground" },
+          ].map(({ key, label, value, color }) => (
+            <Card key={key}>
               <CardContent className="p-3 text-center">
-                <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
-                <p className="text-xs text-white/40 mt-0.5">{item.label}</p>
+                <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
               </CardContent>
             </Card>
           ))}
@@ -315,12 +334,12 @@ export default function PrazosJuridicos() {
       {/* Alerta de urgentes */}
       {resumo && resumo.urgentes > 0 && (
         <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-xl mb-5">
-          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0" />
           <div>
-            <p className="text-sm font-medium text-red-400">
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">
               {resumo.urgentes} prazo{resumo.urgentes > 1 ? "s" : ""} urgente{resumo.urgentes > 1 ? "s" : ""}
             </p>
-            <p className="text-xs text-white/50">
+            <p className="text-xs text-muted-foreground">
               {resumo.atrasados > 0 && `${resumo.atrasados} atrasado${resumo.atrasados > 1 ? "s" : ""}`}
               {resumo.atrasados > 0 && resumo.vencemHoje > 0 && " · "}
               {resumo.vencemHoje > 0 && `${resumo.vencemHoje} vencem hoje`}
@@ -330,7 +349,7 @@ export default function PrazosJuridicos() {
             variant="ghost"
             size="sm"
             onClick={() => setFiltroUrgencia("atrasado")}
-            className="ml-auto text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            className="ml-auto text-red-600 dark:text-red-400 hover:bg-red-500/10"
           >
             Ver atrasados
           </Button>
@@ -339,17 +358,20 @@ export default function PrazosJuridicos() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2 mb-5">
-        <div className="flex gap-1 p-1 bg-white/5 rounded-lg">
+        {/* Filtro status */}
+        <div className="flex gap-1 p-1 bg-muted rounded-lg">
           {[
-            { v: "pendente", l: "Pendentes" },
+            { v: "pendente",  l: "Pendentes" },
             { v: "concluido", l: "Concluídos" },
-            { v: "todos", l: "Todos" },
+            { v: "todos",     l: "Todos" },
           ].map(({ v, l }) => (
             <button
               key={v}
               onClick={() => setFiltroStatus(v as any)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                filtroStatus === v ? "bg-white/15 text-white" : "text-white/50 hover:text-white"
+                filtroStatus === v
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {l}
@@ -357,11 +379,14 @@ export default function PrazosJuridicos() {
           ))}
         </div>
 
-        <div className="flex gap-1 p-1 bg-white/5 rounded-lg flex-wrap">
+        {/* Filtro urgência */}
+        <div className="flex gap-1 p-1 bg-muted rounded-lg flex-wrap">
           <button
             onClick={() => setFiltroUrgencia("todos")}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              filtroUrgencia === "todos" ? "bg-white/15 text-white" : "text-white/50 hover:text-white"
+              filtroUrgencia === "todos"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Todos
@@ -372,8 +397,8 @@ export default function PrazosJuridicos() {
               onClick={() => setFiltroUrgencia(k as FiltroUrgencia)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
                 filtroUrgencia === k
-                  ? `${cfg.bg} ${cfg.color} border ${cfg.border}`
-                  : "text-white/50 hover:text-white"
+                  ? `${cfg.badgeClass} border`
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {cfg.icon}
@@ -386,17 +411,14 @@ export default function PrazosJuridicos() {
       {/* Lista de prazos */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : prazosOrdenados.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Timer className="w-12 h-12 text-white/20 mb-4" />
-          <p className="text-white/50 text-lg font-medium">Nenhum prazo encontrado</p>
-          <p className="text-white/30 text-sm mt-1">Crie um novo prazo ou ajuste os filtros</p>
-          <Button
-            onClick={() => setModalAberto(true)}
-            className="mt-4 bg-amber-600 hover:bg-amber-700 text-white"
-          >
+          <Timer className="w-12 h-12 text-muted-foreground/30 mb-4" />
+          <p className="text-muted-foreground text-lg font-medium">Nenhum prazo encontrado</p>
+          <p className="text-muted-foreground/60 text-sm mt-1">Crie um novo prazo ou ajuste os filtros</p>
+          <Button onClick={() => setModalAberto(true)} className="mt-4">
             <Plus className="w-4 h-4 mr-1.5" />
             Novo Prazo
           </Button>
@@ -412,50 +434,48 @@ export default function PrazosJuridicos() {
               <Card
                 key={prazo.id}
                 className={`border transition-all group ${
-                  isConcluido ? "bg-[#1a1f2e] border-white/5 opacity-60" :
-                  isCancelado ? "bg-[#1a1f2e] border-white/5 opacity-40" :
-                  prazo.urgencia === "atrasado" ? "bg-red-500/5 border-red-500/20 hover:border-red-500/40" :
-                  prazo.urgencia === "hoje" ? "bg-orange-500/5 border-orange-500/20 hover:border-orange-500/40" :
-                  "bg-[#1a1f2e] border-white/10 hover:border-white/20"
+                  isConcluido || isCancelado
+                    ? "opacity-60"
+                    : urgCfg?.cardClass ?? "hover:border-primary/30"
                 }`}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <p className={`text-sm font-medium ${isConcluido || isCancelado ? "line-through text-white/40" : "text-white"}`}>
+                        <p className={`text-sm font-medium ${isConcluido || isCancelado ? "line-through text-muted-foreground" : "text-foreground"}`}>
                           {prazo.titulo}
                         </p>
 
                         {/* Badge de urgência */}
                         {urgCfg && !isConcluido && !isCancelado && (
-                          <Badge className={`text-xs border ${urgCfg.bg} ${urgCfg.color} ${urgCfg.border} flex items-center gap-1`}>
+                          <Badge className={`text-xs border ${urgCfg.badgeClass} flex items-center gap-1`}>
                             {urgCfg.icon}
                             {urgCfg.label}
                           </Badge>
                         )}
 
                         {/* Badge de tipo */}
-                        <Badge className="text-xs bg-white/5 text-white/50">
+                        <Badge variant="secondary" className="text-xs">
                           {TIPO_PRAZO_LABELS[prazo.tipo]}
                         </Badge>
 
                         {/* Status concluído/cancelado */}
                         {isConcluido && (
-                          <Badge className="text-xs bg-emerald-500/15 text-emerald-400 border-emerald-500/30 flex items-center gap-1">
+                          <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             Concluído
                           </Badge>
                         )}
                         {isCancelado && (
-                          <Badge className="text-xs bg-slate-500/15 text-slate-400 border-slate-500/30 flex items-center gap-1">
+                          <Badge variant="secondary" className="text-xs flex items-center gap-1">
                             <XCircle className="w-3 h-3" />
                             Cancelado
                           </Badge>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-4 text-xs text-white/40 flex-wrap">
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
                           {new Date(prazo.dataLimite).toLocaleDateString("pt-BR", {
@@ -476,7 +496,7 @@ export default function PrazosJuridicos() {
                         )}
                         {prazo.processoId && (
                           <Link href={`/admin/juridico/processos/${prazo.processoId}`}>
-                            <span className="flex items-center gap-1 text-blue-400 hover:text-blue-300 cursor-pointer">
+                            <span className="flex items-center gap-1 text-primary hover:text-primary/80 cursor-pointer">
                               <ExternalLink className="w-3.5 h-3.5" />
                               Ver processo
                             </span>
@@ -485,7 +505,7 @@ export default function PrazosJuridicos() {
                       </div>
 
                       {prazo.observacoes && (
-                        <p className="text-xs text-white/30 mt-1.5 truncate">{prazo.observacoes}</p>
+                        <p className="text-xs text-muted-foreground/70 mt-1.5 truncate">{prazo.observacoes}</p>
                       )}
                     </div>
 
@@ -496,7 +516,7 @@ export default function PrazosJuridicos() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleConcluir(prazo.id)}
-                          className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 h-8 px-2 text-xs"
+                          className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 h-8 px-2 text-xs"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                           Concluir
@@ -505,7 +525,7 @@ export default function PrazosJuridicos() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleCancelar(prazo.id)}
-                          className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white/60 hover:bg-white/5 h-8 px-2 text-xs"
+                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground h-8 px-2 text-xs"
                         >
                           <XCircle className="w-3.5 h-3.5 mr-1" />
                           Cancelar
@@ -517,7 +537,7 @@ export default function PrazosJuridicos() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDelete(prazo.id)}
-                      className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-500/10 h-8 w-8 p-0 shrink-0"
+                      className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 h-8 w-8 p-0 shrink-0"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>

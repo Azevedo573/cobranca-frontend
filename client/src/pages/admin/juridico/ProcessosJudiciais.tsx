@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -31,7 +31,6 @@ import {
   Calendar,
   Building2,
   User,
-  AlertCircle,
   CheckCircle2,
   Clock,
   XCircle,
@@ -66,20 +65,20 @@ const FASE_LABELS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  ativo: { label: "Ativo", color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: <CheckCircle2 className="w-3 h-3" /> },
-  suspenso: { label: "Suspenso", color: "bg-amber-500/15 text-amber-400 border-amber-500/30", icon: <Clock className="w-3 h-3" /> },
-  arquivado: { label: "Arquivado", color: "bg-slate-500/15 text-slate-400 border-slate-500/30", icon: <XCircle className="w-3 h-3" /> },
-  encerrado: { label: "Encerrado", color: "bg-blue-500/15 text-blue-400 border-blue-500/30", icon: <CheckCircle2 className="w-3 h-3" /> },
+  ativo:     { label: "Ativo",     color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30", icon: <CheckCircle2 className="w-3 h-3" /> },
+  suspenso:  { label: "Suspenso",  color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",         icon: <Clock className="w-3 h-3" /> },
+  arquivado: { label: "Arquivado", color: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30",         icon: <XCircle className="w-3 h-3" /> },
+  encerrado: { label: "Encerrado", color: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",             icon: <CheckCircle2 className="w-3 h-3" /> },
 };
 
 const TIPO_COLORS: Record<string, string> = {
-  civel: "bg-blue-500/15 text-blue-400",
-  trabalhista: "bg-orange-500/15 text-orange-400",
-  previdenciario: "bg-purple-500/15 text-purple-400",
-  criminal: "bg-red-500/15 text-red-400",
-  tributario: "bg-yellow-500/15 text-yellow-400",
-  administrativo: "bg-teal-500/15 text-teal-400",
-  outro: "bg-slate-500/15 text-slate-400",
+  civel:          "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  trabalhista:    "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  previdenciario: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  criminal:       "bg-red-500/15 text-red-600 dark:text-red-400",
+  tributario:     "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
+  administrativo: "bg-teal-500/15 text-teal-600 dark:text-teal-400",
+  outro:          "bg-slate-500/15 text-slate-600 dark:text-slate-400",
 };
 
 function formatarCNJ(numero: string): string {
@@ -104,7 +103,6 @@ interface ModalCriarProcessoProps {
 }
 
 function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProps) {
-
   const [modo, setModo] = useState<"manual" | "datajud">("datajud");
   const [buscandoDatajud, setBuscandoDatajud] = useState(false);
   const [dadosDatajud, setDadosDatajud] = useState<any>(null);
@@ -131,22 +129,17 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
   const criarProcesso = trpc.processos.create.useMutation();
 
   const handleBuscarDatajud = async () => {
-    if (!form.numeroCNJ.trim()) {
-      toast.error("Informe o número CNJ");
-      return;
-    }
+    if (!form.numeroCNJ.trim()) { toast.error("Informe o número CNJ"); return; }
     setBuscandoDatajud(true);
     try {
       const resultado = await buscarDatajud.mutateAsync({
         numeroCNJ: form.numeroCNJ.trim(),
         tribunalAlias: form.tribunalAlias || undefined,
       });
-
       if (!resultado.encontrado || !resultado.processo) {
         toast.error("Processo não encontrado no DataJud", { description: "Verifique o número CNJ ou selecione o tribunal manualmente." });
         return;
       }
-
       const p = resultado.processo;
       setDadosDatajud(resultado);
       setForm(prev => ({
@@ -165,14 +158,8 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
   };
 
   const handleSalvar = async () => {
-    if (!form.numeroCNJ.trim()) {
-      toast.error("Número CNJ é obrigatório");
-      return;
-    }
-    if (!form.tribunal.trim()) {
-      toast.error("Tribunal é obrigatório");
-      return;
-    }
+    if (!form.numeroCNJ.trim()) { toast.error("Número CNJ é obrigatório"); return; }
+    if (!form.tribunal.trim()) { toast.error("Tribunal é obrigatório"); return; }
     try {
       await criarProcesso.mutateAsync({
         numeroCNJ: form.numeroCNJ.trim(),
@@ -213,20 +200,22 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); resetForm(); } }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#1a1f2e] border-white/10 text-white">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
-            <Scale className="w-5 h-5 text-blue-400" />
+          <DialogTitle className="flex items-center gap-2">
+            <Scale className="w-5 h-5 text-primary" />
             Novo Processo Judicial
           </DialogTitle>
         </DialogHeader>
 
         {/* Modo de entrada */}
-        <div className="flex gap-2 p-1 bg-white/5 rounded-lg">
+        <div className="flex gap-2 p-1 bg-muted rounded-lg">
           <button
             onClick={() => setModo("datajud")}
             className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-              modo === "datajud" ? "bg-blue-600 text-white" : "text-white/60 hover:text-white"
+              modo === "datajud"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <Download className="w-4 h-4 inline mr-1.5" />
@@ -235,7 +224,9 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
           <button
             onClick={() => setModo("manual")}
             className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
-              modo === "manual" ? "bg-blue-600 text-white" : "text-white/60 hover:text-white"
+              modo === "manual"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <Plus className="w-4 h-4 inline mr-1.5" />
@@ -246,34 +237,30 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
         <div className="space-y-4">
           {/* Número CNJ */}
           <div className="space-y-1.5">
-            <Label className="text-white/80">Número CNJ *</Label>
+            <Label>Número CNJ *</Label>
             <div className="flex gap-2">
               <Input
                 placeholder="0000000-00.0000.0.00.0000"
                 value={form.numeroCNJ}
                 onChange={(e) => setForm(p => ({ ...p, numeroCNJ: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 flex-1"
+                className="flex-1"
               />
               {modo === "datajud" && (
-                <Button
-                  onClick={handleBuscarDatajud}
-                  disabled={buscandoDatajud}
-                  className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
-                >
+                <Button onClick={handleBuscarDatajud} disabled={buscandoDatajud} className="shrink-0">
                   {buscandoDatajud ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                   {buscandoDatajud ? "Buscando..." : "Buscar"}
                 </Button>
               )}
             </div>
-            <p className="text-xs text-white/40">
+            <p className="text-xs text-muted-foreground">
               O tribunal é detectado automaticamente pelo número CNJ
             </p>
           </div>
 
-          {/* Tribunal (seleção manual se necessário) */}
+          {/* Tribunal + Tipo */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Tribunal *</Label>
+              <Label>Tribunal *</Label>
               <Select
                 value={form.tribunal}
                 onValueChange={(v) => {
@@ -281,42 +268,37 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
                   setForm(p => ({ ...p, tribunal: v, tribunalAlias: t?.alias ?? "" }));
                 }}
               >
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectTrigger>
                   <SelectValue placeholder="Selecione o tribunal" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white max-h-60">
+                <SelectContent className="max-h-60">
                   {tribunais?.map(t => (
-                    <SelectItem key={t.sigla} value={t.sigla} className="text-white hover:bg-white/10">
-                      {t.sigla} — {t.nome}
-                    </SelectItem>
+                    <SelectItem key={t.sigla} value={t.sigla}>{t.sigla} — {t.nome}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
-              <Label className="text-white/80">Tipo</Label>
+              <Label>Tipo</Label>
               <Select value={form.tipo} onValueChange={(v: any) => setForm(p => ({ ...p, tipo: v }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
                   {Object.entries(TIPO_LABELS).map(([v, l]) => (
-                    <SelectItem key={v} value={v} className="text-white hover:bg-white/10">{l}</SelectItem>
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Dados preenchidos do DataJud */}
+          {/* Dados importados do DataJud */}
           {dadosDatajud?.processo && (
             <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-              <p className="text-xs text-emerald-400 font-medium mb-2 flex items-center gap-1">
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-2 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Dados importados do DataJud
               </p>
-              <div className="grid grid-cols-2 gap-2 text-xs text-white/70">
+              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 {dadosDatajud.processo.classe && <span><strong>Classe:</strong> {dadosDatajud.processo.classe}</span>}
                 {dadosDatajud.processo.assunto && <span><strong>Assunto:</strong> {dadosDatajud.processo.assunto}</span>}
                 {dadosDatajud.processo.vara && <span><strong>Vara:</strong> {dadosDatajud.processo.vara}</span>}
@@ -327,116 +309,77 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
             </div>
           )}
 
-          {/* Campos adicionais */}
+          {/* Comarca + Vara */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Comarca</Label>
-              <Input
-                placeholder="Ex: São Paulo"
-                value={form.comarca}
-                onChange={(e) => setForm(p => ({ ...p, comarca: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              />
+              <Label>Comarca</Label>
+              <Input placeholder="Ex: São Paulo" value={form.comarca} onChange={(e) => setForm(p => ({ ...p, comarca: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Vara / Juízo</Label>
-              <Input
-                placeholder="Ex: 3ª Vara Cível"
-                value={form.vara}
-                onChange={(e) => setForm(p => ({ ...p, vara: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              />
+              <Label>Vara / Juízo</Label>
+              <Input placeholder="Ex: 3ª Vara Cível" value={form.vara} onChange={(e) => setForm(p => ({ ...p, vara: e.target.value }))} />
             </div>
           </div>
 
+          {/* Classe + Assunto */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Classe Processual</Label>
-              <Input
-                placeholder="Ex: Ação de Cobrança"
-                value={form.classe}
-                onChange={(e) => setForm(p => ({ ...p, classe: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              />
+              <Label>Classe Processual</Label>
+              <Input placeholder="Ex: Ação de Cobrança" value={form.classe} onChange={(e) => setForm(p => ({ ...p, classe: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Assunto</Label>
-              <Input
-                placeholder="Ex: Cobrança de Cotas Condominiais"
-                value={form.assunto}
-                onChange={(e) => setForm(p => ({ ...p, assunto: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              />
+              <Label>Assunto</Label>
+              <Input placeholder="Ex: Cobrança de Cotas Condominiais" value={form.assunto} onChange={(e) => setForm(p => ({ ...p, assunto: e.target.value }))} />
             </div>
           </div>
 
+          {/* Fase + Valor */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Fase Processual</Label>
+              <Label>Fase Processual</Label>
               <Select value={form.faseProcessual} onValueChange={(v: any) => setForm(p => ({ ...p, faseProcessual: v }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
                   {Object.entries(FASE_LABELS).map(([v, l]) => (
-                    <SelectItem key={v} value={v} className="text-white hover:bg-white/10">{l}</SelectItem>
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Valor da Causa (R$)</Label>
-              <Input
-                placeholder="Ex: 15000.00"
-                value={form.valorCausa}
-                onChange={(e) => setForm(p => ({ ...p, valorCausa: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              />
+              <Label>Valor da Causa (R$)</Label>
+              <Input placeholder="Ex: 15000.00" value={form.valorCausa} onChange={(e) => setForm(p => ({ ...p, valorCausa: e.target.value }))} />
             </div>
           </div>
 
+          {/* Condomínio + Advogado */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Condomínio</Label>
-              <Input
-                placeholder="Nome do condomínio"
-                value={form.condominioNome}
-                onChange={(e) => setForm(p => ({ ...p, condominioNome: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              />
+              <Label>Condomínio</Label>
+              <Input placeholder="Nome do condomínio" value={form.condominioNome} onChange={(e) => setForm(p => ({ ...p, condominioNome: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Advogado Responsável</Label>
-              <Input
-                placeholder="Nome do advogado"
-                value={form.advogadoNome}
-                onChange={(e) => setForm(p => ({ ...p, advogadoNome: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              />
+              <Label>Advogado Responsável</Label>
+              <Input placeholder="Nome do advogado" value={form.advogadoNome} onChange={(e) => setForm(p => ({ ...p, advogadoNome: e.target.value }))} />
             </div>
           </div>
 
+          {/* Observações */}
           <div className="space-y-1.5">
-            <Label className="text-white/80">Observações</Label>
+            <Label>Observações</Label>
             <Textarea
               placeholder="Informações adicionais sobre o processo..."
               value={form.observacoes}
               onChange={(e) => setForm(p => ({ ...p, observacoes: e.target.value }))}
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 resize-none"
+              className="resize-none"
               rows={3}
             />
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={() => { onClose(); resetForm(); }} className="text-white/60 hover:text-white">
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSalvar}
-            disabled={criarProcesso.isPending}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
+          <Button variant="outline" onClick={() => { onClose(); resetForm(); }}>Cancelar</Button>
+          <Button onClick={handleSalvar} disabled={criarProcesso.isPending}>
             {criarProcesso.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Plus className="w-4 h-4 mr-1.5" />}
             Criar Processo
           </Button>
@@ -462,37 +405,26 @@ export default function ProcessosJudiciais() {
 
   const { data: resumo } = trpc.processos.resumo.useQuery();
 
-  const processosFiltrados = useMemo(() => {
-    if (!processos) return [];
-    return processos;
-  }, [processos]);
+  const processosFiltrados = useMemo(() => processos ?? [], [processos]);
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white p-6">
+    <div className="min-h-screen bg-background text-foreground p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center">
-            <Scale className="w-5 h-5 text-blue-400" />
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+            <Scale className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-white">Processos Judiciais</h1>
-            <p className="text-sm text-white/50">Gestão de processos com integração DataJud/CNJ</p>
+            <h1 className="text-xl font-semibold">Processos Judiciais</h1>
+            <p className="text-sm text-muted-foreground">Gestão de processos com integração DataJud/CNJ</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refetch()}
-            className="text-white/60 hover:text-white"
-          >
+          <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
-          <Button
-            onClick={() => setModalAberto(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
+          <Button onClick={() => setModalAberto(true)}>
             <Plus className="w-4 h-4 mr-1.5" />
             Novo Processo
           </Button>
@@ -502,68 +434,54 @@ export default function ProcessosJudiciais() {
       {/* KPIs */}
       {resumo && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card className="bg-[#1a1f2e] border-white/10">
-            <CardContent className="p-4">
-              <p className="text-xs text-white/50 uppercase tracking-wide mb-1">Total</p>
-              <p className="text-2xl font-bold text-white">{resumo.total}</p>
-              <p className="text-xs text-white/40 mt-0.5">processos cadastrados</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-[#1a1f2e] border-white/10">
-            <CardContent className="p-4">
-              <p className="text-xs text-white/50 uppercase tracking-wide mb-1">Ativos</p>
-              <p className="text-2xl font-bold text-emerald-400">{resumo.ativos}</p>
-              <p className="text-xs text-white/40 mt-0.5">em andamento</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-[#1a1f2e] border-white/10">
-            <CardContent className="p-4">
-              <p className="text-xs text-white/50 uppercase tracking-wide mb-1">Suspensos</p>
-              <p className="text-2xl font-bold text-amber-400">{resumo.suspensos}</p>
-              <p className="text-xs text-white/40 mt-0.5">aguardando</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-[#1a1f2e] border-white/10">
-            <CardContent className="p-4">
-              <p className="text-xs text-white/50 uppercase tracking-wide mb-1">Encerrados</p>
-              <p className="text-2xl font-bold text-slate-400">{resumo.encerrados}</p>
-              <p className="text-xs text-white/40 mt-0.5">arquivados/encerrados</p>
-            </CardContent>
-          </Card>
+          {[
+            { label: "Total", value: resumo.total, sub: "processos cadastrados", color: "text-foreground" },
+            { label: "Ativos", value: resumo.ativos, sub: "em andamento", color: "text-emerald-600 dark:text-emerald-400" },
+            { label: "Suspensos", value: resumo.suspensos, sub: "aguardando", color: "text-amber-600 dark:text-amber-400" },
+            { label: "Encerrados", value: resumo.encerrados, sub: "arquivados/encerrados", color: "text-muted-foreground" },
+          ].map(({ label, value, sub, color }) => (
+            <Card key={label}>
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
+                <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3 mb-5">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por número CNJ, comarca, vara..."
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/30"
+            className="pl-9"
           />
         </div>
         <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-          <SelectTrigger className="w-40 bg-white/5 border-white/10 text-white">
+          <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
-            <SelectItem value="todos" className="text-white hover:bg-white/10">Todos os status</SelectItem>
-            <SelectItem value="ativo" className="text-white hover:bg-white/10">Ativo</SelectItem>
-            <SelectItem value="suspenso" className="text-white hover:bg-white/10">Suspenso</SelectItem>
-            <SelectItem value="arquivado" className="text-white hover:bg-white/10">Arquivado</SelectItem>
-            <SelectItem value="encerrado" className="text-white hover:bg-white/10">Encerrado</SelectItem>
+          <SelectContent>
+            <SelectItem value="todos">Todos os status</SelectItem>
+            <SelectItem value="ativo">Ativo</SelectItem>
+            <SelectItem value="suspenso">Suspenso</SelectItem>
+            <SelectItem value="arquivado">Arquivado</SelectItem>
+            <SelectItem value="encerrado">Encerrado</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger className="w-44 bg-white/5 border-white/10 text-white">
+          <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
-            <SelectItem value="todos" className="text-white hover:bg-white/10">Todos os tipos</SelectItem>
+          <SelectContent>
+            <SelectItem value="todos">Todos os tipos</SelectItem>
             {Object.entries(TIPO_LABELS).map(([v, l]) => (
-              <SelectItem key={v} value={v} className="text-white hover:bg-white/10">{l}</SelectItem>
+              <SelectItem key={v} value={v}>{l}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -572,17 +490,14 @@ export default function ProcessosJudiciais() {
       {/* Lista de processos */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : processosFiltrados.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Scale className="w-12 h-12 text-white/20 mb-4" />
-          <p className="text-white/50 text-lg font-medium">Nenhum processo encontrado</p>
-          <p className="text-white/30 text-sm mt-1">Crie um novo processo ou ajuste os filtros</p>
-          <Button
-            onClick={() => setModalAberto(true)}
-            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
-          >
+          <Scale className="w-12 h-12 text-muted-foreground/30 mb-4" />
+          <p className="text-muted-foreground text-lg font-medium">Nenhum processo encontrado</p>
+          <p className="text-muted-foreground/60 text-sm mt-1">Crie um novo processo ou ajuste os filtros</p>
+          <Button onClick={() => setModalAberto(true)} className="mt-4">
             <Plus className="w-4 h-4 mr-1.5" />
             Novo Processo
           </Button>
@@ -593,12 +508,12 @@ export default function ProcessosJudiciais() {
             const statusCfg = STATUS_CONFIG[processo.status] ?? STATUS_CONFIG.ativo;
             return (
               <Link key={processo.id} href={`/admin/juridico/processos/${processo.id}`}>
-                <Card className="bg-[#1a1f2e] border-white/10 hover:border-blue-500/30 hover:bg-[#1e2436] transition-all cursor-pointer group">
+                <Card className="hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer group">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <span className="font-mono text-sm font-semibold text-blue-300">
+                          <span className="font-mono text-sm font-semibold text-primary">
                             {formatarCNJ(processo.numeroCNJ)}
                           </span>
                           <Badge className={`text-xs border ${statusCfg.color} flex items-center gap-1`}>
@@ -609,35 +524,35 @@ export default function ProcessosJudiciais() {
                             {TIPO_LABELS[processo.tipo]}
                           </Badge>
                           {processo.datajudSincronizadoEm && (
-                            <Badge className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                            <Badge className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
                               DataJud
                             </Badge>
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
                           {processo.tribunal && (
-                            <span className="text-white/60 flex items-center gap-1.5">
-                              <Scale className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                            <span className="flex items-center gap-1.5">
+                              <Scale className="w-3.5 h-3.5 shrink-0 opacity-50" />
                               {processo.tribunal}
                             </span>
                           )}
                           {processo.condominioNome && (
-                            <span className="text-white/60 flex items-center gap-1.5">
-                              <Building2 className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                            <span className="flex items-center gap-1.5">
+                              <Building2 className="w-3.5 h-3.5 shrink-0 opacity-50" />
                               {processo.condominioNome}
                             </span>
                           )}
                           {processo.advogadoNome && (
-                            <span className="text-white/60 flex items-center gap-1.5">
-                              <User className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                            <span className="flex items-center gap-1.5">
+                              <User className="w-3.5 h-3.5 shrink-0 opacity-50" />
                               {processo.advogadoNome}
                             </span>
                           )}
                         </div>
 
                         {(processo.classe || processo.assunto) && (
-                          <p className="text-xs text-white/40 mt-1.5 truncate">
+                          <p className="text-xs text-muted-foreground/70 mt-1.5 truncate">
                             {[processo.classe, processo.assunto].filter(Boolean).join(" — ")}
                           </p>
                         )}
@@ -645,20 +560,18 @@ export default function ProcessosJudiciais() {
 
                       <div className="text-right shrink-0">
                         {processo.valorCausa && (
-                          <p className="text-sm font-semibold text-white">
-                            {formatarMoeda(processo.valorCausa)}
-                          </p>
+                          <p className="text-sm font-semibold">{formatarMoeda(processo.valorCausa)}</p>
                         )}
-                        <p className="text-xs text-white/40 mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {FASE_LABELS[processo.faseProcessual]}
                         </p>
                         {processo.dataUltimaMovimentacao && (
-                          <p className="text-xs text-white/30 mt-1 flex items-center gap-1 justify-end">
+                          <p className="text-xs text-muted-foreground/60 mt-1 flex items-center gap-1 justify-end">
                             <Calendar className="w-3 h-3" />
                             {new Date(processo.dataUltimaMovimentacao).toLocaleDateString("pt-BR")}
                           </p>
                         )}
-                        <ExternalLink className="w-4 h-4 text-white/20 group-hover:text-blue-400 transition-colors mt-2 ml-auto" />
+                        <ExternalLink className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors mt-2 ml-auto" />
                       </div>
                     </div>
                   </CardContent>
