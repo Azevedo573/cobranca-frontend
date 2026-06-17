@@ -1023,6 +1023,7 @@ export const colunasDemanda = mysqlTable("colunasDemanda", {
   ordem: int("ordem").default(0).notNull(),
   padrao: int("padrao").default(0).notNull(), // 1 = coluna padrão do sistema (não pode ser excluída)
   tipo: mysqlEnum("tipoColuna", ["entrada", "intermediaria", "saida"]).default("intermediaria").notNull(), // entrada=Demandas Recebidas, saida=Demandas Resolvidas
+  userId: int("userId"), // null = coluna global (fixas); preenchido = coluna pessoal do usuário
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ColunaDemanda = typeof colunasDemanda.$inferSelect;

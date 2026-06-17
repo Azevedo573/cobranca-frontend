@@ -415,7 +415,10 @@ function ModalGerenciarColunas({
           {/* Colunas intermediárias */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Etapas Intermediárias ({colunasIntermedias.length})
+              Minhas Etapas ({colunasIntermedias.length})
+            </p>
+            <p className="text-xs text-muted-foreground -mt-1 mb-2">
+              Estas etapas são exclusivas do seu usuário. Cada advogado pode configurar seu próprio fluxo.
             </p>
             {colunasIntermedias.length === 0 ? (
               <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg">

@@ -1,0 +1,1 @@
+ALTER TABLE `colunasDemanda` ADD `userId` int;

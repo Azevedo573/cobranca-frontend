@@ -12,10 +12,31 @@ import {
 
 // ─── Colunas Kanban ───────────────────────────────────────────────────────────
 
-export async function getColunasDemanda() {
+/**
+ * Retorna as colunas visíveis para um usuário:
+ * - Colunas fixas globais (userId IS NULL): entrada e saída
+ * - Colunas intermediárias do próprio usuário (userId = userId)
+ */
+export async function getColunasDemanda(userId?: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(colunasDemanda).orderBy(asc(colunasDemanda.ordem));
+  if (!userId) {
+    // Sem userId: retorna apenas as fixas globais
+    return db
+      .select()
+      .from(colunasDemanda)
+      .where(sql`${colunasDemanda.userId} IS NULL`)
+      .orderBy(asc(colunasDemanda.ordem));
+  }
+  // Retorna fixas globais + intermediárias do usuário
+  return db
+    .select()
+    .from(colunasDemanda)
+    .where(
+      sql`(${colunasDemanda.userId} IS NULL AND ${colunasDemanda.tipo} IN ('entrada','saida'))
+       OR (${colunasDemanda.userId} = ${userId} AND ${colunasDemanda.tipo} = 'intermediaria')`
+    )
+    .orderBy(asc(colunasDemanda.ordem));
 }
 
 /** Retorna a coluna de entrada (tipo=entrada) — usada ao criar novas demandas */
@@ -48,27 +69,19 @@ export async function createColunaDemanda(data: {
   nome: string;
   icone?: string;
   cor?: string;
+  userId: number; // obrigatório: colunas intermediárias são sempre pessoais
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  // Colunas criadas pelos usuários são sempre do tipo intermediaria
-  // Busca a maior ordem entre as colunas intermediárias (antes da saída)
-  const colunaSaida = await getColunaSaida();
-  const ordemSaida = colunaSaida?.ordem ?? 999;
-  // Insere antes da coluna de saída
-  // Primeiro, empurra a coluna de saída para o final
+  // Busca a maior ordem entre as colunas intermediárias deste usuário
   const [maxIntermed] = await db
     .select({ max: sql<number>`MAX(${colunasDemanda.ordem})` })
     .from(colunasDemanda)
-    .where(sql`${colunasDemanda.tipo} = 'intermediaria'`);
-  const novaOrdem = (maxIntermed?.max ?? ordemSaida - 1) + 1;
-  // Atualiza a ordem da coluna de saída para ficar após a nova
-  if (colunaSaida && novaOrdem >= ordemSaida) {
-    await db
-      .update(colunasDemanda)
-      .set({ ordem: novaOrdem + 1 })
-      .where(eq(colunasDemanda.id, colunaSaida.id));
-  }
+    .where(
+      sql`${colunasDemanda.tipo} = 'intermediaria' AND ${colunasDemanda.userId} = ${data.userId}`
+    );
+  // Coluna de saída global fica sempre por último (ordem 99)
+  const novaOrdem = (maxIntermed?.max ?? 0) + 1;
   const result = await db.insert(colunasDemanda).values({
     nome: data.nome,
     icone: data.icone ?? "📋",
@@ -76,25 +89,31 @@ export async function createColunaDemanda(data: {
     ordem: novaOrdem,
     padrao: 0,
     tipo: "intermediaria",
+    userId: data.userId,
   });
   return result;
 }
 
 export async function updateColunaDemanda(
   id: number,
+  userId: number,
   data: { nome?: string; icone?: string; cor?: string }
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  // Não permite editar nome/icone de colunas fixas (entrada/saida)
   const [col] = await db.select().from(colunasDemanda).where(eq(colunasDemanda.id, id)).limit(1);
-  if (col?.tipo === "entrada" || col?.tipo === "saida") {
+  if (!col) throw new Error("Coluna não encontrada");
+  if (col.tipo === "entrada" || col.tipo === "saida") {
     throw new Error("Não é possível editar colunas fixas do sistema");
+  }
+  // Só o dono da coluna pode editar
+  if (col.userId !== userId) {
+    throw new Error("Você não tem permissão para editar esta coluna");
   }
   return db.update(colunasDemanda).set(data).where(eq(colunasDemanda.id, id));
 }
 
-export async function deleteColunaDemanda(id: number) {
+export async function deleteColunaDemanda(id: number, userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const [col] = await db
@@ -105,6 +124,10 @@ export async function deleteColunaDemanda(id: number) {
   if (!col) throw new Error("Coluna não encontrada");
   if (col.tipo === "entrada" || col.tipo === "saida") {
     throw new Error("Não é possível excluir as colunas fixas do sistema (Demandas Recebidas e Demandas Resolvidas)");
+  }
+  // Só o dono da coluna pode excluir
+  if (col.userId !== userId) {
+    throw new Error("Você não tem permissão para excluir esta coluna");
   }
   // Mover demandas desta coluna para a coluna de entrada antes de excluir
   const colunaEntrada = await getColunaEntrada();
@@ -117,17 +140,17 @@ export async function deleteColunaDemanda(id: number) {
   return db.delete(colunasDemanda).where(eq(colunasDemanda.id, id));
 }
 
-export async function reordenarColunas(colunaIds: number[]) {
+export async function reordenarColunas(colunaIds: number[], userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  // Busca as colunas fixas para garantir que entrada fica primeiro e saída por último
-  const todasColunas = await db.select().from(colunasDemanda);
+  // Busca as colunas do usuário (fixas globais + intermediárias pessoais)
+  const todasColunas = await getColunasDemanda(userId);
   const colunaEntrada = todasColunas.find(c => c.tipo === "entrada");
   const colunaSaida = todasColunas.find(c => c.tipo === "saida");
-  // Filtra apenas as colunas intermediárias da lista de reordenação
+  // Filtra apenas as colunas intermediárias do usuário na lista de reordenação
   const idsIntermedios = colunaIds.filter(id => {
     const col = todasColunas.find(c => c.id === id);
-    return col?.tipo === "intermediaria";
+    return col?.tipo === "intermediaria" && col.userId === userId;
   });
   // Entrada sempre na ordem 0, intermediárias a partir de 1, saída por último
   if (colunaEntrada) {
@@ -193,25 +216,55 @@ export async function migrarColunasPadrao() {
   }
 }
 
-export async function seedColunasPadrao() {
+/**
+ * Seed de colunas para um usuário específico:
+ * - Garante que as colunas fixas globais (entrada/saida) existam (userId=null)
+ * - Cria colunas intermediárias de exemplo para o usuário se ele ainda não tiver nenhuma
+ */
+export async function seedColunasPadrao(userId?: number) {
   const db = await getDb();
   if (!db) return;
-  const existentes = await db.select().from(colunasDemanda).limit(1);
-  if (existentes.length > 0) {
-    // Executa migração para garantir tipos corretos em instâncias existentes
-    await migrarColunasPadrao();
-    return;
+
+  // 1. Garante as colunas fixas globais (userId IS NULL)
+  const fixasExistentes = await db
+    .select()
+    .from(colunasDemanda)
+    .where(sql`${colunasDemanda.userId} IS NULL AND ${colunasDemanda.tipo} IN ('entrada','saida')`);
+
+  const temEntradaGlobal = fixasExistentes.some(c => c.tipo === "entrada");
+  const temSaidaGlobal = fixasExistentes.some(c => c.tipo === "saida");
+
+  if (!temEntradaGlobal) {
+    await db.insert(colunasDemanda).values({
+      nome: "Demandas Recebidas", icone: "📥", cor: "blue",
+      ordem: 0, padrao: 1, tipo: "entrada", userId: null,
+    });
   }
-  // Seed inicial com as duas colunas fixas + exemplos de intermediárias
-  const colunasPadrao = [
-    { nome: "Demandas Recebidas", icone: "📥", cor: "blue",   ordem: 0, padrao: 1, tipo: "entrada" as const },
-    { nome: "Em Análise",         icone: "🔍", cor: "yellow", ordem: 1, padrao: 0, tipo: "intermediaria" as const },
-    { nome: "Elaboração de Peça", icone: "📄", cor: "orange", ordem: 2, padrao: 0, tipo: "intermediaria" as const },
-    { nome: "Aguardando Cliente", icone: "⏳", cor: "amber",  ordem: 3, padrao: 0, tipo: "intermediaria" as const },
-    { nome: "Em Audiência",       icone: "⚖️", cor: "purple", ordem: 4, padrao: 0, tipo: "intermediaria" as const },
-    { nome: "Demandas Resolvidas",icone: "✅", cor: "green",  ordem: 5, padrao: 1, tipo: "saida" as const },
-  ];
-  await db.insert(colunasDemanda).values(colunasPadrao);
+  if (!temSaidaGlobal) {
+    await db.insert(colunasDemanda).values({
+      nome: "Demandas Resolvidas", icone: "✅", cor: "green",
+      ordem: 99, padrao: 1, tipo: "saida", userId: null,
+    });
+  }
+
+  // 2. Se userId fornecido, cria colunas intermediárias de exemplo para o usuário
+  if (userId) {
+    const intermedExistentes = await db
+      .select()
+      .from(colunasDemanda)
+      .where(
+        sql`${colunasDemanda.tipo} = 'intermediaria' AND ${colunasDemanda.userId} = ${userId}`
+      );
+    if (intermedExistentes.length === 0) {
+      // Cria etapas de exemplo para o novo usuário
+      await db.insert(colunasDemanda).values([
+        { nome: "Em Análise",         icone: "🔍", cor: "yellow", ordem: 1, padrao: 0, tipo: "intermediaria", userId },
+        { nome: "Elaboração de Peça", icone: "📄", cor: "orange", ordem: 2, padrao: 0, tipo: "intermediaria", userId },
+        { nome: "Aguardando Cliente", icone: "⏳", cor: "amber",  ordem: 3, padrao: 0, tipo: "intermediaria", userId },
+        { nome: "Em Audiência",       icone: "⚖️", cor: "purple", ordem: 4, padrao: 0, tipo: "intermediaria", userId },
+      ]);
+    }
+  }
 }
 
 // ─── Demandas ─────────────────────────────────────────────────────────────────

@@ -5837,14 +5837,14 @@ export const appRouter = router({
 
   // ─── Módulo Jurídico — Central de Demandas ────────────────────────────────────
   juridicoDemandas: router({
-    seedColunas: protectedProcedure.mutation(async () => {
+    seedColunas: protectedProcedure.mutation(async ({ ctx }) => {
       const { seedColunasPadrao } = await import("./db-demandas");
-      await seedColunasPadrao();
+      await seedColunasPadrao(ctx.user.id);
       return { success: true };
     }),
-    getColunas: protectedProcedure.query(async () => {
+    getColunas: protectedProcedure.query(async ({ ctx }) => {
       const { getColunasDemanda } = await import("./db-demandas");
-      return getColunasDemanda();
+      return getColunasDemanda(ctx.user.id);
     }),
     getColunaEntrada: protectedProcedure.query(async () => {
       const { getColunaEntrada } = await import("./db-demandas");
@@ -5856,9 +5856,9 @@ export const appRouter = router({
         icone: z.string().optional(),
         cor: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { createColunaDemanda } = await import("./db-demandas");
-        await createColunaDemanda(input);
+        await createColunaDemanda({ ...input, userId: ctx.user.id });
         return { success: true };
       }),
     updateColuna: protectedProcedure
@@ -5868,24 +5868,24 @@ export const appRouter = router({
         icone: z.string().optional(),
         cor: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { updateColunaDemanda } = await import("./db-demandas");
         const { id, ...data } = input;
-        await updateColunaDemanda(id, data);
+        await updateColunaDemanda(id, ctx.user.id, data);
         return { success: true };
       }),
     deleteColuna: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { deleteColunaDemanda } = await import("./db-demandas");
-        await deleteColunaDemanda(input.id);
+        await deleteColunaDemanda(input.id, ctx.user.id);
         return { success: true };
       }),
     reordenarColunas: protectedProcedure
       .input(z.object({ colunaIds: z.array(z.number().int().positive()) }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { reordenarColunas } = await import("./db-demandas");
-        await reordenarColunas(input.colunaIds);
+        await reordenarColunas(input.colunaIds, ctx.user.id);
         return { success: true };
       }),
     listar: protectedProcedure
