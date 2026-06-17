@@ -18,6 +18,32 @@ export async function getColunasDemanda() {
   return db.select().from(colunasDemanda).orderBy(asc(colunasDemanda.ordem));
 }
 
+/** Retorna a coluna de entrada (tipo=entrada) — usada ao criar novas demandas */
+export async function getColunaEntrada() {
+  const db = await getDb();
+  if (!db) return null;
+  const [col] = await db
+    .select()
+    .from(colunasDemanda)
+    .where(eq(colunasDemanda.tipo, "entrada"))
+    .orderBy(asc(colunasDemanda.ordem))
+    .limit(1);
+  return col ?? null;
+}
+
+/** Retorna a coluna de saída (tipo=saida) — usada para concluir demandas */
+export async function getColunaSaida() {
+  const db = await getDb();
+  if (!db) return null;
+  const [col] = await db
+    .select()
+    .from(colunasDemanda)
+    .where(eq(colunasDemanda.tipo, "saida"))
+    .orderBy(asc(colunasDemanda.ordem))
+    .limit(1);
+  return col ?? null;
+}
+
 export async function createColunaDemanda(data: {
   nome: string;
   icone?: string;
@@ -25,16 +51,31 @@ export async function createColunaDemanda(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const [maxOrdem] = await db
+  // Colunas criadas pelos usuários são sempre do tipo intermediaria
+  // Busca a maior ordem entre as colunas intermediárias (antes da saída)
+  const colunaSaida = await getColunaSaida();
+  const ordemSaida = colunaSaida?.ordem ?? 999;
+  // Insere antes da coluna de saída
+  // Primeiro, empurra a coluna de saída para o final
+  const [maxIntermed] = await db
     .select({ max: sql<number>`MAX(${colunasDemanda.ordem})` })
-    .from(colunasDemanda);
-  const novaOrdem = (maxOrdem?.max ?? 0) + 1;
+    .from(colunasDemanda)
+    .where(sql`${colunasDemanda.tipo} = 'intermediaria'`);
+  const novaOrdem = (maxIntermed?.max ?? ordemSaida - 1) + 1;
+  // Atualiza a ordem da coluna de saída para ficar após a nova
+  if (colunaSaida && novaOrdem >= ordemSaida) {
+    await db
+      .update(colunasDemanda)
+      .set({ ordem: novaOrdem + 1 })
+      .where(eq(colunasDemanda.id, colunaSaida.id));
+  }
   const result = await db.insert(colunasDemanda).values({
     nome: data.nome,
     icone: data.icone ?? "📋",
     cor: data.cor ?? "slate",
     ordem: novaOrdem,
     padrao: 0,
+    tipo: "intermediaria",
   });
   return result;
 }
@@ -45,6 +86,11 @@ export async function updateColunaDemanda(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
+  // Não permite editar nome/icone de colunas fixas (entrada/saida)
+  const [col] = await db.select().from(colunasDemanda).where(eq(colunasDemanda.id, id)).limit(1);
+  if (col?.tipo === "entrada" || col?.tipo === "saida") {
+    throw new Error("Não é possível editar colunas fixas do sistema");
+  }
   return db.update(colunasDemanda).set(data).where(eq(colunasDemanda.id, id));
 }
 
@@ -56,18 +102,94 @@ export async function deleteColunaDemanda(id: number) {
     .from(colunasDemanda)
     .where(eq(colunasDemanda.id, id))
     .limit(1);
-  if (col?.padrao) throw new Error("Não é possível excluir colunas padrão do sistema");
+  if (!col) throw new Error("Coluna não encontrada");
+  if (col.tipo === "entrada" || col.tipo === "saida") {
+    throw new Error("Não é possível excluir as colunas fixas do sistema (Demandas Recebidas e Demandas Resolvidas)");
+  }
+  // Mover demandas desta coluna para a coluna de entrada antes de excluir
+  const colunaEntrada = await getColunaEntrada();
+  if (colunaEntrada) {
+    await db
+      .update(demandas)
+      .set({ colunaId: colunaEntrada.id })
+      .where(eq(demandas.colunaId, id));
+  }
   return db.delete(colunasDemanda).where(eq(colunasDemanda.id, id));
 }
 
 export async function reordenarColunas(colunaIds: number[]) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  for (let i = 0; i < colunaIds.length; i++) {
+  // Busca as colunas fixas para garantir que entrada fica primeiro e saída por último
+  const todasColunas = await db.select().from(colunasDemanda);
+  const colunaEntrada = todasColunas.find(c => c.tipo === "entrada");
+  const colunaSaida = todasColunas.find(c => c.tipo === "saida");
+  // Filtra apenas as colunas intermediárias da lista de reordenação
+  const idsIntermedios = colunaIds.filter(id => {
+    const col = todasColunas.find(c => c.id === id);
+    return col?.tipo === "intermediaria";
+  });
+  // Entrada sempre na ordem 0, intermediárias a partir de 1, saída por último
+  if (colunaEntrada) {
+    await db.update(colunasDemanda).set({ ordem: 0 }).where(eq(colunasDemanda.id, colunaEntrada.id));
+  }
+  for (let i = 0; i < idsIntermedios.length; i++) {
     await db
       .update(colunasDemanda)
-      .set({ ordem: i })
-      .where(eq(colunasDemanda.id, colunaIds[i]));
+      .set({ ordem: i + 1 })
+      .where(eq(colunasDemanda.id, idsIntermedios[i]));
+  }
+  if (colunaSaida) {
+    await db.update(colunasDemanda).set({ ordem: idsIntermedios.length + 1 }).where(eq(colunasDemanda.id, colunaSaida.id));
+  }
+}
+
+export async function migrarColunasPadrao() {
+  /**
+   * Migração: garante que as colunas existentes tenham o campo tipo correto.
+   * - Primeira coluna (ordem=0 ou nome="Recebido") → tipo=entrada
+   * - Última coluna com nome "Concluído" ou "Cancelado" → tipo=saida (cria se não existir)
+   * - Demais → tipo=intermediaria
+   * Executada automaticamente no boot do servidor.
+   */
+  const db = await getDb();
+  if (!db) return;
+  const cols = await db.select().from(colunasDemanda).orderBy(asc(colunasDemanda.ordem));
+  if (cols.length === 0) return;
+  // Verifica se já existe coluna de entrada e saída
+  const temEntrada = cols.some(c => c.tipo === "entrada");
+  const temSaida = cols.some(c => c.tipo === "saida");
+  if (temEntrada && temSaida) return; // já migrado
+  // Marca a primeira coluna como entrada
+  if (!temEntrada) {
+    const primeiraColuna = cols[0];
+    await db.update(colunasDemanda).set({ tipo: "entrada" }).where(eq(colunasDemanda.id, primeiraColuna.id));
+  }
+  // Marca a última coluna como saída (ou cria uma nova)
+  if (!temSaida) {
+    // Procura por "Concluído" ou "Cancelado"
+    const colConcluido = cols.find(c => c.nome.toLowerCase().includes("conclu") || c.nome.toLowerCase().includes("resolv"));
+    if (colConcluido) {
+      await db.update(colunasDemanda).set({ tipo: "saida" }).where(eq(colunasDemanda.id, colConcluido.id));
+    } else {
+      // Cria uma nova coluna de saída
+      const maxOrdem = Math.max(...cols.map(c => c.ordem));
+      await db.insert(colunasDemanda).values({
+        nome: "Demandas Resolvidas",
+        icone: "✅",
+        cor: "green",
+        ordem: maxOrdem + 1,
+        padrao: 1,
+        tipo: "saida",
+      });
+    }
+  }
+  // Marca todas as demais como intermediaria
+  const colsAtualizadas = await db.select().from(colunasDemanda);
+  for (const col of colsAtualizadas) {
+    if (col.tipo !== "entrada" && col.tipo !== "saida") {
+      await db.update(colunasDemanda).set({ tipo: "intermediaria" }).where(eq(colunasDemanda.id, col.id));
+    }
   }
 }
 
@@ -75,17 +197,19 @@ export async function seedColunasPadrao() {
   const db = await getDb();
   if (!db) return;
   const existentes = await db.select().from(colunasDemanda).limit(1);
-  if (existentes.length > 0) return;
+  if (existentes.length > 0) {
+    // Executa migração para garantir tipos corretos em instâncias existentes
+    await migrarColunasPadrao();
+    return;
+  }
+  // Seed inicial com as duas colunas fixas + exemplos de intermediárias
   const colunasPadrao = [
-    { nome: "Recebido", icone: "📥", cor: "blue", ordem: 0, padrao: 1 },
-    { nome: "Triagem", icone: "🔍", cor: "yellow", ordem: 1, padrao: 1 },
-    { nome: "Em Elaboração", icone: "📄", cor: "orange", ordem: 2, padrao: 1 },
-    { nome: "Em Atendimento", icone: "⚖️", cor: "purple", ordem: 3, padrao: 1 },
-    { nome: "Aguardando Cliente", icone: "⏳", cor: "amber", ordem: 4, padrao: 1 },
-    { nome: "Aguardando Administradora", icone: "⏳", cor: "amber", ordem: 5, padrao: 1 },
-    { nome: "Aguardando Condomínio", icone: "🏢", cor: "cyan", ordem: 6, padrao: 1 },
-    { nome: "Concluído", icone: "✅", cor: "green", ordem: 7, padrao: 1 },
-    { nome: "Cancelado", icone: "🚫", cor: "red", ordem: 8, padrao: 1 },
+    { nome: "Demandas Recebidas", icone: "📥", cor: "blue",   ordem: 0, padrao: 1, tipo: "entrada" as const },
+    { nome: "Em Análise",         icone: "🔍", cor: "yellow", ordem: 1, padrao: 0, tipo: "intermediaria" as const },
+    { nome: "Elaboração de Peça", icone: "📄", cor: "orange", ordem: 2, padrao: 0, tipo: "intermediaria" as const },
+    { nome: "Aguardando Cliente", icone: "⏳", cor: "amber",  ordem: 3, padrao: 0, tipo: "intermediaria" as const },
+    { nome: "Em Audiência",       icone: "⚖️", cor: "purple", ordem: 4, padrao: 0, tipo: "intermediaria" as const },
+    { nome: "Demandas Resolvidas",icone: "✅", cor: "green",  ordem: 5, padrao: 1, tipo: "saida" as const },
   ];
   await db.insert(colunasDemanda).values(colunasPadrao);
 }
@@ -273,11 +397,21 @@ export async function moverDemanda(
     .from(colunasDemanda)
     .where(eq(colunasDemanda.id, novaColunaId))
     .limit(1);
-  await db.update(demandas).set({ colunaId: novaColunaId }).where(eq(demandas.id, id));
+  // Se a coluna de destino é do tipo saida, marca a demanda como concluída
+  const updateData: any = { colunaId: novaColunaId };
+  if (coluna?.tipo === "saida") {
+    updateData.status = "concluida";
+    updateData.resolvidoEm = new Date();
+  }
+  await db.update(demandas).set(updateData).where(eq(demandas.id, id));
+  const tipoEvento = coluna?.tipo === "saida" ? "conclusao" : "movimentacao";
+  const descricaoEvento = coluna?.tipo === "saida"
+    ? `Demanda concluída e movida para "${coluna.nome}"`
+    : `Movida para "${coluna?.nome ?? "nova coluna"}"`;
   await db.insert(timelineDemanda).values({
     demandaId: id,
-    tipo: "movimentacao",
-    descricao: `Movida para "${coluna?.nome ?? "nova coluna"}"`,
+    tipo: tipoEvento,
+    descricao: descricaoEvento,
     usuarioId,
     usuarioNome,
   });

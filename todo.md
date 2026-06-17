@@ -2342,3 +2342,19 @@
 - [ ] Integrar botão "Sincronizar via MNI" no ProcessoDetalhes quando credenciais estiverem configuradas
 - [ ] Sidebar: adicionar links Intimações e Configurações MNI no menu Jurídico
 - [ ] Verificar 0 erros TypeScript e todos os testes passando
+
+
+## Kanban Jurídico — Colunas Fixas + Configuráveis
+
+- [x] Adicionar campo `tipo` enum (entrada/intermediaria/saida) na tabela colunasDemanda
+- [x] Migrar dados: coluna "Recebido" → tipo=entrada, demais padrão → tipo=intermediaria, criar coluna Resolvidas → tipo=saida
+- [x] Atualizar seed: duas colunas fixas (Demandas Recebidas / Demandas Resolvidas) + exemplos intermediárias
+- [x] Procedure getColunasEntrada: retorna a coluna de entrada para uso no createDemanda
+- [x] Procedure createColuna: só permite criar colunas do tipo intermediaria
+- [x] Procedure deleteColuna: bloquear exclusão de colunas tipo entrada e saida
+- [x] Procedure mover: ao mover para coluna tipo=saida, marcar demanda como concluída
+- [x] KanbanDemandas.tsx: layout visual diferenciado para colunas fixas vs intermediárias
+- [x] KanbanDemandas.tsx: modal de gerenciamento de colunas intermediárias (criar, renomear, excluir, reordenar)
+- [x] KanbanDemandas.tsx: botão "Gerenciar Colunas" no header
+- [x] KanbanDemandas.tsx: indicador visual nas colunas fixas (badge "Fixo")
+- [x] KanbanDemandas.tsx: coluna saida com estilo diferenciado (verde/concluído)

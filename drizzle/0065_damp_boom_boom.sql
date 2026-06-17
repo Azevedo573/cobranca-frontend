@@ -1,0 +1,1 @@
+ALTER TABLE `colunasDemanda` ADD `tipoColuna` enum('entrada','intermediaria','saida') DEFAULT 'intermediaria' NOT NULL;

@@ -1022,6 +1022,7 @@ export const colunasDemanda = mysqlTable("colunasDemanda", {
   cor: varchar("cor", { length: 30 }).default("slate").notNull(), // tailwind color name
   ordem: int("ordem").default(0).notNull(),
   padrao: int("padrao").default(0).notNull(), // 1 = coluna padrão do sistema (não pode ser excluída)
+  tipo: mysqlEnum("tipoColuna", ["entrada", "intermediaria", "saida"]).default("intermediaria").notNull(), // entrada=Demandas Recebidas, saida=Demandas Resolvidas
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ColunaDemanda = typeof colunasDemanda.$inferSelect;
@@ -1085,6 +1086,9 @@ export const demandas = mysqlTable("demandas", {
   cpfDevedor: varchar("cpfDevedor", { length: 20 }),
   unidadeDevedor: varchar("unidadeDevedor", { length: 50 }),
   qtdCobrancas: int("qtdCobrancas"),
+  // Status da demanda (controlado pelo Kanban)
+  status: mysqlEnum("statusDemanda", ["aberta", "em_andamento", "concluida", "cancelada"]).default("aberta").notNull(),
+  resolvidoEm: timestamp("resolvidoEm"), // data de conclusão
   // Controle
   criadoPorId: int("criadoPorId"), // userId
   createdAt: timestamp("createdAt").defaultNow().notNull(),

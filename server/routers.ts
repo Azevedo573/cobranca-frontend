@@ -5846,6 +5846,10 @@ export const appRouter = router({
       const { getColunasDemanda } = await import("./db-demandas");
       return getColunasDemanda();
     }),
+    getColunaEntrada: protectedProcedure.query(async () => {
+      const { getColunaEntrada } = await import("./db-demandas");
+      return getColunaEntrada();
+    }),
     createColuna: protectedProcedure
       .input(z.object({
         nome: z.string().min(1).max(100),
@@ -5903,7 +5907,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         condominioId: z.number().int().positive().optional().nullable(),
-        colunaId: z.number().int().positive(),
+        colunaId: z.number().int().positive().optional(), // se omitido, usa a coluna de entrada automaticamente
         solicitante: z.string().optional(),
         solicitanteTipo: z.string().optional(),
         canal: z.enum(["whatsapp", "email", "portal", "telefone", "presencial", "assembleia", "processo_interno", "manual"]),
@@ -5918,9 +5922,17 @@ export const appRouter = router({
         cobrancaId: z.number().int().positive().optional().nullable(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { createDemanda } = await import("./db-demandas");
+        const { createDemanda, getColunaEntrada } = await import("./db-demandas");
+        // Toda nova demanda entra automaticamente na coluna de entrada
+        let colunaId = input.colunaId;
+        if (!colunaId) {
+          const colunaEntrada = await getColunaEntrada();
+          if (!colunaEntrada) throw new Error("Coluna de entrada n\u00e3o configurada. Execute a migra\u00e7\u00e3o de colunas.");
+          colunaId = colunaEntrada.id;
+        }
         const result = await createDemanda({
           ...input,
+          colunaId,
           prazo: input.prazo ? new Date(input.prazo) : null,
           criadoPorId: ctx.user.id,
         });
