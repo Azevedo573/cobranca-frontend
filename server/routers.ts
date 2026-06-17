@@ -6110,5 +6110,141 @@ export const appRouter = router({
         return getCobrancasVinculadas(input.demandaId);
       }),
   }),
+
+  // ─── Publicações Jurídicas ────────────────────────────────────────────────────────────────────
+  publicacoes: router({
+    // Dashboard com contadores
+    dashboard: protectedProcedure.query(async () => {
+      const { getDashboardPublicacoes } = await import("./db-publicacoes");
+      return getDashboardPublicacoes();
+    }),
+
+    // Listagem de publicações com filtros
+    listar: protectedProcedure
+      .input(z.object({
+        status: z.string().optional(),
+        monitoramentoId: z.number().int().positive().optional(),
+        lida: z.number().int().min(0).max(1).optional(),
+        limit: z.number().int().positive().max(200).optional(),
+        offset: z.number().int().min(0).optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        const { listarPublicacoes } = await import("./db-publicacoes");
+        return listarPublicacoes(input ?? undefined);
+      }),
+
+    // Detalhe de uma publicação
+    getById: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getPublicacao } = await import("./db-publicacoes");
+        return getPublicacao(input.id);
+      }),
+
+    // Criar publicação manual
+    criarManual: protectedProcedure
+      .input(z.object({
+        monitoramentoId: z.number().int().positive().optional(),
+        tribunal: z.string().max(100).optional(),
+        comarca: z.string().max(100).optional(),
+        vara: z.string().max(150).optional(),
+        dataPublicacao: z.string().optional(),
+        tipo: z.enum(["intimacao", "sentenca", "despacho", "audiencia", "decisao", "outro"]),
+        textoCompleto: z.string().min(1),
+        numeroCNJ: z.string().max(30).optional(),
+        responsavelNome: z.string().max(255).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { createPublicacaoManual } = await import("./db-publicacoes");
+        return createPublicacaoManual({
+          ...input,
+          dataPublicacao: input.dataPublicacao ? new Date(input.dataPublicacao) : null,
+        });
+      }),
+
+    // Atualizar status
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["nova", "analisando", "aguardando_providencia", "providenciada", "arquivada"]),
+      }))
+      .mutation(async ({ input }) => {
+        const { updatePublicacaoStatus, marcarPublicacaoLida } = await import("./db-publicacoes");
+        await updatePublicacaoStatus(input.id, input.status);
+        await marcarPublicacaoLida(input.id);
+      }),
+
+    // Atualizar campos da publicação
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number().int().positive(),
+        status: z.enum(["nova", "analisando", "aguardando_providencia", "providenciada", "arquivada"]).optional(),
+        lida: z.number().int().min(0).max(1).optional(),
+        observacoes: z.string().optional(),
+        responsavelNome: z.string().max(255).optional(),
+        numeroCNJ: z.string().max(30).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updatePublicacao } = await import("./db-publicacoes");
+        const { id, ...rest } = input;
+        await updatePublicacao(id, rest);
+      }),
+
+    // Marcar como lida
+    marcarLida: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const { marcarPublicacaoLida } = await import("./db-publicacoes");
+        await marcarPublicacaoLida(input.id);
+      }),
+
+    // ─── Monitoramentos ────────────────────────────────────────────────────────────────────
+    monitoramentos: router({
+      listar: protectedProcedure.query(async () => {
+        const { listarMonitoramentos } = await import("./db-publicacoes");
+        return listarMonitoramentos();
+      }),
+
+      create: protectedProcedure
+        .input(z.object({
+          advogadoNome: z.string().min(1).max(255),
+          oab: z.string().max(30).optional(),
+          uf: z.string().max(2).optional(),
+          palavrasChave: z.string().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { createMonitoramento } = await import("./db-publicacoes");
+          return createMonitoramento(input);
+        }),
+
+      update: protectedProcedure
+        .input(z.object({
+          id: z.number().int().positive(),
+          advogadoNome: z.string().min(1).max(255).optional(),
+          oab: z.string().max(30).optional(),
+          uf: z.string().max(2).optional(),
+          palavrasChave: z.string().optional(),
+        }))
+        .mutation(async ({ input }) => {
+          const { updateMonitoramento } = await import("./db-publicacoes");
+          const { id, ...rest } = input;
+          await updateMonitoramento(id, rest);
+        }),
+
+      delete: protectedProcedure
+        .input(z.object({ id: z.number().int().positive() }))
+        .mutation(async ({ input }) => {
+          const { deleteMonitoramento } = await import("./db-publicacoes");
+          await deleteMonitoramento(input.id);
+        }),
+
+      toggle: protectedProcedure
+        .input(z.object({ id: z.number().int().positive() }))
+        .mutation(async ({ input }) => {
+          const { toggleMonitoramento } = await import("./db-publicacoes");
+          await toggleMonitoramento(input.id);
+        }),
+    }),
+  }),
 });
 export type AppRouter = typeof appRouter;

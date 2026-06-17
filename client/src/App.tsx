@@ -81,6 +81,9 @@ import CentralIntimacoes from "./pages/admin/juridico/CentralIntimacoes";
 import ConfiguracoesMNI from "./pages/admin/juridico/ConfiguracoesMNI";
 import CondominiosJuridico from "./pages/admin/juridico/CondominiosJuridico";
 import DashboardJuridicoCondominio from "./pages/admin/juridico/DashboardJuridicoCondominio";
+import DashboardPublicacoes from "./pages/admin/juridico/DashboardPublicacoes";
+import MonitoramentosPublicacoes from "./pages/admin/juridico/MonitoramentosPublicacoes";
+import KanbanPublicacoes from "./pages/admin/juridico/KanbanPublicacoes";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -357,6 +360,17 @@ function Router() {
       </Route>
       <Route path="/admin/juridico/condominios/:id">
         {() => <ProtectedRoute component={DashboardJuridicoCondominio} allowedRoles={["admin"]} />}
+      </Route>
+
+      {/* Publicações Jurídicas */}
+      <Route path="/admin/juridico/publicacoes">
+        {() => <ProtectedRoute component={DashboardPublicacoes} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/publicacoes/monitoramentos">
+        {() => <ProtectedRoute component={MonitoramentosPublicacoes} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/juridico/publicacoes/kanban">
+        {() => <ProtectedRoute component={KanbanPublicacoes} allowedRoles={["admin"]} />}
       </Route>
 
       {/* Rotas do Módulo Jurídico (legado) */}

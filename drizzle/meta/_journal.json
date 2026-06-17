@@ -463,6 +463,13 @@
       "when": 1781715079132,
       "tag": "0066_cheerful_cerebro",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "5",
+      "when": 1781722717343,
+      "tag": "0067_blue_gwen_stacy",
+      "breakpoints": true
     }
   ]
 }

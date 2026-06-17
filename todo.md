@@ -2364,3 +2364,19 @@
 - [x] Atualizar KanbanDemandas: faixa colorida no topo do card + badge pill + ring para urgente
 - [x] Atualizar CentralDemandas: faixa + badge pill nos cards, dot no filtro de prioridade
 - [x] Atualizar DemandaDetalhes: badge pill no header, dot no select de prioridade
+
+## Módulo Publicações Jurídicas
+- [ ] Schema: tabela monitoramentosPublicacoes (id, advogadoNome, oab, uf, palavrasChave, ativo, createdAt)
+- [ ] Schema: tabela publicacoes (id, monitoramentoId, tribunal, comarca, vara, data, tipo, encontradoPor, textoCompleto, numeroCNJ, status, lida, createdAt)
+- [ ] db-publicacoes.ts: helpers CRUD para monitoramentos e publicações
+- [ ] Router tRPC: publicacoes.listar, publicacoes.getById, publicacoes.updateStatus, publicacoes.marcarLida, publicacoes.arquivar
+- [ ] Router tRPC: monitoramentos.listar, monitoramentos.create, monitoramentos.update, monitoramentos.delete, monitoramentos.toggle
+- [ ] Router tRPC: publicacoes.dashboard (contadores por status)
+- [ ] Router tRPC: publicacoes.criarManual (para testes/entrada manual)
+- [ ] Página DashboardPublicacoes.tsx: indicadores (hoje, não lidas, pendentes, arquivadas, por advogado)
+- [ ] Página DashboardPublicacoes.tsx: listagem de publicações recentes com filtros
+- [ ] Página MonitoramentosPublicacoes.tsx: CRUD de advogados monitorados
+- [ ] Página KanbanPublicacoes.tsx: colunas Nova/Analisando/Aguardando Providência/Providenciada/Arquivada
+- [ ] Modal PublicacaoDetalhes: texto completo, dados do tribunal, processo CNJ, fluxo de status
+- [ ] Integrar rotas em App.tsx
+- [ ] Adicionar entrada no menu lateral (DashboardLayout.tsx) em Jurídico

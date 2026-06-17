@@ -1345,3 +1345,47 @@ export const sincronizacoesMNI = mysqlTable("sincronizacoesMNI", {
 });
 export type SincronizacaoMNI = typeof sincronizacoesMNI.$inferSelect;
 export type InsertSincronizacaoMNI = typeof sincronizacoesMNI.$inferInsert;
+
+// ─── Publicações Jurídicas — Monitoramentos ───────────────────────────────────
+export const monitoramentosPublicacoes = mysqlTable("monitoramentosPublicacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  advogadoNome: varchar("advogadoNome", { length: 255 }).notNull(), // Nome do advogado a monitorar
+  oab: varchar("oab", { length: 30 }),          // Ex: OAB/RJ 123456
+  uf: varchar("uf", { length: 2 }),             // Ex: RJ, SP, MG
+  palavrasChave: text("palavrasChave"),          // Palavras adicionais separadas por vírgula
+  ativo: int("ativo").default(1).notNull(),      // 1 = ativo, 0 = pausado
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type MonitoramentoPublicacao = typeof monitoramentosPublicacoes.$inferSelect;
+export type InsertMonitoramentoPublicacao = typeof monitoramentosPublicacoes.$inferInsert;
+
+// ─── Publicações Jurídicas — Publicações Capturadas ──────────────────────────
+export const publicacoes = mysqlTable("publicacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  monitoramentoId: int("monitoramentoId"),       // FK para monitoramentosPublicacoes.id (nullable = entrada manual)
+  // Dados do diário
+  tribunal: varchar("tribunal", { length: 100 }),  // Ex: TJRJ, TJSP, STJ
+  comarca: varchar("comarca", { length: 100 }),
+  vara: varchar("vara", { length: 150 }),
+  dataPublicacao: timestamp("dataPublicacao"),
+  tipo: mysqlEnum("tipoPublicacao", [
+    "intimacao", "sentenca", "despacho", "audiencia", "decisao", "outro"
+  ]).default("outro").notNull(),
+  // Conteúdo
+  textoCompleto: text("textoCompleto").notNull(),
+  numeroCNJ: varchar("numeroCNJ", { length: 30 }), // Número do processo CNJ quando identificado
+  encontradoPor: varchar("encontradoPor", { length: 50 }), // "nome" | "oab" | "palavra_chave" | "manual"
+  // Fluxo de trabalho
+  status: mysqlEnum("statusPublicacao", [
+    "nova", "analisando", "aguardando_providencia", "providenciada", "arquivada"
+  ]).default("nova").notNull(),
+  lida: int("lida").default(0).notNull(),         // 0 = não lida, 1 = lida
+  // Metadados
+  observacoes: text("observacoes"),
+  responsavelNome: varchar("responsavelNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Publicacao = typeof publicacoes.$inferSelect;
+export type InsertPublicacao = typeof publicacoes.$inferInsert;
