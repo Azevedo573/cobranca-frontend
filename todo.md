@@ -2358,3 +2358,9 @@
 - [x] KanbanDemandas.tsx: botão "Gerenciar Colunas" no header
 - [x] KanbanDemandas.tsx: indicador visual nas colunas fixas (badge "Fixo")
 - [x] KanbanDemandas.tsx: coluna saida com estilo diferenciado (verde/concluído)
+
+## Etiquetas Visuais de Prioridade
+- [x] Criar componente PrioridadeBadge reutilizável (pill, dot, strip, icon, compact)
+- [x] Atualizar KanbanDemandas: faixa colorida no topo do card + badge pill + ring para urgente
+- [x] Atualizar CentralDemandas: faixa + badge pill nos cards, dot no filtro de prioridade
+- [x] Atualizar DemandaDetalhes: badge pill no header, dot no select de prioridade

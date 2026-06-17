@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { PrioridadeBadge, prioridadeBorderClass } from "@/components/PrioridadeBadge";
 import { useLocation } from "wouter";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
@@ -35,20 +36,6 @@ import {
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const PRIORIDADE_CONFIG = {
-  baixa:   { label: "Baixa",   color: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400" },
-  media:   { label: "Média",   color: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400" },
-  alta:    { label: "Alta",    color: "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400" },
-  urgente: { label: "Urgente", color: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400" },
-};
-
-const PRIORIDADE_BORDER = {
-  baixa:   "border-l-slate-300",
-  media:   "border-l-blue-400",
-  alta:    "border-l-orange-400",
-  urgente: "border-l-red-500",
-};
 
 const CANAL_ICON: Record<string, React.ReactNode> = {
   whatsapp:         <MessageSquare className="h-3 w-3" />,
@@ -95,20 +82,23 @@ function KanbanCard({ demanda, onClick, isSaida }: {
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const prio = PRIORIDADE_CONFIG[demanda.prioridade as keyof typeof PRIORIDADE_CONFIG];
-  const prioBorder = PRIORIDADE_BORDER[demanda.prioridade as keyof typeof PRIORIDADE_BORDER] ?? "border-l-slate-300";
+  const prioBorder = prioridadeBorderClass(demanda.prioridade);
   const atrasada = isAtrasada(demanda.prazo);
+  const isUrgente = demanda.prioridade === "urgente";
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-card border border-l-4 ${prioBorder} rounded-lg p-3 shadow-sm hover:shadow-md transition-all cursor-pointer group ${
-        isSaida ? "opacity-80" : ""
-      }`}
+      className={`bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group ${
+        isSaida ? "opacity-75" : ""
+      } ${isUrgente ? "ring-1 ring-red-300 dark:ring-red-700" : ""}`}
       onClick={onClick}
     >
-      <div className="flex items-start gap-1">
+      {/* Faixa de prioridade no topo */}
+      <PrioridadeBadge prioridade={demanda.prioridade} variant="strip" />
+
+      <div className="flex items-start gap-1 p-3">
         {!isSaida && (
           <div
             {...attributes}
@@ -120,9 +110,9 @@ function KanbanCard({ demanda, onClick, isSaida }: {
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-1 mb-1">
+          <div className="flex items-center justify-between gap-1 mb-1.5">
             <span className="text-xs font-mono text-muted-foreground">{demanda.numero}</span>
-            <Badge variant="outline" className={`text-[10px] px-1 py-0 ${prio?.color}`}>{prio?.label}</Badge>
+            <PrioridadeBadge prioridade={demanda.prioridade} variant="pill" className="text-[10px] px-1.5 py-0.5" />
           </div>
           <p className="text-sm font-medium leading-snug line-clamp-2 group-hover:text-primary transition-colors mb-2">
             {demanda.assunto}

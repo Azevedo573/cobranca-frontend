@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { PrioridadeBadge, PRIORIDADE_CONFIG, prioridadeBorderClass } from "@/components/PrioridadeBadge";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -16,13 +17,6 @@ import {
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const PRIORIDADE_CONFIG = {
-  baixa:   { label: "Baixa",   color: "bg-slate-100 text-slate-700 border-slate-200" },
-  media:   { label: "Média",   color: "bg-blue-100 text-blue-700 border-blue-200" },
-  alta:    { label: "Alta",    color: "bg-orange-100 text-orange-700 border-orange-200" },
-  urgente: { label: "Urgente", color: "bg-red-100 text-red-700 border-red-200" },
-};
 
 const CANAL_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
   whatsapp:         { label: "WhatsApp",     icon: <MessageSquare className="h-3 w-3" /> },
@@ -277,18 +271,24 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
 // ─── Card de Demanda ──────────────────────────────────────────────────────────
 
 function CardDemanda({ demanda, onClick }: { demanda: any; onClick: () => void }) {
-  const prio = PRIORIDADE_CONFIG[demanda.prioridade as keyof typeof PRIORIDADE_CONFIG];
   const canal = CANAL_CONFIG[demanda.canal];
   const atrasada = isAtrasada(demanda.prazo);
+  const prioBorder = prioridadeBorderClass(demanda.prioridade);
+  const isUrgente = demanda.prioridade === "urgente";
 
   return (
     <div
-      className="bg-card border rounded-lg p-4 hover:shadow-md transition-all cursor-pointer group"
+      className={`bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden hover:shadow-md transition-all cursor-pointer group ${
+        isUrgente ? "ring-1 ring-red-300 dark:ring-red-700" : ""
+      }`}
       onClick={onClick}
     >
+      {/* Faixa de prioridade no topo */}
+      <PrioridadeBadge prioridade={demanda.prioridade} variant="strip" />
+      <div className="p-4">
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="text-xs font-mono text-muted-foreground">{demanda.numero}</span>
-        <Badge variant="outline" className={`text-xs ${prio?.color}`}>{prio?.label}</Badge>
+        <PrioridadeBadge prioridade={demanda.prioridade} variant="pill" />
       </div>
       <h3 className="font-medium text-sm leading-snug mb-2 group-hover:text-primary transition-colors line-clamp-2">
         {demanda.assunto}
@@ -320,6 +320,7 @@ function CardDemanda({ demanda, onClick }: { demanda: any; onClick: () => void }
             {formatDate(demanda.prazo)}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
@@ -410,7 +411,9 @@ export default function CentralDemandas() {
           <SelectContent>
             <SelectItem value="todas">Todas</SelectItem>
             {Object.entries(PRIORIDADE_CONFIG).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+              <SelectItem key={k} value={k}>
+                <PrioridadeBadge prioridade={k} variant="dot" />
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

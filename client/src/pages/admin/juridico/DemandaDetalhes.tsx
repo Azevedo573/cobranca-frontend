@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PrioridadeBadge, PRIORIDADE_CONFIG } from "@/components/PrioridadeBadge";
 import { useLocation, useParams, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -18,12 +19,6 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const PRIORIDADE_CONFIG = {
-  baixa:   { label: "Baixa",   color: "bg-slate-100 text-slate-700 border-slate-200" },
-  media:   { label: "Média",   color: "bg-blue-100 text-blue-700 border-blue-200" },
-  alta:    { label: "Alta",    color: "bg-orange-100 text-orange-700 border-orange-200" },
-  urgente: { label: "Urgente", color: "bg-red-100 text-red-700 border-red-200" },
-};
 
 const TIPO_LABEL: Record<string, string> = {
   parecer: "Parecer Jurídico", convencao: "Convenção/Regimento", assembleia: "Assembleia",
@@ -182,7 +177,6 @@ export default function DemandaDetalhes() {
   }
 
   const d = demanda as any;
-  const prio = PRIORIDADE_CONFIG[d.prioridade as keyof typeof PRIORIDADE_CONFIG];
   const canal = CANAL_CONFIG[d.canal];
   const atrasada = d.prazo && new Date(d.prazo) < new Date();
 
@@ -209,7 +203,7 @@ export default function DemandaDetalhes() {
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-sm font-mono text-muted-foreground">{d.numero}</span>
-            <Badge variant="outline" className={`text-xs ${prio?.color}`}>{prio?.label}</Badge>
+            <PrioridadeBadge prioridade={d.prioridade} variant="pill" />
             {atrasada && (
               <Badge variant="outline" className="text-xs text-red-500 border-red-200">
                 <AlertTriangle className="h-3 w-3 mr-1" />Em atraso
@@ -427,8 +421,10 @@ export default function DemandaDetalhes() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(PRIORIDADE_CONFIG).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                    {Object.entries(PRIORIDADE_CONFIG).map(([k]) => (
+                      <SelectItem key={k} value={k}>
+                        <PrioridadeBadge prioridade={k} variant="dot" />
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
