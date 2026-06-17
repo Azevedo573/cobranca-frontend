@@ -1,6 +1,14 @@
 import { useState, useCallback } from "react";
 import { PrioridadeBadge, prioridadeBorderClass } from "@/components/PrioridadeBadge";
 import { useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent, type DragOverEvent,
@@ -568,7 +576,10 @@ export default function KanbanDemandas() {
   const [activeDemanda, setActiveDemanda] = useState<any>(null);
   const [overColunaId, setOverColunaId] = useState<number | null>(null);
   const [modalGerenciar, setModalGerenciar] = useState(false);
+  const [filtroAdvogadoId, setFiltroAdvogadoId] = useState<number | null>(null);
   const utils = trpc.useUtils();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   // Seed automático: cria as colunas padrão na primeira vez
   const seedMutation = trpc.juridicoDemandas.seedColunas.useMutation();
@@ -577,7 +588,13 @@ export default function KanbanDemandas() {
       if (data.length === 0) seedMutation.mutate();
     },
   } as any);
-  const { data: demandas = [], isLoading, refetch: refetchDemandas } = trpc.juridicoDemandas.listar.useQuery();
+  // Advogados disponíveis para filtro (apenas admin)
+  const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery(undefined, {
+    enabled: isAdmin,
+  });
+  const { data: demandas = [], isLoading, refetch: refetchDemandas } = trpc.juridicoDemandas.listar.useQuery(
+    filtroAdvogadoId ? { responsavelId: filtroAdvogadoId } : undefined
+  );
 
   const moverMutation = trpc.juridicoDemandas.mover.useMutation({
     onSuccess: () => {
@@ -694,7 +711,26 @@ export default function KanbanDemandas() {
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {/* Filtro por advogado — apenas admin */}
+          {isAdmin && (
+            <Select
+              value={filtroAdvogadoId ? String(filtroAdvogadoId) : "todos"}
+              onValueChange={(v) => setFiltroAdvogadoId(v === "todos" ? null : Number(v))}
+            >
+              <SelectTrigger className="w-48 h-9 text-sm">
+                <SelectValue placeholder="Filtrar por advogado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os advogados</SelectItem>
+                {(advogados as any[]).map((adv: any) => (
+                  <SelectItem key={adv.id} value={String(adv.id)}>
+                    <span className="truncate">{adv.name}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button
             variant="outline"
             size="sm"
