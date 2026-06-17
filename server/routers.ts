@@ -5894,15 +5894,19 @@ export const appRouter = router({
         colunaId: z.number().int().positive().optional(),
         responsavelId: z.number().int().positive().optional(),
       }).optional())
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const { getDemandas } = await import("./db-demandas");
-        return getDemandas(input);
+        return getDemandas({
+          ...input,
+          viewerRole: ctx.user.role,
+          viewerUserId: ctx.user.id,
+        });
       }),
     getById: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const { getDemandaById } = await import("./db-demandas");
-        return getDemandaById(input.id);
+        return getDemandaById(input.id, { role: ctx.user.role, userId: ctx.user.id });
       }),
     create: protectedProcedure
       .input(z.object({
