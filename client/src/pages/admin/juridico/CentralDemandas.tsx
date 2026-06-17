@@ -144,7 +144,11 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
           <div>
             <Label>Condomínio</Label>
             <Select value={form.condominioId} onValueChange={v => setForm(f => ({ ...f, condominioId: v }))}>
-              <SelectTrigger><SelectValue placeholder="Todos os condomínios" /></SelectTrigger>
+              <SelectTrigger className="overflow-hidden">
+                <span className="truncate block max-w-full">
+                  <SelectValue placeholder="Todos os condomínios" />
+                </span>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sem condomínio específico</SelectItem>
                 {(condominios as any[]).map((c: any) => (

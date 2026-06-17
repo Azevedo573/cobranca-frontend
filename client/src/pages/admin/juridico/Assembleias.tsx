@@ -115,7 +115,11 @@ function ModalAssembleia({ open, onClose, assembleia }: {
           <div className="col-span-2">
             <Label>Condomínio</Label>
             <Select value={form.condominioId} onValueChange={v => setForm(f => ({ ...f, condominioId: v }))}>
-              <SelectTrigger><SelectValue placeholder="Selecione o condomínio" /></SelectTrigger>
+              <SelectTrigger className="overflow-hidden">
+                <span className="truncate block max-w-full">
+                  <SelectValue placeholder="Selecione o condomínio" />
+                </span>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Sem condomínio específico</SelectItem>
                 {(condominios as any[]).map((c: any) => (
