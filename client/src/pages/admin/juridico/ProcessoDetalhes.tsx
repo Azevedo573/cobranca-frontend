@@ -30,17 +30,12 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  Clock,
-  XCircle,
   Calendar,
-  Building2,
   User,
   DollarSign,
   FileText,
-  AlertTriangle,
   Loader2,
   Download,
-  ExternalLink,
   Users,
   Activity,
   Timer,
@@ -61,19 +56,19 @@ const FASE_LABELS: Record<string, string> = {
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  ativo: { label: "Ativo", color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-  suspenso: { label: "Suspenso", color: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-  arquivado: { label: "Arquivado", color: "bg-slate-500/15 text-slate-400 border-slate-500/30" },
-  encerrado: { label: "Encerrado", color: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
+  ativo: { label: "Ativo", color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" },
+  suspenso: { label: "Suspenso", color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30" },
+  arquivado: { label: "Arquivado", color: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30" },
+  encerrado: { label: "Encerrado", color: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30" },
 };
 
 const URGENCIA_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  atrasado: { label: "Atrasado", color: "text-red-400", bg: "bg-red-500/15 border-red-500/30" },
-  hoje: { label: "Vence hoje", color: "text-orange-400", bg: "bg-orange-500/15 border-orange-500/30" },
-  "7dias": { label: "7 dias", color: "text-amber-400", bg: "bg-amber-500/15 border-amber-500/30" },
-  "15dias": { label: "15 dias", color: "text-yellow-400", bg: "bg-yellow-500/15 border-yellow-500/30" },
-  "30dias": { label: "30 dias", color: "text-blue-400", bg: "bg-blue-500/15 border-blue-500/30" },
-  futuro: { label: "No prazo", color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30" },
+  atrasado: { label: "Atrasado", color: "text-red-600 dark:text-red-400", bg: "bg-red-500/15 border-red-500/30" },
+  hoje: { label: "Vence hoje", color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/15 border-orange-500/30" },
+  "7dias": { label: "7 dias", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/15 border-amber-500/30" },
+  "15dias": { label: "15 dias", color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-500/15 border-yellow-500/30" },
+  "30dias": { label: "30 dias", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/15 border-blue-500/30" },
+  futuro: { label: "No prazo", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/30" },
 };
 
 function formatarMoeda(centavos: number | null | undefined): string {
@@ -152,26 +147,26 @@ function TimelineAstrea({
       {/* Coluna esquerda: detalhe da movimentação selecionada */}
       <div className="flex-1 min-w-0">
         {selecionada ? (
-          <Card className="bg-[#1a1f2e] border-white/10">
+          <Card>
             <CardContent className="p-5 space-y-4">
               {/* Cabeçalho */}
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-lg">{TIPO_MOV_ICON[selecionada.tipo] ?? "🟡"}</span>
-                    <h3 className="text-base font-semibold text-white">{selecionada.descricao}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{selecionada.descricao}</h3>
                     {selecionada.origem === "datajud" && (
-                      <Badge className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/20">DataJud</Badge>
+                      <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">DataJud</Badge>
                     )}
                   </div>
-                  <p className="text-xs text-white/40">
+                  <p className="text-xs text-muted-foreground">
                     {new Date(selecionada.data).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
                   </p>
                 </div>
                 {selecionada.origem === "manual" && (
                   <Button variant="ghost" size="sm"
                     onClick={() => onDeleteMov(selecionada.id)}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0 shrink-0">
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0 shrink-0">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 )}
@@ -179,29 +174,29 @@ function TimelineAstrea({
 
               {/* Metadados da publicação */}
               {(selecionada.nomeOrgao || selecionada.tipoComunicacao || selecionada.meioPublicacao) && (
-                <div className="bg-white/5 rounded-lg p-3 space-y-1.5 border border-white/8">
+                <div className="bg-muted rounded-lg p-3 space-y-1.5 border">
                   {selecionada.nomeOrgao && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/40 w-28 shrink-0">Diário / Órgão:</span>
-                      <span className="text-xs text-white font-medium">{selecionada.nomeOrgao}</span>
+                      <span className="text-xs text-muted-foreground w-28 shrink-0">Diário / Órgão:</span>
+                      <span className="text-xs text-foreground font-medium">{selecionada.nomeOrgao}</span>
                     </div>
                   )}
                   {selecionada.tipoComunicacao && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/40 w-28 shrink-0">Tipo:</span>
-                      <span className="text-xs text-white">{selecionada.tipoComunicacao}</span>
+                      <span className="text-xs text-muted-foreground w-28 shrink-0">Tipo:</span>
+                      <span className="text-xs text-foreground">{selecionada.tipoComunicacao}</span>
                     </div>
                   )}
                   {selecionada.meioPublicacao && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/40 w-28 shrink-0">Meio:</span>
-                      <span className="text-xs text-white">{selecionada.meioPublicacao}</span>
+                      <span className="text-xs text-muted-foreground w-28 shrink-0">Meio:</span>
+                      <span className="text-xs text-foreground">{selecionada.meioPublicacao}</span>
                     </div>
                   )}
                   {selecionada.codigoDatajud && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/40 w-28 shrink-0">Cód. CNJ:</span>
-                      <span className="text-xs text-white/60 font-mono">{selecionada.codigoDatajud}</span>
+                      <span className="text-xs text-muted-foreground w-28 shrink-0">Cód. CNJ:</span>
+                      <span className="text-xs text-foreground font-mono">{selecionada.codigoDatajud}</span>
                     </div>
                   )}
                 </div>
@@ -210,29 +205,29 @@ function TimelineAstrea({
               {/* Partes com advogados e OAB */}
               {partes.length > 0 && (
                 <div>
-                  <p className="text-xs text-white/40 uppercase tracking-wide mb-2">Partes</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Partes</p>
                   <div className="space-y-2">
                     {partes.map((parte) => {
                       const advs = parseAdvogados(parte.advogadosJson);
                       return (
-                        <div key={parte.id} className="bg-white/5 rounded-lg p-2.5 border border-white/8">
+                        <div key={parte.id} className="bg-muted/50 rounded-lg p-2.5 border">
                           <div className="flex items-center gap-2 mb-1">
                             <Badge className={`text-xs py-0 ${
-                              parte.tipo === "autor" ? "bg-blue-500/15 text-blue-400" :
-                              parte.tipo === "reu" ? "bg-red-500/15 text-red-400" :
-                              "bg-slate-500/15 text-slate-400"
+                              parte.tipo === "autor" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" :
+                              parte.tipo === "reu" ? "bg-red-500/15 text-red-600 dark:text-red-400" :
+                              "bg-muted text-muted-foreground"
                             }`}>
                               {parte.tipo === "autor" ? "Autor" : parte.tipo === "reu" ? "Réu" : parte.tipo === "terceiro" ? "Terceiro" : "Outro"}
                             </Badge>
-                            <span className="text-sm text-white font-medium">{parte.nome}</span>
+                            <span className="text-sm text-foreground font-medium">{parte.nome}</span>
                           </div>
                           {advs.length > 0 && (
                             <div className="mt-1.5 space-y-0.5">
                               {advs.map((adv, i) => (
-                                <p key={i} className="text-xs text-white/50">
-                                  Advogado: <span className="text-white/80">{adv.nome}</span>
+                                <p key={i} className="text-xs text-muted-foreground">
+                                  Advogado: <span className="text-foreground">{adv.nome}</span>
                                   {adv.oab && (
-                                    <span className="ml-1.5 bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                                    <span className="ml-1.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded text-[10px] font-mono">
                                       OAB {adv.oab}
                                     </span>
                                   )}
@@ -250,12 +245,12 @@ function TimelineAstrea({
               {/* Complementos / Detalhes */}
               {complementos.length > 0 && (
                 <div>
-                  <p className="text-xs text-white/40 uppercase tracking-wide mb-2">Detalhes da Movimentação</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Detalhes da Movimentação</p>
                   <div className="space-y-2">
                     {complementos.map((c, i) => (
-                      <div key={i} className="bg-white/5 rounded-lg p-3 border border-white/8">
-                        <p className="text-xs text-white/40 mb-1 font-medium">{c.nome}</p>
-                        <p className="text-xs text-white/80 leading-relaxed whitespace-pre-wrap">{c.valor}</p>
+                      <div key={i} className="bg-muted/50 rounded-lg p-3 border">
+                        <p className="text-xs text-muted-foreground mb-1 font-medium">{c.nome}</p>
+                        <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{c.valor}</p>
                       </div>
                     ))}
                   </div>
@@ -264,12 +259,12 @@ function TimelineAstrea({
 
               {/* Estado vazio */}
               {complementos.length === 0 && !selecionada.nomeOrgao && selecionada.origem === "datajud" && (
-                <div className="text-center py-4 text-white/20">
+                <div className="text-center py-4 text-muted-foreground">
                   <p className="text-xs">DataJud não retornou complementos para este andamento</p>
                 </div>
               )}
               {complementos.length === 0 && selecionada.origem === "manual" && (
-                <div className="text-center py-4 text-white/20">
+                <div className="text-center py-4 text-muted-foreground">
                   <FileText className="w-5 h-5 mx-auto mb-1" />
                   <p className="text-xs">Movimentação manual — sem detalhes adicionais</p>
                 </div>
@@ -277,7 +272,7 @@ function TimelineAstrea({
             </CardContent>
           </Card>
         ) : (
-          <div className="flex flex-col items-center justify-center h-48 text-white/20">
+          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
             <Activity className="w-8 h-8 mb-2" />
             <p className="text-sm">Selecione uma movimentação para ver os detalhes</p>
           </div>
@@ -287,15 +282,15 @@ function TimelineAstrea({
       {/* Coluna direita: lista de histórico */}
       <div className="w-72 shrink-0">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-white/40 uppercase tracking-wide">Histórico ({movimentacoes.length})</p>
-          <Button size="sm" onClick={onAddMov} className="bg-blue-600 hover:bg-blue-700 text-white h-7 px-2 text-xs">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Histórico ({movimentacoes.length})</p>
+          <Button size="sm" onClick={onAddMov} className="h-7 px-2 text-xs">
             <Plus className="w-3.5 h-3.5 mr-1" />
             Adicionar
           </Button>
         </div>
         <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1">
           {movimentacoes.length === 0 ? (
-            <div className="text-center py-8 text-white/20">
+            <div className="text-center py-8 text-muted-foreground">
               <Activity className="w-6 h-6 mx-auto mb-1" />
               <p className="text-xs">Nenhuma movimentação</p>
             </div>
@@ -308,20 +303,20 @@ function TimelineAstrea({
                   onClick={() => setSelecionada(mov)}
                   className={`w-full text-left rounded-lg p-2.5 transition-colors border ${
                     isSelected
-                      ? "bg-blue-600/20 border-blue-500/40"
-                      : "bg-white/3 border-white/5 hover:bg-white/8 hover:border-white/15"
+                      ? "bg-primary/10 border-primary/40"
+                      : "bg-muted/30 border-border hover:bg-muted hover:border-border"
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-sm">{TIPO_MOV_ICON[mov.tipo] ?? "🟡"}</span>
-                    <span className="text-xs text-white/40">
+                    <span className="text-xs text-muted-foreground">
                       {new Date(mov.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
                     </span>
                     {mov.origem === "datajud" && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="DataJud" />
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="DataJud" />
                     )}
                   </div>
-                  <p className="text-xs text-white line-clamp-2 leading-relaxed">{mov.descricao}</p>
+                  <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{mov.descricao}</p>
                 </button>
               );
             })
@@ -360,44 +355,43 @@ function ModalMovimentacao({ processoId, open, onClose, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#1a1f2e] border-white/10 text-white max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">Nova Movimentação</DialogTitle>
+          <DialogTitle>Nova Movimentação</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-white/80">Data *</Label>
-            <Input type="date" value={form.data} onChange={(e) => setForm(p => ({ ...p, data: e.target.value }))}
-              className="bg-white/5 border-white/10 text-white" />
+            <Label>Data *</Label>
+            <Input type="date" value={form.data} onChange={(e) => setForm(p => ({ ...p, data: e.target.value }))} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Tipo</Label>
+            <Label>Tipo</Label>
             <Select value={form.tipo} onValueChange={(v: any) => setForm(p => ({ ...p, tipo: v }))}>
-              <SelectTrigger className="bg-white/5 border-white/10 text-white">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
+              <SelectContent>
                 {[
                   ["distribuicao","Distribuição"],["citacao","Citação"],["contestacao","Contestação"],
                   ["audiencia","Audiência"],["sentenca","Sentença"],["recurso","Recurso"],
                   ["despacho","Despacho"],["decisao","Decisão"],["peticao","Petição"],
                   ["transito_julgado","Trânsito em Julgado"],["execucao","Execução"],["outro","Outro"],
                 ].map(([v, l]) => (
-                  <SelectItem key={v} value={v} className="text-white hover:bg-white/10">{l}</SelectItem>
+                  <SelectItem key={v} value={v}>{l}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Descrição *</Label>
+            <Label>Descrição *</Label>
             <Textarea value={form.descricao} onChange={(e) => setForm(p => ({ ...p, descricao: e.target.value }))}
               placeholder="Descreva a movimentação..." rows={3}
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 resize-none" />
+              className="resize-none" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} className="text-white/60 hover:text-white">Cancelar</Button>
-          <Button onClick={handleSalvar} disabled={addMov.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSalvar} disabled={addMov.isPending}>
             {addMov.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
             Adicionar
           </Button>
@@ -434,46 +428,46 @@ function ModalParte({ processoId, open, onClose, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#1a1f2e] border-white/10 text-white max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">Adicionar Parte</DialogTitle>
+          <DialogTitle>Adicionar Parte</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Tipo *</Label>
+              <Label>Tipo *</Label>
               <Select value={form.tipo} onValueChange={(v: any) => setForm(p => ({ ...p, tipo: v }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
-                  <SelectItem value="autor" className="text-white hover:bg-white/10">Autor</SelectItem>
-                  <SelectItem value="reu" className="text-white hover:bg-white/10">Réu</SelectItem>
-                  <SelectItem value="terceiro" className="text-white hover:bg-white/10">Terceiro</SelectItem>
-                  <SelectItem value="outro" className="text-white hover:bg-white/10">Outro</SelectItem>
+                <SelectContent>
+                  <SelectItem value="autor">Autor</SelectItem>
+                  <SelectItem value="reu">Réu</SelectItem>
+                  <SelectItem value="terceiro">Terceiro</SelectItem>
+                  <SelectItem value="outro">Outro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">CPF/CNPJ</Label>
+              <Label>CPF/CNPJ</Label>
               <Input value={form.cpfCnpj} onChange={(e) => setForm(p => ({ ...p, cpfCnpj: e.target.value }))}
-                placeholder="000.000.000-00" className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
+                placeholder="000.000.000-00" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Nome *</Label>
+            <Label>Nome *</Label>
             <Input value={form.nome} onChange={(e) => setForm(p => ({ ...p, nome: e.target.value }))}
-              placeholder="Nome completo" className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
+              placeholder="Nome completo" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Representante / Advogado</Label>
+            <Label>Representante / Advogado</Label>
             <Input value={form.representante} onChange={(e) => setForm(p => ({ ...p, representante: e.target.value }))}
-              placeholder="Nome do representante" className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
+              placeholder="Nome do representante" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} className="text-white/60 hover:text-white">Cancelar</Button>
-          <Button onClick={handleSalvar} disabled={addParte.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSalvar} disabled={addParte.isPending}>
             {addParte.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
             Adicionar
           </Button>
@@ -517,54 +511,53 @@ function ModalPrazo({ processoId, open, onClose, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#1a1f2e] border-white/10 text-white max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">Novo Prazo</DialogTitle>
+          <DialogTitle>Novo Prazo</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label className="text-white/80">Título *</Label>
+            <Label>Título *</Label>
             <Input value={form.titulo} onChange={(e) => setForm(p => ({ ...p, titulo: e.target.value }))}
-              placeholder="Ex: Prazo para contestação" className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
+              placeholder="Ex: Prazo para contestação" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Tipo</Label>
+              <Label>Tipo</Label>
               <Select value={form.tipo} onValueChange={(v: any) => setForm(p => ({ ...p, tipo: v }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
+                <SelectContent>
                   {[
                     ["processual","Processual"],["audiencia","Audiência"],["recurso","Recurso"],
                     ["contratual","Contratual"],["administrativo","Administrativo"],
                     ["interno","Interno"],["outro","Outro"],
                   ].map(([v, l]) => (
-                    <SelectItem key={v} value={v} className="text-white hover:bg-white/10">{l}</SelectItem>
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Data Limite *</Label>
-              <Input type="date" value={form.dataLimite} onChange={(e) => setForm(p => ({ ...p, dataLimite: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white" />
+              <Label>Data Limite *</Label>
+              <Input type="date" value={form.dataLimite} onChange={(e) => setForm(p => ({ ...p, dataLimite: e.target.value }))} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Responsável</Label>
+            <Label>Responsável</Label>
             <Input value={form.responsavelNome} onChange={(e) => setForm(p => ({ ...p, responsavelNome: e.target.value }))}
-              placeholder="Nome do responsável" className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
+              placeholder="Nome do responsável" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Observações</Label>
+            <Label>Observações</Label>
             <Textarea value={form.observacoes} onChange={(e) => setForm(p => ({ ...p, observacoes: e.target.value }))}
-              rows={2} className="bg-white/5 border-white/10 text-white placeholder:text-white/30 resize-none" />
+              rows={2} className="resize-none" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} className="text-white/60 hover:text-white">Cancelar</Button>
-          <Button onClick={handleSalvar} disabled={createPrazo.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSalvar} disabled={createPrazo.isPending}>
             {createPrazo.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
             Criar Prazo
           </Button>
@@ -608,62 +601,61 @@ function ModalFinanceiro({ processoId, open, onClose, onSuccess }: {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#1a1f2e] border-white/10 text-white max-w-md">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-white">Novo Lançamento Financeiro</DialogTitle>
+          <DialogTitle>Novo Lançamento Financeiro</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Tipo *</Label>
+              <Label>Tipo *</Label>
               <Select value={form.tipo} onValueChange={(v: any) => setForm(p => ({ ...p, tipo: v }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
+                <SelectContent>
                   {[
                     ["custas","Custas"],["honorarios","Honorários"],["despesas","Despesas"],
                     ["deposito","Depósito"],["condenacao","Condenação"],["reembolso","Reembolso"],["outro","Outro"],
                   ].map(([v, l]) => (
-                    <SelectItem key={v} value={v} className="text-white hover:bg-white/10">{l}</SelectItem>
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Data *</Label>
-              <Input type="date" value={form.data} onChange={(e) => setForm(p => ({ ...p, data: e.target.value }))}
-                className="bg-white/5 border-white/10 text-white" />
+              <Label>Data *</Label>
+              <Input type="date" value={form.data} onChange={(e) => setForm(p => ({ ...p, data: e.target.value }))} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-white/80">Descrição *</Label>
+            <Label>Descrição *</Label>
             <Input value={form.descricao} onChange={(e) => setForm(p => ({ ...p, descricao: e.target.value }))}
-              placeholder="Ex: Custas de distribuição" className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
+              placeholder="Ex: Custas de distribuição" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-white/80">Valor (R$) *</Label>
+              <Label>Valor (R$) *</Label>
               <Input value={form.valor} onChange={(e) => setForm(p => ({ ...p, valor: e.target.value }))}
-                placeholder="0,00" className="bg-white/5 border-white/10 text-white placeholder:text-white/30" />
+                placeholder="0,00" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-white/80">Status</Label>
+              <Label>Status</Label>
               <Select value={form.pago ? "pago" : "pendente"} onValueChange={(v) => setForm(p => ({ ...p, pago: v === "pago" }))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#1a1f2e] border-white/10 text-white">
-                  <SelectItem value="pendente" className="text-white hover:bg-white/10">Pendente</SelectItem>
-                  <SelectItem value="pago" className="text-white hover:bg-white/10">Pago</SelectItem>
+                <SelectContent>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="pago">Pago</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} className="text-white/60 hover:text-white">Cancelar</Button>
-          <Button onClick={handleSalvar} disabled={addFin.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSalvar} disabled={addFin.isPending}>
             {addFin.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
             Adicionar
           </Button>
@@ -678,7 +670,6 @@ function ModalFinanceiro({ processoId, open, onClose, onSuccess }: {
 export default function ProcessoDetalhes() {
   const [, params] = useRoute("/admin/juridico/processos/:id");
   const processoId = parseInt(params?.id ?? "0");
-
 
   const [modalMov, setModalMov] = useState(false);
   const [modalParte, setModalParte] = useState(false);
@@ -714,19 +705,19 @@ export default function ProcessoDetalhes() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0f1117] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!processo) {
     return (
-      <div className="min-h-screen bg-[#0f1117] flex flex-col items-center justify-center text-white">
-        <Scale className="w-12 h-12 text-white/20 mb-4" />
-        <p className="text-white/50">Processo não encontrado</p>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-foreground">
+        <Scale className="w-12 h-12 text-muted-foreground mb-4" />
+        <p className="text-muted-foreground">Processo não encontrado</p>
         <Link href="/admin/juridico/processos">
-          <Button variant="ghost" className="mt-4 text-white/60 hover:text-white">
+          <Button variant="ghost" className="mt-4">
             <ArrowLeft className="w-4 h-4 mr-1.5" />
             Voltar
           </Button>
@@ -738,31 +729,31 @@ export default function ProcessoDetalhes() {
   const statusCfg = STATUS_CONFIG[processo.status] ?? STATUS_CONFIG.ativo;
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white p-6">
+    <div className="min-h-screen bg-background text-foreground p-6">
       {/* Header */}
       <div className="flex items-start justify-between mb-6 gap-4">
         <div className="flex items-start gap-3">
           <Link href="/admin/juridico/processos">
-            <Button variant="ghost" size="sm" className="text-white/60 hover:text-white mt-0.5">
+            <Button variant="ghost" size="sm" className="mt-0.5">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-mono text-lg font-bold text-blue-300">
+              <h1 className="font-mono text-lg font-bold text-primary">
                 {formatarCNJ(processo.numeroCNJ)}
               </h1>
               <Badge className={`text-xs border ${statusCfg.color}`}>{statusCfg.label}</Badge>
-              <Badge className="text-xs bg-blue-500/15 text-blue-400">
+              <Badge className="text-xs bg-blue-500/15 text-blue-600 dark:text-blue-400">
                 {TIPO_LABELS[processo.tipo]}
               </Badge>
               {processo.datajudSincronizadoEm && (
-                <Badge className="text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                <Badge className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
                   DataJud ✓
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-white/50 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               {processo.tribunal} {processo.comarca ? `— ${processo.comarca}` : ""}
               {processo.vara ? ` — ${processo.vara}` : ""}
             </p>
@@ -771,11 +762,10 @@ export default function ProcessoDetalhes() {
         <div className="flex items-center gap-2">
           {processo.tribunalAlias && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={handleSincronizar}
               disabled={sincronizarDatajud.isPending}
-              className="text-white/60 hover:text-white"
               title="Sincronizar movimentações do DataJud"
             >
               {sincronizarDatajud.isPending
@@ -784,7 +774,7 @@ export default function ProcessoDetalhes() {
               <span className="ml-1.5 text-xs">Sincronizar DataJud</span>
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={() => refetch()} className="text-white/60 hover:text-white">
+          <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
         </div>
@@ -792,52 +782,52 @@ export default function ProcessoDetalhes() {
 
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card className="bg-[#1a1f2e] border-white/10">
+        <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-white/50 uppercase tracking-wide mb-1">Fase</p>
-            <p className="text-sm font-semibold text-white">{FASE_LABELS[processo.faseProcessual]}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Fase</p>
+            <p className="text-sm font-semibold text-foreground">{FASE_LABELS[processo.faseProcessual]}</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#1a1f2e] border-white/10">
+        <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-white/50 uppercase tracking-wide mb-1">Valor da Causa</p>
-            <p className="text-sm font-semibold text-white">{formatarMoeda(processo.valorCausa)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Valor da Causa</p>
+            <p className="text-sm font-semibold text-foreground">{formatarMoeda(processo.valorCausa)}</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#1a1f2e] border-white/10">
+        <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-white/50 uppercase tracking-wide mb-1">A Pagar</p>
-            <p className="text-sm font-semibold text-red-400">{formatarMoeda(processo.resumoFinanceiro?.totalPendente)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">A Pagar</p>
+            <p className="text-sm font-semibold text-red-600 dark:text-red-400">{formatarMoeda(processo.resumoFinanceiro?.totalPendente)}</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#1a1f2e] border-white/10">
+        <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-white/50 uppercase tracking-wide mb-1">Pago</p>
-            <p className="text-sm font-semibold text-emerald-400">{formatarMoeda(processo.resumoFinanceiro?.totalPago)}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Pago</p>
+            <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatarMoeda(processo.resumoFinanceiro?.totalPago)}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Abas */}
       <Tabs defaultValue="timeline">
-        <TabsList className="bg-white/5 border border-white/10 mb-4">
-          <TabsTrigger value="timeline" className="data-[state=active]:bg-blue-600 text-white/60 data-[state=active]:text-white">
+        <TabsList className="mb-4">
+          <TabsTrigger value="timeline">
             <Activity className="w-4 h-4 mr-1.5" />
             Timeline ({processo.movimentacoes?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="partes" className="data-[state=active]:bg-blue-600 text-white/60 data-[state=active]:text-white">
+          <TabsTrigger value="partes">
             <Users className="w-4 h-4 mr-1.5" />
             Partes ({processo.partes?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="prazos" className="data-[state=active]:bg-blue-600 text-white/60 data-[state=active]:text-white">
+          <TabsTrigger value="prazos">
             <Timer className="w-4 h-4 mr-1.5" />
             Prazos ({prazos?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="financeiro" className="data-[state=active]:bg-blue-600 text-white/60 data-[state=active]:text-white">
+          <TabsTrigger value="financeiro">
             <DollarSign className="w-4 h-4 mr-1.5" />
             Financeiro ({processo.financeiro?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="info" className="data-[state=active]:bg-blue-600 text-white/60 data-[state=active]:text-white">
+          <TabsTrigger value="info">
             <FileText className="w-4 h-4 mr-1.5" />
             Informações
           </TabsTrigger>
@@ -856,15 +846,15 @@ export default function ProcessoDetalhes() {
         {/* ─── Partes ─────────────────────────────────────────────────────────── */}
         <TabsContent value="partes">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-medium text-white/70">Partes do Processo</h3>
-            <Button size="sm" onClick={() => setModalParte(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <h3 className="text-sm font-medium text-muted-foreground">Partes do Processo</h3>
+            <Button size="sm" onClick={() => setModalParte(true)}>
               <Plus className="w-4 h-4 mr-1" />
               Adicionar Parte
             </Button>
           </div>
 
           {processo.partes?.length === 0 ? (
-            <div className="text-center py-10 text-white/30">
+            <div className="text-center py-10 text-muted-foreground">
               <Users className="w-8 h-8 mx-auto mb-2" />
               <p>Nenhuma parte cadastrada</p>
             </div>
@@ -873,40 +863,40 @@ export default function ProcessoDetalhes() {
               {processo.partes?.map((parte) => {
                 const advs = parseAdvogados((parte as any).advogadosJson);
                 return (
-                  <Card key={parte.id} className="bg-[#1a1f2e] border-white/10 group">
+                  <Card key={parte.id} className="group">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
                           {/* Tipo + Nome */}
                           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                             <Badge className={`text-xs ${
-                              parte.tipo === "autor" ? "bg-blue-500/15 text-blue-400" :
-                              parte.tipo === "reu" ? "bg-red-500/15 text-red-400" :
-                              "bg-slate-500/15 text-slate-400"
+                              parte.tipo === "autor" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" :
+                              parte.tipo === "reu" ? "bg-red-500/15 text-red-600 dark:text-red-400" :
+                              "bg-muted text-muted-foreground"
                             }`}>
                               {parte.tipo === "autor" ? "Autor" : parte.tipo === "reu" ? "Réu" : parte.tipo === "terceiro" ? "Terceiro" : "Outro"}
                             </Badge>
-                            <p className="text-sm font-semibold text-white">{parte.nome}</p>
+                            <p className="text-sm font-semibold text-foreground">{parte.nome}</p>
                           </div>
                           {/* CPF/CNPJ */}
                           {parte.cpfCnpj && (
-                            <p className="text-xs text-white/40 mb-1">
-                              CPF/CNPJ: <span className="font-mono text-white/60">{parte.cpfCnpj}</span>
+                            <p className="text-xs text-muted-foreground mb-1">
+                              CPF/CNPJ: <span className="font-mono text-foreground">{parte.cpfCnpj}</span>
                             </p>
                           )}
                           {/* Representante */}
                           {parte.representante && (
-                            <p className="text-xs text-white/40 mb-1">Repr.: {parte.representante}</p>
+                            <p className="text-xs text-muted-foreground mb-1">Repr.: {parte.representante}</p>
                           )}
                           {/* Advogados com OAB destacada */}
                           {advs.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-white/8 space-y-1">
+                            <div className="mt-2 pt-2 border-t space-y-1">
                               {advs.map((adv, i) => (
                                 <div key={i} className="flex items-center gap-2 flex-wrap">
-                                  <User className="w-3 h-3 text-white/30 shrink-0" />
-                                  <span className="text-xs text-white/70">{adv.nome}</span>
+                                  <User className="w-3 h-3 text-muted-foreground shrink-0" />
+                                  <span className="text-xs text-foreground">{adv.nome}</span>
                                   {adv.oab && (
-                                    <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold">
+                                    <span className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold">
                                       OAB {adv.oab}
                                     </span>
                                   )}
@@ -922,7 +912,7 @@ export default function ProcessoDetalhes() {
                             await removeParte.mutateAsync({ id: parte.id });
                             refetch();
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0 shrink-0"
+                          className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0 shrink-0"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -938,15 +928,15 @@ export default function ProcessoDetalhes() {
         {/* ─── Prazos ─────────────────────────────────────────────────────────── */}
         <TabsContent value="prazos">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-medium text-white/70">Prazos Vinculados ao Processo</h3>
-            <Button size="sm" onClick={() => setModalPrazo(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <h3 className="text-sm font-medium text-muted-foreground">Prazos Vinculados ao Processo</h3>
+            <Button size="sm" onClick={() => setModalPrazo(true)}>
               <Plus className="w-4 h-4 mr-1" />
               Novo Prazo
             </Button>
           </div>
 
           {!prazos || prazos.length === 0 ? (
-            <div className="text-center py-10 text-white/30">
+            <div className="text-center py-10 text-muted-foreground">
               <Timer className="w-8 h-8 mx-auto mb-2" />
               <p>Nenhum prazo cadastrado para este processo</p>
             </div>
@@ -956,28 +946,28 @@ export default function ProcessoDetalhes() {
                 const urgCfg = prazo.urgencia ? URGENCIA_CONFIG[prazo.urgencia] : null;
                 return (
                   <Card key={prazo.id} className={`border ${
-                    prazo.urgencia === "atrasado" ? "bg-red-500/5 border-red-500/20" :
-                    prazo.urgencia === "hoje" ? "bg-orange-500/5 border-orange-500/20" :
-                    "bg-[#1a1f2e] border-white/10"
+                    prazo.urgencia === "atrasado" ? "border-red-500/30 bg-red-500/5" :
+                    prazo.urgencia === "hoje" ? "border-orange-500/30 bg-orange-500/5" :
+                    ""
                   } group`}>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <p className="text-sm font-medium text-white">{prazo.titulo}</p>
+                            <p className="text-sm font-medium text-foreground">{prazo.titulo}</p>
                             {urgCfg && prazo.status === "pendente" && (
                               <Badge className={`text-xs border ${urgCfg.bg} ${urgCfg.color}`}>
                                 {urgCfg.label}
                               </Badge>
                             )}
                             {prazo.status === "concluido" && (
-                              <Badge className="text-xs bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                              <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
                                 Concluído
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-4 text-xs text-white/40">
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
                               {new Date(prazo.dataLimite).toLocaleDateString("pt-BR")}
@@ -999,7 +989,7 @@ export default function ProcessoDetalhes() {
                                 await concluirPrazo.mutateAsync({ id: prazo.id });
                                 refetchPrazos();
                               }}
-                              className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 h-7 px-2 text-xs"
+                              className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 h-7 px-2 text-xs"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                               Concluir
@@ -1012,7 +1002,7 @@ export default function ProcessoDetalhes() {
                               await deletePrazo.mutateAsync({ id: prazo.id });
                               refetchPrazos();
                             }}
-                            className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 w-7 p-0"
+                            className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -1029,37 +1019,37 @@ export default function ProcessoDetalhes() {
         {/* ─── Financeiro ─────────────────────────────────────────────────────── */}
         <TabsContent value="financeiro">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-medium text-white/70">Lançamentos Financeiros</h3>
-            <Button size="sm" onClick={() => setModalFin(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <h3 className="text-sm font-medium text-muted-foreground">Lançamentos Financeiros</h3>
+            <Button size="sm" onClick={() => setModalFin(true)}>
               <Plus className="w-4 h-4 mr-1" />
               Novo Lançamento
             </Button>
           </div>
 
           {processo.financeiro?.length === 0 ? (
-            <div className="text-center py-10 text-white/30">
+            <div className="text-center py-10 text-muted-foreground">
               <DollarSign className="w-8 h-8 mx-auto mb-2" />
               <p>Nenhum lançamento financeiro</p>
             </div>
           ) : (
             <div className="space-y-2">
               {processo.financeiro?.map((item) => (
-                <Card key={item.id} className="bg-[#1a1f2e] border-white/10 group">
+                <Card key={item.id} className="group">
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-white">{item.descricao}</span>
-                          <Badge className={`text-xs ${item.pago ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+                          <span className="text-sm text-foreground">{item.descricao}</span>
+                          <Badge className={`text-xs ${item.pago ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
                             {item.pago ? "Pago" : "Pendente"}
                           </Badge>
                         </div>
-                        <p className="text-xs text-white/40 mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {item.tipo.charAt(0).toUpperCase() + item.tipo.slice(1)} — {new Date(item.data).toLocaleDateString("pt-BR")}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${item.pago ? "text-emerald-400" : "text-amber-400"}`}>
+                        <span className={`text-sm font-semibold ${item.pago ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
                           {formatarMoeda(item.valor)}
                         </span>
                         {!item.pago && (
@@ -1070,10 +1060,10 @@ export default function ProcessoDetalhes() {
                               await updateFin.mutateAsync({ id: item.id, pago: true, dataPagamento: new Date() });
                               refetch();
                             }}
-                            className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 h-7 px-2 text-xs"
+                            className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 h-7 px-2 text-xs"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                            Marcar pago
+                            Marcar Pago
                           </Button>
                         )}
                       </div>
@@ -1088,9 +1078,9 @@ export default function ProcessoDetalhes() {
         {/* ─── Informações ────────────────────────────────────────────────────── */}
         <TabsContent value="info">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-[#1a1f2e] border-white/10">
+            <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-white/70">Dados do Processo</CardTitle>
+                <CardTitle className="text-sm text-muted-foreground">Dados do Processo</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
@@ -1106,16 +1096,16 @@ export default function ProcessoDetalhes() {
                   ["Última Movimentação", processo.dataUltimaMovimentacao ? new Date(processo.dataUltimaMovimentacao).toLocaleDateString("pt-BR") : null],
                 ].filter(([, v]) => v).map(([k, v]) => (
                   <div key={k as string} className="flex justify-between gap-2">
-                    <span className="text-xs text-white/40">{k}</span>
-                    <span className="text-xs text-white text-right">{v}</span>
+                    <span className="text-xs text-muted-foreground">{k}</span>
+                    <span className="text-xs text-foreground text-right">{v}</span>
                   </div>
                 ))}
               </CardContent>
             </Card>
 
-            <Card className="bg-[#1a1f2e] border-white/10">
+            <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm text-white/70">Responsáveis e Valores</CardTitle>
+                <CardTitle className="text-sm text-muted-foreground">Responsáveis e Valores</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
@@ -1128,14 +1118,14 @@ export default function ProcessoDetalhes() {
                   ["Cadastrado em", new Date(processo.createdAt).toLocaleDateString("pt-BR")],
                 ].filter(([, v]) => v).map(([k, v]) => (
                   <div key={k as string} className="flex justify-between gap-2">
-                    <span className="text-xs text-white/40">{k}</span>
-                    <span className="text-xs text-white text-right">{v}</span>
+                    <span className="text-xs text-muted-foreground">{k}</span>
+                    <span className="text-xs text-foreground text-right">{v}</span>
                   </div>
                 ))}
                 {processo.observacoes && (
-                  <div className="pt-2 border-t border-white/10">
-                    <p className="text-xs text-white/40 mb-1">Observações</p>
-                    <p className="text-xs text-white/70">{processo.observacoes}</p>
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground mb-1">Observações</p>
+                    <p className="text-xs text-foreground">{processo.observacoes}</p>
                   </div>
                 )}
               </CardContent>
