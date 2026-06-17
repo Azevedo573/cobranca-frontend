@@ -166,7 +166,7 @@ export default function CentralIntimacoes() {
             <p className="text-sm text-muted-foreground">Avisos e intimações do TJRJ via MNI</p>
           </div>
           {(countData ?? 0) > 0 && (
-            <Badge className="bg-red-500 text-white text-xs px-2 py-0.5">
+            <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30 text-xs px-2 py-0.5">
               {countData} pendente{(countData ?? 0) > 1 ? "s" : ""}
             </Badge>
           )}
@@ -194,7 +194,7 @@ export default function CentralIntimacoes() {
             <TabsTrigger key={s} value={s} className="gap-1.5">
               {STATUS_LABELS[s]}
               {s === "pendente" && (countData ?? 0) > 0 && (
-                <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                <span className="bg-red-500 text-white dark:text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
                   {countData}
                 </span>
               )}
