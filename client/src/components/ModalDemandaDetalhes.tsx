@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { PrioridadeBadge, PRIORIDADE_CONFIG } from "@/components/PrioridadeBadge";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -22,8 +23,15 @@ import {
   Clock, AlertTriangle, User, Building2, MessageSquare, Mail, Phone,
   Globe, Users, FileText, Calendar, Check, X, Send, Tag, Kanban, Trash2,
   Scale, ExternalLink, Loader2, Paperclip, Upload, Image, File, FileImage,
-  Download, Eye,
+  Download, Eye, Bold, Italic, List, ListOrdered, Undo, Redo, Type,
+  CheckCircle2, ArrowRight, XCircle,
 } from "lucide-react";
+
+// ─── TipTap ───────────────────────────────────────────────────────────────────
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
+import Underline from "@tiptap/extension-underline";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,16 +54,16 @@ const CANAL_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
   manual:           { label: "Manual",        icon: <FileText className="h-4 w-4" /> },
 };
 
-const TIMELINE_TIPO_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  criacao:       { label: "Criação",       color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",   icon: <FileText className="h-3.5 w-3.5" /> },
-  atribuicao:    { label: "Atribuição",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",       icon: <User className="h-3.5 w-3.5" /> },
-  movimentacao:  { label: "Movimentação",  color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", icon: <Kanban className="h-3.5 w-3.5" /> },
-  comentario:    { label: "Comentário",    color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",      icon: <MessageSquare className="h-3.5 w-3.5" /> },
-  email:         { label: "E-mail",        color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: <Mail className="h-3.5 w-3.5" /> },
-  whatsapp:      { label: "WhatsApp",      color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", icon: <MessageSquare className="h-3.5 w-3.5" /> },
-  conclusao:     { label: "Conclusão",     color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",   icon: <Check className="h-3.5 w-3.5" /> },
-  cancelamento:  { label: "Cancelamento",  color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",           icon: <X className="h-3.5 w-3.5" /> },
-  outro:         { label: "Outro",         color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",      icon: <Tag className="h-3.5 w-3.5" /> },
+const TIMELINE_TIPO_CONFIG: Record<string, { label: string; bgColor: string; textColor: string; borderColor: string; icon: React.ReactNode }> = {
+  criacao:       { label: "Criação",       bgColor: "bg-green-100 dark:bg-green-900/30",   textColor: "text-green-700 dark:text-green-400",   borderColor: "border-green-300 dark:border-green-700",   icon: <FileText className="h-3.5 w-3.5" /> },
+  atribuicao:    { label: "Atribuição",    bgColor: "bg-blue-100 dark:bg-blue-900/30",     textColor: "text-blue-700 dark:text-blue-400",     borderColor: "border-blue-300 dark:border-blue-700",     icon: <User className="h-3.5 w-3.5" /> },
+  movimentacao:  { label: "Movimentação",  bgColor: "bg-purple-100 dark:bg-purple-900/30", textColor: "text-purple-700 dark:text-purple-400", borderColor: "border-purple-300 dark:border-purple-700", icon: <ArrowRight className="h-3.5 w-3.5" /> },
+  comentario:    { label: "Comentário",    bgColor: "bg-slate-100 dark:bg-slate-800",      textColor: "text-slate-700 dark:text-slate-300",   borderColor: "border-slate-300 dark:border-slate-600",   icon: <MessageSquare className="h-3.5 w-3.5" /> },
+  email:         { label: "E-mail",        bgColor: "bg-yellow-100 dark:bg-yellow-900/30", textColor: "text-yellow-700 dark:text-yellow-400", borderColor: "border-yellow-300 dark:border-yellow-700", icon: <Mail className="h-3.5 w-3.5" /> },
+  whatsapp:      { label: "WhatsApp",      bgColor: "bg-emerald-100 dark:bg-emerald-900/30", textColor: "text-emerald-700 dark:text-emerald-400", borderColor: "border-emerald-300 dark:border-emerald-700", icon: <MessageSquare className="h-3.5 w-3.5" /> },
+  conclusao:     { label: "Conclusão",     bgColor: "bg-green-100 dark:bg-green-900/30",   textColor: "text-green-700 dark:text-green-400",   borderColor: "border-green-300 dark:border-green-700",   icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  cancelamento:  { label: "Cancelamento",  bgColor: "bg-red-100 dark:bg-red-900/30",       textColor: "text-red-700 dark:text-red-400",       borderColor: "border-red-300 dark:border-red-700",       icon: <XCircle className="h-3.5 w-3.5" /> },
+  outro:         { label: "Outro",         bgColor: "bg-slate-100 dark:bg-slate-800",      textColor: "text-slate-700 dark:text-slate-300",   borderColor: "border-slate-300 dark:border-slate-600",   icon: <Tag className="h-3.5 w-3.5" /> },
 };
 
 function formatDateTime(d: string | Date | null | undefined) {
@@ -81,7 +89,184 @@ function getFileIcon(mimeType: string | null | undefined) {
   return <File className="h-5 w-5" />;
 }
 
-// ─── Campo Editável ───────────────────────────────────────────────────────────
+// ─── Editor de Texto Rico (TipTap) ───────────────────────────────────────────
+
+function EditorDescricao({ value, onSave }: { value: string; onSave: (html: string) => void }) {
+  const [editing, setEditing] = useState(false);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      Placeholder.configure({ placeholder: "Clique para adicionar uma descrição..." }),
+    ],
+    content: value || "",
+    editable: editing,
+    onUpdate: () => {},
+  });
+
+  // Atualizar conteúdo quando value mudar externamente
+  useEffect(() => {
+    if (editor && !editing) {
+      editor.commands.setContent(value || "");
+    }
+  }, [value, editing, editor]);
+
+  // Habilitar/desabilitar edição
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(editing);
+    }
+  }, [editing, editor]);
+
+  const handleSave = () => {
+    if (!editor) return;
+    onSave(editor.getHTML());
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    if (editor) editor.commands.setContent(value || "");
+    setEditing(false);
+  };
+
+  if (!editor) return null;
+
+  return (
+    <div className="space-y-2">
+      {/* Toolbar — visível apenas no modo edição */}
+      {editing && (
+        <div className="flex items-center gap-0.5 p-1 rounded-lg border bg-muted/50 flex-wrap">
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            className={`p-1.5 rounded hover:bg-background transition-colors ${editor.isActive("bold") ? "bg-background shadow-sm text-primary" : "text-muted-foreground"}`}
+            title="Negrito (Ctrl+B)"
+          >
+            <Bold className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            className={`p-1.5 rounded hover:bg-background transition-colors ${editor.isActive("italic") ? "bg-background shadow-sm text-primary" : "text-muted-foreground"}`}
+            title="Itálico (Ctrl+I)"
+          >
+            <Italic className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            className={`p-1.5 rounded hover:bg-background transition-colors ${editor.isActive("underline") ? "bg-background shadow-sm text-primary" : "text-muted-foreground"}`}
+            title="Sublinhado (Ctrl+U)"
+          >
+            <span className="text-xs font-medium underline leading-none px-0.5">U</span>
+          </button>
+
+          <div className="w-px h-4 bg-border mx-0.5" />
+
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            className={`p-1.5 rounded hover:bg-background transition-colors ${editor.isActive("bulletList") ? "bg-background shadow-sm text-primary" : "text-muted-foreground"}`}
+            title="Lista com marcadores"
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+            className={`p-1.5 rounded hover:bg-background transition-colors ${editor.isActive("orderedList") ? "bg-background shadow-sm text-primary" : "text-muted-foreground"}`}
+            title="Lista numerada"
+          >
+            <ListOrdered className="h-3.5 w-3.5" />
+          </button>
+
+          <div className="w-px h-4 bg-border mx-0.5" />
+
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+            className={`p-1.5 rounded hover:bg-background transition-colors ${editor.isActive("heading", { level: 3 }) ? "bg-background shadow-sm text-primary" : "text-muted-foreground"}`}
+            title="Título"
+          >
+            <Type className="h-3.5 w-3.5" />
+          </button>
+
+          <div className="w-px h-4 bg-border mx-0.5" />
+
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().undo().run()}
+            disabled={!editor.can().undo()}
+            className="p-1.5 rounded hover:bg-background transition-colors text-muted-foreground disabled:opacity-30"
+            title="Desfazer (Ctrl+Z)"
+          >
+            <Undo className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().redo().run()}
+            disabled={!editor.can().redo()}
+            className="p-1.5 rounded hover:bg-background transition-colors text-muted-foreground disabled:opacity-30"
+            title="Refazer (Ctrl+Y)"
+          >
+            <Redo className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Área de edição */}
+      <div
+        className={`
+          rounded-lg transition-all
+          ${editing
+            ? "border-2 border-primary/50 bg-background p-3 min-h-[120px] shadow-sm"
+            : "border border-transparent hover:border-muted-foreground/20 hover:bg-muted/30 p-2 cursor-pointer rounded-md group"
+          }
+        `}
+        onClick={() => !editing && setEditing(true)}
+      >
+        <EditorContent
+          editor={editor}
+          className={`
+            prose prose-sm dark:prose-invert max-w-none focus:outline-none
+            [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[80px]
+            [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]
+            [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground
+            [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none
+            [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left
+            [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0
+            [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5
+            [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5
+            [&_.ProseMirror_h3]:font-semibold [&_.ProseMirror_h3]:text-base [&_.ProseMirror_h3]:mt-2
+          `}
+        />
+        {!editing && !value && (
+          <p className="text-sm text-muted-foreground italic">Clique para adicionar uma descrição...</p>
+        )}
+        {!editing && (
+          <p className="text-xs text-muted-foreground/50 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            Clique para editar
+          </p>
+        )}
+      </div>
+
+      {/* Botões de ação — apenas no modo edição */}
+      {editing && (
+        <div className="flex gap-1.5">
+          <Button size="sm" className="h-7 px-3 text-xs" onClick={handleSave}>
+            <Check className="h-3 w-3 mr-1" />Salvar
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 px-3 text-xs" onClick={handleCancel}>
+            <X className="h-3 w-3 mr-1" />Cancelar
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Campo Editável simples ───────────────────────────────────────────────────
 
 function CampoEditavel({ label, value, onSave, type = "text" }: {
   label: string;
@@ -102,19 +287,9 @@ function CampoEditavel({ label, value, onSave, type = "text" }: {
       <div className="space-y-1">
         {label && <Label className="text-xs text-muted-foreground">{label}</Label>}
         {type === "textarea" ? (
-          <Textarea
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            rows={4}
-            autoFocus
-          />
+          <Textarea value={draft} onChange={e => setDraft(e.target.value)} rows={4} autoFocus />
         ) : (
-          <Input
-            type={type}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            autoFocus
-          />
+          <Input type={type} value={draft} onChange={e => setDraft(e.target.value)} autoFocus />
         )}
         <div className="flex gap-1">
           <Button size="sm" className="h-7 px-2 text-xs" onClick={handleSave}>
@@ -141,27 +316,100 @@ function CampoEditavel({ label, value, onSave, type = "text" }: {
   );
 }
 
-// ─── Aba Anexos ───────────────────────────────────────────────────────────────
+// ─── Timeline Visual ──────────────────────────────────────────────────────────
+
+function TimelineVisual({ timeline }: { timeline: any[] }) {
+  if (timeline.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Clock className="h-10 w-10 mx-auto mb-3 opacity-25" />
+        <p className="text-sm font-medium">Nenhum evento registrado ainda</p>
+        <p className="text-xs mt-1">As atividades aparecerão aqui conforme forem registradas</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative pl-8">
+      {/* Linha vertical da spine */}
+      <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-border" />
+
+      <div className="space-y-1">
+        {timeline.map((evento: any, idx: number) => {
+          const tc = TIMELINE_TIPO_CONFIG[evento.tipo] ?? TIMELINE_TIPO_CONFIG.outro;
+          const isLast = idx === timeline.length - 1;
+
+          return (
+            <div key={evento.id} className="relative">
+              {/* Nó circular na spine */}
+              <div
+                className={`
+                  absolute -left-8 top-3 w-7 h-7 rounded-full border-2 flex items-center justify-center z-10
+                  ${tc.bgColor} ${tc.textColor} ${tc.borderColor}
+                `}
+              >
+                {tc.icon}
+              </div>
+
+              {/* Card do evento */}
+              <div className={`
+                ml-2 rounded-lg border p-3 mb-3 transition-colors
+                ${isLast ? "bg-muted/30" : "bg-card hover:bg-muted/20"}
+              `}>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${tc.bgColor} ${tc.textColor}`}>
+                      {tc.label}
+                    </span>
+                    {evento.usuarioNome && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        {evento.usuarioNome}
+                      </span>
+                    )}
+                  </div>
+                  <time className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
+                    {formatDateTime(evento.criadoEm)}
+                  </time>
+                </div>
+                {evento.descricao && (
+                  <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">
+                    {evento.descricao}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Aba Anexos com Barra de Progresso ───────────────────────────────────────
+
+interface UploadItem {
+  id: string;
+  name: string;
+  progress: number;
+  status: "uploading" | "done" | "error";
+  error?: string;
+}
 
 function AbaAnexos({ demandaId }: { demandaId: number }) {
   const utils = trpc.useUtils();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const { data: anexos = [], isLoading } = trpc.juridicoDemandas.getAnexos.useQuery({ demandaId });
 
   const uploadMutation = trpc.juridicoDemandas.uploadAnexoDemanda.useMutation({
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       utils.juridicoDemandas.getAnexos.invalidate({ demandaId });
-      toast.success("Anexo enviado com sucesso");
-      setUploading(false);
     },
-    onError: (e) => {
-      toast.error(`Erro ao enviar: ${e.message}`);
-      setUploading(false);
-    },
+    onError: () => {},
   });
 
   const deleteMutation = trpc.juridicoDemandas.deleteAnexoDemanda.useMutation({
@@ -173,24 +421,69 @@ function AbaAnexos({ demandaId }: { demandaId: number }) {
   });
 
   const processFile = useCallback(async (file: File) => {
-    const MAX_SIZE = 16 * 1024 * 1024; // 16MB
+    const MAX_SIZE = 16 * 1024 * 1024;
+    const itemId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     if (file.size > MAX_SIZE) {
-      toast.error("Arquivo muito grande. Máximo 16MB.");
+      toast.error(`"${file.name}" é muito grande. Máximo 16MB.`);
       return;
     }
-    setUploading(true);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(",")[1];
-      uploadMutation.mutate({
+
+    // Adicionar à fila com progresso 0
+    setUploadQueue(q => [...q, { id: itemId, name: file.name, progress: 0, status: "uploading" }]);
+
+    // Simular progresso animado enquanto lê o arquivo
+    const progressInterval = setInterval(() => {
+      setUploadQueue(q =>
+        q.map(item =>
+          item.id === itemId && item.progress < 85
+            ? { ...item, progress: item.progress + Math.random() * 15 }
+            : item
+        )
+      );
+    }, 200);
+
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      clearInterval(progressInterval);
+      setUploadQueue(q => q.map(item => item.id === itemId ? { ...item, progress: 90 } : item));
+
+      await uploadMutation.mutateAsync({
         demandaId,
         fileBase64: base64,
         fileName: file.name,
         mimeType: file.type || "application/octet-stream",
         tamanho: file.size,
       });
-    };
-    reader.readAsDataURL(file);
+
+      // Progresso 100% e notificação de sucesso
+      setUploadQueue(q => q.map(item => item.id === itemId ? { ...item, progress: 100, status: "done" } : item));
+      toast.success(`"${file.name}" enviado com sucesso!`, {
+        icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+        duration: 3000,
+      });
+
+      // Remover da fila após 2s
+      setTimeout(() => {
+        setUploadQueue(q => q.filter(item => item.id !== itemId));
+      }, 2000);
+
+    } catch (err: any) {
+      clearInterval(progressInterval);
+      setUploadQueue(q =>
+        q.map(item => item.id === itemId ? { ...item, progress: 100, status: "error", error: err?.message ?? "Erro ao enviar" } : item)
+      );
+      toast.error(`Erro ao enviar "${file.name}"`);
+      setTimeout(() => {
+        setUploadQueue(q => q.filter(item => item.id !== itemId));
+      }, 4000);
+    }
   }, [demandaId, uploadMutation]);
 
   const handleFiles = (files: FileList | null) => {
@@ -204,28 +497,23 @@ function AbaAnexos({ demandaId }: { demandaId: number }) {
     handleFiles(e.dataTransfer.files);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => setIsDragging(false);
+  const isUploading = uploadQueue.some(item => item.status === "uploading");
 
   return (
     <div className="p-6 space-y-5">
       {/* Zona de upload */}
       <div
         onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onClick={() => !uploading && fileInputRef.current?.click()}
+        onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onClick={() => !isUploading && fileInputRef.current?.click()}
         className={`
           relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
           ${isDragging
             ? "border-primary bg-primary/5 scale-[1.01]"
             : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30"
           }
-          ${uploading ? "pointer-events-none opacity-60" : ""}
+          ${isUploading ? "pointer-events-none" : ""}
         `}
       >
         <input
@@ -236,31 +524,59 @@ function AbaAnexos({ demandaId }: { demandaId: number }) {
           className="hidden"
           onChange={e => handleFiles(e.target.files)}
         />
-        {uploading ? (
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Enviando arquivo...</p>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <Upload className="h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm font-medium">Arraste arquivos aqui ou clique para selecionar</p>
-            <p className="text-xs text-muted-foreground">
-              Imagens, PDFs, documentos Word/Excel — máximo 16MB por arquivo
-            </p>
-          </div>
-        )}
+        <div className="flex flex-col items-center gap-2">
+          <Upload className={`h-8 w-8 ${isDragging ? "text-primary" : "text-muted-foreground/50"} transition-colors`} />
+          <p className="text-sm font-medium">
+            {isDragging ? "Solte os arquivos aqui" : "Arraste arquivos aqui ou clique para selecionar"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Imagens, PDFs, documentos Word/Excel — máximo 16MB por arquivo
+          </p>
+        </div>
       </div>
+
+      {/* Fila de uploads com barra de progresso */}
+      {uploadQueue.length > 0 && (
+        <div className="space-y-2">
+          {uploadQueue.map(item => (
+            <div key={item.id} className="rounded-lg border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {item.status === "uploading" && <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />}
+                  {item.status === "done" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />}
+                  {item.status === "error" && <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />}
+                  <span className="text-xs font-medium truncate">{item.name}</span>
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {item.status === "uploading" ? `${Math.round(item.progress)}%` :
+                   item.status === "done" ? "Concluído" : "Erro"}
+                </span>
+              </div>
+              <Progress
+                value={item.progress}
+                className={`h-1.5 ${
+                  item.status === "done" ? "[&>div]:bg-green-500" :
+                  item.status === "error" ? "[&>div]:bg-red-500" : ""
+                }`}
+              />
+              {item.status === "error" && item.error && (
+                <p className="text-xs text-red-500">{item.error}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Galeria de anexos */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : (anexos as any[]).length === 0 ? (
+      ) : (anexos as any[]).length === 0 && uploadQueue.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Paperclip className="h-8 w-8 mx-auto mb-2 opacity-30" />
           <p className="text-sm">Nenhum anexo ainda</p>
+          <p className="text-xs mt-1">Arraste arquivos ou clique na área acima para adicionar</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -271,59 +587,41 @@ function AbaAnexos({ demandaId }: { demandaId: number }) {
                 key={anexo.id}
                 className="group relative rounded-lg border bg-card overflow-hidden hover:shadow-md transition-all"
               >
-                {/* Preview */}
                 {isImage ? (
                   <div
                     className="aspect-square bg-muted cursor-pointer overflow-hidden"
                     onClick={() => setPreviewUrl(anexo.url)}
                   >
-                    <img
-                      src={anexo.url}
-                      alt={anexo.nome}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={anexo.url} alt={anexo.nome} className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
                   </div>
                 ) : (
                   <div className="aspect-square bg-muted flex items-center justify-center">
-                    <div className="text-muted-foreground">
-                      {getFileIcon(anexo.mimeType)}
-                    </div>
+                    <div className="text-muted-foreground">{getFileIcon(anexo.mimeType)}</div>
                   </div>
                 )}
-
-                {/* Info */}
                 <div className="p-2">
                   <p className="text-xs font-medium truncate" title={anexo.nome}>{anexo.nome}</p>
                   <p className="text-xs text-muted-foreground">{formatBytes(anexo.tamanho ?? 0)}</p>
                 </div>
-
-                {/* Ações — aparecem no hover */}
                 <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <a
-                    href={anexo.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={anexo.url} target="_blank" rel="noopener noreferrer"
                     className="h-6 w-6 rounded bg-background/90 border flex items-center justify-center hover:bg-background"
-                    title="Abrir"
-                    onClick={e => e.stopPropagation()}
+                    title="Abrir" onClick={e => e.stopPropagation()}
                   >
                     <Eye className="h-3 w-3" />
                   </a>
                   <a
-                    href={anexo.url}
-                    download={anexo.nome}
+                    href={anexo.url} download={anexo.nome}
                     className="h-6 w-6 rounded bg-background/90 border flex items-center justify-center hover:bg-background"
-                    title="Baixar"
-                    onClick={e => e.stopPropagation()}
+                    title="Baixar" onClick={e => e.stopPropagation()}
                   >
                     <Download className="h-3 w-3" />
                   </a>
                   <button
                     className="h-6 w-6 rounded bg-background/90 border flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:text-red-500"
                     title="Remover"
-                    onClick={() => {
-                      if (confirm("Remover este anexo?")) deleteMutation.mutate({ id: anexo.id });
-                    }}
+                    onClick={() => { if (confirm("Remover este anexo?")) deleteMutation.mutate({ id: anexo.id }); }}
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
@@ -334,15 +632,14 @@ function AbaAnexos({ demandaId }: { demandaId: number }) {
         </div>
       )}
 
-      {/* Lightbox simples para imagens */}
+      {/* Lightbox */}
       {previewUrl && (
         <div
           className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4"
           onClick={() => setPreviewUrl(null)}
         >
           <img
-            src={previewUrl}
-            alt="Preview"
+            src={previewUrl} alt="Preview"
             className="max-w-full max-h-full rounded-lg shadow-2xl"
             onClick={e => e.stopPropagation()}
           />
@@ -542,16 +839,18 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
 
               {/* ── COLUNA ESQUERDA (3/5) ── */}
               <div className="lg:col-span-3 space-y-4">
-                {/* Descrição */}
+
+                {/* Descrição com editor rico */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">Descrição</CardTitle>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      Descrição
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <CampoEditavel
-                      label=""
+                    <EditorDescricao
                       value={d.descricao || ""}
-                      type="textarea"
                       onSave={v => handleUpdate("descricao", v)}
                     />
                   </CardContent>
@@ -609,7 +908,10 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                 {/* Registrar Atividade */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">Registrar Atividade</CardTitle>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                      Registrar Atividade
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
@@ -648,7 +950,10 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                 {/* Etapa no Kanban */}
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">Etapa no Kanban</CardTitle>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Kanban className="h-4 w-4 text-muted-foreground" />
+                      Etapa no Kanban
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <Select
@@ -679,10 +984,7 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                     {/* Prioridade */}
                     <div>
                       <Label className="text-xs text-muted-foreground">Prioridade</Label>
-                      <Select
-                        value={d.prioridade}
-                        onValueChange={v => handleUpdate("prioridade", v)}
-                      >
+                      <Select value={d.prioridade} onValueChange={v => handleUpdate("prioridade", v)}>
                         <SelectTrigger className="mt-0.5">
                           <SelectValue />
                         </SelectTrigger>
@@ -771,12 +1073,15 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
             </div>
 
           ) : aba === "historico" ? (
-            /* ── ABA HISTÓRICO ── */
-            <div className="p-6 space-y-4">
-              {/* Adicionar comentário */}
+            /* ── ABA HISTÓRICO — Timeline visual ── */
+            <div className="p-6 space-y-5">
+              {/* Registrar nova atividade */}
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold">Registrar Atividade</CardTitle>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Send className="h-4 w-4 text-muted-foreground" />
+                    Registrar Atividade
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
@@ -809,35 +1114,18 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                 </CardContent>
               </Card>
 
-              {/* Timeline */}
-              <div className="space-y-3">
-                {(timeline as any[]).length === 0 ? (
-                  <div className="text-center py-10 text-muted-foreground">
-                    <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">Nenhum evento registrado ainda</p>
-                  </div>
-                ) : (
-                  (timeline as any[]).map((evento: any) => {
-                    const tc = TIMELINE_TIPO_CONFIG[evento.tipo] ?? TIMELINE_TIPO_CONFIG.outro;
-                    return (
-                      <div key={evento.id} className="flex gap-3">
-                        <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${tc.color}`}>
-                          {tc.icon}
-                        </div>
-                        <div className="flex-1 min-w-0 pb-3 border-b last:border-0">
-                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                            <span className="text-xs font-medium">{tc.label}</span>
-                            {evento.usuarioNome && (
-                              <span className="text-xs text-muted-foreground">por {evento.usuarioNome}</span>
-                            )}
-                            <span className="text-xs text-muted-foreground ml-auto">{formatDateTime(evento.criadoEm)}</span>
-                          </div>
-                          <p className="text-sm text-foreground/80 whitespace-pre-wrap">{evento.descricao}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+              {/* Timeline visual */}
+              <div>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-4 flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Linha do Tempo
+                  {(timeline as any[]).length > 0 && (
+                    <span className="text-xs bg-muted rounded-full px-2 py-0.5">
+                      {(timeline as any[]).length} evento{(timeline as any[]).length !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </h3>
+                <TimelineVisual timeline={timeline as any[]} />
               </div>
             </div>
 
