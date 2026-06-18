@@ -1,0 +1,1 @@
+ALTER TABLE `anexosDemanda` ADD `uploadadoPorNome` varchar(255);

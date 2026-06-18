@@ -1133,6 +1133,7 @@ export const anexosDemanda = mysqlTable("anexosDemanda", {
   tamanho: int("tamanho"), // bytes
   mimeType: varchar("mimeType", { length: 100 }),
   uploadadoPorId: int("uploadadoPorId"),
+  uploadadoPorNome: varchar("uploadadoPorNome", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type AnexoDemanda = typeof anexosDemanda.$inferSelect;

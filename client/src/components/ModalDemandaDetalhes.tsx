@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { PrioridadeBadge, PRIORIDADE_CONFIG } from "@/components/PrioridadeBadge";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -21,7 +21,8 @@ import { toast } from "sonner";
 import {
   Clock, AlertTriangle, User, Building2, MessageSquare, Mail, Phone,
   Globe, Users, FileText, Calendar, Check, X, Send, Tag, Kanban, Trash2,
-  Scale, ExternalLink, Loader2,
+  Scale, ExternalLink, Loader2, Paperclip, Upload, Image, File, FileImage,
+  Download, Eye,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,6 +66,19 @@ function formatDateTime(d: string | Date | null | undefined) {
 function formatDate(d: string | Date | null | undefined) {
   if (!d) return "";
   return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileIcon(mimeType: string | null | undefined) {
+  if (!mimeType) return <File className="h-5 w-5" />;
+  if (mimeType.startsWith("image/")) return <FileImage className="h-5 w-5" />;
+  if (mimeType === "application/pdf") return <FileText className="h-5 w-5 text-red-500" />;
+  return <File className="h-5 w-5" />;
 }
 
 // ─── Campo Editável ───────────────────────────────────────────────────────────
@@ -127,6 +141,223 @@ function CampoEditavel({ label, value, onSave, type = "text" }: {
   );
 }
 
+// ─── Aba Anexos ───────────────────────────────────────────────────────────────
+
+function AbaAnexos({ demandaId }: { demandaId: number }) {
+  const utils = trpc.useUtils();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const { data: anexos = [], isLoading } = trpc.juridicoDemandas.getAnexos.useQuery({ demandaId });
+
+  const uploadMutation = trpc.juridicoDemandas.uploadAnexoDemanda.useMutation({
+    onSuccess: () => {
+      utils.juridicoDemandas.getAnexos.invalidate({ demandaId });
+      toast.success("Anexo enviado com sucesso");
+      setUploading(false);
+    },
+    onError: (e) => {
+      toast.error(`Erro ao enviar: ${e.message}`);
+      setUploading(false);
+    },
+  });
+
+  const deleteMutation = trpc.juridicoDemandas.deleteAnexoDemanda.useMutation({
+    onSuccess: () => {
+      utils.juridicoDemandas.getAnexos.invalidate({ demandaId });
+      toast.success("Anexo removido");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const processFile = useCallback(async (file: File) => {
+    const MAX_SIZE = 16 * 1024 * 1024; // 16MB
+    if (file.size > MAX_SIZE) {
+      toast.error("Arquivo muito grande. Máximo 16MB.");
+      return;
+    }
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(",")[1];
+      uploadMutation.mutate({
+        demandaId,
+        fileBase64: base64,
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        tamanho: file.size,
+      });
+    };
+    reader.readAsDataURL(file);
+  }, [demandaId, uploadMutation]);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach(processFile);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => setIsDragging(false);
+
+  return (
+    <div className="p-6 space-y-5">
+      {/* Zona de upload */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={() => !uploading && fileInputRef.current?.click()}
+        className={`
+          relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all
+          ${isDragging
+            ? "border-primary bg-primary/5 scale-[1.01]"
+            : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30"
+          }
+          ${uploading ? "pointer-events-none opacity-60" : ""}
+        `}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+          className="hidden"
+          onChange={e => handleFiles(e.target.files)}
+        />
+        {uploading ? (
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Enviando arquivo...</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <Upload className="h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm font-medium">Arraste arquivos aqui ou clique para selecionar</p>
+            <p className="text-xs text-muted-foreground">
+              Imagens, PDFs, documentos Word/Excel — máximo 16MB por arquivo
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Galeria de anexos */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (anexos as any[]).length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <Paperclip className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Nenhum anexo ainda</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {(anexos as any[]).map((anexo: any) => {
+            const isImage = anexo.mimeType?.startsWith("image/");
+            return (
+              <div
+                key={anexo.id}
+                className="group relative rounded-lg border bg-card overflow-hidden hover:shadow-md transition-all"
+              >
+                {/* Preview */}
+                {isImage ? (
+                  <div
+                    className="aspect-square bg-muted cursor-pointer overflow-hidden"
+                    onClick={() => setPreviewUrl(anexo.url)}
+                  >
+                    <img
+                      src={anexo.url}
+                      alt={anexo.nome}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-square bg-muted flex items-center justify-center">
+                    <div className="text-muted-foreground">
+                      {getFileIcon(anexo.mimeType)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Info */}
+                <div className="p-2">
+                  <p className="text-xs font-medium truncate" title={anexo.nome}>{anexo.nome}</p>
+                  <p className="text-xs text-muted-foreground">{formatBytes(anexo.tamanho ?? 0)}</p>
+                </div>
+
+                {/* Ações — aparecem no hover */}
+                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <a
+                    href={anexo.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-6 w-6 rounded bg-background/90 border flex items-center justify-center hover:bg-background"
+                    title="Abrir"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <Eye className="h-3 w-3" />
+                  </a>
+                  <a
+                    href={anexo.url}
+                    download={anexo.nome}
+                    className="h-6 w-6 rounded bg-background/90 border flex items-center justify-center hover:bg-background"
+                    title="Baixar"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <Download className="h-3 w-3" />
+                  </a>
+                  <button
+                    className="h-6 w-6 rounded bg-background/90 border flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:text-red-500"
+                    title="Remover"
+                    onClick={() => {
+                      if (confirm("Remover este anexo?")) deleteMutation.mutate({ id: anexo.id });
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Lightbox simples para imagens */}
+      {previewUrl && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <img
+            src={previewUrl}
+            alt="Preview"
+            className="max-w-full max-h-full rounded-lg shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            className="absolute top-4 right-4 h-8 w-8 rounded-full bg-white/20 flex items-center justify-center text-white hover:bg-white/30"
+            onClick={() => setPreviewUrl(null)}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Modal Principal ──────────────────────────────────────────────────────────
 
 interface ModalDemandaDetalhesProps {
@@ -139,7 +370,7 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
   const utils = trpc.useUtils();
   const [comentario, setComentario] = useState("");
   const [tipoComentario, setTipoComentario] = useState<"comentario" | "email" | "whatsapp" | "outro">("comentario");
-  const [aba, setAba] = useState<"detalhes" | "historico">("detalhes");
+  const [aba, setAba] = useState<"detalhes" | "historico" | "anexos">("detalhes");
 
   const { data: demanda, isLoading } = trpc.juridicoDemandas.getById.useQuery(
     { id: demandaId! },
@@ -151,6 +382,10 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
   );
   const { data: colunas = [] } = trpc.juridicoDemandas.getColunas.useQuery();
   const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
+  const { data: anexos = [] } = trpc.juridicoDemandas.getAnexos.useQuery(
+    { demandaId: demandaId! },
+    { enabled: demandaId != null }
+  );
 
   const updateMutation = trpc.juridicoDemandas.update.useMutation({
     onSuccess: () => {
@@ -201,6 +436,7 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
   const d = demanda as any;
   const canal = d ? CANAL_CONFIG[d.canal] : null;
   const atrasada = d?.prazo && new Date(d.prazo) < new Date();
+  const qtdAnexos = (anexos as any[]).length;
 
   return (
     <Dialog open={demandaId != null} onOpenChange={open => { if (!open) onClose(); }}>
@@ -274,6 +510,18 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                 </span>
               )}
             </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${aba === "anexos" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setAba("anexos")}
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              Anexos
+              {qtdAnexos > 0 && (
+                <span className="text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 leading-none">
+                  {qtdAnexos}
+                </span>
+              )}
+            </button>
           </div>
         )}
 
@@ -289,10 +537,11 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
               <Button onClick={onClose}>Fechar</Button>
             </div>
           ) : aba === "detalhes" ? (
-            /* ── ABA DETALHES ── */
-            <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Coluna principal */}
-              <div className="lg:col-span-2 space-y-4">
+            /* ── ABA DETALHES — duas colunas ── */
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+              {/* ── COLUNA ESQUERDA (3/5) ── */}
+              <div className="lg:col-span-3 space-y-4">
                 {/* Descrição */}
                 <Card>
                   <CardHeader className="pb-2">
@@ -319,7 +568,7 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 p-3 space-y-2">
+                        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 p-3">
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                             {d.nomeDevedor && (
                               <>
@@ -357,25 +606,23 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                   </Card>
                 )}
 
-                {/* Adicionar comentário rápido */}
+                {/* Registrar Atividade */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-semibold">Registrar Atividade</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <div className="flex gap-2">
-                      <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
-                        <SelectTrigger className="w-36 h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="comentario">Comentário</SelectItem>
-                          <SelectItem value="email">E-mail</SelectItem>
-                          <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                          <SelectItem value="outro">Outro</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
+                      <SelectTrigger className="w-40 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="comentario">Comentário</SelectItem>
+                        <SelectItem value="email">E-mail</SelectItem>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                        <SelectItem value="outro">Outro</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Textarea
                       placeholder="Adicionar comentário ou registro de atividade..."
                       rows={3}
@@ -396,9 +643,9 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                 </Card>
               </div>
 
-              {/* Sidebar */}
-              <div className="space-y-4">
-                {/* Status / Coluna */}
+              {/* ── COLUNA DIREITA (2/5) — Metadados ── */}
+              <div className="lg:col-span-2 space-y-4">
+                {/* Etapa no Kanban */}
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-semibold">Etapa no Kanban</CardTitle>
@@ -522,7 +769,8 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                 </Card>
               </div>
             </div>
-          ) : (
+
+          ) : aba === "historico" ? (
             /* ── ABA HISTÓRICO ── */
             <div className="p-6 space-y-4">
               {/* Adicionar comentário */}
@@ -531,19 +779,17 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                   <CardTitle className="text-sm font-semibold">Registrar Atividade</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="flex gap-2">
-                    <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
-                      <SelectTrigger className="w-36 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="comentario">Comentário</SelectItem>
-                        <SelectItem value="email">E-mail</SelectItem>
-                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                        <SelectItem value="outro">Outro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="comentario">Comentário</SelectItem>
+                      <SelectItem value="email">E-mail</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Textarea
                     placeholder="Adicionar comentário ou registro de atividade..."
                     rows={3}
@@ -594,6 +840,10 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                 )}
               </div>
             </div>
+
+          ) : (
+            /* ── ABA ANEXOS ── */
+            <AbaAnexos demandaId={demandaId!} />
           )}
         </ScrollArea>
       </DialogContent>

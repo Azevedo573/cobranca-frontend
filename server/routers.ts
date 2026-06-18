@@ -6137,15 +6137,74 @@ export const appRouter = router({
         });
         return { demandaId: result.demandaId, numero: result.numero };
       }),
-    // Obter dados do devedor vinculado a uma demanda
+        // Obter dados do devedor vinculado a uma demanda
     getCobrancasVinculadas: protectedProcedure
       .input(z.object({ demandaId: z.number().int().positive() }))
       .query(async ({ input }) => {
         const { getCobrancasVinculadas } = await import("./db-demandas");
         return getCobrancasVinculadas(input.demandaId);
       }),
-  }),
 
+    // ── Anexos de Demandas ────────────────────────────────────────────────────
+    getAnexos: protectedProcedure
+      .input(z.object({ demandaId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { anexosDemanda } = await import("../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        return db.select().from(anexosDemanda)
+          .where(eq(anexosDemanda.demandaId, input.demandaId))
+          .orderBy(desc(anexosDemanda.createdAt));
+      }),
+
+    uploadAnexoDemanda: protectedProcedure
+      .input(z.object({
+        demandaId: z.number().int().positive(),
+        fileBase64: z.string(),
+        fileName: z.string().max(255),
+        mimeType: z.string().max(100),
+        tamanho: z.number().int().positive(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { storagePut } = await import("./storage");
+        const { anexosDemanda } = await import("../drizzle/schema");
+        const buffer = Buffer.from(input.fileBase64, "base64");
+        const ext = input.fileName.split(".").pop() ?? "bin";
+        const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const fileKey = `juridico/demandas/${input.demandaId}/anexos/${suffix}.${ext}`;
+        const { url } = await storagePut(fileKey, buffer, input.mimeType);
+        const [result] = await db.insert(anexosDemanda).values({
+          demandaId: input.demandaId,
+          nome: input.fileName,
+          fileKey,
+          url,
+          mimeType: input.mimeType,
+          tamanho: input.tamanho,
+          uploadadoPorId: ctx.user.id,
+          uploadadoPorNome: ctx.user.name ?? ctx.user.email ?? undefined,
+        });
+        return { id: (result as any).insertId, url, nome: input.fileName };
+      }),
+
+    deleteAnexoDemanda: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { anexosDemanda } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [anexo] = await db.select().from(anexosDemanda).where(eq(anexosDemanda.id, input.id));
+        if (!anexo) throw new TRPCError({ code: "NOT_FOUND", message: "Anexo não encontrado" });
+        if (ctx.user.role !== "admin" && anexo.uploadadoPorId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para excluir este anexo" });
+        }
+        await db.delete(anexosDemanda).where(eq(anexosDemanda.id, input.id));
+        return { ok: true };
+      }),
+  }),
   // ─── Publicações Jurídicas ────────────────────────────────────────────────────────────────────
   publicacoes: router({
     // Dashboard com contadores
