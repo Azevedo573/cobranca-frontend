@@ -416,6 +416,28 @@ export default function DevedorDetalhes() {
                     <span className="text-sm font-medium truncate">{devedor.email}</span>
                   </div>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Condomínio</span>
+                  <span className="text-sm font-medium truncate max-w-[60%] text-right">
+                    {(devedor as any).condominioNome ?? "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Status da Unidade</span>
+                  <div>
+                    {(devedor as any).statusUnidade === "ajuizado" ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                        <Scale className="h-3 w-3" />
+                        Ajuizado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Padrão
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-xs text-muted-foreground">Status</span>
                   <div>{getStatusBadge(devedor.status)}</div>

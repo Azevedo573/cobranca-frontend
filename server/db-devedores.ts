@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { devedores, InsertDevedor, cobrancas, condominios } from "../drizzle/schema";
+import { devedores, InsertDevedor, cobrancas, condominios, demandas } from "../drizzle/schema";
 import { getDb } from "./db";
 import { calcularValorDevido } from "../shared/calculos";
 
@@ -67,7 +67,26 @@ export async function getDevedorById(id: number) {
   const db = await getDb();
   if (!db) return null;
   const result = await db.select().from(devedores).where(eq(devedores.id, id)).limit(1);
-  return result[0] || null;
+  const devedor = result[0];
+  if (!devedor) return null;
+
+  // Buscar nome do condomínio
+  let condominioNome: string | null = null;
+  if (devedor.condominioId) {
+    const cond = await db.select({ name: condominios.name }).from(condominios).where(eq(condominios.id, devedor.condominioId)).limit(1);
+    condominioNome = cond[0]?.name ?? null;
+  }
+
+  // Verificar se existe demanda judicial ativa vinculada a este devedor
+  const demandasJudiciais = await db.select({ id: demandas.id }).from(demandas).where(
+    and(
+      eq(demandas.devedorId, devedor.id),
+      eq(demandas.tipo, "cobranca_judicial")
+    )
+  ).limit(1);
+  const statusUnidade: "padrao" | "ajuizado" = demandasJudiciais.length > 0 ? "ajuizado" : "padrao";
+
+  return { ...devedor, condominioNome, statusUnidade };
 }
 
 export async function createDevedor(data: InsertDevedor) {
