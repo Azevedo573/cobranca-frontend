@@ -97,31 +97,24 @@ function KanbanCard({
   const atrasada = isAtrasada(demanda.prazo);
   const isUrgente = demanda.prioridade === "urgente";
 
+  const dragProps = !isSaida && !isOverlay ? { ...attributes, ...listeners } : {};
+
   return (
     <div
       ref={setNodeRef}
       style={isOverlay ? {} : style}
-      className={`bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group select-none ${
-        isSaida ? "opacity-75" : ""
+      className={`bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all group select-none ${
+        isSaida ? "opacity-75 cursor-default" : "cursor-grab active:cursor-grabbing"
       } ${isUrgente ? "ring-1 ring-red-300 dark:ring-red-700" : ""} ${
-        isOverlay ? "rotate-2 shadow-2xl opacity-95 scale-105" : ""
+        isOverlay ? "rotate-2 shadow-2xl opacity-95 scale-105 cursor-grabbing" : ""
       }`}
+      {...dragProps}
       onClick={onClick}
     >
       {/* Faixa de prioridade no topo */}
       <PrioridadeBadge prioridade={demanda.prioridade} variant="strip" />
 
       <div className="flex items-start gap-1 p-3">
-        {!isSaida && (
-          <div
-            {...attributes}
-            {...listeners}
-            className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
-            onClick={e => e.stopPropagation()}
-          >
-            <GripVertical className="h-4 w-4" />
-          </div>
-        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1 mb-1.5">
             <span className="text-xs font-mono text-muted-foreground">{demanda.numero}</span>
