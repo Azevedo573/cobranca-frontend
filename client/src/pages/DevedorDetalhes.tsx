@@ -438,6 +438,28 @@ export default function DevedorDetalhes() {
                     )}
                   </div>
                 </div>
+                {(devedor as any).statusUnidade === "ajuizado" && (devedor as any).processoJudicial && (() => {
+                  const proc = (devedor as any).processoJudicial as { numeroCNJ: string; status: string };
+                  const statusLabels: Record<string, { label: string; cls: string }> = {
+                    ativo:      { label: "Em andamento", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+                    suspenso:   { label: "Suspenso",     cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
+                    arquivado:  { label: "Finalizado",   cls: "bg-muted text-muted-foreground" },
+                    encerrado:  { label: "Finalizado",   cls: "bg-muted text-muted-foreground" },
+                  };
+                  const s = statusLabels[proc.status] ?? { label: proc.status, cls: "bg-muted text-muted-foreground" };
+                  return (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Nº do Processo</span>
+                        <span className="text-xs font-mono font-medium text-right max-w-[60%] truncate" title={proc.numeroCNJ}>{proc.numeroCNJ}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Status do Processo</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${s.cls}`}>{s.label}</span>
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="flex items-center justify-between pt-1">
                   <span className="text-xs text-muted-foreground">Status</span>
                   <div>{getStatusBadge(devedor.status)}</div>

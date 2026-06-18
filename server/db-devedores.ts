@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { devedores, InsertDevedor, cobrancas, condominios, demandas } from "../drizzle/schema";
+import { devedores, InsertDevedor, cobrancas, condominios, demandas, processosJudiciais } from "../drizzle/schema";
 import { getDb } from "./db";
 import { calcularValorDevido } from "../shared/calculos";
 
@@ -86,7 +86,36 @@ export async function getDevedorById(id: number) {
   ).limit(1);
   const statusUnidade: "padrao" | "ajuizado" = demandasJudiciais.length > 0 ? "ajuizado" : "padrao";
 
-  return { ...devedor, condominioNome, statusUnidade };
+  // Se ajuizado, buscar o processo judicial vinculado à demanda
+  let processoJudicial: { numeroCNJ: string; status: string } | null = null;
+  if (demandasJudiciais.length > 0) {
+    const demandaId = demandasJudiciais[0].id;
+    const processo = await db
+      .select({ numeroCNJ: processosJudiciais.numeroCNJ, status: processosJudiciais.status })
+      .from(processosJudiciais)
+      .where(eq(processosJudiciais.demandaId, demandaId))
+      .limit(1);
+    if (processo[0]) {
+      processoJudicial = { numeroCNJ: processo[0].numeroCNJ, status: processo[0].status };
+    } else {
+      // Fallback: buscar processo vinculado ao devedor via condominioId
+      const processoPorCondominio = await db
+        .select({ numeroCNJ: processosJudiciais.numeroCNJ, status: processosJudiciais.status })
+        .from(processosJudiciais)
+        .where(
+          and(
+            eq(processosJudiciais.condominioId, devedor.condominioId),
+            eq(processosJudiciais.status, "ativo")
+          )
+        )
+        .limit(1);
+      if (processoPorCondominio[0]) {
+        processoJudicial = { numeroCNJ: processoPorCondominio[0].numeroCNJ, status: processoPorCondominio[0].status };
+      }
+    }
+  }
+
+  return { ...devedor, condominioNome, statusUnidade, processoJudicial };
 }
 
 export async function createDevedor(data: InsertDevedor) {
