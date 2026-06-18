@@ -11,7 +11,7 @@ import { trpc } from "@/lib/trpc";
 import {
   ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink,
   Scale, FileText, ToggleLeft, ToggleRight, AlertCircle, Settings2, Gavel,
-  MapPin, BookOpen, Briefcase
+  MapPin, BookOpen, Briefcase, Upload, X, FileCheck, Loader2
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -109,6 +109,8 @@ export default function CondominioForm() {
     juridicoTribunalEstado: "",
     juridicoConvencaoUrl: "",
     juridicoRegimentoUrl: "",
+    // estados de upload
+
     juridicoObservacoes: "",
   });
 
@@ -263,6 +265,58 @@ export default function CondominioForm() {
     } else {
       setFormData({ ...formData, [name]: value });
     }
+  };
+
+  // Estados de upload de documentos jurídicos
+  const [uploadingConvencao, setUploadingConvencao] = useState(false);
+  const [uploadingRegimento, setUploadingRegimento] = useState(false);
+
+  const uploadDocMutation = trpc.condominios.uploadDocumento.useMutation({
+    onSuccess: (data, variables) => {
+      if (variables.tipo === "convencao") {
+        setFormData(prev => ({ ...prev, juridicoConvencaoUrl: data.url }));
+        setUploadingConvencao(false);
+        toast.success(`Convenção Condominial enviada: ${data.fileName}`);
+      } else {
+        setFormData(prev => ({ ...prev, juridicoRegimentoUrl: data.url }));
+        setUploadingRegimento(false);
+        toast.success(`Regimento Interno enviado: ${data.fileName}`);
+      }
+    },
+    onError: (error) => {
+      setUploadingConvencao(false);
+      setUploadingRegimento(false);
+      toast.error("Erro ao enviar documento: " + error.message);
+    },
+  });
+
+  const handleUploadDoc = (tipo: "convencao" | "regimento") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!condominioId) {
+      toast.error("Salve o condomínio primeiro antes de enviar documentos.");
+      return;
+    }
+    const maxSize = 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error("Arquivo muito grande. Máximo 16MB.");
+      return;
+    }
+    if (tipo === "convencao") setUploadingConvencao(true);
+    else setUploadingRegimento(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = (ev.target?.result as string).split(",")[1];
+      uploadDocMutation.mutate({
+        condominioId: condominioId!,
+        tipo,
+        fileBase64: base64,
+        fileName: file.name,
+        mimeType: file.type || "application/pdf",
+      });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -928,32 +982,108 @@ export default function CondominioForm() {
                       Documentos do Condomínio
                     </h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Links para os documentos legais do condomínio (convenção, regimento interno)
+                      Envie os documentos legais do condomínio em PDF (máx. 16MB cada).
+                      {!condominioId && <span className="ml-1 text-amber-600 font-medium">Salve o condomínio antes de enviar documentos.</span>}
                     </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Convenção Condominial */}
                       <div className="space-y-2">
-                        <Label htmlFor="juridicoConvencaoUrl">URL da Convenção Condominial</Label>
-                        <Input
-                          id="juridicoConvencaoUrl"
-                          name="juridicoConvencaoUrl"
-                          value={formData.juridicoConvencaoUrl}
-                          onChange={handleChange}
-                          placeholder="https://... ou link do documento"
-                          type="url"
-                        />
-                        <p className="text-xs text-muted-foreground">Link para o PDF da convenção condominial</p>
+                        <Label>Convenção Condominial</Label>
+                        {formData.juridicoConvencaoUrl ? (
+                          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3">
+                            <FileCheck className="h-5 w-5 text-green-600 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-green-700 dark:text-green-400 truncate">Documento enviado</p>
+                              <a
+                                href={formData.juridicoConvencaoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" /> Visualizar PDF
+                              </a>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => setFormData(prev => ({ ...prev, juridicoConvencaoUrl: "" }))}
+                              title="Remover documento"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors ${
+                            condominioId
+                              ? "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
+                              : "border-muted-foreground/20 opacity-50 cursor-not-allowed"
+                          }`}>
+                            {uploadingConvencao ? (
+                              <><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Enviando...</span></>
+                            ) : (
+                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique para enviar PDF</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
+                            )}
+                            <input
+                              type="file"
+                              accept=".pdf,application/pdf"
+                              className="hidden"
+                              disabled={!condominioId || uploadingConvencao}
+                              onChange={handleUploadDoc("convencao")}
+                            />
+                          </label>
+                        )}
                       </div>
+
+                      {/* Regimento Interno */}
                       <div className="space-y-2">
-                        <Label htmlFor="juridicoRegimentoUrl">URL do Regimento Interno</Label>
-                        <Input
-                          id="juridicoRegimentoUrl"
-                          name="juridicoRegimentoUrl"
-                          value={formData.juridicoRegimentoUrl}
-                          onChange={handleChange}
-                          placeholder="https://... ou link do documento"
-                          type="url"
-                        />
-                        <p className="text-xs text-muted-foreground">Link para o PDF do regimento interno</p>
+                        <Label>Regimento Interno</Label>
+                        {formData.juridicoRegimentoUrl ? (
+                          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3">
+                            <FileCheck className="h-5 w-5 text-green-600 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-green-700 dark:text-green-400 truncate">Documento enviado</p>
+                              <a
+                                href={formData.juridicoRegimentoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" /> Visualizar PDF
+                              </a>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => setFormData(prev => ({ ...prev, juridicoRegimentoUrl: "" }))}
+                              title="Remover documento"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors ${
+                            condominioId
+                              ? "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
+                              : "border-muted-foreground/20 opacity-50 cursor-not-allowed"
+                          }`}>
+                            {uploadingRegimento ? (
+                              <><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Enviando...</span></>
+                            ) : (
+                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique para enviar PDF</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
+                            )}
+                            <input
+                              type="file"
+                              accept=".pdf,application/pdf"
+                              className="hidden"
+                              disabled={!condominioId || uploadingRegimento}
+                              onChange={handleUploadDoc("regimento")}
+                            />
+                          </label>
+                        )}
                       </div>
                     </div>
                   </div>

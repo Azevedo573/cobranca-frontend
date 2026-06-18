@@ -541,6 +541,28 @@ export const appRouter = router({
         resultados,
       };
     }),
+
+    // Upload de documento jurídico do condomínio (Convenção / Regimento)
+    uploadDocumento: adminProcedure.input(z.object({
+      condominioId: z.number().int().positive(),
+      tipo: z.enum(["convencao", "regimento"]),
+      fileBase64: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+    })).mutation(async ({ input, ctx }) => {
+      const { storagePut } = await import("./storage");
+      const { updateCondominio } = await import("./db-condominios");
+      const buffer = Buffer.from(input.fileBase64, "base64");
+      const ext = input.fileName.split(".").pop() ?? "pdf";
+      const suffix = Math.random().toString(36).slice(2, 10);
+      const fileKey = `condominios/${input.condominioId}/docs/${input.tipo}-${suffix}.${ext}`;
+      const { url } = await storagePut(fileKey, buffer, input.mimeType);
+      // Atualizar URL no condomínio
+      const field = input.tipo === "convencao" ? "juridicoConvencaoUrl" : "juridicoRegimentoUrl";
+      await updateCondominio(input.condominioId, { [field]: url });
+      await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(input.condominioId), severity: "info" });
+      return { url, fileName: input.fileName };
+    }),
   }),
   // Devedores
   devedores: router({
