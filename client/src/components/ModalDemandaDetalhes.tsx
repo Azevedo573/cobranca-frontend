@@ -204,7 +204,7 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
 
   return (
     <Dialog open={demandaId != null} onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="!w-[95vw] !max-w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="!w-[70vw] !max-w-[70vw] h-[90vh] flex flex-col p-0 gap-0">
         {/* Header fixo */}
         <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
           {isLoading ? (
