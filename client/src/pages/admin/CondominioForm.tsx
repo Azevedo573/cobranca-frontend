@@ -270,6 +270,8 @@ export default function CondominioForm() {
   // Estados de upload de documentos jurídicos
   const [uploadingConvencao, setUploadingConvencao] = useState(false);
   const [uploadingRegimento, setUploadingRegimento] = useState(false);
+  const [dragOverConvencao, setDragOverConvencao] = useState(false);
+  const [dragOverRegimento, setDragOverRegimento] = useState(false);
 
   const uploadDocMutation = trpc.condominios.uploadDocumento.useMutation({
     onSuccess: (data, variables) => {
@@ -317,6 +319,42 @@ export default function CondominioForm() {
     };
     reader.readAsDataURL(file);
     e.target.value = "";
+  };
+
+  const handleDrop = (tipo: "convencao" | "regimento") => (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (tipo === "convencao") setDragOverConvencao(false);
+    else setDragOverRegimento(false);
+    if (!condominioId) {
+      toast.error("Salve o condomínio primeiro antes de enviar documentos.");
+      return;
+    }
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.endsWith(".pdf")) {
+      toast.error("Apenas arquivos PDF são aceitos.");
+      return;
+    }
+    const maxSize = 16 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error("Arquivo muito grande. Máximo 16MB.");
+      return;
+    }
+    if (tipo === "convencao") setUploadingConvencao(true);
+    else setUploadingRegimento(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = (ev.target?.result as string).split(",")[1];
+      uploadDocMutation.mutate({
+        condominioId: condominioId!,
+        tipo,
+        fileBase64: base64,
+        fileName: file.name,
+        mimeType: file.type || "application/pdf",
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -1015,15 +1053,25 @@ export default function CondominioForm() {
                             </Button>
                           </div>
                         ) : (
-                          <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors ${
-                            condominioId
-                              ? "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
-                              : "border-muted-foreground/20 opacity-50 cursor-not-allowed"
-                          }`}>
+                          <label
+                            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-all ${
+                              !condominioId
+                                ? "border-muted-foreground/20 opacity-50 cursor-not-allowed"
+                                : dragOverConvencao
+                                  ? "border-primary bg-primary/10 scale-[1.02]"
+                                  : "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
+                            }`}
+                            onDragOver={(e) => { e.preventDefault(); if (condominioId) setDragOverConvencao(true); }}
+                            onDragEnter={(e) => { e.preventDefault(); if (condominioId) setDragOverConvencao(true); }}
+                            onDragLeave={() => setDragOverConvencao(false)}
+                            onDrop={handleDrop("convencao")}
+                          >
                             {uploadingConvencao ? (
                               <><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Enviando...</span></>
+                            ) : dragOverConvencao ? (
+                              <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
                             ) : (
-                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique para enviar PDF</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
+                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
                             )}
                             <input
                               type="file"
@@ -1065,15 +1113,25 @@ export default function CondominioForm() {
                             </Button>
                           </div>
                         ) : (
-                          <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors ${
-                            condominioId
-                              ? "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
-                              : "border-muted-foreground/20 opacity-50 cursor-not-allowed"
-                          }`}>
+                          <label
+                            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-all ${
+                              !condominioId
+                                ? "border-muted-foreground/20 opacity-50 cursor-not-allowed"
+                                : dragOverRegimento
+                                  ? "border-primary bg-primary/10 scale-[1.02]"
+                                  : "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
+                            }`}
+                            onDragOver={(e) => { e.preventDefault(); if (condominioId) setDragOverRegimento(true); }}
+                            onDragEnter={(e) => { e.preventDefault(); if (condominioId) setDragOverRegimento(true); }}
+                            onDragLeave={() => setDragOverRegimento(false)}
+                            onDrop={handleDrop("regimento")}
+                          >
                             {uploadingRegimento ? (
                               <><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Enviando...</span></>
+                            ) : dragOverRegimento ? (
+                              <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
                             ) : (
-                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique para enviar PDF</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
+                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
                             )}
                             <input
                               type="file"
