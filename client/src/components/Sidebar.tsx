@@ -84,6 +84,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Condomínios", href: "/admin/condominios", icon: Building2, roles: ["admin"] },
       { label: "Usuários", href: "/admin/usuarios", icon: Users, roles: ["admin"] },
+      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador"] },
     ],
   },
 
@@ -110,7 +111,6 @@ const menuGroups: MenuGroup[] = [
       { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador"] },
-      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador"] },
     ],
   },
 
