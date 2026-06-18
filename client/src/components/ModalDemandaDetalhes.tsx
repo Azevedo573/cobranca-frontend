@@ -208,10 +208,13 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
         {/* Header fixo */}
         <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
           {isLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">Carregando...</span>
-            </div>
+            <>
+              <DialogTitle className="sr-only">Carregando demanda...</DialogTitle>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Carregando...</span>
+              </div>
+            </>
           ) : !d ? (
             <DialogTitle className="text-muted-foreground">Demanda não encontrada</DialogTitle>
           ) : (
