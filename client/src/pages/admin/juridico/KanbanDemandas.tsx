@@ -333,11 +333,15 @@ function ModalGerenciarColunas({
   onClose,
   colunas,
   onRefresh,
+  targetUserId,
+  targetUserName,
 }: {
   open: boolean;
   onClose: () => void;
   colunas: any[];
   onRefresh: () => void;
+  targetUserId?: number;
+  targetUserName?: string;
 }) {
   const [novoNome, setNovoNome] = useState("");
   const [novoIcone, setNovoIcone] = useState("📋");
@@ -387,7 +391,9 @@ function ModalGerenciarColunas({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            Gerenciar Colunas do Kanban
+            {targetUserName
+              ? `Etapas de ${targetUserName}`
+              : "Gerenciar Colunas do Kanban"}
           </DialogTitle>
         </DialogHeader>
 
@@ -423,10 +429,12 @@ function ModalGerenciarColunas({
           {/* Colunas intermediárias */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Minhas Etapas ({colunasIntermedias.length})
+              {targetUserName ? `Etapas de ${targetUserName}` : "Minhas Etapas"} ({colunasIntermedias.length})
             </p>
             <p className="text-xs text-muted-foreground -mt-1 mb-2">
-              Estas etapas são exclusivas do seu usuário. Cada advogado pode configurar seu próprio fluxo.
+              {targetUserName
+              ? `Você está gerenciando as etapas do advogado ${targetUserName}. Alterações afetam apenas este usuário.`
+              : "Estas etapas são exclusivas do seu usuário. Cada advogado pode configurar seu próprio fluxo."}
             </p>
             {colunasIntermedias.length === 0 ? (
               <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg">
@@ -457,11 +465,11 @@ function ModalGerenciarColunas({
                           className="h-7 text-sm flex-1"
                           autoFocus
                           onKeyDown={e => {
-                            if (e.key === "Enter" && editando) updateColuna.mutate({ id: editando.id, nome: editando.nome, icone: editando.icone });
+                            if (e.key === "Enter" && editando) updateColuna.mutate({ id: editando.id, nome: editando.nome, icone: editando.icone, ...(targetUserId ? { targetUserId } : {}) });
                             if (e.key === "Escape") setEditando(null);
                           }}
                         />
-                        <Button size="sm" className="h-7 px-2 text-xs" onClick={() => editando && updateColuna.mutate({ id: editando.id, nome: editando.nome, icone: editando.icone })} disabled={updateColuna.isPending}>
+                        <Button size="sm" className="h-7 px-2 text-xs" onClick={() => editando && updateColuna.mutate({ id: editando.id, nome: editando.nome, icone: editando.icone, ...(targetUserId ? { targetUserId } : {}) })} disabled={updateColuna.isPending}>
                           {updateColuna.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "OK"}
                         </Button>
                         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditando(null)}>✕</Button>
@@ -519,14 +527,14 @@ function ModalGerenciarColunas({
                 className="flex-1"
                 onKeyDown={e => {
                   if (e.key === "Enter" && novoNome.trim()) {
-                    createColuna.mutate({ nome: novoNome.trim(), icone: novoIcone });
+                    createColuna.mutate({ nome: novoNome.trim(), icone: novoIcone, ...(targetUserId ? { targetUserId } : {}) });
                   }
                 }}
               />
               <Button
                 onClick={() => {
                   if (!novoNome.trim()) return;
-                  createColuna.mutate({ nome: novoNome.trim(), icone: novoIcone });
+                  createColuna.mutate({ nome: novoNome.trim(), icone: novoIcone, ...(targetUserId ? { targetUserId } : {}) });
                 }}
                 disabled={!novoNome.trim() || createColuna.isPending}
                 className="shrink-0"
@@ -556,7 +564,7 @@ function ModalGerenciarColunas({
             <Button variant="ghost" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
             <Button
               variant="destructive"
-              onClick={() => confirmDelete && deleteColuna.mutate({ id: confirmDelete.id })}
+              onClick={() => confirmDelete && deleteColuna.mutate({ id: confirmDelete.id, ...(targetUserId ? { targetUserId } : {}) })}
               disabled={deleteColuna.isPending}
             >
               {deleteColuna.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
@@ -581,17 +589,27 @@ export default function KanbanDemandas() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // Seed automático: cria as colunas padrão na primeira vez
-  const seedMutation = trpc.juridicoDemandas.seedColunas.useMutation();
-  const { data: colunas = [], refetch: refetchColunas } = trpc.juridicoDemandas.getColunas.useQuery(undefined, {
-    onSuccess: (data: any[]) => {
-      if (data.length === 0) seedMutation.mutate();
-    },
-  } as any);
   // Advogados disponíveis para filtro (apenas admin)
   const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery(undefined, {
     enabled: isAdmin,
   });
+
+  // targetUserId: quando admin filtra por advogado, gerencia as etapas desse advogado
+  const targetUserId = (isAdmin && filtroAdvogadoId) ? filtroAdvogadoId : undefined;
+  const targetUserName = targetUserId
+    ? (advogados as any[]).find((a: any) => a.id === targetUserId)?.name
+    : undefined;
+
+  // Seed automático: cria as colunas padrão na primeira vez
+  const seedMutation = trpc.juridicoDemandas.seedColunas.useMutation();
+  const { data: colunas = [], refetch: refetchColunas } = trpc.juridicoDemandas.getColunas.useQuery(
+    targetUserId ? { targetUserId } : undefined,
+    {
+      onSuccess: (data: any[]) => {
+        if (data.length === 0) seedMutation.mutate(targetUserId ? { targetUserId } : undefined);
+      },
+    } as any
+  );
   const { data: demandas = [], isLoading, refetch: refetchDemandas } = trpc.juridicoDemandas.listar.useQuery(
     filtroAdvogadoId ? { responsavelId: filtroAdvogadoId } : undefined
   );
@@ -813,6 +831,8 @@ export default function KanbanDemandas() {
           refetchColunas();
           refetchDemandas();
         }}
+        targetUserId={targetUserId}
+        targetUserName={targetUserName}
       />
     </div>
   );
