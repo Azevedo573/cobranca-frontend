@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { PrioridadeBadge, prioridadeBorderClass } from "@/components/PrioridadeBadge";
+import { ModalDemandaDetalhes } from "@/components/ModalDemandaDetalhes";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import {
@@ -603,6 +604,7 @@ export default function KanbanDemandas() {
   const [overColunaId, setOverColunaId] = useState<number | null>(null);
   const [modalGerenciar, setModalGerenciar] = useState(false);
   const [filtroAdvogadoId, setFiltroAdvogadoId] = useState<number | null>(null);
+  const [modalDemandaId, setModalDemandaId] = useState<number | null>(null);
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -933,7 +935,7 @@ export default function KanbanDemandas() {
                 coluna={col}
                 demandas={demandasPorColuna(col.id)}
                 onNovaDemanda={(colunaId) => navigate(`/admin/juridico?nova=1&coluna=${colunaId}`)}
-                onClickDemanda={(id) => navigate(`/admin/juridico/demanda/${id}`)}
+                onClickDemanda={(id) => setModalDemandaId(id)}
                 onGerenciar={() => setModalGerenciar(true)}
                 isDragOver={overColunaId === col.id}
                 activeId={activeId}
@@ -961,6 +963,13 @@ export default function KanbanDemandas() {
           )}
         </DragOverlay>
       </DndContext>
+
+      {/* Modal de detalhes da demanda */}
+      <ModalDemandaDetalhes
+        demandaId={modalDemandaId}
+        onClose={() => setModalDemandaId(null)}
+        onDeleted={() => refetchDemandas()}
+      />
 
       {/* Modal de gerenciamento de colunas */}
       <ModalGerenciarColunas
