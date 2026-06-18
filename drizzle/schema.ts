@@ -58,6 +58,15 @@ export const condominios = mysqlTable("condominios", {
   cancelamentoPrazoDias: int("cancelamentoPrazoDias").default(20).notNull(),
   // Modo de emissão de boleto: cnab240 (padrão) ou api_btg (integração BTG em fase de testes)
   modoBoleto: mysqlEnum("modoBoleto", ["cnab240", "api_btg"]).default("cnab240").notNull(),
+  // ─── Dados Jurídicos do Condomínio ───────────────────────────────────────
+  juridicoAdvogadoResponsavel: varchar("juridicoAdvogadoResponsavel", { length: 255 }),  // Advogado responsável pelo condomínio
+  juridicoAdvogadoOAB: varchar("juridicoAdvogadoOAB", { length: 30 }),                  // OAB do advogado responsável
+  juridicoVaraCompetente: varchar("juridicoVaraCompetente", { length: 255 }),            // Vara competente para ações do condomínio
+  juridicoForoComarca: varchar("juridicoForoComarca", { length: 255 }),                  // Foro/Comarca
+  juridicoTribunalEstado: varchar("juridicoTribunalEstado", { length: 100 }),            // Tribunal estadual (ex: TJRJ, TJSP)
+  juridicoConvencaoUrl: varchar("juridicoConvencaoUrl", { length: 500 }),               // URL da convenção condominial (S3)
+  juridicoRegimentoUrl: varchar("juridicoRegimentoUrl", { length: 500 }),               // URL do regimento interno (S3)
+  juridicoObservacoes: text("juridicoObservacoes"),                                     // Observações jurídicas gerais
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

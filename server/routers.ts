@@ -310,6 +310,15 @@ export const appRouter = router({
       cancelamentoAutoAtivo: z.number().int().min(0).max(1).default(0),
       cancelamentoPrazoDias: z.number().int().min(1).max(90).default(20),
       modoBoleto: z.enum(["cnab240", "api_btg"]).default("cnab240"),
+      // Campos jurídicos
+      juridicoAdvogadoResponsavel: z.string().max(255).optional(),
+      juridicoAdvogadoOAB: z.string().max(30).optional(),
+      juridicoVaraCompetente: z.string().max(255).optional(),
+      juridicoForoComarca: z.string().max(255).optional(),
+      juridicoTribunalEstado: z.string().max(100).optional(),
+      juridicoConvencaoUrl: z.string().max(500).optional(),
+      juridicoRegimentoUrl: z.string().max(500).optional(),
+      juridicoObservacoes: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
@@ -357,6 +366,15 @@ export const appRouter = router({
       cancelamentoAutoAtivo: z.number().int().min(0).max(1).optional(),
       cancelamentoPrazoDias: z.number().int().min(1).max(90).optional(),
       modoBoleto: z.enum(["cnab240", "api_btg"]).optional(),
+      // Campos jurídicos
+      juridicoAdvogadoResponsavel: z.string().max(255).optional().nullable(),
+      juridicoAdvogadoOAB: z.string().max(30).optional().nullable(),
+      juridicoVaraCompetente: z.string().max(255).optional().nullable(),
+      juridicoForoComarca: z.string().max(255).optional().nullable(),
+      juridicoTribunalEstado: z.string().max(100).optional().nullable(),
+      juridicoConvencaoUrl: z.string().max(500).optional().nullable(),
+      juridicoRegimentoUrl: z.string().max(500).optional().nullable(),
+      juridicoObservacoes: z.string().optional().nullable(),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {

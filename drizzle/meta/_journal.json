@@ -491,6 +491,13 @@
       "when": 1781788239797,
       "tag": "0070_aromatic_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "5",
+      "when": 1781803600754,
+      "tag": "0071_fearless_vampiro",
+      "breakpoints": true
     }
   ]
 }
