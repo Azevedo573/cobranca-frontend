@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { PrioridadeBadge, prioridadeBorderClass } from "@/components/PrioridadeBadge";
 import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -12,15 +12,19 @@ import {
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent, type DragOverEvent,
+  closestCorners, rectIntersection,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import {
+  SortableContext, verticalListSortingStrategy,
+  horizontalListSortingStrategy,
+  useSortable, arrayMove,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -28,13 +32,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   Plus, List, GripVertical, Clock, AlertTriangle, Building2,
@@ -73,21 +70,27 @@ function formatDate(d: string | Date | null | undefined) {
 
 // ─── Card Sortável ────────────────────────────────────────────────────────────
 
-function KanbanCard({ demanda, onClick, isSaida }: {
+function KanbanCard({
+  demanda,
+  onClick,
+  isSaida,
+  isOverlay = false,
+}: {
   demanda: any;
   onClick: () => void;
   isSaida?: boolean;
+  isOverlay?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `demanda-${demanda.id}`,
-    data: { type: "demanda", demanda },
-    disabled: isSaida, // cards na coluna de saída não são arrastáveis de volta
+    data: { type: "demanda", demanda, colunaId: demanda.colunaId },
+    disabled: isSaida,
   });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
+    transition: transition ?? "transform 200ms ease",
+    opacity: isDragging ? 0 : 1,
   };
 
   const prioBorder = prioridadeBorderClass(demanda.prioridade);
@@ -97,10 +100,12 @@ function KanbanCard({ demanda, onClick, isSaida }: {
   return (
     <div
       ref={setNodeRef}
-      style={style}
-      className={`bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group ${
+      style={isOverlay ? {} : style}
+      className={`bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all cursor-pointer group select-none ${
         isSaida ? "opacity-75" : ""
-      } ${isUrgente ? "ring-1 ring-red-300 dark:ring-red-700" : ""}`}
+      } ${isUrgente ? "ring-1 ring-red-300 dark:ring-red-700" : ""} ${
+        isOverlay ? "rotate-2 shadow-2xl opacity-95 scale-105" : ""
+      }`}
       onClick={onClick}
     >
       {/* Faixa de prioridade no topo */}
@@ -111,7 +116,7 @@ function KanbanCard({ demanda, onClick, isSaida }: {
           <div
             {...attributes}
             {...listeners}
-            className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+            className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
             onClick={e => e.stopPropagation()}
           >
             <GripVertical className="h-4 w-4" />
@@ -165,6 +170,16 @@ function KanbanCard({ demanda, onClick, isSaida }: {
   );
 }
 
+// ─── Placeholder de Drop ──────────────────────────────────────────────────────
+
+function DropPlaceholder() {
+  return (
+    <div className="h-20 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 flex items-center justify-center text-xs text-primary/60 font-medium">
+      Soltar aqui
+    </div>
+  );
+}
+
 // ─── Coluna Kanban ────────────────────────────────────────────────────────────
 
 function KanbanColuna({
@@ -172,156 +187,164 @@ function KanbanColuna({
   demandas,
   onNovaDemanda,
   onClickDemanda,
-  onEditColuna,
-  onDeleteColuna,
+  onGerenciar,
+  isDragOver,
+  activeId,
 }: {
   coluna: any;
   demandas: any[];
   onNovaDemanda: (colunaId: number) => void;
   onClickDemanda: (id: number) => void;
-  onEditColuna?: (coluna: any) => void;
-  onDeleteColuna?: (coluna: any) => void;
+  onGerenciar?: () => void;
+  isDragOver: boolean;
+  activeId: string | null;
 }) {
-  const { setNodeRef } = useSortable({
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: `coluna-${coluna.id}`,
     data: { type: "coluna", colunaId: coluna.id },
+    disabled: coluna.tipo !== "intermediaria",
   });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition ?? "transform 200ms ease",
+    opacity: isDragging ? 0.4 : 1,
+  };
 
   const atrasadas = demandas.filter(d => isAtrasada(d.prazo)).length;
   const isEntrada = coluna.tipo === "entrada";
   const isSaida = coluna.tipo === "saida";
   const isFixa = isEntrada || isSaida;
 
-  // Estilos diferenciados por tipo de coluna
   const headerStyle = isEntrada
     ? "bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800"
     : isSaida
     ? "bg-emerald-50 dark:bg-emerald-950/30 border-b border-emerald-200 dark:border-emerald-800"
     : "border-b";
 
-  const containerStyle = isEntrada
-    ? "bg-blue-50/50 dark:bg-blue-950/10 border border-blue-200 dark:border-blue-800/50"
+  const headerTextStyle = isEntrada
+    ? "text-blue-700 dark:text-blue-300"
     : isSaida
-    ? "bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-200 dark:border-emerald-800/50"
-    : "bg-muted/30 border";
+    ? "text-emerald-700 dark:text-emerald-300"
+    : "text-foreground";
 
-  const titleStyle = isEntrada
-    ? "text-blue-700 dark:text-blue-400"
-    : isSaida
-    ? "text-emerald-700 dark:text-emerald-400"
-    : "";
+  const columnBorder = isDragOver
+    ? isEntrada
+      ? "border-blue-400 ring-2 ring-blue-300/50 dark:ring-blue-600/50"
+      : isSaida
+      ? "border-emerald-400 ring-2 ring-emerald-300/50 dark:ring-emerald-600/50"
+      : "border-primary ring-2 ring-primary/30"
+    : "border-border";
+
+  // IDs dos cards na coluna para SortableContext
+  const cardIds = demandas.map(d => `demanda-${d.id}`);
+
+  // Detectar se há um card sendo arrastado sobre esta coluna (para mostrar placeholder)
+  const isDraggingCard = activeId?.startsWith("demanda-");
+  const activeDemandaId = isDraggingCard ? Number(activeId!.replace("demanda-", "")) : null;
+  const isActiveInThisColumn = activeDemandaId
+    ? demandas.some(d => d.id === activeDemandaId)
+    : false;
+  const showPlaceholder = isDragOver && isDraggingCard && !isActiveInThisColumn;
 
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col ${containerStyle} rounded-xl min-w-[280px] max-w-[280px] h-full`}
+      style={style}
+      className={`flex flex-col w-72 shrink-0 rounded-xl border bg-card shadow-sm transition-all duration-150 ${columnBorder} ${
+        isDragOver ? "bg-muted/30" : ""
+      }`}
     >
       {/* Header da coluna */}
-      <div className={`flex items-center justify-between p-3 ${headerStyle} rounded-t-xl`}>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-base shrink-0">{coluna.icone}</span>
-          <span className={`font-semibold text-sm truncate ${titleStyle}`}>{coluna.nome}</span>
-          <Badge variant="secondary" className="text-xs shrink-0">{demandas.length}</Badge>
-          {atrasadas > 0 && (
-            <Badge variant="outline" className="text-xs text-red-500 border-red-200 shrink-0">
-              {atrasadas}⚠
-            </Badge>
-          )}
-          {isFixa && (
-            <Lock className={`h-3 w-3 shrink-0 ${isEntrada ? "text-blue-400" : "text-emerald-400"}`} aria-label="Coluna fixa do sistema" />
-          )}
-        </div>
-        <div className="flex items-center gap-0.5">
-          {!isSaida && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => onNovaDemanda(coluna.id)}
-              title="Nova demanda"
+      <div className={`px-3 py-2.5 rounded-t-xl ${headerStyle}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Handle de arrastar coluna — só para colunas intermediárias */}
+            {!isFixa && (
+              <div
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
+              >
+                <GripHorizontal className="h-3.5 w-3.5" />
+              </div>
+            )}
+            {isFixa && <Lock className={`h-3.5 w-3.5 shrink-0 ${isEntrada ? "text-blue-400" : "text-emerald-400"}`} />}
+            <span className="text-sm">{coluna.icone}</span>
+            <span className={`text-sm font-semibold truncate ${headerTextStyle}`}>{coluna.nome}</span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Badge
+              variant="secondary"
+              className={`text-xs px-1.5 py-0 h-5 ${
+                isEntrada ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                : isSaida ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                : ""
+              }`}
             >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          )}
-          {!isFixa && (onEditColuna || onDeleteColuna) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <MoreVertical className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {onEditColuna && (
-                  <DropdownMenuItem onClick={() => onEditColuna(coluna)}>
-                    <Pencil className="h-3.5 w-3.5 mr-2" />
-                    Renomear
-                  </DropdownMenuItem>
-                )}
-                {onDeleteColuna && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => onDeleteColuna(coluna)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-2" />
-                      Excluir coluna
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+              {demandas.length}
+            </Badge>
+            {atrasadas > 0 && (
+              <Badge variant="destructive" className="text-xs px-1.5 py-0 h-5">
+                {atrasadas} ⚠
+              </Badge>
+            )}
+            {!isFixa && onGerenciar && (
+              <button
+                onClick={onGerenciar}
+                className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                <MoreVertical className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
+        {isEntrada && (
+          <p className="text-[10px] text-blue-500/70 dark:text-blue-400/60 mt-0.5">
+            Entrada automática de novas demandas
+          </p>
+        )}
+        {isSaida && (
+          <p className="text-[10px] text-emerald-500/70 dark:text-emerald-400/60 mt-0.5">
+            Mover aqui encerra a demanda
+          </p>
+        )}
       </div>
 
-      {/* Legenda da coluna fixa */}
-      {isEntrada && (
-        <div className="px-3 py-1.5 text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900">
-          Toda nova demanda entra aqui automaticamente
-        </div>
-      )}
-      {isSaida && (
-        <div className="px-3 py-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900">
-          Demanda encerrada ao chegar aqui
-        </div>
-      )}
-
       {/* Cards */}
-      <ScrollArea className="flex-1 p-2">
-        <SortableContext
-          items={demandas.map(d => `demanda-${d.id}`)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-2 min-h-[60px]">
-            {demandas.map(d => (
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
+          <div className="p-2 space-y-2 min-h-[80px]">
+            {showPlaceholder && <DropPlaceholder />}
+            {demandas.map((d) => (
               <KanbanCard
                 key={d.id}
                 demanda={d}
-                isSaida={isSaida}
                 onClick={() => onClickDemanda(d.id)}
+                isSaida={isSaida}
               />
             ))}
-            {demandas.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground text-xs">
-                {isSaida ? (
-                  <div className="flex flex-col items-center gap-1">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" />
-                    <span>Nenhuma demanda resolvida</span>
-                  </div>
-                ) : isEntrada ? (
-                  <div className="flex flex-col items-center gap-1">
-                    <Inbox className="h-5 w-5 text-blue-400 mx-auto" />
-                    <span>Nenhuma demanda recebida</span>
-                  </div>
-                ) : (
-                  <span>Nenhuma demanda</span>
-                )}
+            {demandas.length === 0 && !showPlaceholder && (
+              <div className="h-16 flex items-center justify-center text-xs text-muted-foreground/50 italic">
+                {isSaida ? "Nenhuma demanda concluída" : "Arraste cards aqui"}
               </div>
             )}
           </div>
         </SortableContext>
-      </ScrollArea>
+      </div>
+
+      {/* Footer: botão de nova demanda */}
+      {!isSaida && (
+        <div className="p-2 border-t">
+          <button
+            onClick={() => onNovaDemanda(coluna.id)}
+            className="w-full flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg px-2 py-1.5 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Adicionar demanda
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -433,8 +456,8 @@ function ModalGerenciarColunas({
             </p>
             <p className="text-xs text-muted-foreground -mt-1 mb-2">
               {targetUserName
-              ? `Você está gerenciando as etapas do advogado ${targetUserName}. Alterações afetam apenas este usuário.`
-              : "Estas etapas são exclusivas do seu usuário. Cada advogado pode configurar seu próprio fluxo."}
+                ? `Você está gerenciando as etapas do advogado ${targetUserName}. Alterações afetam apenas este usuário.`
+                : "Estas etapas são exclusivas do seu usuário. Cada advogado pode configurar seu próprio fluxo."}
             </p>
             {colunasIntermedias.length === 0 ? (
               <div className="text-center py-4 text-muted-foreground text-sm border rounded-lg">
@@ -582,6 +605,8 @@ function ModalGerenciarColunas({
 export default function KanbanDemandas() {
   const [, navigate] = useLocation();
   const [activeDemanda, setActiveDemanda] = useState<any>(null);
+  const [activeColuna, setActiveColuna] = useState<any>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [overColunaId, setOverColunaId] = useState<number | null>(null);
   const [modalGerenciar, setModalGerenciar] = useState(false);
   const [filtroAdvogadoId, setFiltroAdvogadoId] = useState<number | null>(null);
@@ -602,7 +627,7 @@ export default function KanbanDemandas() {
 
   // Seed automático: cria as colunas padrão na primeira vez
   const seedMutation = trpc.juridicoDemandas.seedColunas.useMutation();
-  const { data: colunas = [], refetch: refetchColunas } = trpc.juridicoDemandas.getColunas.useQuery(
+  const { data: colunasRaw = [], refetch: refetchColunas } = trpc.juridicoDemandas.getColunas.useQuery(
     targetUserId ? { targetUserId } : undefined,
     {
       onSuccess: (data: any[]) => {
@@ -610,87 +635,196 @@ export default function KanbanDemandas() {
       },
     } as any
   );
-  const { data: demandas = [], isLoading, refetch: refetchDemandas } = trpc.juridicoDemandas.listar.useQuery(
+
+  // Estado local das colunas para reordenamento otimista
+  const [colunasOrdem, setColunasOrdem] = useState<any[]>([]);
+  const colunas = colunasOrdem.length > 0 ? colunasOrdem : (colunasRaw as any[]);
+
+  // Sincronizar quando dados do servidor chegam
+  React.useEffect(() => {
+    if ((colunasRaw as any[]).length > 0) {
+      setColunasOrdem(colunasRaw as any[]);
+    }
+  }, [colunasRaw]);
+
+  const { data: demandasRaw = [], isLoading, refetch: refetchDemandas } = trpc.juridicoDemandas.listar.useQuery(
     filtroAdvogadoId ? { responsavelId: filtroAdvogadoId } : undefined
   );
 
+  // Estado local das demandas para reordenamento otimista
+  const [demandasOrdem, setDemandasOrdem] = useState<any[]>([]);
+  const demandas = demandasOrdem.length > 0 ? demandasOrdem : (demandasRaw as any[]);
+
+  React.useEffect(() => {
+    if ((demandasRaw as any[]).length > 0) {
+      setDemandasOrdem(demandasRaw as any[]);
+    }
+  }, [demandasRaw]);
+
   const moverMutation = trpc.juridicoDemandas.mover.useMutation({
-    onSuccess: () => {
-      utils.juridicoDemandas.listar.invalidate();
+    onError: (e) => {
+      toast.error(e.message);
+      refetchDemandas();
     },
-    onError: (e) => toast.error(e.message),
+  });
+
+  const reordenarDemandaMutation = trpc.juridicoDemandas.reordenarDemandas.useMutation({
+    onError: () => refetchDemandas(),
+  });
+
+  const reordenarColunasMutation = trpc.juridicoDemandas.reordenarColunas.useMutation({
+    onError: () => refetchColunas(),
   });
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
   const demandasPorColuna = useCallback((colunaId: number) => {
-    return (demandas as any[]).filter((d: any) => d.colunaId === colunaId);
+    return demandas.filter((d: any) => d.colunaId === colunaId);
+  }, [demandas]);
+
+  // Encontrar colunaId a partir de um over id
+  const getColunaIdFromOver = useCallback((overId: string): number | null => {
+    if (overId.startsWith("coluna-")) return Number(overId.replace("coluna-", ""));
+    if (overId.startsWith("demanda-")) {
+      const demandaId = Number(overId.replace("demanda-", ""));
+      const d = demandas.find((x: any) => x.id === demandaId);
+      return d?.colunaId ?? null;
+    }
+    return null;
   }, [demandas]);
 
   const handleDragStart = (event: DragStartEvent) => {
-    const { data } = event.active;
-    if (data.current?.type === "demanda") {
-      setActiveDemanda(data.current.demanda);
+    const { active } = event;
+    const id = String(active.id);
+    setActiveId(id);
+    if (active.data.current?.type === "demanda") {
+      setActiveDemanda(active.data.current.demanda);
+      setActiveColuna(null);
+    } else if (active.data.current?.type === "coluna") {
+      setActiveColuna(colunas.find((c: any) => c.id === active.data.current?.colunaId) ?? null);
+      setActiveDemanda(null);
     }
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { over } = event;
+    const { over, active } = event;
     if (!over) { setOverColunaId(null); return; }
+
     const overId = String(over.id);
-    if (overId.startsWith("coluna-")) {
-      setOverColunaId(Number(overId.replace("coluna-", "")));
-    } else if (overId.startsWith("demanda-")) {
-      const demandaId = Number(overId.replace("demanda-", ""));
-      const d = (demandas as any[]).find((x: any) => x.id === demandaId);
-      if (d) setOverColunaId(d.colunaId);
+    const activeType = active.data.current?.type;
+
+    if (activeType === "demanda") {
+      const novaColunaId = getColunaIdFromOver(overId);
+      setOverColunaId(novaColunaId);
+
+      // Reordenamento otimista ao arrastar sobre outro card na mesma coluna
+      if (overId.startsWith("demanda-")) {
+        const activeCardId = Number(String(active.id).replace("demanda-", ""));
+        const overCardId = Number(overId.replace("demanda-", ""));
+        if (activeCardId !== overCardId) {
+          const activeCard = demandas.find((d: any) => d.id === activeCardId);
+          const overCard = demandas.find((d: any) => d.id === overCardId);
+          if (activeCard && overCard && activeCard.colunaId === overCard.colunaId) {
+            const colDemandas = demandas.filter((d: any) => d.colunaId === activeCard.colunaId);
+            const oldIndex = colDemandas.findIndex((d: any) => d.id === activeCardId);
+            const newIndex = colDemandas.findIndex((d: any) => d.id === overCardId);
+            if (oldIndex !== -1 && newIndex !== -1) {
+              const reordered = arrayMove(colDemandas, oldIndex, newIndex);
+              setDemandasOrdem(prev => {
+                const others = prev.filter((d: any) => d.colunaId !== activeCard.colunaId);
+                return [...others, ...reordered];
+              });
+            }
+          }
+        }
+      }
     }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setActiveDemanda(null);
-    setOverColunaId(null);
     const { active, over } = event;
-    if (!over || !activeDemanda) return;
+    const prevActiveDemanda = activeDemanda;
+    const prevActiveColuna = activeColuna;
+
+    setActiveDemanda(null);
+    setActiveColuna(null);
+    setActiveId(null);
+    setOverColunaId(null);
+
+    if (!over) return;
 
     const overId = String(over.id);
-    let novaColunaId: number | null = null;
+    const activeType = active.data.current?.type;
 
-    if (overId.startsWith("coluna-")) {
-      novaColunaId = Number(overId.replace("coluna-", ""));
-    } else if (overId.startsWith("demanda-")) {
-      const demandaId = Number(overId.replace("demanda-", ""));
-      const d = (demandas as any[]).find((x: any) => x.id === demandaId);
-      if (d) novaColunaId = d.colunaId;
+    // ── Arrastar CARD ──────────────────────────────────────────────────────
+    if (activeType === "demanda" && prevActiveDemanda) {
+      const novaColunaId = getColunaIdFromOver(overId);
+      if (!novaColunaId) return;
+
+      const mudouColuna = novaColunaId !== prevActiveDemanda.colunaId;
+
+      if (mudouColuna) {
+        // Mover para outra coluna
+        const colunaDestino = colunas.find((c: any) => c.id === novaColunaId);
+        if (colunaDestino?.tipo === "saida") {
+          toast.info(`Demanda movida para "${colunaDestino.nome}" — será marcada como concluída`, { duration: 3000 });
+        }
+
+        // Calcular nova ordem: inserir no final da coluna destino
+        const demandasDestino = demandas.filter((d: any) => d.colunaId === novaColunaId);
+        const novaOrdem = demandasDestino.length;
+
+        // Optimistic update
+        setDemandasOrdem(prev =>
+          prev.map((d: any) => d.id === prevActiveDemanda.id ? { ...d, colunaId: novaColunaId, ordemColuna: novaOrdem } : d)
+        );
+
+        moverMutation.mutate({ id: prevActiveDemanda.id, novaColunaId, novaOrdem });
+      } else {
+        // Reordenar dentro da mesma coluna — estado já atualizado no dragOver
+        const colDemandas = demandas.filter((d: any) => d.colunaId === prevActiveDemanda.colunaId);
+        const ids = colDemandas.map((d: any) => d.id);
+        reordenarDemandaMutation.mutate({ ids });
+      }
     }
 
-    if (novaColunaId && novaColunaId !== activeDemanda.colunaId) {
-      // Verifica se está movendo para a coluna de saída
-      const colunaDestino = (colunas as any[]).find((c: any) => c.id === novaColunaId);
-      if (colunaDestino?.tipo === "saida") {
-        // Confirmação visual antes de concluir
-        toast.info(`Movendo para "${colunaDestino.nome}" — demanda será marcada como concluída`, {
-          duration: 3000,
-        });
-      }
+    // ── Arrastar COLUNA ────────────────────────────────────────────────────
+    if (activeType === "coluna" && prevActiveColuna) {
+      if (!overId.startsWith("coluna-")) return;
+      const overColunaId = Number(overId.replace("coluna-", ""));
+      if (prevActiveColuna.id === overColunaId) return;
 
-      // Optimistic update
-      utils.juridicoDemandas.listar.setData(undefined, (old: any) =>
-        old?.map((d: any) => d.id === activeDemanda.id ? { ...d, colunaId: novaColunaId } : d)
-      );
-      moverMutation.mutate({ id: activeDemanda.id, novaColunaId });
+      // Só reordena colunas intermediárias
+      const intermediarias = colunas.filter((c: any) => c.tipo === "intermediaria");
+      const oldIndex = intermediarias.findIndex((c: any) => c.id === prevActiveColuna.id);
+      const newIndex = intermediarias.findIndex((c: any) => c.id === overColunaId);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const reordered = arrayMove(intermediarias, oldIndex, newIndex);
+      const entrada = colunas.find((c: any) => c.tipo === "entrada");
+      const saida = colunas.find((c: any) => c.tipo === "saida");
+      const novaOrdem = [
+        ...(entrada ? [entrada] : []),
+        ...reordered,
+        ...(saida ? [saida] : []),
+      ];
+      setColunasOrdem(novaOrdem);
+      reordenarColunasMutation.mutate({
+        colunaIds: reordered.map((c: any) => c.id),
+        ...(targetUserId ? { targetUserId } : {}),
+      } as any);
     }
   };
 
   // Estatísticas rápidas
-  const totalDemandas = (demandas as any[]).length;
-  const colunaEntrada = (colunas as any[]).find((c: any) => c.tipo === "entrada");
-  const colunaSaida = (colunas as any[]).find((c: any) => c.tipo === "saida");
+  const totalDemandas = demandas.length;
+  const colunaEntrada = colunas.find((c: any) => c.tipo === "entrada");
+  const colunaSaida = colunas.find((c: any) => c.tipo === "saida");
   const demandasRecebidas = colunaEntrada ? demandasPorColuna(colunaEntrada.id).length : 0;
   const demandasResolvidas = colunaSaida ? demandasPorColuna(colunaSaida.id).length : 0;
-  const demandasAtrasadas = (demandas as any[]).filter((d: any) => isAtrasada(d.prazo)).length;
+  const demandasAtrasadas = demandas.filter((d: any) => isAtrasada(d.prazo)).length;
 
   if (isLoading) {
     return (
@@ -782,41 +916,54 @@ export default function KanbanDemandas() {
           <span className="font-medium">Demandas Resolvidas</span>
         </div>
         <span className="ml-auto flex items-center gap-1">
-          <Lock className="h-3 w-3" />
-          Colunas com cadeado são fixas e não podem ser excluídas
+          <GripHorizontal className="h-3 w-3" />
+          Arraste colunas intermediárias para reordenar
         </span>
       </div>
 
       {/* Board */}
       <DndContext
         sensors={sensors}
+        collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
-          <SortableContext
-            items={(colunas as any[]).map((c: any) => `coluna-${c.id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            {(colunas as any[]).map((col: any) => (
+        <SortableContext
+          items={colunas.map((c: any) => `coluna-${c.id}`)}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+            {colunas.map((col: any) => (
               <KanbanColuna
                 key={col.id}
                 coluna={col}
                 demandas={demandasPorColuna(col.id)}
                 onNovaDemanda={(colunaId) => navigate(`/admin/juridico?nova=1&coluna=${colunaId}`)}
                 onClickDemanda={(id) => navigate(`/admin/juridico/demanda/${id}`)}
-                onEditColuna={col.tipo === "intermediaria" ? (c) => setModalGerenciar(true) : undefined}
-                onDeleteColuna={col.tipo === "intermediaria" ? (c) => setModalGerenciar(true) : undefined}
+                onGerenciar={() => setModalGerenciar(true)}
+                isDragOver={overColunaId === col.id}
+                activeId={activeId}
               />
             ))}
-          </SortableContext>
-        </div>
+          </div>
+        </SortableContext>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
           {activeDemanda && (
-            <div className="rotate-2 shadow-xl opacity-90">
-              <KanbanCard demanda={activeDemanda} onClick={() => {}} />
+            <KanbanCard demanda={activeDemanda} onClick={() => {}} isOverlay />
+          )}
+          {activeColuna && !activeDemanda && (
+            <div className="w-72 rounded-xl border bg-card shadow-2xl opacity-90 rotate-1 scale-105">
+              <div className="px-3 py-2.5 border-b rounded-t-xl bg-muted/50">
+                <div className="flex items-center gap-2">
+                  <span>{activeColuna.icone}</span>
+                  <span className="text-sm font-semibold">{activeColuna.nome}</span>
+                </div>
+              </div>
+              <div className="p-2 text-xs text-muted-foreground/50 italic text-center py-4">
+                Reordenando coluna...
+              </div>
             </div>
           )}
         </DragOverlay>

@@ -1,0 +1,1 @@
+ALTER TABLE `demandas` ADD `ordemColuna` int DEFAULT 0 NOT NULL;

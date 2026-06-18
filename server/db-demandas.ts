@@ -372,12 +372,13 @@ export async function getDemandas(filters?: {
       unidadeDevedor: demandas.unidadeDevedor,
       qtdCobrancas: demandas.qtdCobrancas,
       criadoPorId: demandas.criadoPorId,
+      ordemColuna: demandas.ordemColuna,
       createdAt: demandas.createdAt,
       updatedAt: demandas.updatedAt,
     })
     .from(demandas)
     .leftJoin(condominios, eq(demandas.condominioId, condominios.id))
-    .orderBy(desc(demandas.createdAt));
+    .orderBy(asc(demandas.ordemColuna), desc(demandas.createdAt));
   if (conditions.length > 0) {
     return query.where(and(...conditions));
   }
@@ -452,9 +453,24 @@ export async function updateDemanda(
   return db.update(demandas).set(data as any).where(eq(demandas.id, id));
 }
 
+/**
+ * Reordena demandas dentro de uma coluna (drag-and-drop estilo Trello).
+ * Recebe a lista ordenada de IDs e atualiza o campo ordemColuna de cada um.
+ */
+export async function reordenarDemandas(ids: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  await Promise.all(
+    ids.map((id, index) =>
+      db.update(demandas).set({ ordemColuna: index }).where(eq(demandas.id, id))
+    )
+  );
+}
+
 export async function moverDemanda(
   id: number,
   novaColunaId: number,
+  novaOrdem?: number,
   usuarioId?: number,
   usuarioNome?: string
 ) {
@@ -466,7 +482,7 @@ export async function moverDemanda(
     .where(eq(colunasDemanda.id, novaColunaId))
     .limit(1);
   // Se a coluna de destino é do tipo saida, marca a demanda como concluída
-  const updateData: any = { colunaId: novaColunaId };
+  const updateData: any = { colunaId: novaColunaId, ordemColuna: novaOrdem ?? 0 };
   if (coluna?.tipo === "saida") {
     updateData.status = "concluida";
     updateData.resolvidoEm = new Date();

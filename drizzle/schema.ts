@@ -1090,6 +1090,7 @@ export const demandas = mysqlTable("demandas", {
   // Status da demanda (controlado pelo Kanban)
   status: mysqlEnum("statusDemanda", ["aberta", "em_andamento", "concluida", "cancelada"]).default("aberta").notNull(),
   resolvidoEm: timestamp("resolvidoEm"), // data de conclusão
+  ordemColuna: int("ordemColuna").default(0).notNull(), // posição dentro da coluna (para reordenamento estilo Trello)
   // Controle
   criadoPorId: int("criadoPorId"), // userId
   createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -5992,10 +5992,20 @@ export const appRouter = router({
       .input(z.object({
         id: z.number().int().positive(),
         novaColunaId: z.number().int().positive(),
+        novaOrdem: z.number().int().min(0).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const { moverDemanda } = await import("./db-demandas");
-        await moverDemanda(input.id, input.novaColunaId, ctx.user.id, ctx.user.name ?? undefined);
+        await moverDemanda(input.id, input.novaColunaId, input.novaOrdem, ctx.user.id, ctx.user.name ?? undefined);
+        return { success: true };
+      }),
+    reordenarDemandas: protectedProcedure
+      .input(z.object({
+        ids: z.array(z.number().int().positive()),
+      }))
+      .mutation(async ({ input }) => {
+        const { reordenarDemandas } = await import("./db-demandas");
+        await reordenarDemandas(input.ids);
         return { success: true };
       }),
     delete: protectedProcedure
