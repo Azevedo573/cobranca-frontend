@@ -48,6 +48,34 @@ export default function DevedorForm() {
     { enabled: user?.role === "admin" }
   );
 
+  // Buscar dados do condomínio selecionado para herdar endereço
+  const condominioSelecionadoId = formData.condominioId ? parseInt(formData.condominioId) : null;
+  const { data: condominioSelecionado } = trpc.condominios.getById.useQuery(
+    { id: condominioSelecionadoId! },
+    { enabled: !!condominioSelecionadoId }
+  );
+
+  // Ao selecionar condomínio (novo devedor), herdar endereço automaticamente
+  const handleCondominioChange = (value: string) => {
+    setFormData(prev => ({ ...prev, condominioId: value }));
+  };
+
+  // Preencher endereço do condomínio quando ele for carregado (apenas para novos devedores)
+  useEffect(() => {
+    if (condominioSelecionado && !isEdit) {
+      setFormData(prev => ({
+        ...prev,
+        address: (condominioSelecionado as any).address || prev.address,
+        addressNumber: (condominioSelecionado as any).addressNumber || prev.addressNumber,
+        addressComplement: (condominioSelecionado as any).addressComplement || prev.addressComplement,
+        neighborhood: (condominioSelecionado as any).neighborhood || prev.neighborhood,
+        city: condominioSelecionado.city || prev.city,
+        state: condominioSelecionado.state || prev.state,
+        zipCode: condominioSelecionado.zipCode || prev.zipCode,
+      }));
+    }
+  }, [condominioSelecionado, isEdit]);
+
   useEffect(() => {
     if (devedor) {
       setFormData({
@@ -240,7 +268,7 @@ export default function DevedorForm() {
                   <Label htmlFor="condominioId">Condomínio *</Label>
                   <Select
                     value={formData.condominioId}
-                    onValueChange={(value) => setFormData({ ...formData, condominioId: value })}
+                    onValueChange={handleCondominioChange}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o condomínio" />
@@ -339,14 +367,37 @@ export default function DevedorForm() {
                 </div>
               </div>
 
-              {/* Endereço (Boleto BTG) */}
+              {/* Endereço (herdado do condomínio) */}
               <div className="border-t pt-4">
-                <p className="text-sm font-medium mb-3">
-                  Endereço
-                  <span className="ml-2 text-xs text-muted-foreground font-normal">
-                    Necessário para emissão de boleto BTG
-                  </span>
-                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium">
+                    Endereço
+                    <span className="ml-2 text-xs text-muted-foreground font-normal">
+                      Herdado do condomínio — edite apenas se diferente
+                    </span>
+                  </p>
+                  {condominioSelecionado && !isEdit && (
+                    <button
+                      type="button"
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          address: (condominioSelecionado as any).address || "",
+                          addressNumber: (condominioSelecionado as any).addressNumber || "",
+                          addressComplement: (condominioSelecionado as any).addressComplement || "",
+                          neighborhood: (condominioSelecionado as any).neighborhood || "",
+                          city: condominioSelecionado.city || "",
+                          state: condominioSelecionado.state || "",
+                          zipCode: condominioSelecionado.zipCode || "",
+                        }));
+                        toast.info("Endereço restaurado do condomínio.");
+                      }}
+                    >
+                      ↺ Restaurar do condomínio
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-2 space-y-2">
                     <Label htmlFor="address">Logradouro</Label>

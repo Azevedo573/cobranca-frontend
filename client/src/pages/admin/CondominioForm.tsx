@@ -73,11 +73,42 @@ export default function CondominioForm() {
   const isEdit = params?.id && params.id !== "novo";
   const condominioId = isEdit ? parseInt(params.id) : null;
 
+  const [buscandoCep, setBuscandoCep] = useState(false);
+
+  const handleCepBlur = async (cep: string) => {
+    const digits = cep.replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    setBuscandoCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        setFormData(prev => ({
+          ...prev,
+          address: data.logradouro || prev.address,
+          neighborhood: data.bairro || prev.neighborhood,
+          city: data.localidade || prev.city,
+          state: data.uf || prev.state,
+        }));
+        toast.success("Endereço preenchido automaticamente!");
+      } else {
+        toast.warning("CEP não encontrado.");
+      }
+    } catch {
+      toast.warning("Não foi possível buscar o CEP.");
+    } finally {
+      setBuscandoCep(false);
+    }
+  };
+
   const [formData, setFormData] = useState({
     // Geral
     name: "",
     cnpj: "",
     address: "",
+    addressNumber: "",
+    addressComplement: "",
+    neighborhood: "",
     city: "",
     state: "",
     zipCode: "",
@@ -151,6 +182,9 @@ export default function CondominioForm() {
         name: condominio.name || "",
         cnpj: condominio.cnpj || "",
         address: condominio.address || "",
+        addressNumber: (condominio as any).addressNumber || "",
+        addressComplement: (condominio as any).addressComplement || "",
+        neighborhood: (condominio as any).neighborhood || "",
         city: condominio.city || "",
         state: condominio.state || "",
         zipCode: condominio.zipCode || "",
@@ -451,29 +485,80 @@ export default function CondominioForm() {
                       Endereço
                     </h3>
                     <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="address">Endereço Completo</Label>
-                        <Textarea
-                          id="address"
-                          name="address"
-                          value={formData.address}
-                          onChange={handleChange}
-                          placeholder="Rua, número, complemento"
-                          rows={2}
-                        />
+                      {/* Linha 1: CEP com busca automática */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="zipCode">CEP</Label>
+                          <div className="relative">
+                            <Input
+                              id="zipCode"
+                              name="zipCode"
+                              value={formData.zipCode}
+                              onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, "").slice(0, 8);
+                                const formatted = digits.length > 5 ? `${digits.slice(0,5)}-${digits.slice(5)}` : digits;
+                                setFormData({ ...formData, zipCode: formatted });
+                              }}
+                              onBlur={(e) => handleCepBlur(e.target.value)}
+                              placeholder="00000-000"
+                              maxLength={9}
+                            />
+                            {buscandoCep && (
+                              <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Preenche o endereço automaticamente</p>
+                        </div>
+                        <div className="md:col-span-2 space-y-2">
+                          <Label htmlFor="address">Logradouro (Rua/Av.)</Label>
+                          <Input
+                            id="address"
+                            name="address"
+                            value={formData.address}
+                            onChange={handleChange}
+                            placeholder="Ex: Rua das Flores"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="addressNumber">Número</Label>
+                          <Input
+                            id="addressNumber"
+                            name="addressNumber"
+                            value={formData.addressNumber}
+                            onChange={handleChange}
+                            placeholder="Ex: 123"
+                          />
+                        </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Linha 2: Complemento, Bairro, Cidade, UF */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="addressComplement">Complemento</Label>
+                          <Input
+                            id="addressComplement"
+                            name="addressComplement"
+                            value={formData.addressComplement}
+                            onChange={handleChange}
+                            placeholder="Ex: Bloco A, Apto 101"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="neighborhood">Bairro</Label>
+                          <Input
+                            id="neighborhood"
+                            name="neighborhood"
+                            value={formData.neighborhood}
+                            onChange={handleChange}
+                            placeholder="Ex: Centro"
+                          />
+                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="city">Cidade</Label>
                           <Input id="city" name="city" value={formData.city} onChange={handleChange} placeholder="Ex: São Paulo" />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="state">Estado</Label>
-                          <Input id="state" name="state" value={formData.state} onChange={handleChange} placeholder="UF" maxLength={2} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="zipCode">CEP</Label>
-                          <Input id="zipCode" name="zipCode" value={formData.zipCode} onChange={handleChange} placeholder="00000-000" />
+                          <Label htmlFor="state">UF</Label>
+                          <Input id="state" name="state" value={formData.state} onChange={handleChange} placeholder="SP" maxLength={2} className="uppercase" />
                         </div>
                       </div>
                     </div>

@@ -29,7 +29,10 @@ export const condominios = mysqlTable("condominios", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   cnpj: varchar("cnpj", { length: 18 }),
-  address: text("address"),
+  address: varchar("address", { length: 255 }),       // Logradouro
+  addressNumber: varchar("addressNumber", { length: 20 }), // Número
+  addressComplement: varchar("addressComplement", { length: 100 }), // Complemento
+  neighborhood: varchar("neighborhood", { length: 100 }), // Bairro
   city: varchar("city", { length: 100 }),
   state: varchar("state", { length: 2 }),
   zipCode: varchar("zipCode", { length: 10 }),
