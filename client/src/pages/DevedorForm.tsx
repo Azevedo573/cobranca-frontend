@@ -24,6 +24,7 @@ export default function DevedorForm() {
     name: "",
     unitNumber: "",
     bloco: "",
+    statusUnidade: "padrao" as "padrao" | "ajuizado",
     cpfCnpj: "",
     email: "",
     phone: "",
@@ -83,6 +84,7 @@ export default function DevedorForm() {
         name: devedor.name || "",
         unitNumber: devedor.unitNumber || "",
         bloco: devedor.bloco || "",
+        statusUnidade: ((devedor as any).statusUnidade || "padrao") as "padrao" | "ajuizado",
         cpfCnpj: devedor.cpfCnpj || "",
         email: devedor.email || "",
         phone: devedor.phone || "",
@@ -163,6 +165,7 @@ export default function DevedorForm() {
         name: formData.name,
         unitNumber: formData.unitNumber,
         bloco: formData.bloco || undefined,
+        statusUnidade: formData.statusUnidade,
         cpfCnpj: formData.cpfCnpj || undefined,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
@@ -175,6 +178,7 @@ export default function DevedorForm() {
         name: formData.name,
         unitNumber: formData.unitNumber,
         bloco: formData.bloco || undefined,
+        statusUnidade: formData.statusUnidade,
         cpfCnpj: formData.cpfCnpj || undefined,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
@@ -323,6 +327,24 @@ export default function DevedorForm() {
                     onChange={handleChange}
                     placeholder="Ex: A, B, C"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="statusUnidade">Status da Unidade</Label>
+                  <Select
+                    value={formData.statusUnidade}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, statusUnidade: value as "padrao" | "ajuizado" }))}
+                  >
+                    <SelectTrigger id="statusUnidade">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="padrao">Padrão</SelectItem>
+                      <SelectItem value="ajuizado">Ajuizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Ajuizado cria automaticamente uma demanda de cobrança judicial no módulo Jurídico
+                  </p>
                 </div>
               </div>
 

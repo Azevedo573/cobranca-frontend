@@ -586,6 +586,7 @@ export const appRouter = router({
       name: z.string(),
       unitNumber: z.string(),
       bloco: z.string().optional(),
+      statusUnidade: z.enum(["padrao", "ajuizado"]).optional(),
       cpfCnpj: z.string().optional(),
       email: z.string().optional(),
       phone: z.string().optional(),
@@ -600,7 +601,30 @@ export const appRouter = router({
       zipCode: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { createDevedor } = await import("./db-devedores");
-      const result = await createDevedor(input);
+      const { statusUnidade, ...devedorData } = input;
+      const result = await createDevedor(devedorData);
+      const devedorId = Number((result as any).insertId || 0);
+      // Se ajuizado, criar demanda de cobrança judicial automaticamente
+      if (statusUnidade === "ajuizado" && devedorId) {
+        try {
+          const { createDemanda, getColunaEntrada } = await import("./db-demandas");
+          const colunaEntrada = await getColunaEntrada();
+          if (colunaEntrada) {
+            await createDemanda({
+              condominioId: input.condominioId,
+              colunaId: colunaEntrada.id,
+              assunto: `Cobrança Judicial — ${input.name || `Unidade ${input.unitNumber}`}`,
+              descricao: `Demanda criada via cadastro de devedor. Unidade: ${input.bloco ? input.bloco + ' ' : ''}${input.unitNumber}.`,
+              tipo: "cobranca_judicial",
+              canal: "manual",
+              prioridade: "alta",
+              devedorId,
+              criadoPorId: ctx.user.id,
+              prazo: null,
+            });
+          }
+        } catch (_e) { /* não bloquear cadastro */ }
+      }
       await logAudit(ctx, { action: "create", entity: "devedor", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, cpfCnpj: input.cpfCnpj, unitNumber: input.unitNumber }, severity: "info" });
       return result;
     }),
@@ -609,6 +633,7 @@ export const appRouter = router({
       name: z.string().optional(),
       unitNumber: z.string().optional(),
       bloco: z.string().optional(),
+      statusUnidade: z.enum(["padrao", "ajuizado"]).optional(),
       cpfCnpj: z.string().optional(),
       email: z.string().optional(),
       phone: z.string().optional(),
@@ -623,9 +648,46 @@ export const appRouter = router({
       state: z.string().optional(),
       zipCode: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
-      const { id, ...data } = input;
-      const { updateDevedor } = await import("./db-devedores");
+      const { id, statusUnidade, ...data } = input;
+      const { updateDevedor, getDevedorById } = await import("./db-devedores");
       const result = await updateDevedor(id, data);
+      // Sincronizar demanda judicial conforme statusUnidade
+      if (statusUnidade !== undefined) {
+        try {
+          const devedorAtual = await getDevedorById(id);
+          const { createDemanda, getColunaEntrada } = await import("./db-demandas");
+          const { getDb } = await import("./db");
+          const db = await getDb();
+          if (!db) throw new Error("DB not available");
+          const { demandas } = await import("../drizzle/schema");
+          const { eq, and } = await import("drizzle-orm");
+          // Verificar se já existe demanda judicial para este devedor
+          const demandasExistentes = await db.select().from(demandas)
+            .where(and(eq(demandas.devedorId, id), eq(demandas.tipo, "cobranca_judicial")));
+          if (statusUnidade === "ajuizado" && demandasExistentes.length === 0) {
+            // Criar demanda judicial
+            const colunaEntrada = await getColunaEntrada();
+            if (colunaEntrada && devedorAtual) {
+              await createDemanda({
+                condominioId: devedorAtual.condominioId,
+                colunaId: colunaEntrada.id,
+                assunto: `Cobrança Judicial — ${devedorAtual.name || `Unidade ${devedorAtual.unitNumber}`}`,
+                descricao: `Demanda criada via edição de devedor. Unidade: ${devedorAtual.bloco ? devedorAtual.bloco + ' ' : ''}${devedorAtual.unitNumber}.`,
+                tipo: "cobranca_judicial",
+                canal: "manual",
+                prioridade: "alta",
+                devedorId: id,
+                criadoPorId: ctx.user.id,
+                prazo: null,
+              });
+            }
+          } else if (statusUnidade === "padrao" && demandasExistentes.length > 0) {
+            // Remover demandas judiciais ao voltar para padrão
+            await db.delete(demandas)
+              .where(and(eq(demandas.devedorId, id), eq(demandas.tipo, "cobranca_judicial")));
+          }
+        } catch (_e) { /* não bloquear atualização */ }
+      }
       await logAudit(ctx, { action: "update", entity: "devedor", entityId: String(id), afterData: data as Record<string, unknown>, severity: "info" });
       return result;
     }),
