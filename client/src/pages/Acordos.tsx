@@ -345,7 +345,12 @@ export default function Acordos() {
                                 <span className="font-medium">{parcelasPagas}/{acordo.installments}</span>
                               </TableCell>
                               <TableCell>{formatDate(acordo.firstPaymentDate)}</TableCell>
-                              <TableCell>{getStatusBadge(acordo.status)}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {getStatusBadge(acordo.status)}
+                                  <span className="text-xs font-mono text-muted-foreground"># {String(acordo.id).padStart(6, '0')}</span>
+                                </div>
+                              </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   <Button
