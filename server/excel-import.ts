@@ -108,6 +108,7 @@ export interface ErroValidacao {
   linha: number;
   campo: string;
   mensagem: string;
+  tipo?: "erro" | "aviso"; // erro = bloqueia importação, aviso = campo opcional ausente
 }
 
 /**
@@ -116,6 +117,7 @@ export interface ErroValidacao {
 export function processarPlanilha(buffer: Buffer): {
   dados: DadosImportacao[];
   erros: ErroValidacao[];
+  avisos: ErroValidacao[];
 } {
   const wb = XLSX.read(buffer, { type: "buffer" });
   const wsName = wb.SheetNames[0];
@@ -126,27 +128,40 @@ export function processarPlanilha(buffer: Buffer): {
   
   const dados: DadosImportacao[] = [];
   const erros: ErroValidacao[] = [];
+  const avisos: ErroValidacao[] = [];
   
   rows.forEach((row, index) => {
     const linha = index + 2; // +2 porque linha 1 é cabeçalho e index começa em 0
     
-    // Validar campos obrigatórios
-    // Nome é opcional se Bloco + Unidade estiverem preenchidos
+    // Validar campos obrigatórios (erros críticos — bloqueiam importação)
     const temNome = row["Nome Completo (opcional)"] || row["Nome Completo"];
     const temBlocoUnidade = row["Bloco"] && row["Unidade"];
     
     if (!temNome && !temBlocoUnidade) {
-      erros.push({ linha, campo: "Nome/Bloco+Unidade", mensagem: "Preencha Nome OU (Bloco + Unidade)" });
+      erros.push({ linha, campo: "Nome/Bloco+Unidade", mensagem: "Preencha Nome OU (Bloco + Unidade)", tipo: "erro" });
     }
-    // CPF/CNPJ é opcional
     if (!row["Unidade"]) {
-      erros.push({ linha, campo: "Unidade", mensagem: "Campo obrigatório" });
+      erros.push({ linha, campo: "Unidade", mensagem: "Campo obrigatório", tipo: "erro" });
     }
     if (!row["Data de Vencimento"]) {
-      erros.push({ linha, campo: "Data de Vencimento", mensagem: "Campo obrigatório" });
+      erros.push({ linha, campo: "Data de Vencimento", mensagem: "Campo obrigatório", tipo: "erro" });
     }
     if (!row["Valor Original (R$)"]) {
-      erros.push({ linha, campo: "Valor Original", mensagem: "Campo obrigatório" });
+      erros.push({ linha, campo: "Valor Original", mensagem: "Campo obrigatório", tipo: "erro" });
+    }
+
+    // Avisos — campos opcionais ausentes (não bloqueiam, mas operador deve confirmar ciência)
+    if (!temNome && row["Unidade"]) {
+      avisos.push({ linha, campo: "Nome Completo", mensagem: "Não informado — devedor será identificado apenas por Bloco/Unidade", tipo: "aviso" });
+    }
+    if (!row["CPF/CNPJ (opcional)"] && !row["CPF/CNPJ"]) {
+      avisos.push({ linha, campo: "CPF/CNPJ", mensagem: "Não informado — pode dificultar identificação de duplicatas", tipo: "aviso" });
+    }
+    if (!row["Email"]) {
+      avisos.push({ linha, campo: "Email", mensagem: "Não informado — notificações por e-mail não serão enviadas", tipo: "aviso" });
+    }
+    if (!row["Telefone"]) {
+      avisos.push({ linha, campo: "Telefone", mensagem: "Não informado — contato por WhatsApp/SMS não disponível", tipo: "aviso" });
     }
     
     // Validar formato de CPF/CNPJ (se fornecido)
@@ -202,7 +217,7 @@ export function processarPlanilha(buffer: Buffer): {
     }
   });
   
-  return { dados, erros };
+  return { dados, erros, avisos };
 }
 
 /**

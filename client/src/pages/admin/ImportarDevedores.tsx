@@ -3,7 +3,8 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Download, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from "lucide-react";
+import { Download, Upload, AlertCircle, CheckCircle2, FileSpreadsheet, AlertTriangle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   Table,
@@ -47,6 +48,8 @@ export default function ImportarDevedores() {
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [dadosPrevia, setDadosPrevia] = useState<DadoImportacao[]>([]);
   const [errosValidacao, setErrosValidacao] = useState<ErroValidacao[]>([]);
+  const [avisosValidacao, setAvisosValidacao] = useState<ErroValidacao[]>([]);
+  const [cienciaAvisos, setCienciaAvisos] = useState(false);
   const [importando, setImportando] = useState(false);
 
   const { data: condominios } = trpc.condominios.list.useQuery();
@@ -112,9 +115,13 @@ export default function ImportarDevedores() {
 
           setDadosPrevia(resultado.dados);
           setErrosValidacao(resultado.erros);
+          setAvisosValidacao((resultado as any).avisos || []);
+          setCienciaAvisos(false);
 
           if (resultado.erros.length > 0) {
-            toast.warning(`Planilha processada com ${resultado.erros.length} erro(s) de validação`);
+            toast.warning(`Planilha processada com ${resultado.erros.length} erro(s) crítico(s) de validação`);
+          } else if (((resultado as any).avisos || []).length > 0) {
+            toast.warning(`${resultado.dados.length} registro(s) prontos — ${(resultado as any).avisos.length} aviso(s) de campos opcionais ausentes`);
           } else {
             toast.success(`${resultado.dados.length} registro(s) pronto(s) para importação`);
           }
@@ -142,7 +149,12 @@ export default function ImportarDevedores() {
     }
 
     if (errosValidacao.length > 0) {
-      toast.error("Corrija os erros de validação antes de importar");
+      toast.error("Corrija os erros críticos de validação antes de importar");
+      return;
+    }
+
+    if (avisosValidacao.length > 0 && !cienciaAvisos) {
+      toast.warning("Confirme ciência dos avisos antes de importar");
       return;
     }
 
@@ -166,6 +178,8 @@ export default function ImportarDevedores() {
       setArquivo(null);
       setDadosPrevia([]);
       setErrosValidacao([]);
+      setAvisosValidacao([]);
+      setCienciaAvisos(false);
     } catch (error) {
       toast.error("Erro ao importar devedores");
       console.error(error);
@@ -261,12 +275,12 @@ export default function ImportarDevedores() {
         </CardContent>
       </Card>
 
-      {/* Erros de Validação */}
+      {/* Erros Críticos de Validação */}
       {errosValidacao.length > 0 && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            <strong>{errosValidacao.length} erro(s) de validação encontrado(s):</strong>
+            <strong>{errosValidacao.length} erro(s) crítico(s) encontrado(s) — corrija antes de importar:</strong>
             <ul className="mt-2 list-disc list-inside space-y-1">
               {errosValidacao.slice(0, 10).map((erro, idx) => (
                 <li key={idx}>
@@ -279,6 +293,50 @@ export default function ImportarDevedores() {
                 </li>
               )}
             </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Avisos — campos opcionais ausentes */}
+      {avisosValidacao.length > 0 && errosValidacao.length === 0 && (
+        <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-900/20">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription>
+            <strong className="text-amber-800 dark:text-amber-200">
+              {avisosValidacao.length} aviso(s) — campos opcionais não preenchidos:
+            </strong>
+            <ul className="mt-2 list-disc list-inside space-y-1 text-amber-700 dark:text-amber-300">
+              {/* Agrupa avisos por campo para não repetir linha a linha */}
+              {Array.from(
+                avisosValidacao.reduce((map, av) => {
+                  const key = av.campo;
+                  if (!map.has(key)) map.set(key, { campo: av.campo, mensagem: av.mensagem, linhas: [] });
+                  map.get(key)!.linhas.push(av.linha);
+                  return map;
+                }, new Map<string, { campo: string; mensagem: string; linhas: number[] }>())
+                .values()
+              ).map((grupo, idx) => (
+                <li key={idx}>
+                  <strong>{grupo.campo}</strong>: {grupo.mensagem}
+                  <span className="ml-1 text-xs text-amber-600">
+                    (linhas: {grupo.linhas.slice(0, 5).join(", ")}{grupo.linhas.length > 5 ? ` +${grupo.linhas.length - 5}` : ""})
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex items-center gap-3 p-3 bg-amber-100 dark:bg-amber-900/40 rounded-lg border border-amber-300">
+              <Checkbox
+                id="ciencia-avisos"
+                checked={cienciaAvisos}
+                onCheckedChange={(v) => setCienciaAvisos(!!v)}
+              />
+              <label
+                htmlFor="ciencia-avisos"
+                className="text-sm font-medium text-amber-900 dark:text-amber-100 cursor-pointer"
+              >
+                Estou ciente que os campos acima não foram preenchidos e desejo prosseguir com a importação mesmo assim.
+              </label>
+            </div>
           </AlertDescription>
         </Alert>
       )}
@@ -346,7 +404,7 @@ export default function ImportarDevedores() {
             <div className="mt-4 flex justify-end">
               <Button
                 onClick={handleImportar}
-                disabled={importando || errosValidacao.length > 0}
+                disabled={importando || errosValidacao.length > 0 || (avisosValidacao.length > 0 && !cienciaAvisos)}
                 size="lg"
               >
                 {importando ? "Importando..." : "Confirmar Importação"}
