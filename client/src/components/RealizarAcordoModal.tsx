@@ -213,6 +213,8 @@ export function RealizarAcordoModal({
 
   const [temEntrada, setTemEntrada] = useState(false);
   const [valorEntrada, setValorEntrada] = useState("0.00");
+  const [dataVencimentoEntrada, setDataVencimentoEntrada] = useState(hoje());
+  const [formaPagamentoEntrada, setFormaPagamentoEntrada] = useState("boleto");
   const [numeroParcelas, setNumeroParcelas] = useState("1");
   const [dataPagamento, setDataPagamento] = useState(hoje());
   const [formaPagamento, setFormaPagamento] = useState("");
@@ -329,6 +331,20 @@ export function RealizarAcordoModal({
     const totalParcelas = plano.numeroParcelas;
     const proporcaoPorParcela = 1 / totalParcelas;
 
+    // Parcela de entrada (installmentNumber = 0)
+    const parcelaEntrada = temEntrada && parseFloat(valorEntrada || "0") > 0 ? [{
+      installmentNumber: 0,
+      amount: Math.round(parseFloat(valorEntrada) * 100),
+      dueDate: new Date(dataVencimentoEntrada + "T12:00:00"),
+      snapshotPrincipal: Math.round(snapPrincipal * proporcaoPorParcela),
+      snapshotJuros: Math.round(snapJuros * proporcaoPorParcela),
+      snapshotMulta: Math.round(snapMulta * proporcaoPorParcela),
+      snapshotCorrecao: Math.round(snapCorrecao * proporcaoPorParcela),
+      snapshotHonorarios: Math.round(snapHonorarios * proporcaoPorParcela),
+      snapshotValorAtualizado: Math.round(snapValorAtualizado * proporcaoPorParcela),
+      snapshotDescricao: `Entrada — ${snapDescricao}`,
+    }] : [];
+
     createAcordoMutation.mutate({
       cobrancaIds: Array.from(selecionadas),
       devedorId,
@@ -336,22 +352,26 @@ export function RealizarAcordoModal({
       totalAmount: plano.valorTotal,
       agreedAmount: plano.valorTotal,
       installments: plano.numeroParcelas,
-      firstPaymentDate: plano.parcelas[0]?.dataVencimento || new Date(),
+      firstPaymentDate: temEntrada && parseFloat(valorEntrada || "0") > 0
+        ? new Date(dataVencimentoEntrada + "T12:00:00")
+        : plano.parcelas[0]?.dataVencimento || new Date(),
       paymentFrequency: "mensal",
       notes,
-      parcelas: plano.parcelas.map((p, idx) => ({
-        installmentNumber: p.numeroParcela,
-        amount: p.valor,
-        dueDate: p.dataVencimento,
-        // Snapshot proporcional por parcela
-        snapshotPrincipal: Math.round(snapPrincipal * proporcaoPorParcela),
-        snapshotJuros: Math.round(snapJuros * proporcaoPorParcela),
-        snapshotMulta: Math.round(snapMulta * proporcaoPorParcela),
-        snapshotCorrecao: Math.round(snapCorrecao * proporcaoPorParcela),
-        snapshotHonorarios: Math.round(snapHonorarios * proporcaoPorParcela),
-        snapshotValorAtualizado: Math.round(snapValorAtualizado * proporcaoPorParcela),
-        snapshotDescricao: idx === 0 ? snapDescricao : undefined, // só na primeira parcela
-      })),
+      parcelas: [
+        ...parcelaEntrada,
+        ...plano.parcelas.map((p, idx) => ({
+          installmentNumber: p.numeroParcela,
+          amount: p.valor,
+          dueDate: p.dataVencimento,
+          snapshotPrincipal: Math.round(snapPrincipal * proporcaoPorParcela),
+          snapshotJuros: Math.round(snapJuros * proporcaoPorParcela),
+          snapshotMulta: Math.round(snapMulta * proporcaoPorParcela),
+          snapshotCorrecao: Math.round(snapCorrecao * proporcaoPorParcela),
+          snapshotHonorarios: Math.round(snapHonorarios * proporcaoPorParcela),
+          snapshotValorAtualizado: Math.round(snapValorAtualizado * proporcaoPorParcela),
+          snapshotDescricao: idx === 0 ? snapDescricao : undefined,
+        }))
+      ],
     });
   };
 
@@ -671,23 +691,56 @@ export function RealizarAcordoModal({
               {/* Parâmetros */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 {/* Entrada */}
-                <div className="col-span-2 md:col-span-4 flex items-center gap-2">
-                  <Checkbox
-                    id="entrada"
-                    checked={temEntrada}
-                    onCheckedChange={(v) => setTemEntrada(v as boolean)}
-                  />
-                  <label htmlFor="entrada" className="text-sm font-medium cursor-pointer">Entrada</label>
-                  {temEntrada && (
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={valorEntrada}
-                      onChange={(e) => setValorEntrada(e.target.value)}
-                      className="w-32 h-8 text-sm"
-                      placeholder="R$ 0,00"
+                <div className="col-span-2 md:col-span-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="entrada"
+                      checked={temEntrada}
+                      onCheckedChange={(v) => setTemEntrada(v as boolean)}
                     />
+                    <label htmlFor="entrada" className="text-sm font-medium cursor-pointer">Entrada</label>
+                    {temEntrada && (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={valorEntrada}
+                        onChange={(e) => setValorEntrada(e.target.value)}
+                        className="w-32 h-8 text-sm"
+                        placeholder="R$ 0,00"
+                      />
+                    )}
+                  </div>
+                  {temEntrada && (
+                    <div className="mt-2 ml-6 grid grid-cols-2 gap-3 p-3 rounded-lg border bg-muted/20">
+                      <div>
+                        <Label className="text-xs">Vencimento da Entrada</Label>
+                        <Input
+                          type="date"
+                          value={dataVencimentoEntrada}
+                          onChange={(e) => setDataVencimentoEntrada(e.target.value)}
+                          className="h-8 text-sm mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Forma de Pagamento da Entrada</Label>
+                        <Select
+                          value={formaPagamentoEntrada}
+                          onValueChange={setFormaPagamentoEntrada}
+                        >
+                          <SelectTrigger className="h-8 text-sm mt-1">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="boleto">Boleto</SelectItem>
+                            <SelectItem value="pix">PIX</SelectItem>
+                            <SelectItem value="transferencia">Transferência</SelectItem>
+                            <SelectItem value="dinheiro">Dinheiro</SelectItem>
+                            <SelectItem value="cartao">Cartão</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -842,6 +895,27 @@ export function RealizarAcordoModal({
                       </tr>
                     </thead>
                     <tbody>
+                      {/* Linha de Entrada (parcela 0) */}
+                      {temEntrada && parseFloat(valorEntrada || "0") > 0 && (() => {
+                        const entradaValor = parseFloat(valorEntrada || "0");
+                        const taxa = (parseFloat((taxaCobrancaPct || "0").replace(',', '.')) / 100) * entradaValor + parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
+                        const totalEntrada = entradaValor + taxa;
+                        const dvEntrada = new Date(dataVencimentoEntrada + "T12:00:00");
+                        return (
+                          <tr className="border-t bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100/50">
+                            <td className="p-2 text-center font-bold text-amber-700">Entrada</td>
+                            <td className="p-2 text-xs text-amber-700">{formaPagamentoEntrada || "-"}</td>
+                            <td className="p-2 text-center text-amber-700">{format(dvEntrada, "dd/MM/yyyy")}</td>
+                            <td className="p-2 text-center text-amber-700">
+                              {Math.floor((dvEntrada.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+                            </td>
+                            <td className="p-2 text-right text-amber-700">{fmt(entradaValor)}</td>
+                            <td className="p-2 text-right text-amber-700">{fmt(0)}</td>
+                            <td className="p-2 text-right text-amber-700">{fmt(taxa)}</td>
+                            <td className="p-2 text-right font-bold text-amber-700">{fmt(totalEntrada)}</td>
+                          </tr>
+                        );
+                      })()}
                       {plano.parcelas.map((p) => {
                         const taxa = (parseFloat((taxaCobrancaPct || "0").replace(',', '.')) / 100) * (p.valor / 100) + parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
                         const totalParcela = p.valor / 100 + taxa;
