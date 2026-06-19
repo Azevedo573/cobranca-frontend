@@ -172,15 +172,13 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
     const valorOriginal = cobranca.amount / 100; // converter de centavos
     if (!cobranca.dueDate) continue; // pular cobranças sem data de vencimento
     const dataVencimento = new Date(cobranca.dueDate);
-    // Custas: campo da própria cobrança + proporção das custas do devedor (tabela separada)
+    // Custas: apenas o campo da própria cobrança (campo custasJudiciais da tabela cobrancas)
+    // As custas da tabela separada (custasJudiciais) NÃO entram no valorTotal individual —
+    // elas são exibidas como lançamento separado no perfil do devedor.
     const custasPropriaCobranca = cobranca.custasJudiciais ? cobranca.custasJudiciais / 100 : 0;
-    const custasProporcionais = totalAmountCobrancas > 0
-      ? (cobranca.amount / totalAmountCobrancas) * totalCustasDevedor
-      : 0;
-    const custasJudiciais = custasPropriaCobranca + custasProporcionais;
     
     // Calcular valores base (juros, multa, honorários)
-    let breakdown = calcularValorDevido(valorOriginal, dataVencimento, taxas, custasJudiciais);
+    let breakdown = calcularValorDevido(valorOriginal, dataVencimento, taxas, custasPropriaCobranca);
     
     // Se correção BCB estiver ativada, substituir correção monetária
     if (aplicarCorrecaoBCB && condominio.indiceCorrecao) {
@@ -201,7 +199,7 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
           ...breakdown,
           honorarios,
           correcaoMonetaria: correcaoBCB,
-          valorTotal: valorOriginal + breakdown.juros + breakdown.multa + honorarios + custasJudiciais + correcaoBCB,
+          valorTotal: valorOriginal + breakdown.juros + breakdown.multa + honorarios + custasPropriaCobranca + correcaoBCB,
         };
       } catch (error) {
         console.error("Erro ao calcular correção BCB, usando percentual fixo:", error);
