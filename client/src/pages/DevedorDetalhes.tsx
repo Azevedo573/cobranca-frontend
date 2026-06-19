@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import React from "react";
 import { getDevedorIdentificador } from "@/lib/devedorUtils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake, MoreHorizontal, PhoneCall, Gavel, Scale, AlertTriangle } from "lucide-react";
+import { ArrowLeft, User, Phone, Mail, Home, Plus, Edit, Upload, Paperclip, FileText, ExternalLink, Copy, Trash2, FileDown, Loader2, Check, QrCode, MessageCircle, Clock, CheckCircle2, XCircle, AlertCircle, Handshake, MoreHorizontal, PhoneCall, Gavel, Scale, AlertTriangle, ChevronUp, ChevronDown, Info } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1019,6 +1020,19 @@ function CobrancasTabela({
   // Cache de boletos gerados por parcelaId
   const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola?: string }>>({});
   const [copiandoParcela, setCopiandoParcela] = useState<Record<number, string | null>>({});
+  // Controle de linhas de snapshot expandidas
+  const [breakdownExpandido, setBreakdownExpandido] = useState<Set<number>>(new Set());
+  const toggleBreakdown = (id: number) => {
+    setBreakdownExpandido((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const fmtCents = (v: number | null | undefined) =>
+    v != null
+      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100)
+      : "-";
   const gerarPDFParcelaMutation = trpc.acordos.gerarBoletoPDFParcela.useMutation({
     onSuccess: (data: { url: string; linhaDigitavel: string; pixCopiaCola?: string }, variables: { parcelaId: number }) => {
       setBoletoParcelas(prev => ({ ...prev, [variables.parcelaId]: data }));
@@ -1074,12 +1088,25 @@ function CobrancasTabela({
                           em_acordo: "Em Acordo",
                           acordo: "Acordo",
                         };
+                        const temSnapshot = isParcela && cob.snapshotPrincipal != null;
                         return (
-                          <TableRow key={`${isParcela ? "p" : "c"}-${cob.id}`} className={isParcela ? "bg-blue-50/40" : ""}>
+                          <React.Fragment key={`${isParcela ? "p" : "c"}-${cob.id}`}>
+                          <TableRow className={isParcela ? "bg-blue-50/40" : ""}>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-1.5">
                                 {isParcela && <Handshake className="h-3.5 w-3.5 text-blue-500 shrink-0" />}
                                 <span>{descricao}</span>
+                                {temSnapshot && (
+                                  <button
+                                    onClick={() => toggleBreakdown(cob.id)}
+                                    className="text-muted-foreground hover:text-blue-600 transition-colors ml-0.5"
+                                    title="Ver snapshot do acordo"
+                                  >
+                                    {breakdownExpandido.has(cob.id)
+                                      ? <ChevronUp className="h-3.5 w-3.5" />
+                                      : <ChevronDown className="h-3.5 w-3.5" />}
+                                  </button>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell>{cob.dueDate ? format(new Date(new Date(cob.dueDate).getTime() + new Date(cob.dueDate).getTimezoneOffset() * 60000), "dd/MM/yyyy") : "-"}</TableCell>
@@ -1197,6 +1224,55 @@ function CobrancasTabela({
                               )}
                             </TableCell>
                           </TableRow>
+                          {/* Linha de snapshot expandida — apenas para parcelas de acordo com snapshot */}
+                          {temSnapshot && breakdownExpandido.has(cob.id) && (
+                            <TableRow className="bg-blue-50/70 dark:bg-blue-950/20">
+                              <TableCell colSpan={10} className="py-3 px-4">
+                                <div className="flex items-center gap-1 mb-2">
+                                  <Info className="h-3.5 w-3.5 text-blue-500" />
+                                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Snapshot do acordo — valores na data de fechamento</span>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                                  <div className="space-y-0.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Valor Principal</p>
+                                    <p className="text-sm font-semibold">{fmtCents(cob.snapshotPrincipal)}</p>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Multa</p>
+                                    <p className="text-sm font-semibold">{fmtCents(cob.snapshotMulta)}</p>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Juros</p>
+                                    <p className="text-sm font-semibold">{fmtCents(cob.snapshotJuros)}</p>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Correção Monetária</p>
+                                    <p className="text-sm font-semibold">{fmtCents(cob.snapshotCorrecao)}</p>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Honorários</p>
+                                    <p className="text-sm font-semibold">{fmtCents(cob.snapshotHonorarios)}</p>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Valor Atualizado</p>
+                                    <p className="text-sm font-bold text-blue-700 dark:text-blue-400">{fmtCents(cob.snapshotValorAtualizado)}</p>
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Valor Pago</p>
+                                    <p className="text-sm font-semibold text-green-600">
+                                      {cob.status === "pago" ? fmtCents(cob.amount) : "-"}
+                                    </p>
+                                  </div>
+                                </div>
+                                {cob.snapshotDescricao && (
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    <span className="font-medium">Ref.:</span> {cob.snapshotDescricao}
+                                  </p>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </React.Fragment>
                         );
                       })}
         </TableBody>
