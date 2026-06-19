@@ -1041,10 +1041,10 @@ function CobrancasTabela({
             <TableHead>Descrição</TableHead>
             <TableHead>Vencimento</TableHead>
             <TableHead>Valor Original</TableHead>
-            <TableHead className="text-orange-600">Juros</TableHead>
-            <TableHead className="text-red-600">Multa</TableHead>
-            <TableHead className="text-purple-600">Honorários</TableHead>
-            <TableHead className="text-blue-600">Correção</TableHead>
+            <TableHead>Juros</TableHead>
+            <TableHead>Multa</TableHead>
+            <TableHead>Honorários</TableHead>
+            <TableHead>Correção</TableHead>
             <TableHead>Valor Atualizado</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Boleto</TableHead>
@@ -1085,10 +1085,10 @@ function CobrancasTabela({
                             </TableCell>
                             <TableCell>{cob.dueDate ? format(new Date(new Date(cob.dueDate).getTime() + new Date(cob.dueDate).getTimezoneOffset() * 60000), "dd/MM/yyyy") : "-"}</TableCell>
                             <TableCell>{formatarMoeda(breakdown.valorOriginal)}</TableCell>
-                            <TableCell className="text-orange-600">{formatarMoeda(breakdown.juros)}</TableCell>
-                            <TableCell className="text-red-600">{formatarMoeda(breakdown.multa)}</TableCell>
-                            <TableCell className="text-purple-600">{formatarMoeda(breakdown.honorarios)}</TableCell>
-                            <TableCell className="text-blue-600">{formatarMoeda(breakdown.correcaoMonetaria)}</TableCell>
+                            <TableCell>{formatarMoeda(breakdown.juros)}</TableCell>
+                            <TableCell>{formatarMoeda(breakdown.multa)}</TableCell>
+                            <TableCell>{formatarMoeda(breakdown.honorarios)}</TableCell>
+                            <TableCell>{formatarMoeda(breakdown.correcaoMonetaria)}</TableCell>
                             <TableCell className="font-semibold">{formatarMoeda(breakdown.valorTotal)}</TableCell>
                             <TableCell>
                               <Badge
