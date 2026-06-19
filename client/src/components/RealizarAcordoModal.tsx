@@ -655,7 +655,11 @@ export function RealizarAcordoModal({
                 {/* Forma de Pagamento */}
                 <div>
                   <Label className="text-xs">Forma de Pagamento</Label>
-                  <Select value={formaPagamento} onValueChange={setFormaPagamento}>
+                   <Select value={formaPagamento} onValueChange={(v) => {
+                      setFormaPagamento(v);
+                      if (v === "boleto") setPortador("BTG Pactual");
+                      else if (portador === "BTG Pactual") setPortador("");
+                    }}>
                     <SelectTrigger className="h-8 text-sm mt-1">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
