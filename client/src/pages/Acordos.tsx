@@ -169,7 +169,6 @@ export default function Acordos() {
             {can("acordos", "exportar") && (
               <ExportExcelButton
                 onClick={async () => {
-                  const utils = trpc.useUtils();
                   return await utils.client.exportacao.acordos.mutate({
                     condominioId: condominioId ?? undefined,
                   });
