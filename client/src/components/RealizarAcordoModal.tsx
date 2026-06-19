@@ -244,8 +244,15 @@ export function RealizarAcordoModal({
     return (pct / 100) * totais.total + rs;
   }, [outrasDespesasPct, outrasDespesasRS, totais.total]);
 
-  // Total com extras (custas + outras despesas)
-  const totalComExtras = totais.total + totalCustasJudiciais + outrasDespesasValor;
+  // Taxa de cobrança (aplicada sobre o total dos títulos)
+  const taxaCobrancaValor = useMemo(() => {
+    const pct = parseFloat((taxaCobrancaPct || "0").replace(',', '.'));
+    const rs = parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
+    return (pct / 100) * totais.total + rs;
+  }, [taxaCobrancaPct, taxaCobrancaRS, totais.total]);
+
+  // Total com extras (custas + outras despesas + taxa de cobrança)
+  const totalComExtras = totais.total + totalCustasJudiciais + outrasDespesasValor + taxaCobrancaValor;
 
   const plano = useMemo(() => {
     const totalCentavos = Math.round(totalComExtras * 100);
@@ -907,7 +914,6 @@ export function RealizarAcordoModal({
                         <th className="p-2 text-center font-medium">Nr. Dias</th>
                         <th className="p-2 text-right font-medium">Valor</th>
                         <th className="p-2 text-right font-medium">Juros</th>
-                        <th className="p-2 text-right font-medium">Taxa</th>
                         <th className="p-2 text-right font-medium text-primary">Total</th>
                       </tr>
                     </thead>
@@ -928,8 +934,7 @@ export function RealizarAcordoModal({
                             </td>
                             <td className="p-2 text-right text-amber-700">{fmt(entradaValor)}</td>
                             <td className="p-2 text-right text-amber-700">{fmt(0)}</td>
-                            <td className="p-2 text-right text-amber-700">{fmt(taxa)}</td>
-                            <td className="p-2 text-right font-bold text-amber-700">{fmt(totalEntrada)}</td>
+                            <td className="p-2 text-right font-bold text-amber-700">{fmt(entradaValor)}</td>
                           </tr>
                         );
                       })()}
@@ -948,8 +953,7 @@ export function RealizarAcordoModal({
                             </td>
                             <td className="p-2 text-right">{fmt(p.valor / 100)}</td>
                             <td className="p-2 text-right">{fmt(0)}</td>
-                            <td className="p-2 text-right">{fmt(taxa)}</td>
-                            <td className="p-2 text-right font-semibold text-primary">{fmt(totalParcela)}</td>
+                            <td className="p-2 text-right font-semibold text-primary">{fmt(p.valor / 100)}</td>
                           </tr>
                         );
                       })}
@@ -959,18 +963,7 @@ export function RealizarAcordoModal({
                         <td colSpan={4} className="p-2 text-right text-xs">Total:</td>
                         <td className="p-2 text-right">{fmt(plano.valorTotal / 100)}</td>
                         <td className="p-2 text-right">{fmt(0)}</td>
-                        <td className="p-2 text-right">
-                          {fmt(plano.parcelas.reduce((s, p) => {
-                            const taxa = (parseFloat((taxaCobrancaPct || "0").replace(',', '.')) / 100) * (p.valor / 100) + parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
-                            return s + taxa;
-                          }, 0))}
-                        </td>
-                        <td className="p-2 text-right text-primary">
-                          {fmt(plano.parcelas.reduce((s, p) => {
-                            const taxa = (parseFloat((taxaCobrancaPct || "0").replace(',', '.')) / 100) * (p.valor / 100) + parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
-                            return s + p.valor / 100 + taxa;
-                          }, 0))}
-                        </td>
+                        <td className="p-2 text-right text-primary">{fmt(plano.valorTotal / 100)}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -997,15 +990,16 @@ export function RealizarAcordoModal({
                   <span className="text-muted-foreground">
                     <strong className="text-foreground">{selecionadas.size}</strong> título(s) selecionado(s) •
                     Títulos: <strong>{fmt(totais.total)}</strong>
-                    {(totalCustasJudiciais > 0 || outrasDespesasValor > 0) && (
+                    {(totalCustasJudiciais > 0 || outrasDespesasValor > 0 || taxaCobrancaValor > 0) && (
                       <>
                         {totalCustasJudiciais > 0 && <span className="ml-2 text-amber-600">+ Custas: <strong>{fmt(totalCustasJudiciais)}</strong></span>}
                         {outrasDespesasValor > 0 && <span className="ml-2 text-blue-600">+ Despesas: <strong>{fmt(outrasDespesasValor)}</strong></span>}
+                        {taxaCobrancaValor > 0 && <span className="ml-2 text-green-600">+ Taxa: <strong>{fmt(taxaCobrancaValor)}</strong></span>}
                         {" = "}
                         <strong className="text-primary text-base">{fmt(totalComExtras)}</strong>
                       </>
                     )}
-                    {totalCustasJudiciais === 0 && outrasDespesasValor === 0 && (
+                    {totalCustasJudiciais === 0 && outrasDespesasValor === 0 && taxaCobrancaValor === 0 && (
                       <> • Total: <strong className="text-primary text-base">{fmt(totais.total)}</strong></>
                     )}
                   </span>
