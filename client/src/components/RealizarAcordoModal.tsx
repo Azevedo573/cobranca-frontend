@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import React from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Calculator, HandshakeIcon, Loader2, AlertCircle, FileText, Mail, Printer, CheckCircle2, Gavel } from "lucide-react";
+import { Calculator, HandshakeIcon, Loader2, AlertCircle, FileText, Mail, Printer, CheckCircle2, Gavel, X } from "lucide-react";
+import { Dialog as CustasDialog, DialogContent as CustasDialogContent, DialogHeader as CustasDialogHeader, DialogTitle as CustasDialogTitle } from "@/components/ui/dialog";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import EnviarEmailModal from "@/components/EnviarEmailModal";
 import { CustasJudiciais } from "@/components/CustasJudiciais";
@@ -442,7 +444,6 @@ export function RealizarAcordoModal({
                       <th className="p-2 text-center font-medium">Dias</th>
                       <th className="p-2 text-right font-medium">Vl. Original</th>
                       <th className="p-2 text-right font-medium">Cor. Monetária</th>
-                      <th className="p-2 text-right font-medium">Custas Jud.</th>
                       <th className="p-2 text-right font-medium">Multa</th>
                       <th className="p-2 text-right font-medium">Juros</th>
                       <th className="p-2 text-right font-medium">Sub Total</th>
@@ -453,32 +454,46 @@ export function RealizarAcordoModal({
                   </thead>
                   <tbody>
                     {titulos.map((t) => (
-                      <tr
-                        key={t.id}
-                        className={`border-t transition-colors cursor-pointer ${selecionadas.has(t.id) ? "bg-primary/5" : "hover:bg-muted/30"}`}
-                        onClick={() => toggleCobranca(t.id)}
-                      >
-                        <td className="p-2 text-center">
-                          <Checkbox
-                            checked={selecionadas.has(t.id)}
-                            onCheckedChange={() => toggleCobranca(t.id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </td>
-                        <td className="p-2 font-medium max-w-[120px] truncate">{t.titulo}</td>
-                        <td className="p-2 text-muted-foreground">{t.tipoTitulo}</td>
-                        <td className="p-2 text-center">{t.vencimento}</td>
-                        <td className="p-2 text-center">{t.dias}</td>
-                        <td className="p-2 text-right">{fmt(t.valorOriginal)}</td>
-                        <td className="p-2 text-right">{fmt(t.corMonetaria)}</td>
-                        <td className="p-2 text-right">{t.custasJudiciais > 0 ? fmt(t.custasJudiciais) : <span className="text-muted-foreground">-</span>}</td>
-                        <td className="p-2 text-right">{fmt(t.multa)}</td>
-                        <td className="p-2 text-right">{fmt(t.juros)}</td>
-                        <td className="p-2 text-right">{fmt(t.subTotal)}</td>
-                        <td className="p-2 text-right">{fmt(t.honorario)}</td>
-                        <td className="p-2 text-right text-green-700">{fmt(t.desconto)}</td>
-                        <td className="p-2 text-right font-bold text-primary">{fmt(t.total)}</td>
-                      </tr>
+                      <React.Fragment key={`row-${t.id}`}>
+                        <tr
+                          className={`border-t transition-colors cursor-pointer ${selecionadas.has(t.id) ? "bg-primary/5" : "hover:bg-muted/30"}`}
+                          onClick={() => toggleCobranca(t.id)}
+                        >
+                          <td className="p-2 text-center">
+                            <Checkbox
+                              checked={selecionadas.has(t.id)}
+                              onCheckedChange={() => toggleCobranca(t.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </td>
+                          <td className="p-2 font-medium max-w-[120px] truncate">{t.titulo}</td>
+                          <td className="p-2 text-muted-foreground">{t.tipoTitulo}</td>
+                          <td className="p-2 text-center">{t.vencimento}</td>
+                          <td className="p-2 text-center">{t.dias}</td>
+                          <td className="p-2 text-right">{fmt(t.valorOriginal)}</td>
+                          <td className="p-2 text-right">{fmt(t.corMonetaria)}</td>
+                          <td className="p-2 text-right">{fmt(t.multa)}</td>
+                          <td className="p-2 text-right">{fmt(t.juros)}</td>
+                          <td className="p-2 text-right">{fmt(t.subTotal)}</td>
+                          <td className="p-2 text-right">{fmt(t.honorario)}</td>
+                          <td className="p-2 text-right text-green-700">{fmt(t.desconto)}</td>
+                          <td className="p-2 text-right font-bold text-primary">{fmt(t.total)}</td>
+                        </tr>
+                        {t.custasJudiciais > 0 && (
+                          <tr key={`custas-${t.id}`} className={`${selecionadas.has(t.id) ? "bg-primary/5" : "bg-amber-50/60 dark:bg-amber-900/10"}`}>
+                            <td></td>
+                            <td colSpan={3} className="px-2 pb-1.5 pt-0">
+                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+                                <Gavel className="h-3 w-3" />
+                                Custas Judiciais
+                              </span>
+                            </td>
+                            <td className="px-2 pb-1.5 pt-0 text-center text-[11px] text-muted-foreground">—</td>
+                            <td className="px-2 pb-1.5 pt-0 text-right text-[11px] font-semibold text-amber-700 dark:text-amber-400">{fmt(t.custasJudiciais)}</td>
+                            <td colSpan={7}></td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                   {/* Totais */}
@@ -487,7 +502,6 @@ export function RealizarAcordoModal({
                       <td colSpan={5} className="p-2 text-right text-xs">Totais selecionados:</td>
                       <td className="p-2 text-right">{fmt(totais.valorOriginal)}</td>
                       <td className="p-2 text-right">{fmt(totais.corMonetaria)}</td>
-                      <td className="p-2 text-right">{totais.custasJudiciais > 0 ? fmt(totais.custasJudiciais) : <span className="text-muted-foreground">-</span>}</td>
                       <td className="p-2 text-right">{fmt(totais.multa)}</td>
                       <td className="p-2 text-right">{fmt(totais.juros)}</td>
                       <td className="p-2 text-right">{fmt(totais.subTotal)}</td>
@@ -517,12 +531,18 @@ export function RealizarAcordoModal({
                 </Button>
               </div>
 
-              {/* Painel de Custas Judiciais (toggle) */}
-              {custasOpen && (
-                <div className="mb-4 border rounded-lg overflow-hidden">
+              {/* Dialog de Custas Judiciais */}
+              <CustasDialog open={custasOpen} onOpenChange={setCustasOpen}>
+                <CustasDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <CustasDialogHeader>
+                    <CustasDialogTitle className="flex items-center gap-2">
+                      <Gavel className="h-5 w-5 text-amber-600" />
+                      Custas Judiciais — {devedorNome}
+                    </CustasDialogTitle>
+                  </CustasDialogHeader>
                   <CustasJudiciais devedorId={devedorId} condominioId={condominioId} />
-                </div>
-              )}
+                </CustasDialogContent>
+              </CustasDialog>
 
               {/* Outras Despesas */}
               <div className="p-3 border rounded-lg bg-muted/20 mb-4">
