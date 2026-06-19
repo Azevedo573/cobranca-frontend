@@ -495,55 +495,122 @@ export default function DevedorDetalhes() {
 
               {/* ABA: Cobranças */}
               <TabsContent value="cobrancas">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Cobranças</CardTitle>
-                      <CardDescription>
-                      {temAcordoAtivo
-                        ? `${parcelasAcordoAtivas.length} parcela(s) de acordo ativo`
-                        : `Total: ${cobrancas.length} cobrança(s)`}
-                    </CardDescription>
-                    </div>
+                {/* Caso haja acordo parcial: exibe débitos em aberto + parcelas do acordo separadamente */}
+                {temAcordoAtivo && cobrancas.length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Bloco: Débitos em Aberto (não incluídos no acordo) */}
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">Débitos em Aberto</CardTitle>
+                            <CardDescription>{cobrancas.length} cobrança(s) não incluída(s) no acordo</CardDescription>
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            {["todos", "pendente", "pago", "em_cobranca", "cancelado"].map((s) => (
+                              <button
+                                key={s}
+                                onClick={() => { setFiltroStatus(s); setMostrarTodas(false); }}
+                                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                                  filtroStatus === s
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background border-border hover:border-primary/50 text-muted-foreground"
+                                }`}
+                              >
+                                {s === "todos" ? "Todas" : s === "pendente" ? "Pendentes" : s === "pago" ? "Pagas" : s === "em_cobranca" ? "Em Cobrança" : "Canceladas"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <CobrancasTabela
+                          cobrancas={cobrancas}
+                          filtroStatus={filtroStatus}
+                          mostrarTodas={mostrarTodas}
+                          setMostrarTodas={setMostrarTodas}
+                          limiteInicial={LIMITE_INICIAL}
+                          onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
+                          modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* Bloco: Parcelas do Acordo Ativo */}
+                    <Card className="border-blue-200">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2">
+                          <Handshake className="h-4 w-4 text-blue-600" />
+                          <div>
+                            <CardTitle className="text-base text-blue-800">Parcelas do Acordo Ativo</CardTitle>
+                            <CardDescription>{parcelasAcordoAtivas.length} parcela(s) do acordo em andamento</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <CobrancasTabela
+                          cobrancas={parcelasAcordoAtivas}
+                          filtroStatus="todos"
+                          mostrarTodas={true}
+                          setMostrarTodas={() => {}}
+                          limiteInicial={parcelasAcordoAtivas.length}
+                          onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
+                          modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                        />
+                      </CardContent>
+                    </Card>
                   </div>
-                  {/* Filtros de status */}
-                  <div className="flex gap-2 flex-wrap">
-                    {["todos", "pendente", "pago", "em_cobranca", "cancelado"].map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => { setFiltroStatus(s); setMostrarTodas(false); }}
-                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                          filtroStatus === s
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background border-border hover:border-primary/50 text-muted-foreground"
-                        }`}
-                      >
-                        {s === "todos" ? "Todas" : s === "pendente" ? "Pendentes" : s === "pago" ? "Pagas" : s === "em_cobranca" ? "Em Cobrança" : "Canceladas"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {temAcordoAtivo && (
-                  <div className="mb-3 flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                    <Handshake className="h-4 w-4 text-blue-600 shrink-0" />
-                    <span>As cobranças originais estão vinculadas a um <strong>acordo ativo</strong>. Abaixo são exibidas as parcelas do acordo.</span>
-                  </div>
+                ) : (
+                  /* Caso normal: sem acordo ativo, ou acordo total (sem débitos restantes) */
+                  <Card>
+                    <CardHeader>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle>Cobranças</CardTitle>
+                            <CardDescription>
+                              {temAcordoAtivo
+                                ? `${parcelasAcordoAtivas.length} parcela(s) de acordo ativo`
+                                : `Total: ${cobrancas.length} cobrança(s)`}
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          {["todos", "pendente", "pago", "em_cobranca", "cancelado"].map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => { setFiltroStatus(s); setMostrarTodas(false); }}
+                              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                                filtroStatus === s
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-background border-border hover:border-primary/50 text-muted-foreground"
+                              }`}
+                            >
+                              {s === "todos" ? "Todas" : s === "pendente" ? "Pendentes" : s === "pago" ? "Pagas" : s === "em_cobranca" ? "Em Cobrança" : "Canceladas"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {temAcordoAtivo && (
+                        <div className="mb-3 flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                          <Handshake className="h-4 w-4 text-blue-600 shrink-0" />
+                          <span>Todas as cobranças estão vinculadas a um <strong>acordo ativo</strong>. Abaixo são exibidas as parcelas do acordo.</span>
+                        </div>
+                      )}
+                      <CobrancasTabela
+                        cobrancas={temAcordoAtivo ? parcelasAcordoAtivas : cobrancas}
+                        filtroStatus={filtroStatus}
+                        mostrarTodas={mostrarTodas}
+                        setMostrarTodas={setMostrarTodas}
+                        limiteInicial={LIMITE_INICIAL}
+                        onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
+                        modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                      />
+                    </CardContent>
+                  </Card>
                 )}
-                <CobrancasTabela
-                  cobrancas={temAcordoAtivo ? parcelasAcordoAtivas : cobrancas}
-                  filtroStatus={filtroStatus}
-                  mostrarTodas={mostrarTodas}
-                  setMostrarTodas={setMostrarTodas}
-                  limiteInicial={LIMITE_INICIAL}
-                  onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
-                  modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
-                />
-              </CardContent>
-            </Card>
               </TabsContent>
 
               {/* ABA: Histórico & Acordos */}
