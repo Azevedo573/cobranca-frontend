@@ -230,8 +230,25 @@ export function RealizarAcordoModal({
   const { data: acordosAtivos } = trpc.acordos.getAtivosComParcelas.useQuery({ devedorId });
   const acordoAtivo = acordosAtivos && acordosAtivos.length > 0 ? acordosAtivos[0] : null;
 
+  // Buscar total de custas judiciais do devedor para incluir no acordo
+  const { data: custasData, refetch: refetchCustas } = trpc.custas.getByDevedor.useQuery({ devedorId });
+  const totalCustasJudiciais = useMemo(() => {
+    if (!custasData) return 0;
+    return custasData.reduce((s: number, c: any) => s + (c.valor || 0), 0) / 100;
+  }, [custasData]);
+
+  // Valor de outras despesas
+  const outrasDespesasValor = useMemo(() => {
+    const pct = parseFloat((outrasDespesasPct || "0").replace(',', '.'));
+    const rs = parseFloat((outrasDespesasRS || "0").replace(',', '.'));
+    return (pct / 100) * totais.total + rs;
+  }, [outrasDespesasPct, outrasDespesasRS, totais.total]);
+
+  // Total com extras (custas + outras despesas)
+  const totalComExtras = totais.total + totalCustasJudiciais + outrasDespesasValor;
+
   const plano = useMemo(() => {
-    const totalCentavos = Math.round(totais.total * 100);
+    const totalCentavos = Math.round(totalComExtras * 100);
     if (totalCentavos === 0) return null;
     const entradaCentavos = Math.round(parseFloat(valorEntrada || "0") * 100);
     const nparcelas = Math.max(1, parseInt(numeroParcelas || "1"));
@@ -248,7 +265,7 @@ export function RealizarAcordoModal({
       taxaJurosMensal: parseFloat(jurosParcelamentoPct || "0"),
       dataInicio: dataBase,
     });
-  }, [totais.total, valorEntrada, numeroParcelas, dataPagamento, jurosParcelamentoPct, tipoParcelas, intervaloDias]);
+  }, [totalComExtras, valorEntrada, numeroParcelas, dataPagamento, jurosParcelamentoPct, tipoParcelas, intervaloDias]);
 
   // ── Estados dos modais de ação final ─────────────────────────────────────
   const [acordoCriadoId, setAcordoCriadoId] = useState<number | null>(null);
@@ -976,10 +993,23 @@ export function RealizarAcordoModal({
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm">
               {selecionadas.size > 0 && (
-                <span className="text-muted-foreground">
-                  <strong className="text-foreground">{selecionadas.size}</strong> título(s) selecionado(s) •
-                  Total: <strong className="text-primary text-base">{fmt(totais.total)}</strong>
-                </span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-muted-foreground">
+                    <strong className="text-foreground">{selecionadas.size}</strong> título(s) selecionado(s) •
+                    Títulos: <strong>{fmt(totais.total)}</strong>
+                    {(totalCustasJudiciais > 0 || outrasDespesasValor > 0) && (
+                      <>
+                        {totalCustasJudiciais > 0 && <span className="ml-2 text-amber-600">+ Custas: <strong>{fmt(totalCustasJudiciais)}</strong></span>}
+                        {outrasDespesasValor > 0 && <span className="ml-2 text-blue-600">+ Despesas: <strong>{fmt(outrasDespesasValor)}</strong></span>}
+                        {" = "}
+                        <strong className="text-primary text-base">{fmt(totalComExtras)}</strong>
+                      </>
+                    )}
+                    {totalCustasJudiciais === 0 && outrasDespesasValor === 0 && (
+                      <> • Total: <strong className="text-primary text-base">{fmt(totais.total)}</strong></>
+                    )}
+                  </span>
+                </div>
               )}
             </div>
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-muted-foreground">
