@@ -616,7 +616,6 @@ export default function DevedorDetalhes() {
               {/* ABA: Histórico & Acordos */}
               <TabsContent value="historico" className="space-y-6">
                 <TimelineTentativas tentativas={tentativas} limite={8} />
-                <BoletosPorDevedor devedorId={devedor.id} condominioId={devedor.condominioId} />
                 <AcordosDevedor devedorId={devedor.id} />
               </TabsContent>
 
