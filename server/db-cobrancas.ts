@@ -64,6 +64,14 @@ export async function getParcelasAcordoAtivasByDevedor(devedorId: number) {
     btgPixQrCode: parcelasAcordo.btgPixQrCode,
     btgPixCopiaECola: parcelasAcordo.btgPixCopiaECola,
     btgStatus: parcelasAcordo.btgStatus,
+    // Snapshot de breakdown
+    snapshotPrincipal: parcelasAcordo.snapshotPrincipal,
+    snapshotJuros: parcelasAcordo.snapshotJuros,
+    snapshotMulta: parcelasAcordo.snapshotMulta,
+    snapshotCorrecao: parcelasAcordo.snapshotCorrecao,
+    snapshotHonorarios: parcelasAcordo.snapshotHonorarios,
+    snapshotValorAtualizado: parcelasAcordo.snapshotValorAtualizado,
+    snapshotDescricao: parcelasAcordo.snapshotDescricao,
   }).from(parcelasAcordo).where(
     inArray(parcelasAcordo.acordoId, acordoIds)
   ).orderBy(parcelasAcordo.installmentNumber);
