@@ -206,6 +206,7 @@ export function RealizarAcordoModal({
   // ── Simulação de parcelas ──────────────────────────────────────────────────
   // ── Custas Judiciais e Outras Despesas ──────────────────────────────────
   const [custasOpen, setCustasOpen] = useState(false);
+  const [outrasDespesasOpen, setOutrasDespesasOpen] = useState(false);
   const [outrasDespesasPct, setOutrasDespesasPct] = useState("");
   const [outrasDespesasRS, setOutrasDespesasRS] = useState("");
   const [outrasDespesasDesc, setOutrasDespesasDesc] = useState("");
@@ -541,16 +542,39 @@ export function RealizarAcordoModal({
 
             {/* ── Custas Judiciais + Outras Despesas ── */}
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 mb-3">
                 <h3 className="text-sm font-semibold">Despesas Adicionais</h3>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {/* Botão Custas Judiciais */}
                 <Button
                   variant="outline"
                   size="sm"
                   className="gap-2 border-amber-500 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
-                  onClick={() => setCustasOpen(!custasOpen)}
+                  onClick={() => setCustasOpen(true)}
                 >
                   <Gavel className="h-4 w-4" />
                   Custas Judiciais
+                </Button>
+
+                {/* Botão Outras Despesas */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={`gap-2 ${
+                    parseFloat((outrasDespesasPct || "0").replace(',', '.')) > 0 || parseFloat((outrasDespesasRS || "0").replace(',', '.')) > 0
+                      ? "border-blue-500 text-blue-700 bg-blue-50 dark:bg-blue-900/20"
+                      : "border-blue-400 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  }`}
+                  onClick={() => setOutrasDespesasOpen(true)}
+                >
+                  <FileText className="h-4 w-4" />
+                  Outras Despesas
+                  {(parseFloat((outrasDespesasPct || "0").replace(',', '.')) > 0 || parseFloat((outrasDespesasRS || "0").replace(',', '.')) > 0) && (
+                    <span className="ml-1 text-xs font-bold">
+                      ({fmt((parseFloat((outrasDespesasPct || "0").replace(',', '.')) / 100) * totais.total + parseFloat((outrasDespesasRS || "0").replace(',', '.')))})
+                    </span>
+                  )}
                 </Button>
               </div>
 
@@ -567,56 +591,75 @@ export function RealizarAcordoModal({
                 </CustasDialogContent>
               </CustasDialog>
 
-              {/* Outras Despesas */}
-              <div className="p-3 border rounded-lg bg-muted/20 mb-4">
-                <Label className="text-xs font-semibold mb-2 block">Outras Despesas</Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <Label className="text-xs">Percentual (%)</Label>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-xs text-muted-foreground">%</span>
+              {/* Dialog de Outras Despesas */}
+              <CustasDialog open={outrasDespesasOpen} onOpenChange={setOutrasDespesasOpen}>
+                <CustasDialogContent className="max-w-lg">
+                  <CustasDialogHeader>
+                    <CustasDialogTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
+                      Outras Despesas
+                    </CustasDialogTitle>
+                  </CustasDialogHeader>
+                  <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm">Percentual (%)</Label>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-xs text-muted-foreground">%</span>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={outrasDespesasPct}
+                            onChange={(e) => setOutrasDespesasPct(e.target.value.replace(',', '.'))}
+                            className="h-9"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-sm">Valor (R$)</Label>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-xs text-muted-foreground">R$</span>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={outrasDespesasRS}
+                            onChange={(e) => setOutrasDespesasRS(e.target.value.replace(',', '.'))}
+                            className="h-9"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm">Referência / Descrição</Label>
                       <Input
                         type="text"
-                        inputMode="decimal"
-                        value={outrasDespesasPct}
-                        onChange={(e) => setOutrasDespesasPct(e.target.value.replace(',', '.'))}
-                        className="h-8 text-sm"
-                        placeholder="0.00"
+                        value={outrasDespesasDesc}
+                        onChange={(e) => setOutrasDespesasDesc(e.target.value)}
+                        className="h-9 mt-1"
+                        placeholder="Ex: Despesas com cartório, diligências..."
                       />
                     </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Valor (R$)</Label>
-                    <div className="flex items-center gap-1 mt-1">
-                      <span className="text-xs text-muted-foreground">R$</span>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={outrasDespesasRS}
-                        onChange={(e) => setOutrasDespesasRS(e.target.value.replace(',', '.'))}
-                        className="h-8 text-sm"
-                        placeholder="0.00"
-                      />
+                    {(parseFloat((outrasDespesasPct || "0").replace(',', '.')) > 0 || parseFloat((outrasDespesasRS || "0").replace(',', '.')) > 0) && (
+                      <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          Valor a adicionar: <strong>{fmt((parseFloat((outrasDespesasPct || "0").replace(',', '.')) / 100) * totais.total + parseFloat((outrasDespesasRS || "0").replace(',', '.')))}</strong>
+                          {outrasDespesasDesc && <span className="ml-1 text-muted-foreground">— {outrasDespesasDesc}</span>}
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="outline" onClick={() => { setOutrasDespesasPct(""); setOutrasDespesasRS(""); setOutrasDespesasDesc(""); }}>
+                        Limpar
+                      </Button>
+                      <Button onClick={() => setOutrasDespesasOpen(false)}>
+                        Confirmar
+                      </Button>
                     </div>
                   </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs">Referência / Descrição</Label>
-                    <Input
-                      type="text"
-                      value={outrasDespesasDesc}
-                      onChange={(e) => setOutrasDespesasDesc(e.target.value)}
-                      className="h-8 text-sm mt-1"
-                      placeholder="Ex: Despesas com cartório, diligências..."
-                    />
-                  </div>
-                </div>
-                {(parseFloat((outrasDespesasPct || "0").replace(',', '.')) > 0 || parseFloat((outrasDespesasRS || "0").replace(',', '.')) > 0) && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Valor calculado: <strong>{fmt((parseFloat((outrasDespesasPct || "0").replace(',', '.')) / 100) * totais.total + parseFloat((outrasDespesasRS || "0").replace(',', '.')))}</strong>
-                    {outrasDespesasDesc && <span className="ml-1">— {outrasDespesasDesc}</span>}
-                  </p>
-                )}
-              </div>
+                </CustasDialogContent>
+              </CustasDialog>
             </div>
 
             <Separator />
