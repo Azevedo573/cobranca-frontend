@@ -22,9 +22,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Calculator, HandshakeIcon, Loader2, AlertCircle, FileText, Mail, Printer, CheckCircle2 } from "lucide-react";
+import { Calculator, HandshakeIcon, Loader2, AlertCircle, FileText, Mail, Printer, CheckCircle2, Gavel } from "lucide-react";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import EnviarEmailModal from "@/components/EnviarEmailModal";
+import { CustasJudiciais } from "@/components/CustasJudiciais";
 import { calcularPlanoAcordo, formatarMoedaAcordo } from "@/../../shared/calculos-acordo";
 import { format } from "date-fns";
 
@@ -201,6 +202,12 @@ export function RealizarAcordoModal({
   }, [titulos, selecionadas]);
 
   // ── Simulação de parcelas ──────────────────────────────────────────────────
+  // ── Custas Judiciais e Outras Despesas ──────────────────────────────────
+  const [custasOpen, setCustasOpen] = useState(false);
+  const [outrasDespesasPct, setOutrasDespesasPct] = useState("");
+  const [outrasDespesasRS, setOutrasDespesasRS] = useState("");
+  const [outrasDespesasDesc, setOutrasDespesasDesc] = useState("");
+
   const [temEntrada, setTemEntrada] = useState(false);
   const [valorEntrada, setValorEntrada] = useState("0.00");
   const [numeroParcelas, setNumeroParcelas] = useState("1");
@@ -495,6 +502,82 @@ export function RealizarAcordoModal({
 
             <Separator />
 
+            {/* ── Custas Judiciais + Outras Despesas ── */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Despesas Adicionais</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-amber-500 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                  onClick={() => setCustasOpen(!custasOpen)}
+                >
+                  <Gavel className="h-4 w-4" />
+                  Custas Judiciais
+                </Button>
+              </div>
+
+              {/* Painel de Custas Judiciais (toggle) */}
+              {custasOpen && (
+                <div className="mb-4 border rounded-lg overflow-hidden">
+                  <CustasJudiciais devedorId={devedorId} condominioId={condominioId} />
+                </div>
+              )}
+
+              {/* Outras Despesas */}
+              <div className="p-3 border rounded-lg bg-muted/20 mb-4">
+                <Label className="text-xs font-semibold mb-2 block">Outras Despesas</Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label className="text-xs">Percentual (%)</Label>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-xs text-muted-foreground">%</span>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={outrasDespesasPct}
+                        onChange={(e) => setOutrasDespesasPct(e.target.value.replace(',', '.'))}
+                        className="h-8 text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Valor (R$)</Label>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-xs text-muted-foreground">R$</span>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={outrasDespesasRS}
+                        onChange={(e) => setOutrasDespesasRS(e.target.value.replace(',', '.'))}
+                        className="h-8 text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">Referência / Descrição</Label>
+                    <Input
+                      type="text"
+                      value={outrasDespesasDesc}
+                      onChange={(e) => setOutrasDespesasDesc(e.target.value)}
+                      className="h-8 text-sm mt-1"
+                      placeholder="Ex: Despesas com cartório, diligências..."
+                    />
+                  </div>
+                </div>
+                {(parseFloat((outrasDespesasPct || "0").replace(',', '.')) > 0 || parseFloat((outrasDespesasRS || "0").replace(',', '.')) > 0) && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Valor calculado: <strong>{fmt((parseFloat((outrasDespesasPct || "0").replace(',', '.')) / 100) * totais.total + parseFloat((outrasDespesasRS || "0").replace(',', '.')))}</strong>
+                    {outrasDespesasDesc && <span className="ml-1">— {outrasDespesasDesc}</span>}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* ── Simulação de parcelas ── */}
             <div>
               <h3 className="text-sm font-semibold mb-4">Simulação de Acordo / Boleto</h3>
@@ -670,7 +753,7 @@ export function RealizarAcordoModal({
                     </thead>
                     <tbody>
                       {plano.parcelas.map((p) => {
-                        const taxa = (parseFloat(taxaCobrancaPct || "0") / 100) * (p.valor / 100) + parseFloat(taxaCobrancaRS || "0");
+                        const taxa = (parseFloat((taxaCobrancaPct || "0").replace(',', '.')) / 100) * (p.valor / 100) + parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
                         const totalParcela = p.valor / 100 + taxa;
                         return (
                           <tr key={p.numeroParcela} className="border-t hover:bg-muted/20">
@@ -697,13 +780,13 @@ export function RealizarAcordoModal({
                         <td className="p-2 text-right">{fmt(0)}</td>
                         <td className="p-2 text-right">
                           {fmt(plano.parcelas.reduce((s, p) => {
-                            const taxa = (parseFloat(taxaCobrancaPct || "0") / 100) * (p.valor / 100) + parseFloat(taxaCobrancaRS || "0");
+                            const taxa = (parseFloat((taxaCobrancaPct || "0").replace(',', '.')) / 100) * (p.valor / 100) + parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
                             return s + taxa;
                           }, 0))}
                         </td>
                         <td className="p-2 text-right text-primary">
                           {fmt(plano.parcelas.reduce((s, p) => {
-                            const taxa = (parseFloat(taxaCobrancaPct || "0") / 100) * (p.valor / 100) + parseFloat(taxaCobrancaRS || "0");
+                            const taxa = (parseFloat((taxaCobrancaPct || "0").replace(',', '.')) / 100) * (p.valor / 100) + parseFloat((taxaCobrancaRS || "0").replace(',', '.'));
                             return s + p.valor / 100 + taxa;
                           }, 0))}
                         </td>
