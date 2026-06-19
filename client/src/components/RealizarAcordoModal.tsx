@@ -522,52 +522,37 @@ export function RealizarAcordoModal({
                   </thead>
                   <tbody>
                     {titulos.map((t) => (
-                      <React.Fragment key={`row-${t.id}`}>
-                        <tr
-                          className={`border-t transition-colors cursor-pointer ${selecionadas.has(t.id) ? "bg-primary/5" : "hover:bg-muted/30"}`}
-                          onClick={() => toggleCobranca(t.id)}
-                        >
-                          <td className="p-2 text-center">
-                            <Checkbox
-                              checked={selecionadas.has(t.id)}
-                              onCheckedChange={() => toggleCobranca(t.id)}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </td>
-                          <td className="p-2 font-medium max-w-[120px] truncate">{t.titulo}</td>
-                          <td className="p-2 text-muted-foreground">{t.tipoTitulo}</td>
-                          <td className="p-2 text-center">{t.vencimento}</td>
-                          <td className="p-2 text-center">{t.dias}</td>
-                          <td className="p-2 text-right">{fmt(t.valorOriginal)}</td>
-                          <td className="p-2 text-right">{fmt(t.corMonetaria)}</td>
-                          <td className="p-2 text-right">{fmt(t.multa)}</td>
-                          <td className="p-2 text-right">{fmt(t.juros)}</td>
-                          <td className="p-2 text-right">{fmt(t.subTotal)}</td>
-                          <td className="p-2 text-right">{fmt(t.honorario)}</td>
-                          <td className="p-2 text-right text-green-700">{fmt(t.desconto)}</td>
-                          <td className="p-2 text-right font-bold text-primary">{fmt(t.total)}</td>
-                        </tr>
-                        {t.custasJudiciais > 0 && (
-                          <tr key={`custas-${t.id}`} className={`${selecionadas.has(t.id) ? "bg-primary/5" : "bg-amber-50/60 dark:bg-amber-900/10"}`}>
-                            <td></td>
-                            <td colSpan={3} className="px-2 pb-1.5 pt-0">
-                              <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
-                                <Gavel className="h-3 w-3" />
-                                Custas Judiciais
-                              </span>
-                            </td>
-                            <td className="px-2 pb-1.5 pt-0 text-center text-[11px] text-muted-foreground">—</td>
-                            <td className="px-2 pb-1.5 pt-0 text-right text-[11px] font-semibold text-amber-700 dark:text-amber-400">{fmt(t.custasJudiciais)}</td>
-                            <td colSpan={7}></td>
-                          </tr>
-                        )}
-                      </React.Fragment>
+                      <tr
+                        key={t.id}
+                        className={`border-t transition-colors cursor-pointer ${selecionadas.has(t.id) ? "bg-primary/5" : "hover:bg-muted/30"}`}
+                        onClick={() => toggleCobranca(t.id)}
+                      >
+                        <td className="p-2 text-center">
+                          <Checkbox
+                            checked={selecionadas.has(t.id)}
+                            onCheckedChange={() => toggleCobranca(t.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </td>
+                        <td className="p-2 font-medium max-w-[120px] truncate">{t.titulo}</td>
+                        <td className="p-2 text-muted-foreground">{t.tipoTitulo}</td>
+                        <td className="p-2 text-center">{t.vencimento}</td>
+                        <td className="p-2 text-center">{t.dias}</td>
+                        <td className="p-2 text-right">{fmt(t.valorOriginal)}</td>
+                        <td className="p-2 text-right">{fmt(t.corMonetaria)}</td>
+                        <td className="p-2 text-right">{fmt(t.multa)}</td>
+                        <td className="p-2 text-right">{fmt(t.juros)}</td>
+                        <td className="p-2 text-right">{fmt(t.subTotal)}</td>
+                        <td className="p-2 text-right">{fmt(t.honorario)}</td>
+                        <td className="p-2 text-right text-green-700">{fmt(t.desconto)}</td>
+                        <td className="p-2 text-right font-bold text-primary">{fmt(t.total)}</td>
+                      </tr>
                     ))}
                   </tbody>
-                  {/* Totais */}
+                  {/* Subtotal dos títulos */}
                   <tfoot className="bg-muted/60 font-semibold border-t-2">
                     <tr>
-                      <td colSpan={5} className="p-2 text-right text-xs">Totais selecionados:</td>
+                      <td colSpan={5} className="p-2 text-right text-xs">Subtotal títulos:</td>
                       <td className="p-2 text-right">{fmt(totais.valorOriginal)}</td>
                       <td className="p-2 text-right">{fmt(totais.corMonetaria)}</td>
                       <td className="p-2 text-right">{fmt(totais.multa)}</td>
@@ -580,25 +565,126 @@ export function RealizarAcordoModal({
                   </tfoot>
                 </table>
               </div>
-            </div>
 
-            <Separator />
+              {/* ── Seção de Despesas Adicionais (abaixo dos títulos) ── */}
+              {(totalCustasJudiciais > 0 || outrasDespesasValor > 0 || taxaCobrancaValor > 0) && (
+                <div className="mt-3 border rounded-lg overflow-hidden">
+                  {/* Cabeçalho da seção */}
+                  <div className="bg-amber-50/80 dark:bg-amber-900/20 border-b px-3 py-2 flex items-center gap-2">
+                    <Gavel className="h-3.5 w-3.5 text-amber-600" />
+                    <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">Despesas Adicionais vinculadas ao devedor</span>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/30">
+                      <tr>
+                        <th className="p-2 text-left font-medium">Descrição</th>
+                        <th className="p-2 text-left font-medium">Tipo</th>
+                        <th className="p-2 text-center font-medium">Data</th>
+                        <th className="p-2 text-right font-medium">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Linhas de custas judiciais */}
+                      {custasData && custasData.map((custa: any) => (
+                        <tr key={`custa-${custa.id}`} className="border-t hover:bg-amber-50/40 dark:hover:bg-amber-900/10">
+                          <td className="p-2 font-medium">{custa.descricao}</td>
+                          <td className="p-2">
+                            <span className={`inline-block text-[11px] px-1.5 py-0.5 rounded-full font-medium ${
+                              {
+                                distribuicao: "bg-blue-100 text-blue-700",
+                                citacao: "bg-purple-100 text-purple-700",
+                                pericia: "bg-orange-100 text-orange-700",
+                                honorarios_periciais: "bg-red-100 text-red-700",
+                                diligencia: "bg-yellow-100 text-yellow-700",
+                                outros: "bg-gray-100 text-gray-700",
+                              }[custa.tipo as string] ?? "bg-gray-100 text-gray-700"
+                            }`}>
+                              {{
+                                distribuicao: "Distribuição",
+                                citacao: "Citação",
+                                pericia: "Perícia",
+                                honorarios_periciais: "Hon. Periciais",
+                                diligencia: "Diligência",
+                                outros: "Outros",
+                              }[custa.tipo as string] ?? custa.tipo}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center text-muted-foreground">
+                            {custa.data ? format(new Date(custa.data), "dd/MM/yyyy") : "-"}
+                          </td>
+                          <td className="p-2 text-right font-semibold text-amber-700 dark:text-amber-400">
+                            {fmt(custa.valor / 100)}
+                          </td>
+                        </tr>
+                      ))}
+                      {/* Linha de Outras Despesas */}
+                      {outrasDespesasValor > 0 && (
+                        <tr className="border-t hover:bg-blue-50/40 dark:hover:bg-blue-900/10">
+                          <td className="p-2 font-medium">{outrasDespesasDesc || "Outras Despesas"}</td>
+                          <td className="p-2">
+                            <span className="inline-block text-[11px] px-1.5 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700">
+                              Despesa
+                            </span>
+                          </td>
+                          <td className="p-2 text-center text-muted-foreground">—</td>
+                          <td className="p-2 text-right font-semibold text-blue-700 dark:text-blue-400">
+                            {fmt(outrasDespesasValor)}
+                          </td>
+                        </tr>
+                      )}
+                      {/* Linha de Taxa de Cobrança */}
+                      {taxaCobrancaValor > 0 && (
+                        <tr className="border-t hover:bg-green-50/40 dark:hover:bg-green-900/10">
+                          <td className="p-2 font-medium">Taxa de Cobrança</td>
+                          <td className="p-2">
+                            <span className="inline-block text-[11px] px-1.5 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                              Taxa
+                            </span>
+                          </td>
+                          <td className="p-2 text-center text-muted-foreground">—</td>
+                          <td className="p-2 text-right font-semibold text-green-700 dark:text-green-400">
+                            {fmt(taxaCobrancaValor)}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    {/* Subtotal das despesas + total geral */}
+                    <tfoot className="border-t-2">
+                      <tr className="bg-amber-50/60 dark:bg-amber-900/10">
+                        <td colSpan={3} className="p-2 text-right text-xs font-semibold text-amber-800 dark:text-amber-300">Subtotal despesas adicionais:</td>
+                        <td className="p-2 text-right font-bold text-amber-700 dark:text-amber-400">
+                          {fmt(totalCustasJudiciais + outrasDespesasValor + taxaCobrancaValor)}
+                        </td>
+                      </tr>
+                      <tr className="bg-primary/5 border-t">
+                        <td colSpan={3} className="p-2 text-right text-xs font-bold text-primary">Total Geral (títulos + despesas):</td>
+                        <td className="p-2 text-right font-bold text-primary text-sm">
+                          {fmt(totalComExtras)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
 
-            {/* ── Custas Judiciais + Outras Despesas ── */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-semibold">Despesas Adicionais</h3>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-4">
+              {/* Botões para gerenciar despesas adicionais */}
+              <div className="flex flex-wrap gap-2 mt-3">
                 {/* Botão Custas Judiciais */}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-2 border-amber-500 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                  className={`gap-2 ${
+                    totalCustasJudiciais > 0
+                      ? "border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-900/20"
+                      : "border-amber-400 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                  }`}
                   onClick={() => setCustasOpen(true)}
                 >
                   <Gavel className="h-4 w-4" />
                   Custas Judiciais
+                  {totalCustasJudiciais > 0 && (
+                    <span className="ml-1 text-xs font-bold">({fmt(totalCustasJudiciais)})</span>
+                  )}
                 </Button>
 
                 {/* Botão Outras Despesas */}
@@ -621,90 +707,94 @@ export function RealizarAcordoModal({
                   )}
                 </Button>
               </div>
+            </div>
 
-              {/* Dialog de Custas Judiciais */}
-              <CustasDialog open={custasOpen} onOpenChange={setCustasOpen}>
-                <CustasDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                  <CustasDialogHeader>
-                    <CustasDialogTitle className="flex items-center gap-2">
-                      <Gavel className="h-5 w-5 text-amber-600" />
-                      Custas Judiciais — {devedorNome}
-                    </CustasDialogTitle>
-                  </CustasDialogHeader>
-                  <CustasJudiciais devedorId={devedorId} condominioId={condominioId} />
-                </CustasDialogContent>
-              </CustasDialog>
+            <Separator />
 
-              {/* Dialog de Outras Despesas */}
-              <CustasDialog open={outrasDespesasOpen} onOpenChange={setOutrasDespesasOpen}>
-                <CustasDialogContent className="max-w-lg">
-                  <CustasDialogHeader>
-                    <CustasDialogTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-blue-600" />
-                      Outras Despesas
-                    </CustasDialogTitle>
-                  </CustasDialogHeader>
-                  <div className="space-y-4 pt-2">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-sm">Percentual (%)</Label>
-                        <div className="flex items-center gap-1 mt-1">
-                          <span className="text-xs text-muted-foreground">%</span>
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={outrasDespesasPct}
-                            onChange={(e) => setOutrasDespesasPct(e.target.value.replace(',', '.'))}
-                            className="h-9"
-                            placeholder="0.00"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm">Valor (R$)</Label>
-                        <div className="flex items-center gap-1 mt-1">
-                          <span className="text-xs text-muted-foreground">R$</span>
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={outrasDespesasRS}
-                            onChange={(e) => setOutrasDespesasRS(e.target.value.replace(',', '.'))}
-                            className="h-9"
-                            placeholder="0.00"
-                          />
-                        </div>
+            {/* ── Dialogs de Custas Judiciais e Outras Despesas ── */}
+
+            {/* Dialog de Custas Judiciais */}
+            <CustasDialog open={custasOpen} onOpenChange={setCustasOpen}>
+              <CustasDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <CustasDialogHeader>
+                  <CustasDialogTitle className="flex items-center gap-2">
+                    <Gavel className="h-5 w-5 text-amber-600" />
+                    Custas Judiciais — {devedorNome}
+                  </CustasDialogTitle>
+                </CustasDialogHeader>
+                <CustasJudiciais devedorId={devedorId} condominioId={condominioId} />
+              </CustasDialogContent>
+            </CustasDialog>
+
+            {/* Dialog de Outras Despesas */}
+            <CustasDialog open={outrasDespesasOpen} onOpenChange={setOutrasDespesasOpen}>
+              <CustasDialogContent className="max-w-lg">
+                <CustasDialogHeader>
+                  <CustasDialogTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                    Outras Despesas
+                  </CustasDialogTitle>
+                </CustasDialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm">Percentual (%)</Label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xs text-muted-foreground">%</span>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={outrasDespesasPct}
+                          onChange={(e) => setOutrasDespesasPct(e.target.value.replace(',', '.'))}
+                          className="h-9"
+                          placeholder="0.00"
+                        />
                       </div>
                     </div>
                     <div>
-                      <Label className="text-sm">Referência / Descrição</Label>
-                      <Input
-                        type="text"
-                        value={outrasDespesasDesc}
-                        onChange={(e) => setOutrasDespesasDesc(e.target.value)}
-                        className="h-9 mt-1"
-                        placeholder="Ex: Despesas com cartório, diligências..."
-                      />
-                    </div>
-                    {(parseFloat((outrasDespesasPct || "0").replace(',', '.')) > 0 || parseFloat((outrasDespesasRS || "0").replace(',', '.')) > 0) && (
-                      <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
-                        <p className="text-sm text-blue-800 dark:text-blue-200">
-                          Valor a adicionar: <strong>{fmt((parseFloat((outrasDespesasPct || "0").replace(',', '.')) / 100) * totais.total + parseFloat((outrasDespesasRS || "0").replace(',', '.')))}</strong>
-                          {outrasDespesasDesc && <span className="ml-1 text-muted-foreground">— {outrasDespesasDesc}</span>}
-                        </p>
+                      <Label className="text-sm">Valor (R$)</Label>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xs text-muted-foreground">R$</span>
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={outrasDespesasRS}
+                          onChange={(e) => setOutrasDespesasRS(e.target.value.replace(',', '.'))}
+                          className="h-9"
+                          placeholder="0.00"
+                        />
                       </div>
-                    )}
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button variant="outline" onClick={() => { setOutrasDespesasPct(""); setOutrasDespesasRS(""); setOutrasDespesasDesc(""); }}>
-                        Limpar
-                      </Button>
-                      <Button onClick={() => setOutrasDespesasOpen(false)}>
-                        Confirmar
-                      </Button>
                     </div>
                   </div>
-                </CustasDialogContent>
-              </CustasDialog>
-            </div>
+                  <div>
+                    <Label className="text-sm">Referência / Descrição</Label>
+                    <Input
+                      type="text"
+                      value={outrasDespesasDesc}
+                      onChange={(e) => setOutrasDespesasDesc(e.target.value)}
+                      className="h-9 mt-1"
+                      placeholder="Ex: Despesas com cartório, diligências..."
+                    />
+                  </div>
+                  {(parseFloat((outrasDespesasPct || "0").replace(',', '.')) > 0 || parseFloat((outrasDespesasRS || "0").replace(',', '.')) > 0) && (
+                    <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        Valor a adicionar: <strong>{fmt((parseFloat((outrasDespesasPct || "0").replace(',', '.')) / 100) * totais.total + parseFloat((outrasDespesasRS || "0").replace(',', '.')))}</strong>
+                        {outrasDespesasDesc && <span className="ml-1 text-muted-foreground">— {outrasDespesasDesc}</span>}
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => { setOutrasDespesasPct(""); setOutrasDespesasRS(""); setOutrasDespesasDesc(""); }}>
+                      Limpar
+                    </Button>
+                    <Button onClick={() => setOutrasDespesasOpen(false)}>
+                      Confirmar
+                    </Button>
+                  </div>
+                </div>
+              </CustasDialogContent>
+            </CustasDialog>
 
             <Separator />
 
