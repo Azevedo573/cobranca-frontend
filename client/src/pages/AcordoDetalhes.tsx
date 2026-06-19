@@ -70,11 +70,21 @@ export default function AcordoDetalhes() {
     { enabled: !!acordoId }
   );
 
-  // Buscar dados do condomínio para verificar o billingIssuer
+  // Buscar dados do condomínio para verificar o billingIssuer e modoBoleto
   const { data: condominio } = trpc.condominios.getById.useQuery(
     { id: acordo?.condominioId ?? 0 },
     { enabled: !!acordo?.condominioId }
   );
+  const modoBoleto = ((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg";
+
+  // Mutation para emitir boleto BTG
+  const emitirBtgMutation = trpc.btg.emitirBoletoParcela.useMutation({
+    onSuccess: (data, variables) => {
+      utils.acordos.getParcelas.invalidate({ acordoId });
+      toast.success("Boleto BTG emitido com sucesso!");
+    },
+    onError: (err) => toast.error("Erro ao emitir boleto BTG: " + err.message),
+  });
 
   // Mutation para gerar relatório para administradora
   const gerarRelatorioMutation = trpc.acordos.gerarRelatorioAdministradora.useMutation({
@@ -459,92 +469,116 @@ export default function AcordoDetalhes() {
                         <TableCell>{getStatusBadge(parcela.status)}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            {(parcela as any).statusRemessa === "remessa_gerada" && (
-                              <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs gap-1">
-                                <FileText className="h-3 w-3" />Remessa Gerada
-                              </Badge>
-                            )}
-                            {(parcela as any).statusRemessa === "enviado" && (
-                              <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs gap-1">
-                                <MailCheck className="h-3 w-3" />Enviado
-                              </Badge>
-                            )}
-                            {(parcela as any).statusRemessa === "retorno_recebido" && (
-                              <Badge className="bg-green-100 text-green-700 border-green-200 text-xs gap-1">
-                                <CheckCircle2 className="h-3 w-3" />Confirmado
-                              </Badge>
-                            )}
-                            {(parcela as any).nossoNumero && (
-                              <p className="text-xs font-mono text-muted-foreground">{(parcela as any).nossoNumero}</p>
-                            )}
-                            {!(parcela as any).statusRemessa && (
-                              <span className="text-xs text-muted-foreground italic">Aguardando remessa</span>
-                            )}
-                            {/* Botões de boleto — só para parcelas com nossoNumero */}
-                            {(parcela as any).nossoNumero && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {!boletoParcelas[parcela.id] ? (
+                            {modoBoleto === "api_btg" ? (
+                              /* ── Modo BTG API ── */
+                              (parcela as any).btgBankSlipUrl ? (
+                                <div className="flex flex-col gap-1">
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-6 text-xs px-2"
-                                    onClick={() => gerarPDFParcelaMutation.mutate({ parcelaId: parcela.id })}
-                                    disabled={gerarPDFParcelaMutation.isPending}
+                                    className="h-7 px-2 text-xs w-full"
+                                    onClick={() => window.open((parcela as any).btgBankSlipUrl, "_blank")}
                                   >
-                                    {gerarPDFParcelaMutation.isPending ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <FileText className="h-3 w-3" />
-                                    )}
-                                    <span className="ml-1">PDF</span>
+                                    <ExternalLink className="h-3 w-3 mr-1" /> Boleto BTG
                                   </Button>
-                                ) : (
-                                  <>
+                                  {(parcela as any).btgPixCopiaECola && (
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-6 text-xs px-2"
-                                      onClick={() => window.open(boletoParcelas[parcela.id].url, '_blank')}
+                                      className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50"
+                                      onClick={async () => {
+                                        await navigator.clipboard.writeText((parcela as any).btgPixCopiaECola);
+                                        setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'pix' }));
+                                        toast.success("PIX copiado!");
+                                        setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
+                                      }}
                                     >
-                                      <ExternalLink className="h-3 w-3" />
-                                      <span className="ml-1">Abrir</span>
+                                      {copiandoParcela[parcela.id] === 'pix' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                                      <span className="ml-1">Copiar PIX</span>
                                     </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-6 text-xs px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                                      onClick={() => copiarLinhaParcela(parcela.id)}
-                                    >
-                                      {copiandoParcela[parcela.id] === 'linha' ? (
-                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                      ) : (
-                                        <Copy className="h-3 w-3" />
-                                      )}
-                                      <span className="ml-1">Linha</span>
-                                    </Button>
-                                  </>
+                                  )}
+                                  {(parcela as any).btgStatus && (
+                                    <Badge variant="outline" className="text-xs w-fit">{(parcela as any).btgStatus}</Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs w-full"
+                                  onClick={() => emitirBtgMutation.mutate({ parcelaId: parcela.id })}
+                                  disabled={emitirBtgMutation.isPending}
+                                >
+                                  {emitirBtgMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                                  Emitir BTG
+                                </Button>
+                              )
+                            ) : (
+                              /* ── Modo CNAB 240 ── */
+                              <div className="flex flex-col gap-1">
+                                {(parcela as any).statusRemessa === "remessa_gerada" && (
+                                  <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs gap-1">
+                                    <FileText className="h-3 w-3" />Remessa Gerada
+                                  </Badge>
                                 )}
-                                {/* Botão Pix — visível assim que o retorno D+1 for processado (Bolepix) */}
-                                {(boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola) && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 text-xs px-2 border-green-300 text-green-700 hover:bg-green-50"
-                                    onClick={async () => {
-                                      const pix = boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola;
-                                      await navigator.clipboard.writeText(pix);
-                                      setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'pix' }));
-                                      toast.success('Pix copia e cola copiado!');
-                                      setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
-                                    }}
-                                  >
-                                    {copiandoParcela[parcela.id] === 'pix' ? (
-                                      <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                {(parcela as any).statusRemessa === "enviado" && (
+                                  <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs gap-1">
+                                    <MailCheck className="h-3 w-3" />Enviado
+                                  </Badge>
+                                )}
+                                {(parcela as any).statusRemessa === "retorno_recebido" && (
+                                  <Badge className="bg-green-100 text-green-700 border-green-200 text-xs gap-1">
+                                    <CheckCircle2 className="h-3 w-3" />Confirmado
+                                  </Badge>
+                                )}
+                                {(parcela as any).nossoNumero && (
+                                  <p className="text-xs font-mono text-muted-foreground">{(parcela as any).nossoNumero}</p>
+                                )}
+                                {!(parcela as any).statusRemessa && !((parcela as any).nossoNumero) && (
+                                  <span className="text-xs text-muted-foreground italic">Aguardando remessa</span>
+                                )}
+                                {(parcela as any).nossoNumero && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {!boletoParcelas[parcela.id] ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-xs px-2"
+                                        onClick={() => gerarPDFParcelaMutation.mutate({ parcelaId: parcela.id })}
+                                        disabled={gerarPDFParcelaMutation.isPending}
+                                      >
+                                        {gerarPDFParcelaMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                                        <span className="ml-1">PDF</span>
+                                      </Button>
                                     ) : (
-                                      <Copy className="h-3 w-3" />
+                                      <>
+                                        <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => window.open(boletoParcelas[parcela.id].url, '_blank')}>
+                                          <ExternalLink className="h-3 w-3" /><span className="ml-1">Abrir</span>
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-6 text-xs px-2 border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => copiarLinhaParcela(parcela.id)}>
+                                          {copiandoParcela[parcela.id] === 'linha' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                                          <span className="ml-1">Linha</span>
+                                        </Button>
+                                      </>
                                     )}
-                                    <span className="ml-1">Pix</span>
-                                  </Button>
+                                    {(boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola) && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-xs px-2 border-green-300 text-green-700 hover:bg-green-50"
+                                        onClick={async () => {
+                                          const pix = boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola;
+                                          await navigator.clipboard.writeText(pix);
+                                          setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'pix' }));
+                                          toast.success('Pix copia e cola copiado!');
+                                          setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
+                                        }}
+                                      >
+                                        {copiandoParcela[parcela.id] === 'pix' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                                        <span className="ml-1">Pix</span>
+                                      </Button>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}
