@@ -230,8 +230,9 @@ export function RealizarAcordoModal({
   const { data: acordosAtivos } = trpc.acordos.getAtivosComParcelas.useQuery({ devedorId });
   const acordoAtivo = acordosAtivos && acordosAtivos.length > 0 ? acordosAtivos[0] : null;
 
-  // Buscar total de custas judiciais do devedor para incluir no acordo
-  const { data: custasData, refetch: refetchCustas } = trpc.custas.getByDevedor.useQuery({ devedorId });
+  // Buscar custas LIVRES do devedor (sem acordo ativo vinculado) para incluir no acordo
+  // Custas já incluídas em acordo ativo não são cobradas novamente
+  const { data: custasData, refetch: refetchCustas } = trpc.custas.getLivresByDevedor.useQuery({ devedorId });
   const totalCustasJudiciais = useMemo(() => {
     if (!custasData) return 0;
     return custasData.reduce((s: number, c: any) => s + (c.valor || 0), 0) / 100;

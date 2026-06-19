@@ -512,6 +512,13 @@
       "when": 1781881573275,
       "tag": "0073_simple_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "5",
+      "when": 1781898992540,
+      "tag": "0074_complex_pestilence",
+      "breakpoints": true
     }
   ]
 }

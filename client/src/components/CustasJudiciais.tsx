@@ -58,6 +58,8 @@ export function CustasJudiciais({ devedorId, condominioId }: Props) {
       toast.success("Custa judicial lançada com sucesso!");
       utils.custas.getByDevedor.invalidate({ devedorId });
       utils.custas.getTotal.invalidate({ devedorId });
+      utils.custas.getLivresByDevedor.invalidate({ devedorId });
+      utils.custas.getTotalLivres.invalidate({ devedorId });
       setShowForm(false);
       setForm({ descricao: "", valor: "", data: new Date().toISOString().split("T")[0], tipo: "outros", observacoes: "" });
     },
@@ -69,6 +71,8 @@ export function CustasJudiciais({ devedorId, condominioId }: Props) {
       toast.success("Custa removida.");
       utils.custas.getByDevedor.invalidate({ devedorId });
       utils.custas.getTotal.invalidate({ devedorId });
+      utils.custas.getLivresByDevedor.invalidate({ devedorId });
+      utils.custas.getTotalLivres.invalidate({ devedorId });
     },
     onError: (err) => toast.error("Erro ao remover custa: " + err.message),
   });

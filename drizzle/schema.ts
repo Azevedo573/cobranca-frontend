@@ -1027,6 +1027,8 @@ export const custasJudiciais = mysqlTable("custasJudiciais", {
   ]).default("outros").notNull(),
   observacoes: text("observacoes"),
   createdBy: int("createdBy"), // userId do operador que lançou
+  // Controle de inclusão em acordo: null = livre para novo acordo, >0 = já incluída no acordo informado
+  acordoId: int("acordoId"), // FK para acordos.id (nullable = custa livre)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type CustaJudicial = typeof custasJudiciais.$inferSelect;

@@ -1,0 +1,1 @@
+ALTER TABLE `custasJudiciais` ADD `acordoId` int;

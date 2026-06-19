@@ -1209,6 +1209,15 @@ export const appRouter = router({
       for (const cobrancaId of input.cobrancaIds) {
         await updateCobranca(cobrancaId, { status: "em_acordo" });
       }
+
+      // Vincular custas judiciais livres do devedor a este acordo
+      // (evita cobrança duplicada em novo acordo enquanto este estiver ativo)
+      try {
+        const { vincularCustasAoAcordo } = await import("./db-custas");
+        await vincularCustasAoAcordo(input.devedorId, acordoId);
+      } catch (e) {
+        console.warn('[ACORDO] Não foi possível vincular custas ao acordo:', e);
+      }
       
       await logAudit(ctx, { action: "create", entity: "acordo", entityId: String(acordoId), condominioId: input.condominioId, afterData: { devedorId: input.devedorId, totalAmount: input.totalAmount, agreedAmount: input.agreedAmount, installments: input.installments }, severity: "info" });
       return { success: true, acordoId };
@@ -1644,6 +1653,15 @@ export const appRouter = router({
           valorPagoAcordo: valorJaPago,
         })
         .where(eq(acordos.id, input.acordoId));
+
+      // 7. Liberar custas judiciais vinculadas a este acordo
+      // (ficam disponíveis para inclusão em novo acordo)
+      try {
+        const { liberarCustasDoAcordo } = await import("./db-custas");
+        await liberarCustasDoAcordo(input.acordoId);
+      } catch (e) {
+        console.warn('[QUEBRA ACORDO] Não foi possível liberar custas do acordo:', e);
+      }
 
       return {
         success: true,
@@ -5965,6 +5983,14 @@ export const appRouter = router({
         return getCustasByDevedor(input.devedorId);
       }),
 
+    /** Custas livres (sem acordo ativo vinculado) — usadas no modal de novo acordo */
+    getLivresByDevedor: protectedProcedure
+      .input(z.object({ devedorId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getCustasLivresByDevedor } = await import("./db-custas");
+        return getCustasLivresByDevedor(input.devedorId);
+      }),
+
     create: protectedProcedure
       .input(z.object({
         devedorId: z.number().int().positive(),
@@ -6003,6 +6029,15 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const { getTotalCustasByDevedor } = await import("./db-custas");
         const total = await getTotalCustasByDevedor(input.devedorId);
+        return { total };
+      }),
+
+    /** Total de custas livres (não vinculadas a acordo ativo) */
+    getTotalLivres: protectedProcedure
+      .input(z.object({ devedorId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const { getTotalCustasLivresByDevedor } = await import("./db-custas");
+        const total = await getTotalCustasLivresByDevedor(input.devedorId);
         return { total };
       }),
   }),
