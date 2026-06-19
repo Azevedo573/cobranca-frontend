@@ -31,6 +31,9 @@ import {
   Loader2,
   Download,
   Building2,
+  ChevronDown,
+  ChevronUp,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
@@ -43,6 +46,20 @@ export default function AcordoDetalhes() {
   const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola: string | null }>>({});
   const [copiandoParcela, setCopiandoParcela] = useState<Record<number, 'linha' | 'pix' | null>>({});
   const [modalDocumentoOpen, setModalDocumentoOpen] = useState(false);
+  const [breakdownExpandido, setBreakdownExpandido] = useState<Set<number>>(new Set());
+
+  const toggleBreakdown = (parcelaId: number) => {
+    setBreakdownExpandido((prev) => {
+      const next = new Set(prev);
+      next.has(parcelaId) ? next.delete(parcelaId) : next.add(parcelaId);
+      return next;
+    });
+  };
+
+  const fmtCents = (v: number | null | undefined) =>
+    v != null
+      ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100)
+      : "-";
 
   const utils = trpc.useUtils();
   const [relatorioUrl, setRelatorioUrl] = useState<string | null>(null);
@@ -408,9 +425,23 @@ export default function AcordoDetalhes() {
                 <TableBody>
                   {parcelas && parcelas.length > 0 ? (
                     parcelas.map((parcela) => (
-                      <TableRow key={parcela.id}>
+                      <React.Fragment key={parcela.id}>
+                      <TableRow>
                         <TableCell className="font-medium">
-                          #{parcela.installmentNumber}
+                          <div className="flex items-center gap-1">
+                            #{parcela.installmentNumber}
+                            {(parcela as any).snapshotPrincipal != null && (
+                              <button
+                                onClick={() => toggleBreakdown(parcela.id)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                                title="Ver detalhes do breakdown"
+                              >
+                                {breakdownExpandido.has(parcela.id)
+                                  ? <ChevronUp className="h-3.5 w-3.5" />
+                                  : <ChevronDown className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="font-semibold">
                           {formatCurrency(parcela.amount)}
@@ -539,10 +570,59 @@ export default function AcordoDetalhes() {
                           )}
                         </TableCell>
                       </TableRow>
+                      {/* Linha de breakdown expandida */}
+                      {breakdownExpandido.has(parcela.id) && (parcela as any).snapshotPrincipal != null && (
+                        <TableRow className="bg-blue-50/60 dark:bg-blue-950/20">
+                          <TableCell colSpan={7} className="py-3 px-4">
+                            <div className="flex items-center gap-1 mb-2">
+                              <Info className="h-3.5 w-3.5 text-blue-500" />
+                              <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Snapshot do acordo — valores na data de fechamento</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Valor Principal</p>
+                                <p className="text-sm font-semibold">{fmtCents((parcela as any).snapshotPrincipal)}</p>
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Multa</p>
+                                <p className="text-sm font-semibold">{fmtCents((parcela as any).snapshotMulta)}</p>
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Juros</p>
+                                <p className="text-sm font-semibold">{fmtCents((parcela as any).snapshotJuros)}</p>
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Correção Monetária</p>
+                                <p className="text-sm font-semibold">{fmtCents((parcela as any).snapshotCorrecao)}</p>
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Honorários</p>
+                                <p className="text-sm font-semibold">{fmtCents((parcela as any).snapshotHonorarios)}</p>
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Valor Atualizado</p>
+                                <p className="text-sm font-bold text-blue-700 dark:text-blue-400">{fmtCents((parcela as any).snapshotValorAtualizado)}</p>
+                              </div>
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Valor Pago</p>
+                                <p className="text-sm font-semibold text-green-600">
+                                  {parcela.status === "pago" ? fmtCents(parcela.amount) : "-"}
+                                </p>
+                              </div>
+                            </div>
+                            {(parcela as any).snapshotDescricao && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                <span className="font-medium">Ref.:</span> {(parcela as any).snapshotDescricao}
+                              </p>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </React.Fragment>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Nenhuma parcela encontrada
                       </TableCell>
                     </TableRow>

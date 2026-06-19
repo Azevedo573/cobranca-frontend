@@ -175,6 +175,14 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   dueDate: timestamp("dueDate").notNull(),
   paymentDate: timestamp("paymentDate"),
   status: mysqlEnum("status", ["pendente", "pago", "atrasado", "cancelado"]).default("pendente").notNull(),
+  // Snapshot de breakdown no momento do acordo (valores em centavos)
+  snapshotPrincipal: int("snapshotPrincipal"),       // Valor principal da cobrança original
+  snapshotJuros: int("snapshotJuros"),               // Juros acumulados na data do acordo
+  snapshotMulta: int("snapshotMulta"),               // Multa na data do acordo
+  snapshotCorrecao: int("snapshotCorrecao"),         // Correção monetária na data do acordo
+  snapshotHonorarios: int("snapshotHonorarios"),     // Honorários na data do acordo
+  snapshotValorAtualizado: int("snapshotValorAtualizado"), // Valor total atualizado na data do acordo
+  snapshotDescricao: text("snapshotDescricao"),      // Descrição/referência da cobrança original
   // Campos de boleto CNAB 240
   nossoNumero: varchar("nossoNumero", { length: 30 }), // Nosso número BTG atribuído ao criar o acordo
   pixCopiaCola: text("pixCopiaCola"),                   // Pix copia e cola (EMV) retornado pelo banco no retorno D+1 (Bolepix)

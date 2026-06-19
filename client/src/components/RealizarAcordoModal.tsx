@@ -313,6 +313,21 @@ export function RealizarAcordoModal({
       return;
     }
     const notes = `Acordo de ${selecionadas.size} título(s). ${observacao}`.trim();
+
+    // Calcular snapshot agregado das cobranças selecionadas (valores em centavos)
+    const titulosSelecionados = titulos.filter((t) => selecionadas.has(t.id));
+    const snapPrincipal = Math.round(titulosSelecionados.reduce((s, t) => s + t.valorOriginal, 0) * 100);
+    const snapJuros = Math.round(titulosSelecionados.reduce((s, t) => s + t.juros, 0) * 100);
+    const snapMulta = Math.round(titulosSelecionados.reduce((s, t) => s + t.multa, 0) * 100);
+    const snapCorrecao = Math.round(titulosSelecionados.reduce((s, t) => s + t.corMonetaria, 0) * 100);
+    const snapHonorarios = Math.round(titulosSelecionados.reduce((s, t) => s + t.honorario, 0) * 100);
+    const snapValorAtualizado = Math.round(titulosSelecionados.reduce((s, t) => s + t.total, 0) * 100);
+    const snapDescricao = titulosSelecionados.map((t) => t.titulo).join(" | ");
+
+    // Distribuir snapshot proporcionalmente entre as parcelas
+    const totalParcelas = plano.numeroParcelas;
+    const proporcaoPorParcela = 1 / totalParcelas;
+
     createAcordoMutation.mutate({
       cobrancaIds: Array.from(selecionadas),
       devedorId,
@@ -323,10 +338,18 @@ export function RealizarAcordoModal({
       firstPaymentDate: plano.parcelas[0]?.dataVencimento || new Date(),
       paymentFrequency: "mensal",
       notes,
-      parcelas: plano.parcelas.map((p) => ({
+      parcelas: plano.parcelas.map((p, idx) => ({
         installmentNumber: p.numeroParcela,
         amount: p.valor,
         dueDate: p.dataVencimento,
+        // Snapshot proporcional por parcela
+        snapshotPrincipal: Math.round(snapPrincipal * proporcaoPorParcela),
+        snapshotJuros: Math.round(snapJuros * proporcaoPorParcela),
+        snapshotMulta: Math.round(snapMulta * proporcaoPorParcela),
+        snapshotCorrecao: Math.round(snapCorrecao * proporcaoPorParcela),
+        snapshotHonorarios: Math.round(snapHonorarios * proporcaoPorParcela),
+        snapshotValorAtualizado: Math.round(snapValorAtualizado * proporcaoPorParcela),
+        snapshotDescricao: idx === 0 ? snapDescricao : undefined, // só na primeira parcela
       })),
     });
   };

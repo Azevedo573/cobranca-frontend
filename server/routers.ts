@@ -1050,6 +1050,14 @@ export const appRouter = router({
         installmentNumber: z.number(),
         amount: z.number(),
         dueDate: z.date(),
+        // Snapshot de breakdown (valores em centavos) — capturado no momento do acordo
+        snapshotPrincipal: z.number().optional(),
+        snapshotJuros: z.number().optional(),
+        snapshotMulta: z.number().optional(),
+        snapshotCorrecao: z.number().optional(),
+        snapshotHonorarios: z.number().optional(),
+        snapshotValorAtualizado: z.number().optional(),
+        snapshotDescricao: z.string().optional(),
       })),
     })).mutation(async ({ input, ctx }) => {
       const { createAcordo, createParcelas, createAcordoCobrancas, getAcordosAtivosComParcelas, updateAcordo } = await import("./db-acordos");
@@ -1100,7 +1108,7 @@ export const appRouter = router({
         console.log('[ACORDO] Configuração BTG não encontrada, parcelas sem nossoNumero');
       }
 
-      // Criar todas as parcelas com nossoNumero (se disponível)
+      // Criar todas as parcelas com nossoNumero (se disponível) e snapshot de breakdown
       const parcelasData = input.parcelas.map((p, idx) => ({
         acordoId,
         installmentNumber: p.installmentNumber,
@@ -1111,6 +1119,14 @@ export const appRouter = router({
           ? String(nossoNumeroBase + idx).padStart(10, '0')
           : undefined,
         statusRemessa: 'nao_enviado' as const,
+        // Snapshot de breakdown capturado no momento do acordo
+        snapshotPrincipal: p.snapshotPrincipal ?? null,
+        snapshotJuros: p.snapshotJuros ?? null,
+        snapshotMulta: p.snapshotMulta ?? null,
+        snapshotCorrecao: p.snapshotCorrecao ?? null,
+        snapshotHonorarios: p.snapshotHonorarios ?? null,
+        snapshotValorAtualizado: p.snapshotValorAtualizado ?? null,
+        snapshotDescricao: p.snapshotDescricao ?? null,
       }));
       
       console.log('[DEBUG] Criando', parcelasData.length, 'parcelas para acordo', acordoId);

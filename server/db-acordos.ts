@@ -152,6 +152,16 @@ export async function createParcelas(parcelas: InsertParcelaAcordo[]) {
       amount: parcela.amount, // Salvar em centavos (int)
       dueDate: parcela.dueDate,
       status: parcela.status,
+      nossoNumero: parcela.nossoNumero,
+      statusRemessa: parcela.statusRemessa,
+      // Snapshot de breakdown no momento do acordo
+      snapshotPrincipal: (parcela as any).snapshotPrincipal ?? null,
+      snapshotJuros: (parcela as any).snapshotJuros ?? null,
+      snapshotMulta: (parcela as any).snapshotMulta ?? null,
+      snapshotCorrecao: (parcela as any).snapshotCorrecao ?? null,
+      snapshotHonorarios: (parcela as any).snapshotHonorarios ?? null,
+      snapshotValorAtualizado: (parcela as any).snapshotValorAtualizado ?? null,
+      snapshotDescricao: (parcela as any).snapshotDescricao ?? null,
     });
   }
   
