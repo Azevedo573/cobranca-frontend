@@ -16,6 +16,7 @@ export function gerarTemplateExcel(): Buffer {
       "Telefone": "(11) 98765-4321",
       "Unidade": "101",
       "Bloco": "A",
+      "Status da Unidade": "Padrão",
       "Tipo de Cobrança": "Cota Condominial",
       "Descrição da Cobrança": "Condomínio Janeiro/2026",
       "Mês de Referência": "01/2026",
@@ -29,6 +30,7 @@ export function gerarTemplateExcel(): Buffer {
       "Telefone": "(11) 91234-5678",
       "Unidade": "202",
       "Bloco": "B",
+      "Status da Unidade": "Ajuizado",
       "Tipo de Cobrança": "Fundo de Reserva",
       "Descrição da Cobrança": "Fundo Reserva Janeiro/2026",
       "Mês de Referência": "01/2026",
@@ -48,6 +50,7 @@ export function gerarTemplateExcel(): Buffer {
     { wch: 18 }, // Telefone
     { wch: 10 }, // Unidade
     { wch: 10 }, // Bloco
+    { wch: 18 }, // Status da Unidade
     { wch: 25 }, // Tipo de Cobrança
     { wch: 35 }, // Descrição da Cobrança
     { wch: 18 }, // Mês de Referência
@@ -62,13 +65,14 @@ export function gerarTemplateExcel(): Buffer {
   const instrucoes = [
     { "Instruções de Preenchimento": "1. Nome Completo é opcional se Bloco + Unidade estiverem preenchidos" },
     { "Instruções de Preenchimento": "2. CPF/CNPJ é opcional (use quando disponível para evitar duplicatas)" },
-    { "Instruções de Preenchimento": "3. Tipo de Cobrança: Cota Condominial | Fundo de Reserva | Taxa Extra | Multa | Acordo | Judicial | Outros" },
-    { "Instruções de Preenchimento": "4. Data de Vencimento no formato: DD/MM/AAAA" },
-    { "Instruções de Preenchimento": "5. Mês de Referência no formato: MM/AAAA" },
-    { "Instruções de Preenchimento": "6. Valor Original deve ser numérico (use ponto para decimais)" },
-    { "Instruções de Preenchimento": "7. Telefone no formato: (11) 98765-4321" },
-    { "Instruções de Preenchimento": "8. Não altere os nomes das colunas" },
-    { "Instruções de Preenchimento": "9. Remova as linhas de exemplo antes de importar" },
+    { "Instruções de Preenchimento": "3. Status da Unidade: Padrão | Ajuizado (deixe em branco para Padrão; Ajuizado cria automaticamente uma demanda de cobrança judicial no módulo Jurídico)" },
+    { "Instruções de Preenchimento": "4. Tipo de Cobrança: Cota Condominial | Fundo de Reserva | Taxa Extra | Multa | Acordo | Judicial | Outros" },
+    { "Instruções de Preenchimento": "5. Data de Vencimento no formato: DD/MM/AAAA" },
+    { "Instruções de Preenchimento": "6. Mês de Referência no formato: MM/AAAA" },
+    { "Instruções de Preenchimento": "7. Valor Original deve ser numérico (use ponto para decimais)" },
+    { "Instruções de Preenchimento": "8. Telefone no formato: (11) 98765-4321" },
+    { "Instruções de Preenchimento": "9. Não altere os nomes das colunas" },
+    { "Instruções de Preenchimento": "10. Remova as linhas de exemplo antes de importar" },
   ];
   const wsInstrucoes = XLSX.utils.json_to_sheet(instrucoes);
   wsInstrucoes["!cols"] = [{ wch: 80 }];
@@ -89,6 +93,7 @@ export interface DadosImportacao {
   telefone?: string;
   unidade: string;
   bloco?: string;
+  statusUnidade?: "padrao" | "ajuizado";
   tipoCobranca?: string;
   descricaoCobranca?: string;
   mesReferencia?: string;
@@ -176,6 +181,10 @@ export function processarPlanilha(buffer: Buffer): {
       const nomeCompleto = row["Nome Completo (opcional)"] || row["Nome Completo"];
       const cpfCnpjRaw = row["CPF/CNPJ (opcional)"] || row["CPF/CNPJ"];
       const cpfCnpj = cpfCnpjRaw ? String(cpfCnpjRaw).replace(/[^\d]/g, "") : undefined;
+      // Normalizar status da unidade
+      const statusUnidadeRaw = row["Status da Unidade"] ? String(row["Status da Unidade"]).toLowerCase().trim() : "";
+      const statusUnidade: "padrao" | "ajuizado" = statusUnidadeRaw === "ajuizado" ? "ajuizado" : "padrao";
+
       dados.push({
         nomeCompleto: nomeCompleto ? String(nomeCompleto) : undefined,
         cpfCnpj: cpfCnpj,
@@ -183,6 +192,7 @@ export function processarPlanilha(buffer: Buffer): {
         telefone: row["Telefone"] ? String(row["Telefone"]) : undefined,
         unidade: String(row["Unidade"]),
         bloco: row["Bloco"] ? String(row["Bloco"]) : undefined,
+        statusUnidade,
         tipoCobranca: row["Tipo de Cobrança"] ? String(row["Tipo de Cobrança"]) : undefined,
         descricaoCobranca: row["Descrição da Cobrança"] ? String(row["Descrição da Cobrança"]) : undefined,
         mesReferencia: row["Mês de Referência"] ? String(row["Mês de Referência"]) : undefined,

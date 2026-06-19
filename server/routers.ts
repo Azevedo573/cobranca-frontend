@@ -2096,16 +2096,18 @@ export const appRouter = router({
         telefone: z.string().optional(),
         unidade: z.string(),
         bloco: z.string().optional(),
+        statusUnidade: z.enum(["padrao", "ajuizado"]).optional(),
         tipoCobranca: z.string().optional(),
         descricaoCobranca: z.string().optional(),
         mesReferencia: z.string().optional(),
         dataVencimento: z.string(),
         valorOriginal: z.number(),
       })),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
       const { createDevedor } = await import("./db-devedores");
       const { createCobranca } = await import("./db-cobrancas");
       const { converterData } = await import("./excel-import");
+      const { createDemanda, getColunaEntrada } = await import("./db-demandas");
       
       const resultados = {
         devedoresCriados: 0,
@@ -2182,6 +2184,29 @@ export const appRouter = router({
             });
           }
           resultados.cobrancasCriadas++;
+
+          // Se status da unidade for ajuizado, criar demanda de cobrança judicial
+          if (dado.statusUnidade === "ajuizado" && devedor) {
+            try {
+              const colunaEntrada = await getColunaEntrada();
+              if (colunaEntrada) {
+                await createDemanda({
+                  condominioId: input.condominioId,
+                  colunaId: colunaEntrada.id,
+                  assunto: `Cobrança Judicial — ${dado.nomeCompleto || `Unidade ${dado.unidade}`}`,
+                  descricao: `Demanda criada automaticamente via importação de planilha. Unidade: ${dado.bloco ? dado.bloco + ' ' : ''}${dado.unidade}.`,
+                  tipo: "cobranca_judicial",
+                  canal: "manual",
+                  prioridade: "alta",
+                  devedorId: devedor.id,
+                  criadoPorId: ctx.user.id,
+                  prazo: null,
+                });
+              }
+            } catch (_e) {
+              // Não bloquear importação se a demanda falhar
+            }
+          }
         } catch (error: any) {
           resultados.erros.push(`Erro ao processar ${dado.nomeCompleto}: ${error.message}`);
         }

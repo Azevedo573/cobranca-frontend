@@ -28,6 +28,7 @@ interface DadoImportacao {
   telefone?: string;
   unidade: string;
   bloco?: string;
+  statusUnidade?: "padrao" | "ajuizado";
   tipoCobranca?: string;
   descricaoCobranca?: string;
   mesReferencia?: string;
@@ -303,6 +304,7 @@ export default function ImportarDevedores() {
                     <TableHead>CPF/CNPJ</TableHead>
                     <TableHead>Unidade</TableHead>
                     <TableHead>Bloco</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Telefone</TableHead>
@@ -317,6 +319,17 @@ export default function ImportarDevedores() {
                       <TableCell>{dado.cpfCnpj}</TableCell>
                       <TableCell>{dado.unidade}</TableCell>
                       <TableCell>{dado.bloco || "-"}</TableCell>
+                      <TableCell>
+                        {dado.statusUnidade === "ajuizado" ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                            Ajuizado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                            Padrão
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>{dado.tipoCobranca || "Cota Condominial"}</TableCell>
                       <TableCell>{dado.email || "-"}</TableCell>
                       <TableCell>{dado.telefone || "-"}</TableCell>
