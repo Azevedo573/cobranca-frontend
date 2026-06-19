@@ -30,6 +30,14 @@ interface DadoImportacao {
   unidade: string;
   bloco?: string;
   statusUnidade?: "padrao" | "ajuizado";
+  // Endereço (opcional — herdado do condomínio se não informado)
+  zipCode?: string;
+  address?: string;
+  addressNumber?: string;
+  addressComplement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
   tipoCobranca?: string;
   descricaoCobranca?: string;
   mesReferencia?: string;

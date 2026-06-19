@@ -17,6 +17,13 @@ export function gerarTemplateExcel(): Buffer {
       "Unidade": "101",
       "Bloco": "A",
       "Status da Unidade": "Padrão",
+      "CEP (opcional)": "01310-100",
+      "Logradouro (opcional)": "Av. Paulista",
+      "Número (opcional)": "1000",
+      "Complemento (opcional)": "Apto 101",
+      "Bairro (opcional)": "Bela Vista",
+      "Cidade (opcional)": "São Paulo",
+      "UF (opcional)": "SP",
       "Tipo de Cobrança": "Cota Condominial",
       "Descrição da Cobrança": "Condomínio Janeiro/2026",
       "Mês de Referência": "01/2026",
@@ -31,6 +38,13 @@ export function gerarTemplateExcel(): Buffer {
       "Unidade": "202",
       "Bloco": "B",
       "Status da Unidade": "Ajuizado",
+      "CEP (opcional)": "",
+      "Logradouro (opcional)": "",
+      "Número (opcional)": "",
+      "Complemento (opcional)": "",
+      "Bairro (opcional)": "",
+      "Cidade (opcional)": "",
+      "UF (opcional)": "",
       "Tipo de Cobrança": "Fundo de Reserva",
       "Descrição da Cobrança": "Fundo Reserva Janeiro/2026",
       "Mês de Referência": "01/2026",
@@ -51,6 +65,13 @@ export function gerarTemplateExcel(): Buffer {
     { wch: 10 }, // Unidade
     { wch: 10 }, // Bloco
     { wch: 18 }, // Status da Unidade
+    { wch: 12 }, // CEP
+    { wch: 30 }, // Logradouro
+    { wch: 10 }, // Número
+    { wch: 20 }, // Complemento
+    { wch: 20 }, // Bairro
+    { wch: 20 }, // Cidade
+    { wch: 8 },  // UF
     { wch: 25 }, // Tipo de Cobrança
     { wch: 35 }, // Descrição da Cobrança
     { wch: 18 }, // Mês de Referência
@@ -66,13 +87,14 @@ export function gerarTemplateExcel(): Buffer {
     { "Instruções de Preenchimento": "1. Nome Completo é opcional se Bloco + Unidade estiverem preenchidos" },
     { "Instruções de Preenchimento": "2. CPF/CNPJ é opcional (use quando disponível para evitar duplicatas)" },
     { "Instruções de Preenchimento": "3. Status da Unidade: Padrão | Ajuizado (deixe em branco para Padrão; Ajuizado cria automaticamente uma demanda de cobrança judicial no módulo Jurídico)" },
-    { "Instruções de Preenchimento": "4. Tipo de Cobrança: Cota Condominial | Fundo de Reserva | Taxa Extra | Multa | Acordo | Judicial | Outros" },
-    { "Instruções de Preenchimento": "5. Data de Vencimento no formato: DD/MM/AAAA" },
-    { "Instruções de Preenchimento": "6. Mês de Referência no formato: MM/AAAA" },
-    { "Instruções de Preenchimento": "7. Valor Original deve ser numérico (use ponto para decimais)" },
-    { "Instruções de Preenchimento": "8. Telefone no formato: (11) 98765-4321" },
-    { "Instruções de Preenchimento": "9. Não altere os nomes das colunas" },
-    { "Instruções de Preenchimento": "10. Remova as linhas de exemplo antes de importar" },
+    { "Instruções de Preenchimento": "4. Endereço (CEP, Logradouro, Número, Complemento, Bairro, Cidade, UF) é opcional — se não preenchido, será herdado do cadastro do condomínio" },
+    { "Instruções de Preenchimento": "5. Tipo de Cobrança: Cota Condominial | Fundo de Reserva | Taxa Extra | Multa | Acordo | Judicial | Outros" },
+    { "Instruções de Preenchimento": "6. Data de Vencimento no formato: DD/MM/AAAA" },
+    { "Instruções de Preenchimento": "7. Mês de Referência no formato: MM/AAAA" },
+    { "Instruções de Preenchimento": "8. Valor Original deve ser numérico (use ponto para decimais)" },
+    { "Instruções de Preenchimento": "9. Telefone no formato: (11) 98765-4321" },
+    { "Instruções de Preenchimento": "10. Não altere os nomes das colunas" },
+    { "Instruções de Preenchimento": "11. Remova as linhas de exemplo antes de importar" },
   ];
   const wsInstrucoes = XLSX.utils.json_to_sheet(instrucoes);
   wsInstrucoes["!cols"] = [{ wch: 80 }];
@@ -94,6 +116,14 @@ export interface DadosImportacao {
   unidade: string;
   bloco?: string;
   statusUnidade?: "padrao" | "ajuizado";
+  // Endereço (opcional — herdado do condomínio se não informado)
+  zipCode?: string;
+  address?: string;
+  addressNumber?: string;
+  addressComplement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
   tipoCobranca?: string;
   descricaoCobranca?: string;
   mesReferencia?: string;
@@ -200,6 +230,10 @@ export function processarPlanilha(buffer: Buffer): {
       const statusUnidadeRaw = row["Status da Unidade"] ? String(row["Status da Unidade"]).toLowerCase().trim() : "";
       const statusUnidade: "padrao" | "ajuizado" = statusUnidadeRaw === "ajuizado" ? "ajuizado" : "padrao";
 
+      // Normalizar CEP (remover formatação)
+      const cepRaw = row["CEP (opcional)"] || row["CEP"];
+      const zipCode = cepRaw ? String(cepRaw).replace(/\D/g, "") : undefined;
+
       dados.push({
         nomeCompleto: nomeCompleto ? String(nomeCompleto) : undefined,
         cpfCnpj: cpfCnpj,
@@ -208,6 +242,13 @@ export function processarPlanilha(buffer: Buffer): {
         unidade: String(row["Unidade"]),
         bloco: row["Bloco"] ? String(row["Bloco"]) : undefined,
         statusUnidade,
+        zipCode: zipCode || undefined,
+        address: row["Logradouro (opcional)"] ? String(row["Logradouro (opcional)"]) : (row["Logradouro"] ? String(row["Logradouro"]) : undefined),
+        addressNumber: row["Número (opcional)"] ? String(row["Número (opcional)"]) : (row["Número"] ? String(row["Número"]) : undefined),
+        addressComplement: row["Complemento (opcional)"] ? String(row["Complemento (opcional)"]) : (row["Complemento"] ? String(row["Complemento"]) : undefined),
+        neighborhood: row["Bairro (opcional)"] ? String(row["Bairro (opcional)"]) : (row["Bairro"] ? String(row["Bairro"]) : undefined),
+        city: row["Cidade (opcional)"] ? String(row["Cidade (opcional)"]) : (row["Cidade"] ? String(row["Cidade"]) : undefined),
+        state: row["UF (opcional)"] ? String(row["UF (opcional)"]).toUpperCase().slice(0, 2) : (row["UF"] ? String(row["UF"]).toUpperCase().slice(0, 2) : undefined),
         tipoCobranca: row["Tipo de Cobrança"] ? String(row["Tipo de Cobrança"]) : undefined,
         descricaoCobranca: row["Descrição da Cobrança"] ? String(row["Descrição da Cobrança"]) : undefined,
         mesReferencia: row["Mês de Referência"] ? String(row["Mês de Referência"]) : undefined,

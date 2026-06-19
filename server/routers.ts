@@ -2103,6 +2103,14 @@ export const appRouter = router({
         unidade: z.string(),
         bloco: z.string().optional(),
         statusUnidade: z.enum(["padrao", "ajuizado"]).optional(),
+        // Endereço (opcional — herdado do condomínio se não informado)
+        zipCode: z.string().optional(),
+        address: z.string().optional(),
+        addressNumber: z.string().optional(),
+        addressComplement: z.string().optional(),
+        neighborhood: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
         tipoCobranca: z.string().optional(),
         descricaoCobranca: z.string().optional(),
         mesReferencia: z.string().optional(),
@@ -2114,6 +2122,7 @@ export const appRouter = router({
       const { createCobranca } = await import("./db-cobrancas");
       const { converterData } = await import("./excel-import");
       const { createDemanda, getColunaEntrada } = await import("./db-demandas");
+      const { getCondominioById } = await import("./db-condominios");
       
       const resultados = {
         devedoresCriados: 0,
@@ -2123,6 +2132,9 @@ export const appRouter = router({
       };
       
       const { getDevedorByCpfCnpj, getDevedorById, getDevedorByBlocoUnidade } = await import("./db-devedores");
+
+      // Buscar dados do condomínio para herdar endereço quando não informado na planilha
+      const condominioData = await getCondominioById(input.condominioId);
 
       for (const dado of input.dados) {
         try {
@@ -2139,6 +2151,16 @@ export const appRouter = router({
           
           if (!devedor) {
             // Criar novo devedor
+            // Endereço: usar da planilha se informado, caso contrário herdar do condomínio
+            const enderecoFinal = {
+              address: dado.address || (condominioData as any)?.address || undefined,
+              addressNumber: dado.addressNumber || (condominioData as any)?.addressNumber || undefined,
+              addressComplement: dado.addressComplement || (condominioData as any)?.addressComplement || undefined,
+              neighborhood: dado.neighborhood || (condominioData as any)?.neighborhood || undefined,
+              city: dado.city || condominioData?.city || undefined,
+              state: dado.state || condominioData?.state || undefined,
+              zipCode: dado.zipCode || condominioData?.zipCode || undefined,
+            };
             const devedorResult = await createDevedor({
               condominioId: input.condominioId,
               name: dado.nomeCompleto || null,
@@ -2147,6 +2169,7 @@ export const appRouter = router({
               phone: dado.telefone,
               unitNumber: dado.unidade,
               bloco: dado.bloco,
+              ...enderecoFinal,
             });
             const devedorId = Number((devedorResult as any).insertId || 0);
             devedor = await getDevedorById(devedorId);
