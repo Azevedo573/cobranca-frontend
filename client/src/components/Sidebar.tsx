@@ -85,6 +85,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Condomínios", href: "/admin/condominios", icon: Building2, roles: ["admin"] },
       { label: "Usuários", href: "/admin/usuarios", icon: Users, roles: ["admin"] },
       { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador"] },
+      { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
     ],
   },
 
@@ -155,7 +156,6 @@ const menuGroups: MenuGroup[] = [
     modulo: "cobranca",
     items: [
       { label: "Configuração de Boleto", href: "/admin/configuracao-boleto", icon: Settings, roles: ["admin"] },
-      { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
       { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin"] },
       { label: "Retorno CNAB 240", href: "/admin/retorno-cnab", icon: Download, roles: ["admin"] },
       { label: "BTG — Configuração", href: "/configuracoes/btg", icon: Settings, roles: ["admin"] },
