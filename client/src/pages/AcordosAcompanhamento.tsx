@@ -251,7 +251,7 @@ export default function AcordosAcompanhamento() {
 
       {/* Modal de Parcelas */}
       <Dialog open={!!selectedAcordo} onOpenChange={() => setSelectedAcordo(undefined)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="!max-w-7xl w-[92vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Parcelas do Acordo</DialogTitle>
           </DialogHeader>
