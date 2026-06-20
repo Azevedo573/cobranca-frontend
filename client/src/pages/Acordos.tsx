@@ -543,7 +543,7 @@ export default function Acordos() {
 
       {/* Modal de Parcelas do Acordo */}
       <Dialog open={!!selectedAcordoId} onOpenChange={() => setSelectedAcordoId(undefined)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Parcelas do Acordo</DialogTitle>
           </DialogHeader>
