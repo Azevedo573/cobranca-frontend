@@ -2495,6 +2495,13 @@ export const appRouter = router({
   // ===== REGUA DE COBRANCA =====
   regua: router({
     list: protectedProcedure
+      .input(z.object({}))
+      .query(async () => {
+        const { listReguasGlobal } = await import("./db-reguas");
+        return listReguasGlobal();
+      }),
+
+    listByCondominio: protectedProcedure
       .input(z.object({ condominioId: z.number() }))
       .query(async ({ input }) => {
         const { listReguasByCondominio } = await import("./db-reguas");
@@ -2510,7 +2517,7 @@ export const appRouter = router({
 
     create: adminProcedure
       .input(z.object({
-        condominioId: z.number(),
+        condominioId: z.number().optional().nullable(),
         nome: z.string().min(1),
         descricao: z.string().optional(),
         tipoCobranca: z.enum(["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
@@ -2587,7 +2594,7 @@ export const appRouter = router({
       }),
 
     executar: adminProcedure
-      .input(z.object({ reguaId: z.number(), condominioId: z.number() }))
+      .input(z.object({ reguaId: z.number(), condominioId: z.number().optional().nullable() }))
       .mutation(async ({ input }) => {
         const { executarRegua } = await import("./db-reguas");
         return executarRegua(input.reguaId, input.condominioId);

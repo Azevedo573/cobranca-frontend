@@ -7,6 +7,28 @@ type TipoAcao = "whatsapp" | "email" | "sms" | "carta" | "ligacao" | "notificaca
 
 // ===== RÉGUAS =====
 
+export async function listReguasGlobal() {
+  const db = await getDb();
+  if (!db) return null as any;
+  const reguas = await db
+    .select()
+    .from(reguasCobranca)
+    .orderBy(desc(reguasCobranca.createdAt));
+
+  const result = await Promise.all(
+    reguas.map(async (regua) => {
+      const posicoes = await db
+        .select()
+        .from(reguaPosicoes)
+        .where(eq(reguaPosicoes.reguaId, regua.id))
+        .orderBy(reguaPosicoes.diasInadimplencia);
+      return { ...regua, posicoes };
+    })
+  );
+
+  return result;
+}
+
 export async function listReguasByCondominio(condominioId: number) {
   const db = await getDb();
   if (!db) return null as any;
@@ -51,7 +73,7 @@ export async function getReguaById(id: number) {
 }
 
 export async function createRegua(data: {
-  condominioId: number;
+  condominioId?: number | null;
   nome: string;
   descricao?: string;
   tipoCobranca?: TipoCobrancaRegua;
@@ -60,7 +82,7 @@ export async function createRegua(data: {
   const db = await getDb();
   if (!db) return null as any;
   const [result] = await db.insert(reguasCobranca).values({
-    condominioId: data.condominioId,
+    condominioId: data.condominioId ?? null,
     nome: data.nome,
     descricao: data.descricao,
     tipoCobranca: data.tipoCobranca ?? "todos",
@@ -169,7 +191,7 @@ function substituirVariaveis(template: string, dados: {
     .replace(/\{\{condominio\}\}/gi, dados.condominio);
 }
 
-export async function executarRegua(reguaId: number, condominioId: number): Promise<{
+export async function executarRegua(reguaId: number, condominioId?: number | null): Promise<{
   disparosRealizados: number;
   disparosIgnorados: number;
   erros: string[];
@@ -186,6 +208,9 @@ export async function executarRegua(reguaId: number, condominioId: number): Prom
     return { disparosRealizados: 0, disparosIgnorados: 0, erros: ["Nenhuma posição ativa na régua"] };
   }
 
+  // Régua global: aplica a todos os condomínios; régua específica: filtra pelo condominioId
+  const condIdFiltro = condominioId ?? regua.condominioId;
+
   const cobrancasFiltradas = await db
     .select({
       id: cobrancas.id,
@@ -197,10 +222,9 @@ export async function executarRegua(reguaId: number, condominioId: number): Prom
     })
     .from(cobrancas)
     .where(
-      and(
-        eq(cobrancas.condominioId, condominioId),
-        inArray(cobrancas.status, ["pendente", "em_cobranca"])
-      )
+      condIdFiltro
+        ? and(eq(cobrancas.condominioId, condIdFiltro), inArray(cobrancas.status, ["pendente", "em_cobranca"]))
+        : inArray(cobrancas.status, ["pendente", "em_cobranca"])
     );
 
   const cobrancasAlvo = regua.tipoCobranca === "todos"
@@ -288,7 +312,7 @@ export async function executarRegua(reguaId: number, condominioId: number): Prom
           const [tentResult] = await db.insert(tentativasCobranca).values({
             cobrancaId: cobranca.id,
             devedorId: cobranca.devedorId,
-            condominioId,
+            condominioId: condIdFiltro ?? 0,
             userId: 1,
             contactType: contactTypeMap[posicao.tipoAcao] ?? "whatsapp",
             notes: `[AUTOMÁTICO - Régua: ${regua.nome}] ${mensagem ?? posicao.titulo}`,
@@ -303,7 +327,7 @@ export async function executarRegua(reguaId: number, condominioId: number): Prom
           posicaoId: posicao.id,
           cobrancaId: cobranca.id,
           devedorId: cobranca.devedorId,
-          condominioId,
+          condominioId: condIdFiltro ?? 0,
           diasInadimplencia: diasAtraso,
           tipoAcao: posicao.tipoAcao,
           mensagemGerada: mensagem,

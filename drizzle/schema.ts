@@ -258,7 +258,7 @@ export type InsertIndiceBCB = typeof indicesbcb.$inferInsert;
 // Tabela principal: define uma régua de cobrança para um condomínio
 export const reguasCobranca = mysqlTable("reguasCobranca", {
   id: int("id").autoincrement().primaryKey(),
-  condominioId: int("condominioId").notNull(),
+  condominioId: int("condominioId"), // null = régua global (aplica a todos os condomínios)
   nome: varchar("nome", { length: 255 }).notNull(),
   descricao: text("descricao"),
   tipoCobranca: mysqlEnum("tipoCobranca", ["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).default("todos").notNull(),

@@ -81,10 +81,7 @@ export default function ReguaCobranca() {
     setSelectedCondominioId,
   } = useAdminCondominio();
 
-  const { data: reguas, isLoading } = trpc.regua.list.useQuery(
-    { condominioId: condominioId! },
-    { enabled: !!condominioId }
-  );
+  const { data: reguas, isLoading } = trpc.regua.list.useQuery({});
 
   // Estados de modais
   const [showCreateRegua, setShowCreateRegua] = useState(false);
@@ -193,32 +190,7 @@ export default function ReguaCobranca() {
     }));
   };
 
-  if (!condominioId && !isAdmin) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
-        <p>Acesso restrito a administradores de condomínio.</p>
-      </div>
-    );
-  }
 
-  if (isAdmin && !condominioId) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
-        <p>Selecione um condomínio para continuar.</p>
-        {condominios && setSelectedCondominioId && (
-          <div className="mt-4 flex justify-center">
-            <AdminCondominioSelector
-              condominios={condominios}
-              selectedId={selectedCondominioId}
-              onSelect={setSelectedCondominioId}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -234,13 +206,6 @@ export default function ReguaCobranca() {
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {isAdmin && condominios && setSelectedCondominioId && (
-            <AdminCondominioSelector
-              condominios={condominios}
-              selectedId={selectedCondominioId}
-              onSelect={setSelectedCondominioId}
-            />
-          )}
           <Button onClick={() => setShowCreateRegua(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Nova Régua
@@ -325,7 +290,7 @@ export default function ReguaCobranca() {
                       disabled={!regua.ativa || executandoRegua === regua.id}
                       onClick={() => {
                         setExecutandoRegua(regua.id);
-                        executarReguaMutation.mutate({ reguaId: regua.id, condominioId: condominioId! });
+                        executarReguaMutation.mutate({ reguaId: regua.id });
                       }}
                     >
                       <Play className="w-4 h-4 mr-1" />
@@ -514,7 +479,6 @@ export default function ReguaCobranca() {
             <Button
               disabled={!formRegua.nome || createRegua.isPending}
               onClick={() => createRegua.mutate({
-                condominioId: condominioId!,
                 nome: formRegua.nome,
                 descricao: formRegua.descricao || undefined,
                 tipoCobranca: formRegua.tipoCobranca as any,

@@ -1,0 +1,1 @@
+ALTER TABLE `reguasCobranca` MODIFY COLUMN `condominioId` int;
