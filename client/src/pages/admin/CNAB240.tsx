@@ -205,6 +205,28 @@ export default function CNAB240() {
     }
   };
 
+  // Badge de status da parcela de acordo (controle de remessa)
+  const getStatusParcelaBadge = (statusRemessa: string | null | undefined) => {
+    switch (statusRemessa) {
+      case "disponivel":
+        return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Disponível</Badge>;
+      case "em_remessa":
+      case "remessa_gerada":
+        return <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs"><FileText className="h-3 w-3 mr-1" />Em Remessa</Badge>;
+      case "enviado":
+        return <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs"><MailCheck className="h-3 w-3 mr-1" />Enviada ao Banco</Badge>;
+      case "liquidado":
+      case "pago":
+        return <Badge className="bg-green-100 text-green-700 border-green-200 text-xs"><CheckCircle2 className="h-3 w-3 mr-1" />Liquidada</Badge>;
+      case "rejeitado":
+        return <Badge className="bg-red-100 text-red-700 border-red-200 text-xs"><XCircle className="h-3 w-3 mr-1" />Rejeitada</Badge>;
+      case "cancelado":
+        return <Badge className="bg-gray-100 text-gray-500 border-gray-200 text-xs">Cancelada</Badge>;
+      default:
+        return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Disponível</Badge>;
+    }
+  };
+
   const toggleCobranca = (id: number) => {
     setCobrancasSelecionadas(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
@@ -311,90 +333,160 @@ export default function CNAB240() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ABA REMESSA */}
+        {/* ABA REMESSA — seleção global de parcelas de acordos */}
         <TabsContent value="remessa" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Gerar Arquivo de Remessa</CardTitle>
-              <CardDescription>
-                Selecione as cobranças pendentes para incluir no arquivo CNAB 240
-              </CardDescription>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Send className="h-5 w-5 text-primary" />
+                    Gerar Remessa CNAB 240 — Parcelas de Acordos
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Selecione parcelas de <strong>qualquer acordo e devedor</strong> para compor um único arquivo CNAB 240.
+                    Apenas parcelas com status <strong>Disponível para Remessa</strong> podem ser incluídas.
+                  </CardDescription>
+                </div>
+                {/* Filtro de dias a vencer */}
+                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Vencimento nos próximos:</span>
+                  <div className="flex gap-1">
+                    {[7, 15, 30, 60, 90].map(d => (
+                      <button
+                        key={d}
+                        onClick={() => setDiasAVencer(d)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          diasAVencer === d
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground border-border hover:border-primary"
+                        }`}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
-              {loadingCobrancas ? (
+            <CardContent className="space-y-4">
+              {/* Legenda de status */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="font-medium text-muted-foreground">Status:</span>
+                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Disponível</Badge>
+                <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">Em Remessa</Badge>
+                <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs">Enviada ao Banco</Badge>
+                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">Liquidada</Badge>
+                <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">Rejeitada</Badge>
+                <Badge className="bg-gray-100 text-gray-500 border-gray-200 text-xs">Cancelada</Badge>
+              </div>
+
+              {loadingParcelas ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
                 </div>
-              ) : cobrancasPendentes.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+              ) : !parcelasParaRemessa || parcelasParaRemessa.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
                   <CheckCircle2 className="h-10 w-10 mx-auto mb-2 text-green-500" />
-                  <p>Não há cobranças pendentes para remessa</p>
+                  <p className="font-medium">Nenhuma parcela disponível para remessa</p>
+                  <p className="text-xs mt-1">Não há parcelas de acordo com vencimento nos próximos {diasAVencer} dias</p>
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        checked={cobrancasSelecionadas.length === cobrancasPendentes.length}
-                        onCheckedChange={toggleTodas}
+                        checked={parcelasSelecionadas.length === parcelasParaRemessa.length && parcelasParaRemessa.length > 0}
+                        onCheckedChange={toggleTodasParcelas}
                       />
                       <span className="text-sm text-muted-foreground">
-                        {cobrancasSelecionadas.length} de {cobrancasPendentes.length} selecionadas
+                        <strong className="text-foreground">{parcelasSelecionadas.length}</strong> de {parcelasParaRemessa.length} selecionadas
+                        {parcelasSelecionadas.length > 0 && (
+                          <span className="ml-2 text-primary font-medium">
+                            — {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                              parcelasParaRemessa
+                                .filter(p => parcelasSelecionadas.includes(p.parcelaId))
+                                .reduce((s, p) => s + p.amount, 0) / 100
+                            )}
+                          </span>
+                        )}
                       </span>
                     </div>
                     <Button
-                      onClick={handleGerarRemessa}
-                      disabled={cobrancasSelecionadas.length === 0 || gerarRemessaMutation.isPending}
+                      onClick={handleGerarRemessaAcordos}
+                      disabled={parcelasSelecionadas.length === 0 || gerarRemessaAcordosMutation.isPending}
                       className="bg-primary hover:bg-primary/90"
                     >
                       <Send className="mr-2 h-4 w-4" />
-                      {gerarRemessaMutation.isPending ? "Gerando..." : "Gerar Remessa"}
+                      {gerarRemessaAcordosMutation.isPending ? "Gerando..." : `Gerar Remessa (${parcelasSelecionadas.length})`}
                     </Button>
                   </div>
 
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="overflow-x-auto rounded-lg border">
                     <Table>
                       <TableHeader>
-                        <TableRow>
+                        <TableRow className="bg-muted/50">
                           <TableHead className="w-10"></TableHead>
                           <TableHead>Devedor</TableHead>
-                          <TableHead>Descrição</TableHead>
+                          <TableHead>Condomínio</TableHead>
+                          <TableHead>Acordo</TableHead>
+                          <TableHead className="text-center">Parcela</TableHead>
                           <TableHead>Vencimento</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Remessa</TableHead>
+                          <TableHead>Status Parcela</TableHead>
+                          <TableHead>Nosso Nº</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {cobrancasPendentes.map((cob) => (
-                          <TableRow
-                            key={cob.id}
-                            className={cobrancasSelecionadas.includes(cob.id) ? "bg-primary/5" : ""}
-                          >
-                            <TableCell>
-                              <Checkbox
-                                checked={cobrancasSelecionadas.includes(cob.id)}
-                                onCheckedChange={() => toggleCobranca(cob.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="text-sm font-medium">
-                              Dev. #{cob.devedorId}
-                            </TableCell>
-                            <TableCell className="text-sm">{cob.description || "-"}</TableCell>
-                            <TableCell className="text-sm">
-                              {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {formatarMoeda(cob.amount)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{cob.status}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              {getStatusRemessaBadge((cob as any).statusRemessa)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {parcelasParaRemessa.map((p) => {
+                          const isSelected = parcelasSelecionadas.includes(p.parcelaId);
+                          const isVencida = new Date(p.dueDate) < new Date();
+                          return (
+                            <TableRow
+                              key={p.parcelaId}
+                              className={`cursor-pointer transition-colors ${
+                                isSelected ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/30"
+                              }`}
+                              onClick={() => toggleParcela(p.parcelaId)}
+                            >
+                              <TableCell onClick={e => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleParcela(p.parcelaId)}
+                                />
+                              </TableCell>
+                              <TableCell className="text-sm font-medium">
+                                {p.devedorNome || `Dev. #${p.devedorId}`}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {(p as any).condominioNome || `Cond. #${p.condominioId}`}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                Acordo #{p.acordoId}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant="outline" className="text-xs">
+                                  {p.installmentNumber}ª
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                <span className={isVencida ? "text-red-600 font-semibold" : ""}>
+                                  {format(new Date(p.dueDate), "dd/MM/yyyy")}
+                                  {isVencida && <span className="ml-1 text-xs">(vencida)</span>}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(p.amount / 100)}
+                              </TableCell>
+                              <TableCell>
+                                {getStatusParcelaBadge(p.statusRemessa)}
+                              </TableCell>
+                              <TableCell className="text-xs font-mono text-muted-foreground">
+                                {p.nossoNumero || <span className="italic text-muted-foreground/60">a gerar</span>}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>
@@ -403,87 +495,30 @@ export default function CNAB240() {
             </CardContent>
           </Card>
 
-          {/* Seção persistente: cobranças aguardando confirmação de envio (visível mesmo após recarregar) */}
-          {cobrancasAguardandoEnvio.length > 0 && !resultadoRemessa && (
+          {/* Resultado da remessa gerada */}
+          {resultadoRemessaAcordos && (
             <Card className="border-purple-200 bg-purple-50">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 text-purple-700 font-semibold">
                       <FileText className="h-5 w-5" />
-                      {cobrancasAguardandoEnvio.length} cobrança{cobrancasAguardandoEnvio.length > 1 ? "s" : ""} aguardando confirmação de envio
+                      Remessa gerada com sucesso!
                     </div>
                     <p className="text-sm text-purple-600 mt-1">
-                      Remessa gerada, mas o envio ao banco ainda não foi confirmado.
+                      {resultadoRemessaAcordos.totalParcelas} parcela(s) incluída(s) — status atualizado para <strong>Em Remessa</strong>
                     </p>
+                    <p className="text-xs text-muted-foreground mt-1">{resultadoRemessaAcordos.nomeArquivo}</p>
                   </div>
-                  <Button
-                    variant="outline"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                    onClick={handleConfirmarEnvio}
-                    disabled={marcarEnviadoMutation.isPending}
-                  >
-                    <MailCheck className="mr-2 h-4 w-4" />
-                    {marcarEnviadoMutation.isPending ? "Marcando..." : "Confirmar Envio ao Banco"}
+                  <Button onClick={handleDownloadRemessaAcordos} className="bg-purple-600 hover:bg-purple-700">
+                    <Download className="mr-2 h-4 w-4" />
+                    Baixar Arquivo CNAB
                   </Button>
                 </div>
                 <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  Clique em "Confirmar Envio ao Banco" após enviar o arquivo ao BTG Pactual para avançar o status para Enviado.
+                  Baixe o arquivo e envie ao BTG Pactual. O retorno bancário atualizará automaticamente o status das parcelas.
                 </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Resultado da remessa gerada */}
-          {resultadoRemessa && (
-            <Card className="border-purple-200 bg-purple-50">
-              <CardContent className="pt-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-purple-700 font-semibold">
-                      <FileText className="h-5 w-5" />
-                      Arquivo de remessa gerado!
-                    </div>
-                    <p className="text-sm text-purple-600 mt-1">
-                      {resultadoRemessa.totalTitulos} títulos — {formatarMoeda(resultadoRemessa.valorTotal)}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">{resultadoRemessa.nomeArquivo}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
-                        <FileText className="h-3 w-3 mr-1" />Status: Remessa Gerada
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button onClick={handleDownloadRemessa} className="bg-purple-600 hover:bg-purple-700">
-                      <Download className="mr-2 h-4 w-4" />
-                      Baixar Arquivo
-                    </Button>
-                    {!remessaEnviada ? (
-                      <Button
-                        variant="outline"
-                        className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                        onClick={handleConfirmarEnvio}
-                        disabled={marcarEnviadoMutation.isPending || cobrancasAguardandoEnvio.length === 0}
-                      >
-                        <MailCheck className="mr-2 h-4 w-4" />
-                        {marcarEnviadoMutation.isPending ? "Marcando..." : "Confirmar Envio ao Banco"}
-                      </Button>
-                    ) : (
-                      <Badge className="bg-blue-100 text-blue-700 border-blue-200 px-3 py-1.5">
-                        <MailCheck className="h-3.5 w-3.5 mr-1.5" />
-                        Enviado ao banco
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                {!remessaEnviada && (
-                  <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    Baixe o arquivo e envie ao BTG Pactual. Após o envio, clique em "Confirmar Envio ao Banco" para avançar o status para Enviado.
-                  </p>
-                )}
               </CardContent>
             </Card>
           )}
