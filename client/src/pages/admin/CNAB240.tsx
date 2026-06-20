@@ -63,7 +63,6 @@ export default function CNAB240() {
   const [remessaEnviada, setRemessaEnviada] = useState(false);
   const [parcelasSelecionadas, setParcelasSelecionadas] = useState<number[]>([]);
   const [resultadoRemessaAcordos, setResultadoRemessaAcordos] = useState<{ nomeArquivo: string; conteudo: string; totalParcelas: number; remessaId: number } | null>(null);
-  const [diasAVencer, setDiasAVencer] = useState(30);
   const [isDragging, setIsDragging] = useState(false);
   const [itensRetornoRetornoId, setItensRetornoRetornoId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,9 +120,7 @@ export default function CNAB240() {
     { enabled: !!itensRetornoRetornoId }
   );
 
-  const { data: parcelasParaRemessa, isLoading: loadingParcelas } = trpc.cnab.listarParcelasParaRemessaGlobal.useQuery(
-    { diasAVencer }
-  );
+  const { data: parcelasParaRemessa, isLoading: loadingParcelas } = trpc.cnab.listarParcelasParaRemessaGlobal.useQuery({});
 
   const gerarRemessaAcordosMutation = trpc.cnab.gerarRemessaAcordosGlobal.useMutation({
     onSuccess: (data) => {
@@ -348,25 +345,7 @@ export default function CNAB240() {
                     Apenas parcelas com status <strong>Disponível para Remessa</strong> podem ser incluídas.
                   </CardDescription>
                 </div>
-                {/* Filtro de dias a vencer */}
-                <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">Vencimento nos próximos:</span>
-                  <div className="flex gap-1">
-                    {[7, 15, 30, 60, 90].map(d => (
-                      <button
-                        key={d}
-                        onClick={() => setDiasAVencer(d)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                          diasAVencer === d
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background text-muted-foreground border-border hover:border-primary"
-                        }`}
-                      >
-                        {d}d
-                      </button>
-                    ))}
-                  </div>
-                </div>
+
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -389,7 +368,7 @@ export default function CNAB240() {
                 <div className="text-center py-10 text-muted-foreground">
                   <CheckCircle2 className="h-10 w-10 mx-auto mb-2 text-green-500" />
                   <p className="font-medium">Nenhuma parcela disponível para remessa</p>
-                  <p className="text-xs mt-1">Não há parcelas de acordo com vencimento nos próximos {diasAVencer} dias</p>
+                  <p className="text-xs mt-1">Não há parcelas de acordo disponíveis para remessa no momento</p>
                 </div>
               ) : (
                 <>
@@ -537,26 +516,6 @@ export default function CNAB240() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Filtro de dias a vencer */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm text-muted-foreground">Mostrar parcelas com vencimento nos próximos</span>
-                <div className="flex gap-2">
-                  {[7, 15, 30, 60, 90].map(d => (
-                    <button
-                      key={d}
-                      onClick={() => setDiasAVencer(d)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                        diasAVencer === d
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background text-muted-foreground border-border hover:border-primary"
-                      }`}
-                    >
-                      {d} dias
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {loadingParcelas ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
@@ -564,7 +523,7 @@ export default function CNAB240() {
               ) : !parcelasParaRemessa || parcelasParaRemessa.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckCircle2 className="h-10 w-10 mx-auto mb-2 text-green-500" />
-                  <p>Nenhuma parcela de acordo pendente nos próximos {diasAVencer} dias</p>
+                  <p>Nenhuma parcela de acordo disponível para remessa</p>
                 </div>
               ) : (
                 <>

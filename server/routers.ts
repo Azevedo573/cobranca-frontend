@@ -3563,17 +3563,12 @@ export const appRouter = router({
 
     // Lista TODAS as parcelas de acordo pendentes de remessa (todos os condomínios)
     listarParcelasParaRemessaGlobal: protectedProcedure
-      .input(z.object({
-        diasAVencer: z.number().min(1).max(365).default(90),
-      }))
-      .query(async ({ input, ctx }) => {
+      .input(z.object({}))
+      .query(async ({ ctx }) => {
         const db = await (await import("./db")).getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
         const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
-        const { eq, and, lte, isNull, or } = await import("drizzle-orm");
-
-        const dataLimite = new Date();
-        dataLimite.setDate(dataLimite.getDate() + input.diasAVencer);
+        const { eq, and, isNull, or } = await import("drizzle-orm");
 
         const rows = await db
           .select({
@@ -3603,8 +3598,7 @@ export const appRouter = router({
               or(
                 isNull(parcelasAcordo.statusRemessa),
                 eq(parcelasAcordo.statusRemessa, "nao_enviado")
-              ),
-              lte(parcelasAcordo.dueDate, dataLimite)
+              )
             )
           )
           .orderBy(parcelasAcordo.dueDate);
