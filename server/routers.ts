@@ -3606,6 +3606,111 @@ export const appRouter = router({
         return rows;
       }),
 
+    // Lista todos os acordos ativos com TODAS as suas parcelas (inclusive futuras/bloqueadas)
+    listarAcordosComTodasParcelas: protectedProcedure
+      .input(z.object({}))
+      .query(async ({ ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
+        const { eq, and, ne } = await import("drizzle-orm");
+
+        // Buscar todos os acordos ativos com dados do devedor e condomínio
+        const acordosAtivos = await db
+          .select({
+            acordoId: acordos.id,
+            acordoStatus: acordos.status,
+            totalAmount: acordos.totalAmount,
+            agreedAmount: acordos.agreedAmount,
+            installments: acordos.installments,
+            firstPaymentDate: acordos.firstPaymentDate,
+            paymentFrequency: acordos.paymentFrequency,
+            notes: acordos.notes,
+            createdAt: acordos.createdAt,
+            devedorId: devedores.id,
+            devedorNome: devedores.name,
+            devedorCpfCnpj: devedores.cpfCnpj,
+            condominioId: condominios.id,
+            condominioNome: condominios.name,
+          })
+          .from(acordos)
+          .innerJoin(devedores, eq(acordos.devedorId, devedores.id))
+          .innerJoin(condominios, eq(acordos.condominioId, condominios.id))
+          .where(eq(acordos.status, "ativo"))
+          .orderBy(acordos.createdAt);
+
+        if (acordosAtivos.length === 0) return [];
+
+        // Buscar todas as parcelas de todos os acordos ativos
+        const acordoIds = acordosAtivos.map(a => a.acordoId);
+        const { inArray } = await import("drizzle-orm");
+        const todasParcelas = await db
+          .select()
+          .from(parcelasAcordo)
+          .where(inArray(parcelasAcordo.acordoId, acordoIds))
+          .orderBy(parcelasAcordo.acordoId, parcelasAcordo.installmentNumber);
+
+        // Agrupar parcelas por acordo
+        const parcelasPorAcordo = new Map<number, typeof todasParcelas>();
+        for (const p of todasParcelas) {
+          if (!parcelasPorAcordo.has(p.acordoId)) parcelasPorAcordo.set(p.acordoId, []);
+          parcelasPorAcordo.get(p.acordoId)!.push(p);
+        }
+
+        // Montar resultado com parcelas enriquecidas com status de liberação
+        return acordosAtivos.map(acordo => {
+          const parcelas = (parcelasPorAcordo.get(acordo.acordoId) || []).map((p, idx, arr) => {
+            // Determinar status de liberação da parcela
+            const parcelaAnterior = idx > 0 ? arr[idx - 1] : null;
+            const anteriorPaga = !parcelaAnterior || parcelaAnterior.status === "pago";
+            const isVencida = new Date(p.dueDate) < new Date() && p.status === "pendente";
+
+            let statusLiberacao: string;
+            let motivoBloqueio: string | null = null;
+
+            if (p.status === "pago") {
+              statusLiberacao = "liquidada";
+            } else if (p.status === "cancelado") {
+              statusLiberacao = "cancelada";
+            } else if (p.statusRemessa === "enviado" || p.statusRemessa === "retorno_recebido") {
+              statusLiberacao = "enviada_banco";
+            } else if (p.statusRemessa === "remessa_gerada") {
+              statusLiberacao = "em_remessa";
+            } else if (!anteriorPaga) {
+              statusLiberacao = "aguardando_liberacao";
+              motivoBloqueio = `Aguardando pagamento da parcela ${parcelaAnterior!.installmentNumber}`;
+            } else if (isVencida) {
+              statusLiberacao = "vencida";
+            } else {
+              statusLiberacao = "disponivel";
+            }
+
+            return {
+              ...p,
+              statusLiberacao,
+              motivoBloqueio,
+              parcelaAnteriorNumero: parcelaAnterior?.installmentNumber ?? null,
+            };
+          });
+
+          const totalParcelas = parcelas.length;
+          const parcelasPagas = parcelas.filter(p => p.status === "pago").length;
+          const parcelasDisponiveis = parcelas.filter(p => p.statusLiberacao === "disponivel").length;
+          const parcelasEmRemessa = parcelas.filter(p => p.statusLiberacao === "em_remessa" || p.statusLiberacao === "enviada_banco").length;
+          const parcelasVencidas = parcelas.filter(p => p.statusLiberacao === "vencida").length;
+
+          return {
+            ...acordo,
+            parcelas,
+            totalParcelas,
+            parcelasPagas,
+            parcelasDisponiveis,
+            parcelasEmRemessa,
+            parcelasVencidas,
+          };
+        });
+      }),
+
     // Gera remessa CNAB 240 global (todos os condomínios) a partir de parcelas selecionadas
     gerarRemessaAcordosGlobal: protectedProcedure
       .input(z.object({

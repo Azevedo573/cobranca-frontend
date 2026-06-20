@@ -22,6 +22,207 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useState as useStateInner } from "react";
+import { ChevronDown, ChevronRight, AlertCircle, Lock } from "lucide-react";
+
+// ─── Componente: Visão completa de acordos com todas as parcelas ────────────────
+function AcordosParcelasView() {
+  const { data: acordos, isLoading } = trpc.cnab.listarAcordosComTodasParcelas.useQuery({});
+  const [expandidos, setExpandidos] = useStateInner<Set<number>>(new Set());
+
+  const toggleExpand = (id: number) => {
+    setExpandidos(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const fmt = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100);
+
+  const statusBadge = (sl: string, motivo: string | null) => {
+    switch (sl) {
+      case "disponivel":
+        return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Disponível</Badge>;
+      case "em_remessa":
+        return <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs"><FileText className="h-3 w-3 mr-1" />Em Remessa</Badge>;
+      case "enviada_banco":
+        return <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs"><MailCheck className="h-3 w-3 mr-1" />Enviada ao Banco</Badge>;
+      case "liquidada":
+        return <Badge className="bg-green-100 text-green-700 border-green-200 text-xs"><CheckCircle2 className="h-3 w-3 mr-1" />Liquidada</Badge>;
+      case "vencida":
+        return <Badge className="bg-red-100 text-red-700 border-red-200 text-xs"><AlertCircle className="h-3 w-3 mr-1" />Vencida</Badge>;
+      case "cancelada":
+        return <Badge className="bg-gray-100 text-gray-500 border-gray-200 text-xs">Cancelada</Badge>;
+      case "aguardando_liberacao":
+        return (
+          <div className="flex flex-col gap-0.5">
+            <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs w-fit"><Lock className="h-3 w-3 mr-1" />Aguardando Liberação</Badge>
+            {motivo && <span className="text-xs text-muted-foreground italic">{motivo}</span>}
+          </div>
+        );
+      default:
+        return <Badge variant="outline" className="text-xs">{sl}</Badge>;
+    }
+  };
+
+  if (isLoading) return (
+    <div className="text-center py-12">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+    </div>
+  );
+
+  if (!acordos || acordos.length === 0) return (
+    <Card>
+      <CardContent className="py-12 text-center text-muted-foreground">
+        <Handshake className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
+        <p className="font-medium">Nenhum acordo ativo encontrado</p>
+        <p className="text-xs mt-1">Acordos ativos com parcelas aparecerão aqui</p>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          <strong className="text-foreground">{acordos.length}</strong> acordo(s) ativo(s)
+        </p>
+        <div className="flex gap-2 text-xs">
+          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">Disponível</Badge>
+          <Badge className="bg-amber-100 text-amber-700 border-amber-200">Aguardando</Badge>
+          <Badge className="bg-purple-100 text-purple-700 border-purple-200">Em Remessa</Badge>
+          <Badge className="bg-blue-100 text-blue-700 border-blue-200">Enviada</Badge>
+          <Badge className="bg-green-100 text-green-700 border-green-200">Liquidada</Badge>
+          <Badge className="bg-red-100 text-red-700 border-red-200">Vencida</Badge>
+        </div>
+      </div>
+
+      {acordos.map(acordo => {
+        const isOpen = expandidos.has(acordo.acordoId);
+        const progresso = acordo.totalParcelas > 0 ? Math.round((acordo.parcelasPagas / acordo.totalParcelas) * 100) : 0;
+        return (
+          <Card key={acordo.acordoId} className={`transition-all ${
+            acordo.parcelasVencidas > 0 ? "border-red-200" :
+            acordo.parcelasDisponiveis > 0 ? "border-emerald-200" : ""
+          }`}>
+            {/* Cabeçalho do acordo */}
+            <CardHeader
+              className="cursor-pointer select-none py-4"
+              onClick={() => toggleExpand(acordo.acordoId)}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  {isOpen
+                    ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  }
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm">Acordo #{acordo.acordoId}</span>
+                      <span className="text-muted-foreground text-sm">— {acordo.devedorNome}</span>
+                      <Badge variant="outline" className="text-xs">{acordo.condominioNome}</Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <span className="text-xs text-muted-foreground">
+                        {acordo.parcelasPagas}/{acordo.totalParcelas} parcelas pagas
+                      </span>
+                      {acordo.parcelasVencidas > 0 && (
+                        <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                          <AlertCircle className="h-3 w-3 mr-1" />{acordo.parcelasVencidas} vencida(s)
+                        </Badge>
+                      )}
+                      {acordo.parcelasDisponiveis > 0 && (
+                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                          {acordo.parcelasDisponiveis} disponível(is)
+                        </Badge>
+                      )}
+                      {acordo.parcelasEmRemessa > 0 && (
+                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs">
+                          {acordo.parcelasEmRemessa} em remessa
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold">{fmt(acordo.agreedAmount ?? acordo.totalAmount ?? 0)}</p>
+                  <p className="text-xs text-muted-foreground">Valor do acordo</p>
+                  {/* Barra de progresso */}
+                  <div className="mt-1.5 w-32 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 rounded-full transition-all"
+                      style={{ width: `${progresso}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{progresso}% concluído</p>
+                </div>
+              </div>
+            </CardHeader>
+
+            {/* Tabela de parcelas (expansível) */}
+            {isOpen && (
+              <CardContent className="pt-0 pb-4">
+                <div className="overflow-x-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-center w-16">Parcela</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Nosso Nº</TableHead>
+                        <TableHead>Pagamento</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {acordo.parcelas.map(p => (
+                        <TableRow
+                          key={p.id}
+                          className={`${
+                            p.statusLiberacao === "liquidada" ? "bg-green-50/50" :
+                            p.statusLiberacao === "vencida" ? "bg-red-50/50" :
+                            p.statusLiberacao === "aguardando_liberacao" ? "bg-amber-50/30" :
+                            p.statusLiberacao === "em_remessa" || p.statusLiberacao === "enviada_banco" ? "bg-purple-50/30" :
+                            ""
+                          }`}
+                        >
+                          <TableCell className="text-center">
+                            <Badge variant="outline" className="text-xs">
+                              {p.installmentNumber}ª/{acordo.totalParcelas}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            <span className={p.statusLiberacao === "vencida" ? "text-red-600 font-semibold" : ""}>
+                              {format(new Date(p.dueDate), "dd/MM/yyyy")}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold text-sm">
+                            {fmt(p.amount)}
+                          </TableCell>
+                          <TableCell>
+                            {statusBadge(p.statusLiberacao, p.motivoBloqueio)}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono text-muted-foreground">
+                            {p.nossoNumero || <span className="italic text-muted-foreground/50">a gerar</span>}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {p.paymentDate ? format(new Date(p.paymentDate), "dd/MM/yyyy") : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface ResultadoRetornoNovo {
   retornoId: number;
@@ -503,142 +704,9 @@ export default function CNAB240() {
           )}
         </TabsContent>
 
-        {/* ABA ACORDOS */}
+        {/* ABA ACORDOS — visão completa de todas as parcelas por acordo */}
         <TabsContent value="acordos" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Handshake className="h-5 w-5 text-primary" />
-                Parcelas de Acordo — Gerar Remessa
-              </CardTitle>
-                <CardDescription>
-                Selecione as parcelas de acordos ativos de <strong>todos os condomínios</strong> para incluir em um único arquivo CNAB 240
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {loadingParcelas ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
-                </div>
-              ) : !parcelasParaRemessa || parcelasParaRemessa.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle2 className="h-10 w-10 mx-auto mb-2 text-green-500" />
-                  <p>Nenhuma parcela de acordo disponível para remessa</p>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        checked={parcelasSelecionadas.length === parcelasParaRemessa.length && parcelasParaRemessa.length > 0}
-                        onCheckedChange={toggleTodasParcelas}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {parcelasSelecionadas.length} de {parcelasParaRemessa.length} selecionadas
-                      </span>
-                    </div>
-                    <Button
-                      onClick={handleGerarRemessaAcordos}
-                      disabled={parcelasSelecionadas.length === 0 || gerarRemessaAcordosMutation.isPending}
-                      className="bg-primary hover:bg-primary/90"
-                    >
-                      <Send className="mr-2 h-4 w-4" />
-                      {gerarRemessaAcordosMutation.isPending ? "Gerando..." : "Gerar Remessa"}
-                    </Button>
-                  </div>
-
-                  <div className="max-h-96 overflow-y-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-10"></TableHead>
-                          <TableHead>Devedor</TableHead>
-                          <TableHead>Condomínio</TableHead>
-                          <TableHead>Acordo</TableHead>
-                          <TableHead className="text-center">Parcela</TableHead>
-                          <TableHead>Vencimento</TableHead>
-                          <TableHead className="text-right">Valor</TableHead>
-                          <TableHead>Status Boleto</TableHead>
-                          <TableHead>Nosso Nº</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {parcelasParaRemessa.map((p) => (
-                          <TableRow
-                            key={p.parcelaId}
-                            className={parcelasSelecionadas.includes(p.parcelaId) ? "bg-primary/5" : ""}
-                          >
-                            <TableCell>
-                              <Checkbox
-                                checked={parcelasSelecionadas.includes(p.parcelaId)}
-                                onCheckedChange={() => toggleParcela(p.parcelaId)}
-                              />
-                            </TableCell>
-                            <TableCell className="text-sm font-medium">
-                              {p.devedorNome || `Dev. #${p.devedorId}`}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {(p as any).condominioNome || `Cond. #${p.condominioId}`}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              Acordo #{p.acordoId}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant="outline" className="text-xs">
-                                {p.installmentNumber}ª
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              <span className={new Date(p.dueDate) < new Date() ? "text-red-600 font-medium" : ""}>
-                                {format(new Date(p.dueDate), "dd/MM/yyyy")}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(p.amount / 100)}
-                            </TableCell>
-                            <TableCell>
-                              {getStatusRemessaBadge(p.statusRemessa)}
-                            </TableCell>
-                            <TableCell className="text-xs font-mono text-muted-foreground">
-                              {p.nossoNumero || <span className="italic">a gerar</span>}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Resultado da remessa de acordos */}
-          {resultadoRemessaAcordos && (
-            <Card className="border-purple-200 bg-purple-50">
-              <CardContent className="pt-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-purple-700 font-semibold">
-                      <FileText className="h-5 w-5" />
-                      Remessa de acordos gerada!
-                    </div>
-                    <p className="text-sm text-purple-600 mt-1">
-                      {resultadoRemessaAcordos.totalParcelas} parcela(s) incluída(s)
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">{resultadoRemessaAcordos.nomeArquivo}</p>
-                  </div>
-                  <Button onClick={handleDownloadRemessaAcordos} className="bg-purple-600 hover:bg-purple-700">
-                    <Download className="mr-2 h-4 w-4" />
-                    Baixar Arquivo
-                  </Button>
-                </div>
-                <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  Baixe o arquivo e envie ao BTG Pactual. O retorno confirmará os boletos registrados.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          <AcordosParcelasView />
         </TabsContent>
 
         {/* ABA RETORNO */}
