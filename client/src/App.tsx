@@ -42,6 +42,7 @@ import TentativasCobranca from "./pages/TentativasCobranca";
 import Vencimentos from "./pages/Vencimentos";
 import CobrancaAtiva from "./pages/operacoes/CobrancaAtiva";
 import CobrancaPassiva from "./pages/operacoes/CobrancaPassiva";
+import Operacoes from "./pages/operacoes/Operacoes";
 import ConfiguracaoBoleto from "./pages/admin/ConfiguracaoBoleto";
 import EmailConfig from "./pages/configuracoes/EmailConfig";
 import RetornoCNAB from "./pages/admin/RetornoCNAB";
@@ -298,11 +299,15 @@ function Router() {
       </Route>
 
       {/* Rotas de Operações de Cobrança */}
+      <Route path="/operacoes">
+        {() => <ProtectedRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} />}
+      </Route>
+      {/* Rotas legadas — redirecionam para a tela unificada */}
       <Route path="/operacoes/cobranca-ativa">
-        {() => <ProtectedRoute component={CobrancaAtiva} allowedRoles={["admin", "cobrador"]} />}
+        {() => <ProtectedRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} />}
       </Route>
       <Route path="/operacoes/cobranca-passiva">
-        {() => <ProtectedRoute component={CobrancaPassiva} allowedRoles={["admin", "cobrador"]} />}
+        {() => <ProtectedRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} />}
       </Route>
 
       {/* Rotas de Tentativas */}

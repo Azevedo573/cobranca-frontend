@@ -89,18 +89,6 @@ const menuGroups: MenuGroup[] = [
     ],
   },
 
-  // ── Operações ──
-  {
-    label: "Operações",
-    icon: PhoneCall,
-    roles: ["admin", "cobrador", "colaborador"],
-    modulo: "cobranca",
-    items: [
-      { label: "Cobrança Ativa", href: "/operacoes/cobranca-ativa", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador"] },
-      { label: "Cobrança Passiva", href: "/operacoes/cobranca-passiva", icon: PhoneIncoming, roles: ["admin", "cobrador", "colaborador"] },
-    ],
-  },
-
   // ── Cobrança ──
   {
     label: "Cobrança",
@@ -108,6 +96,7 @@ const menuGroups: MenuGroup[] = [
     roles: ["admin", "sindico", "cobrador", "colaborador"],
     modulo: "cobranca",
     items: [
+      { label: "Operações", href: "/operacoes", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"] },
