@@ -76,8 +76,18 @@ export async function getAcordosByCondominio(condominioId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  const { devedores } = await import("../drizzle/schema");
+  const { devedores, parcelasAcordo, condominios } = await import("../drizzle/schema");
+  const { asc } = await import("drizzle-orm");
   
+  // Buscar configuração de prazo do condomínio
+  const condResult = await db
+    .select({ cancelamentoPrazoDias: condominios.cancelamentoPrazoDias, cancelamentoAutoAtivo: condominios.cancelamentoAutoAtivo })
+    .from(condominios)
+    .where(eq(condominios.id, condominioId))
+    .limit(1);
+  const prazoDias = condResult[0]?.cancelamentoPrazoDias ?? 20;
+  const cancelamentoAtivo = (condResult[0]?.cancelamentoAutoAtivo ?? 0) === 1;
+
   const result = await db
     .select({
       id: acordos.id,
@@ -101,7 +111,54 @@ export async function getAcordosByCondominio(condominioId: number) {
     .leftJoin(devedores, eq(acordos.devedorId, devedores.id))
     .where(eq(acordos.condominioId, condominioId));
   
-  return result;
+  // Para cada acordo ativo, buscar a 1ª parcela e calcular alerta de cancelamento
+  const agora = new Date();
+  const resultEnriquecido = await Promise.all(result.map(async (acordo) => {
+    if (acordo.status !== "ativo") {
+      return { ...acordo, alertaCancelamento: null };
+    }
+    // Buscar 1ª parcela
+    const primeiraParcela = await db
+      .select({ id: parcelasAcordo.id, status: parcelasAcordo.status, paymentDate: parcelasAcordo.paymentDate, dueDate: parcelasAcordo.dueDate })
+      .from(parcelasAcordo)
+      .where(eq(parcelasAcordo.acordoId, acordo.id))
+      .orderBy(asc(parcelasAcordo.id))
+      .limit(1);
+    
+    if (!primeiraParcela[0] || primeiraParcela[0].status === "pago" || primeiraParcela[0].paymentDate) {
+      return { ...acordo, alertaCancelamento: null };
+    }
+    
+    const dueDate = primeiraParcela[0].dueDate;
+    if (!dueDate) return { ...acordo, alertaCancelamento: null };
+    
+    const vencimento = new Date(dueDate);
+    const diasAposVencimento = Math.floor((agora.getTime() - vencimento.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diasAposVencimento < 0) {
+      // Ainda não venceu — sem alerta
+      return { ...acordo, alertaCancelamento: null };
+    }
+    
+    const diasRestantes = prazoDias - diasAposVencimento;
+    const percentual = Math.min(100, Math.round((diasAposVencimento / prazoDias) * 100));
+    
+    return {
+      ...acordo,
+      alertaCancelamento: {
+        diasAposVencimento,
+        diasRestantes,
+        prazoDias,
+        percentual,
+        cancelamentoAtivo,
+        // "critico" = passou do prazo, "alerta" = <= 5 dias restantes, "atencao" = <= 10 dias restantes
+        nivel: diasAposVencimento >= prazoDias ? "critico" : diasRestantes <= 5 ? "alerta" : diasRestantes <= 10 ? "atencao" : "ok",
+        primeiraParcela1DueDate: dueDate,
+      },
+    };
+  }));
+  
+  return resultEnriquecido;
 }
 
 export async function getAcordoById(id: number) {

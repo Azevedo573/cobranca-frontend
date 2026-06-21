@@ -5,7 +5,7 @@ import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { AlertCircle, CheckCircle2, Clock, DollarSign } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, DollarSign, AlertTriangle, XCircle, Timer } from "lucide-react";
 
 export default function AcordosAcompanhamento() {
   const { user } = useAuth();
@@ -204,15 +204,69 @@ export default function AcordosAcompanhamento() {
                       acordo.status === "pago" ? "bg-blue-100 text-blue-800" :
                       "bg-gray-100 text-gray-800";
 
+                    const alerta = (acordo as any).alertaCancelamento as {
+                      diasAposVencimento: number;
+                      diasRestantes: number;
+                      prazoDias: number;
+                      percentual: number;
+                      cancelamentoAtivo: boolean;
+                      nivel: "critico" | "alerta" | "atencao" | "ok";
+                    } | null;
+
+                    const rowBg =
+                      alerta?.nivel === "critico" ? "border-b bg-red-50 hover:bg-red-100" :
+                      alerta?.nivel === "alerta" ? "border-b bg-orange-50 hover:bg-orange-100" :
+                      alerta?.nivel === "atencao" ? "border-b bg-yellow-50 hover:bg-yellow-100" :
+                      "border-b hover:bg-gray-50";
+
                     return (
-                      <tr key={acordo.id} className="border-b hover:bg-gray-50">
+                      <tr key={acordo.id} className={rowBg}>
                         <td className="p-3">
                           <div>
-                            <div className="font-medium">{acordo.devedorName}</div>
+                            <div className="font-medium flex items-center gap-2">
+                              {acordo.devedorName}
+                              {alerta?.nivel === "critico" && (
+                                <span title={`1ª parcela vencida há ${alerta.diasAposVencimento} dias — prazo de ${alerta.prazoDias} dias EXPIRADO`}>
+                                  <XCircle className="h-4 w-4 text-red-600" />
+                                </span>
+                              )}
+                              {alerta?.nivel === "alerta" && (
+                                <span title={`1ª parcela vencida há ${alerta.diasAposVencimento} dias — ${alerta.diasRestantes} dia(s) para o prazo limite`}>
+                                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                                </span>
+                              )}
+                              {alerta?.nivel === "atencao" && (
+                                <span title={`1ª parcela vencida há ${alerta.diasAposVencimento} dias — ${alerta.diasRestantes} dia(s) para o prazo limite`}>
+                                  <Timer className="h-4 w-4 text-yellow-500" />
+                                </span>
+                              )}
+                            </div>
                             <div className="text-sm text-muted-foreground">
                               {acordo.devedorBloco && `Bloco ${acordo.devedorBloco} - `}
                               Unidade {acordo.devedorUnidade}
                             </div>
+                            {alerta && alerta.nivel !== "ok" && (
+                              <div className={`mt-1 text-xs font-medium ${
+                                alerta.nivel === "critico" ? "text-red-700" :
+                                alerta.nivel === "alerta" ? "text-orange-700" :
+                                "text-yellow-700"
+                              }`}>
+                                {alerta.nivel === "critico"
+                                  ? `⚠️ Prazo expirado — 1ª parcela vencida há ${alerta.diasAposVencimento} dias`
+                                  : `⏰ 1ª parcela vencida há ${alerta.diasAposVencimento} dias — ${alerta.diasRestantes > 0 ? `${alerta.diasRestantes} dia(s) restantes` : "prazo no limite"}`
+                                }
+                                <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
+                                  <div
+                                    className={`h-1.5 rounded-full ${
+                                      alerta.nivel === "critico" ? "bg-red-500" :
+                                      alerta.nivel === "alerta" ? "bg-orange-500" :
+                                      "bg-yellow-400"
+                                    }`}
+                                    style={{ width: `${alerta.percentual}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="p-3">{formatCurrency(acordo.totalAmount)}</td>
