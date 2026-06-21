@@ -6129,6 +6129,93 @@ export const appRouter = router({
         await db.update(whatsappConversas).set({ naoLidas: 0 }).where(eq(whatsappConversas.id, input.conversaId));
         return { success: true };
       }),
+
+    // ─── Monitoramento da Fila de Envio ────────────────────────────────────────
+    estatisticasFila: protectedProcedure.query(async () => {
+      const db = await getDb();
+      if (!db) throw new Error("DB indisponível");
+      const { whatsappFilaEnvio } = await import("../drizzle/schema");
+      const { sql, eq } = await import("drizzle-orm");
+      const inicioDia = new Date(); inicioDia.setHours(0, 0, 0, 0);
+      const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000);
+      const [stats] = await db.select({
+        aguardando: sql<number>`SUM(CASE WHEN status = 'aguardando' THEN 1 ELSE 0 END)`,
+        enviando: sql<number>`SUM(CASE WHEN status = 'enviando' THEN 1 ELSE 0 END)`,
+        enviado: sql<number>`SUM(CASE WHEN status = 'enviado' THEN 1 ELSE 0 END)`,
+        erro: sql<number>`SUM(CASE WHEN status = 'erro' THEN 1 ELSE 0 END)`,
+        cancelado: sql<number>`SUM(CASE WHEN status = 'cancelado' THEN 1 ELSE 0 END)`,
+        total: sql<number>`COUNT(*)`,
+        enviadosHoje: sql<number>`SUM(CASE WHEN status = 'enviado' AND enviadoEm >= ${inicioDia} THEN 1 ELSE 0 END)`,
+        enviadosUltimaHora: sql<number>`SUM(CASE WHEN status = 'enviado' AND enviadoEm >= ${umaHoraAtras} THEN 1 ELSE 0 END)`,
+      }).from(whatsappFilaEnvio);
+      return {
+        aguardando: Number(stats?.aguardando ?? 0),
+        enviando: Number(stats?.enviando ?? 0),
+        enviado: Number(stats?.enviado ?? 0),
+        erro: Number(stats?.erro ?? 0),
+        cancelado: Number(stats?.cancelado ?? 0),
+        total: Number(stats?.total ?? 0),
+        enviadosHoje: Number(stats?.enviadosHoje ?? 0),
+        enviadosUltimaHora: Number(stats?.enviadosUltimaHora ?? 0),
+      };
+    }),
+
+    listarFila: protectedProcedure
+      .input(z.object({
+        status: z.enum(["aguardando", "enviando", "enviado", "erro", "cancelado", "todos"]).default("todos"),
+        pagina: z.number().int().min(1).default(1),
+        porPagina: z.number().int().min(1).max(100).default(30),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappFilaEnvio } = await import("../drizzle/schema");
+        const { eq, desc, sql } = await import("drizzle-orm");
+        const offset = (input.pagina - 1) * input.porPagina;
+        const where = input.status !== "todos" ? eq(whatsappFilaEnvio.status, input.status) : undefined;
+        const items = await db.select().from(whatsappFilaEnvio)
+          .where(where)
+          .orderBy(desc(whatsappFilaEnvio.createdAt))
+          .limit(input.porPagina)
+          .offset(offset);
+        const [{ total }] = await db.select({ total: sql<number>`COUNT(*)` }).from(whatsappFilaEnvio).where(where);
+        return { items, total: Number(total), pagina: input.pagina, porPagina: input.porPagina };
+      }),
+
+    reprocessarErros: protectedProcedure.mutation(async () => {
+      const db = await getDb();
+      if (!db) throw new Error("DB indisponível");
+      const { whatsappFilaEnvio } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(whatsappFilaEnvio)
+        .set({ status: "aguardando", tentativas: 0, erro: null, proximaTentativa: new Date() })
+        .where(eq(whatsappFilaEnvio.status, "erro"));
+      return { success: true };
+    }),
+
+    cancelarAguardando: protectedProcedure.mutation(async () => {
+      const db = await getDb();
+      if (!db) throw new Error("DB indisponível");
+      const { whatsappFilaEnvio } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(whatsappFilaEnvio)
+        .set({ status: "cancelado" })
+        .where(eq(whatsappFilaEnvio.status, "aguardando"));
+      return { success: true };
+    }),
+
+    cancelarItem: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappFilaEnvio } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(whatsappFilaEnvio)
+          .set({ status: "cancelado" })
+          .where(eq(whatsappFilaEnvio.id, input.id));
+        return { success: true };
+      }),
   }),
 
   // ─── Custas Judiciais ───────────────────────────────────────────────────────
