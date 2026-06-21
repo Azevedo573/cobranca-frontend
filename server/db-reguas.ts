@@ -273,15 +273,23 @@ export async function executarRegua(reguaId: number, condominioId?: number | nul
 
   const devedorIdsSet = new Set<number>(cobrancasAlvo.map((c) => c.devedorId));
   const devedorIds = Array.from(devedorIdsSet);
-  const devedoresMap = new Map<number, { name: string | null; cpfCnpj: string | null; unitNumber: string; bloco: string | null }>();
+  const devedoresMap = new Map<number, { name: string | null; cpfCnpj: string | null; unitNumber: string; bloco: string | null; email: string | null; phone: string | null }>();
 
   if (devedorIds.length > 0) {
     const devedoresList = await db
-      .select({ id: devedores.id, name: devedores.name, cpfCnpj: devedores.cpfCnpj, unitNumber: devedores.unitNumber, bloco: devedores.bloco })
+      .select({ id: devedores.id, name: devedores.name, cpfCnpj: devedores.cpfCnpj, unitNumber: devedores.unitNumber, bloco: devedores.bloco, email: devedores.email, phone: devedores.phone })
       .from(devedores)
       .where(inArray(devedores.id, devedorIds));
     devedoresList.forEach((d) => devedoresMap.set(d.id, d));
   }
+
+  // Buscar instância WhatsApp ativa para disparos automáticos
+  const { whatsappInstancias } = await import("../drizzle/schema");
+  const [instanciaWhatsApp] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.ativo, 1)).limit(1);
+
+  // Buscar configuração de e-mail ativa
+  const { getEmailConfig } = await import("./email-service");
+  const emailConfigAtivo = await getEmailConfig();
 
   const disparosExistentes = await db
     .select({ posicaoId: reguaDisparos.posicaoId, cobrancaId: reguaDisparos.cobrancaId })
@@ -339,19 +347,106 @@ export async function executarRegua(reguaId: number, condominioId?: number | nul
           : null;
 
         let tentativaId: number | null = null;
+        let statusDisparo: "pendente" | "enviado" | "erro" | "ignorado" = "pendente"; // padrão: pendente (sem canal de envio real)
+        let erroEnvio: string | null = null;
+
+        // ─── Envio real por canal ──────────────────────────────────────────────
+        if (posicao.tipoAcao === "email") {
+          const emailDevedor = devedor.email;
+          if (!emailDevedor) {
+            erroEnvio = "Devedor sem e-mail cadastrado";
+            statusDisparo = "erro";
+          } else if (!emailConfigAtivo) {
+            erroEnvio = "Configuração de e-mail não encontrada";
+            statusDisparo = "erro";
+          } else {
+            try {
+              const { enviarEmailMicrosoft365 } = await import("./email-service");
+              const resultado = await enviarEmailMicrosoft365({
+                destinatario: emailDevedor,
+                nomeDestinatario: nomeDevedor,
+                assunto: posicao.titulo,
+                corpoHtml: mensagem ? mensagem.replace(/\n/g, "<br>") : posicao.titulo,
+                devedorId: cobranca.devedorId,
+                condominioId: condIdFiltro ?? undefined,
+              });
+              statusDisparo = resultado.sucesso ? "enviado" : "erro";
+              if (!resultado.sucesso) erroEnvio = resultado.erro ?? "Erro desconhecido";
+            } catch (e: any) {
+              statusDisparo = "erro";
+              erroEnvio = e?.message ?? "Erro ao enviar e-mail";
+            }
+          }
+        } else if (posicao.tipoAcao === "whatsapp") {
+          const telefoneDevedor = devedor.phone;
+          if (!telefoneDevedor) {
+            erroEnvio = "Devedor sem telefone cadastrado";
+            statusDisparo = "erro";
+          } else if (!instanciaWhatsApp) {
+            erroEnvio = "Nenhuma instância WhatsApp ativa configurada";
+            statusDisparo = "erro";
+          } else {
+            try {
+              const { sendText, formatPhone } = await import("./zapi-service");
+              const { whatsappConversas, whatsappMensagens } = await import("../drizzle/schema");
+              const telefoneFormatado = formatPhone(telefoneDevedor);
+              const zapiConfig = { instanceId: instanciaWhatsApp.instanceId, token: instanciaWhatsApp.token, clientToken: instanciaWhatsApp.clientToken };
+              const zapiResult = await sendText(zapiConfig, telefoneFormatado, mensagem ?? posicao.titulo);
+              statusDisparo = "enviado";
+              // Registrar mensagem na conversa WhatsApp
+              const [conversaExistente] = await db.select().from(whatsappConversas)
+                .where(and(eq(whatsappConversas.instanciaId, instanciaWhatsApp.id), eq(whatsappConversas.telefone, telefoneFormatado)))
+                .limit(1);
+              let conversaId: number;
+              if (conversaExistente) {
+                conversaId = conversaExistente.id;
+              } else {
+                const [novaConversa] = await db.insert(whatsappConversas).values({
+                  instanciaId: instanciaWhatsApp.id,
+                  telefone: telefoneFormatado,
+                  nomeContato: nomeDevedor,
+                  devedorId: cobranca.devedorId,
+                  status: "aberta",
+                });
+                conversaId = (novaConversa as any).insertId;
+              }
+              await db.insert(whatsappMensagens).values({
+                conversaId,
+                instanciaId: instanciaWhatsApp.id,
+                direction: "out",
+                tipo: "text",
+                conteudo: mensagem ?? posicao.titulo,
+                zApiMessageId: zapiResult.messageId,
+                status: "enviada",
+              });
+              await db.update(whatsappConversas).set({
+                ultimaMensagem: mensagem ?? posicao.titulo,
+                ultimaMensagemEm: new Date(),
+              }).where(eq(whatsappConversas.id, conversaId));
+            } catch (e: any) {
+              statusDisparo = "erro";
+              erroEnvio = e?.message ?? "Erro ao enviar WhatsApp";
+            }
+          }
+        }
+
+        // ─── Registrar tentativa de cobrança ──────────────────────────────────
         if (["whatsapp", "email", "ligacao"].includes(posicao.tipoAcao)) {
           const contactTypeMap: Record<string, "telefone" | "email" | "pessoal" | "whatsapp"> = {
             whatsapp: "whatsapp",
             email: "email",
             ligacao: "telefone",
           };
+          const notaEnvio = erroEnvio
+            ? `[AUTOMÁTICO - Régua: ${regua.nome}] ERRO: ${erroEnvio} | ${mensagem ?? posicao.titulo}`
+            : `[AUTOMÁTICO - Régua: ${regua.nome}] ${mensagem ?? posicao.titulo}`;
           const [tentResult] = await db.insert(tentativasCobranca).values({
             cobrancaId: cobranca.id,
             devedorId: cobranca.devedorId,
             condominioId: condIdFiltro ?? 0,
             userId: 1,
             contactType: contactTypeMap[posicao.tipoAcao] ?? "whatsapp",
-            notes: `[AUTOMÁTICO - Régua: ${regua.nome}] ${mensagem ?? posicao.titulo}`,
+            notes: notaEnvio,
             result: "outro",
             attemptDate: new Date(),
           });
@@ -367,7 +462,7 @@ export async function executarRegua(reguaId: number, condominioId?: number | nul
           diasInadimplencia: diasAtraso,
           tipoAcao: posicao.tipoAcao,
           mensagemGerada: mensagem,
-          status: "enviado",
+          status: statusDisparo,
           tentativaId,
           dataDisparo: new Date(),
         });
