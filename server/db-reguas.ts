@@ -387,45 +387,23 @@ export async function executarRegua(reguaId: number, condominioId?: number | nul
             statusDisparo = "erro";
           } else {
             try {
-              const { sendText, formatPhone } = await import("./zapi-service");
-              const { whatsappConversas, whatsappMensagens } = await import("../drizzle/schema");
+              const { enfileirarMensagemWhatsApp } = await import("./job-whatsapp-fila");
+              const { formatPhone } = await import("./zapi-service");
               const telefoneFormatado = formatPhone(telefoneDevedor);
-              const zapiConfig = { instanceId: instanciaWhatsApp.instanceId, token: instanciaWhatsApp.token, clientToken: instanciaWhatsApp.clientToken };
-              const zapiResult = await sendText(zapiConfig, telefoneFormatado, mensagem ?? posicao.titulo);
-              statusDisparo = "enviado";
-              // Registrar mensagem na conversa WhatsApp
-              const [conversaExistente] = await db.select().from(whatsappConversas)
-                .where(and(eq(whatsappConversas.instanciaId, instanciaWhatsApp.id), eq(whatsappConversas.telefone, telefoneFormatado)))
-                .limit(1);
-              let conversaId: number;
-              if (conversaExistente) {
-                conversaId = conversaExistente.id;
-              } else {
-                const [novaConversa] = await db.insert(whatsappConversas).values({
-                  instanciaId: instanciaWhatsApp.id,
-                  telefone: telefoneFormatado,
-                  nomeContato: nomeDevedor,
-                  devedorId: cobranca.devedorId,
-                  status: "aberta",
-                });
-                conversaId = (novaConversa as any).insertId;
-              }
-              await db.insert(whatsappMensagens).values({
-                conversaId,
+              await enfileirarMensagemWhatsApp({
                 instanciaId: instanciaWhatsApp.id,
-                direction: "out",
-                tipo: "text",
-                conteudo: mensagem ?? posicao.titulo,
-                zApiMessageId: zapiResult.messageId,
-                status: "enviada",
+                telefone: telefoneFormatado,
+                mensagem: mensagem ?? posicao.titulo,
+                reguaId: regua.id,
+                posicaoId: posicao.id,
+                cobrancaId: cobranca.id,
+                devedorId: cobranca.devedorId,
               });
-              await db.update(whatsappConversas).set({
-                ultimaMensagem: mensagem ?? posicao.titulo,
-                ultimaMensagemEm: new Date(),
-              }).where(eq(whatsappConversas.id, conversaId));
+              // Mensagem enfileirada — será enviada com cadência pelo job-whatsapp-fila
+              statusDisparo = "enviado"; // registra como enviado (enfileirado)
             } catch (e: any) {
               statusDisparo = "erro";
-              erroEnvio = e?.message ?? "Erro ao enviar WhatsApp";
+              erroEnvio = e?.message ?? "Erro ao enfileirar mensagem WhatsApp";
             }
           }
         }

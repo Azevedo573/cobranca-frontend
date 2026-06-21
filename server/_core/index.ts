@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { startReguaJob } from "../job-regua";
 import { cancelamentoAutoHandler } from "../job-cancelamento-auto";
 import { alertasInadimplenciaHandler } from "../job-alertas-inadimplencia";
+import { iniciarJobFilaWhatsApp } from "../job-whatsapp-fila";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -75,6 +76,8 @@ async function startServer() {
     console.log(`Server running on http://localhost:${port}/`);
     // Iniciar job de execução automática da Régua de Cobrança
     startReguaJob();
+    // Iniciar job de processamento da fila WhatsApp (cadência anti-ban)
+    iniciarJobFilaWhatsApp(60);
   });
 }
 

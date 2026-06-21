@@ -1471,3 +1471,29 @@ export const alertasInadimplenciaAcordo = mysqlTable("alertasInadimplenciaAcordo
 
 export type AlertaInadimplenciaAcordo = typeof alertasInadimplenciaAcordo.$inferSelect;
 export type InsertAlertaInadimplenciaAcordo = typeof alertasInadimplenciaAcordo.$inferInsert;
+
+// ─── Fila de Envio WhatsApp (cadência anti-ban) ───────────────────────────────
+export const whatsappFilaEnvio = mysqlTable("whatsappFilaEnvio", {
+  id: int("id").autoincrement().primaryKey(),
+  instanciaId: int("instanciaId").notNull(),       // FK → whatsappInstancias
+  telefone: varchar("telefone", { length: 30 }).notNull(),
+  mensagem: text("mensagem").notNull(),
+  // Contexto do disparo
+  reguaId: int("reguaId"),                         // FK → reguasCobranca (se veio da régua)
+  posicaoId: int("posicaoId"),                     // FK → reguaPosicoes
+  cobrancaId: int("cobrancaId"),                   // FK → cobrancas
+  devedorId: int("devedorId"),                     // FK → devedores
+  condominioId: int("condominioId"),
+  // Controle de envio
+  status: mysqlEnum("status", ["aguardando", "enviando", "enviado", "erro", "cancelado"]).default("aguardando").notNull(),
+  tentativas: int("tentativas").default(0).notNull(),
+  proximaTentativa: timestamp("proximaTentativa"),  // quando pode ser enviado
+  enviadoEm: timestamp("enviadoEm"),
+  erro: text("erro"),
+  messageId: varchar("messageId", { length: 255 }), // ID retornado pela Z-API
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WhatsappFilaEnvio = typeof whatsappFilaEnvio.$inferSelect;
+export type InsertWhatsappFilaEnvio = typeof whatsappFilaEnvio.$inferInsert;

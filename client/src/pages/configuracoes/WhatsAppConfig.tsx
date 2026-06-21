@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import {
   Plus, Pencil, Trash2, Wifi, WifiOff, QrCode,
-  Building2, Scale, Globe, RefreshCw, ExternalLink,
+  Building2, Scale, Globe, RefreshCw, ExternalLink, Shield,
 } from "lucide-react";
 
 const setorLabel = (s: string) => s === "cobranca" ? "Cobrança" : s === "juridico" ? "Jurídico" : "Geral";
@@ -24,15 +24,27 @@ const setorIcon = (s: string) => {
 type Instancia = {
   id: number; nome: string; setor: string;
   instanceId: string; token: string; clientToken: string; ativo: number;
+  delayMinSegundos?: number; delayMaxSegundos?: number;
+  limiteHora?: number; limiteDia?: number;
+  horarioInicioEnvio?: string; horarioFimEnvio?: string;
+  diasSemana?: string;
 };
 
 type FormData = {
   id?: number; nome: string; setor: "cobranca" | "juridico" | "geral";
   instanceId: string; token: string; clientToken: string; ativo: number;
+  delayMinSegundos: number; delayMaxSegundos: number;
+  limiteHora: number; limiteDia: number;
+  horarioInicioEnvio: string; horarioFimEnvio: string;
+  diasSemana: string;
 };
 
 const emptyForm: FormData = {
   nome: "", setor: "cobranca", instanceId: "", token: "", clientToken: "", ativo: 1,
+  delayMinSegundos: 8, delayMaxSegundos: 25,
+  limiteHora: 20, limiteDia: 150,
+  horarioInicioEnvio: "08:00", horarioFimEnvio: "20:00",
+  diasSemana: "1,2,3,4,5",
 };
 
 export default function WhatsAppConfig() {
@@ -62,7 +74,17 @@ export default function WhatsAppConfig() {
   });
 
   const handleEditar = (inst: Instancia) => {
-    setForm({ id: inst.id, nome: inst.nome, setor: inst.setor as any, instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken, ativo: inst.ativo });
+    setForm({
+      id: inst.id, nome: inst.nome, setor: inst.setor as any,
+      instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken, ativo: inst.ativo,
+      delayMinSegundos: inst.delayMinSegundos ?? 8,
+      delayMaxSegundos: inst.delayMaxSegundos ?? 25,
+      limiteHora: inst.limiteHora ?? 20,
+      limiteDia: inst.limiteDia ?? 150,
+      horarioInicioEnvio: inst.horarioInicioEnvio ?? "08:00",
+      horarioFimEnvio: inst.horarioFimEnvio ?? "20:00",
+      diasSemana: inst.diasSemana ?? "1,2,3,4,5",
+    });
     setModalAberto(true);
   };
 
@@ -202,7 +224,7 @@ export default function WhatsAppConfig() {
 
       {/* Modal de criação/edição */}
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar Instância" : "Nova Instância"}</DialogTitle>
           </DialogHeader>
@@ -245,6 +267,73 @@ export default function WhatsAppConfig() {
                   <SelectItem value="0">Inativo</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Cadência Anti-Ban */}
+            <div className="border rounded-lg p-4 space-y-4 bg-amber-50 dark:bg-amber-950/20">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-semibold text-amber-800 dark:text-amber-400">Cadência Anti-Ban</span>
+                <span className="text-xs text-muted-foreground">Configurações para evitar bloqueio do número</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Delay mínimo (segundos)</Label>
+                  <Input type="number" min={3} max={60} value={form.delayMinSegundos}
+                    onChange={e => setForm(f => ({ ...f, delayMinSegundos: Number(e.target.value) }))} />
+                  <p className="text-xs text-muted-foreground">Aguarda no mínimo N segundos entre mensagens</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Delay máximo (segundos)</Label>
+                  <Input type="number" min={5} max={120} value={form.delayMaxSegundos}
+                    onChange={e => setForm(f => ({ ...f, delayMaxSegundos: Number(e.target.value) }))} />
+                  <p className="text-xs text-muted-foreground">Aguarda no máximo N segundos (aleatório)</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Limite por hora</Label>
+                  <Input type="number" min={1} max={100} value={form.limiteHora}
+                    onChange={e => setForm(f => ({ ...f, limiteHora: Number(e.target.value) }))} />
+                  <p className="text-xs text-muted-foreground">Máx. mensagens enviadas por hora</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Limite por dia</Label>
+                  <Input type="number" min={1} max={1000} value={form.limiteDia}
+                    onChange={e => setForm(f => ({ ...f, limiteDia: Number(e.target.value) }))} />
+                  <p className="text-xs text-muted-foreground">Máx. mensagens enviadas por dia</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Horário de início</Label>
+                  <Input type="time" value={form.horarioInicioEnvio}
+                    onChange={e => setForm(f => ({ ...f, horarioInicioEnvio: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Horário de fim</Label>
+                  <Input type="time" value={form.horarioFimEnvio}
+                    onChange={e => setForm(f => ({ ...f, horarioFimEnvio: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Dias da semana permitidos</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {[{v:"0",l:"Dom"},{v:"1",l:"Seg"},{v:"2",l:"Ter"},{v:"3",l:"Qua"},{v:"4",l:"Qui"},{v:"5",l:"Sex"},{v:"6",l:"Sáb"}].map(d => {
+                    const dias = form.diasSemana.split(",").filter(Boolean);
+                    const ativo = dias.includes(d.v);
+                    return (
+                      <button key={d.v} type="button"
+                        onClick={() => {
+                          const novos = ativo ? dias.filter(x => x !== d.v) : [...dias, d.v];
+                          setForm(f => ({ ...f, diasSemana: novos.sort().join(",") }));
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          ativo ? "bg-green-500 text-white border-green-500" : "bg-background border-border text-muted-foreground"
+                        }`}>
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">Envios só ocorrem nos dias marcados</p>
+              </div>
             </div>
           </div>
           <DialogFooter>

@@ -5801,21 +5801,38 @@ export const appRouter = router({
         token: z.string().min(1),
         clientToken: z.string().min(1),
         ativo: z.number().int().min(0).max(1).default(1),
+        // Cadência anti-ban
+        delayMinSegundos: z.number().int().min(1).max(300).default(8),
+        delayMaxSegundos: z.number().int().min(1).max(600).default(25),
+        limiteHora: z.number().int().min(1).max(500).default(20),
+        limiteDia: z.number().int().min(1).max(5000).default(150),
+        horarioInicioEnvio: z.string().default("08:00"),
+        horarioFimEnvio: z.string().default("20:00"),
+        diasSemana: z.string().default("1,2,3,4,5"),
       }))
       .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) throw new Error("DB indisponível");
         const { whatsappInstancias } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
+        const cadenciaFields = {
+          delayMinSegundos: input.delayMinSegundos,
+          delayMaxSegundos: input.delayMaxSegundos,
+          limiteHora: input.limiteHora,
+          limiteDia: input.limiteDia,
+          horarioInicioEnvio: input.horarioInicioEnvio,
+          horarioFimEnvio: input.horarioFimEnvio,
+          diasSemana: input.diasSemana,
+        };
         if (input.id) {
           await db.update(whatsappInstancias)
-            .set({ nome: input.nome, setor: input.setor, instanceId: input.instanceId, token: input.token, clientToken: input.clientToken, ativo: input.ativo })
+            .set({ nome: input.nome, setor: input.setor, instanceId: input.instanceId, token: input.token, clientToken: input.clientToken, ativo: input.ativo, ...cadenciaFields })
             .where(eq(whatsappInstancias.id, input.id));
           return { success: true, id: input.id };
         } else {
           const [res] = await db.insert(whatsappInstancias).values({
             nome: input.nome, setor: input.setor, instanceId: input.instanceId,
-            token: input.token, clientToken: input.clientToken, ativo: input.ativo,
+            token: input.token, clientToken: input.clientToken, ativo: input.ativo, ...cadenciaFields,
           });
           return { success: true, id: (res as any).insertId };
         }
