@@ -624,50 +624,93 @@ export default function ReguaCobranca() {
                     {/* Etapas */}
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Etapas de Comunicação</p>
-                      <Button variant="outline" size="sm" onClick={() => {
-                        setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true });
-                        setShowAddPosicao(regua.id);
-                      }}>
-                        <Plus className="w-3 h-3 mr-1" /> Adicionar Etapa
-                      </Button>
                     </div>
 
                     {regua.posicoes.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">Nenhuma etapa configurada.</p>
+                      <div className="text-center py-6">
+                        <p className="text-sm text-muted-foreground mb-3">Nenhuma etapa configurada.</p>
+                        <Button variant="outline" size="sm" onClick={() => {
+                          setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true });
+                          setShowAddPosicao(regua.id);
+                        }}>
+                          <Plus className="w-3 h-3 mr-1" /> Adicionar Primeira Etapa
+                        </Button>
+                      </div>
                     ) : (
-                      <div className="space-y-2">
-                        {regua.posicoes.sort((a, b) => a.diasInadimplencia - b.diasInadimplencia).map((pos) => {
-                          const acao = TIPO_ACAO_LABELS[pos.tipoAcao];
-                          return (
-                            <div key={pos.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
-                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${acao?.color ?? "bg-gray-100 text-gray-700"}`}>
-                                {acao?.icon}
-                                {acao?.label ?? pos.tipoAcao}
+                      <div className="overflow-x-auto pb-2">
+                        {/* Linha do tempo horizontal */}
+                        <div className="relative flex items-start gap-0 min-w-max">
+                          {/* Linha conectora */}
+                          <div className="absolute top-6 left-6 right-6 h-0.5 bg-border z-0" />
+
+                          {regua.posicoes.sort((a, b) => a.diasInadimplencia - b.diasInadimplencia).map((pos, idx) => {
+                            const acao = TIPO_ACAO_LABELS[pos.tipoAcao];
+                            const isAtiva = (pos.ativa ?? 1) === 1;
+                            const CANAL_BG: Record<string, string> = {
+                              whatsapp: "bg-green-500",
+                              email: "bg-blue-500",
+                              sms: "bg-yellow-500",
+                              carta: "bg-gray-500",
+                              ligacao: "bg-purple-500",
+                              notificacao_interna: "bg-orange-500",
+                            };
+                            const bgColor = isAtiva ? (CANAL_BG[pos.tipoAcao] ?? "bg-primary") : "bg-muted-foreground";
+                            return (
+                              <div key={pos.id} className="relative flex flex-col items-center w-36 px-2 z-10">
+                                {/* Marcador numerado */}
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md border-2 border-background ${bgColor} cursor-pointer hover:scale-110 transition-transform`}
+                                  title={pos.titulo}
+                                  onClick={() => setShowEditPosicao(pos)}
+                                >
+                                  {idx + 1}
+                                </div>
+
+                                {/* Dias */}
+                                <div className="mt-2 text-center">
+                                  <p className="text-xs font-bold text-foreground">
+                                    {pos.diasInadimplencia < 0
+                                      ? `-${Math.abs(pos.diasInadimplencia)}d`
+                                      : pos.diasInadimplencia === 0
+                                      ? "D0"
+                                      : `+${pos.diasInadimplencia}d`}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground leading-tight mt-0.5 max-w-[120px] text-center truncate">{pos.titulo}</p>
+                                  <div className={`mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${acao?.color ?? "bg-gray-100 text-gray-700"}`}>
+                                    {acao?.icon}
+                                    <span>{acao?.label ?? pos.tipoAcao}</span>
+                                  </div>
+                                  {!isAtiva && (
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">Inativa</p>
+                                  )}
+                                </div>
+
+                                {/* Ações */}
+                                <div className="flex gap-0.5 mt-1">
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setShowEditPosicao(pos)}>
+                                    <Edit className="w-3 h-3" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { if (confirm("Remover esta etapa?")) deletePosicao.mutate({ id: pos.id }); }}>
+                                    <Trash2 className="w-3 h-3 text-red-500" />
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{pos.titulo}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {pos.diasInadimplencia < 0
-                                    ? `${Math.abs(pos.diasInadimplencia)} dias antes do vencimento`
-                                    : pos.diasInadimplencia === 0
-                                    ? "No dia do vencimento"
-                                    : `${pos.diasInadimplencia} dias após o vencimento`}
-                                </p>
-                              </div>
-                              <Badge variant={(pos.ativa ?? 1) === 1 ? "default" : "secondary"} className="text-xs">
-                                {(pos.ativa ?? 1) === 1 ? "Ativa" : "Inativa"}
-                              </Badge>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => setShowEditPosicao(pos)}>
-                                  <Edit className="w-3 h-3" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => { if (confirm("Remover esta etapa?")) deletePosicao.mutate({ id: pos.id }); }}>
-                                  <Trash2 className="w-3 h-3 text-red-500" />
-                                </Button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+
+                          {/* Botão de adicionar no final da linha */}
+                          <div className="relative flex flex-col items-center w-20 px-2 z-10">
+                            <button
+                              onClick={() => {
+                                setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true });
+                                setShowAddPosicao(regua.id);
+                              }}
+                              className="w-12 h-12 rounded-full border-2 border-dashed border-primary text-primary flex items-center justify-center hover:bg-primary/10 transition-colors"
+                            >
+                              <Plus className="w-5 h-5" />
+                            </button>
+                            <p className="text-[10px] text-muted-foreground mt-2 text-center">Nova Etapa</p>
+                          </div>
+                        </div>
                       </div>
                     )}
 
