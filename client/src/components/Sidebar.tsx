@@ -49,6 +49,7 @@ import {
   Bell,
   Settings2,
   Newspaper,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -100,6 +101,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"] },
       { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador"] },
+      { label: "Alertas de Inadimplência", href: "/alertas-inadimplencia", icon: AlertTriangle, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"] },
     ],
   },

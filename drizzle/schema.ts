@@ -59,6 +59,13 @@ export const condominios = mysqlTable("condominios", {
   // Cancelamento automático de acordos com primeira parcela não paga
   cancelamentoAutoAtivo: int("cancelamentoAutoAtivo").default(0).notNull(),
   cancelamentoPrazoDias: int("cancelamentoPrazoDias").default(20).notNull(),
+  // Régua de alertas progressivos de inadimplência de parcelas de acordo
+  alertaParcela1Ativo: int("alertaParcela1Ativo").default(1).notNull(),   // Alerta 1: X dias após vencimento
+  alertaParcela1Dias: int("alertaParcela1Dias").default(5).notNull(),
+  alertaParcela2Ativo: int("alertaParcela2Ativo").default(1).notNull(),   // Alerta 2: X dias após vencimento
+  alertaParcela2Dias: int("alertaParcela2Dias").default(10).notNull(),
+  alertaParcela3Ativo: int("alertaParcela3Ativo").default(1).notNull(),   // Alerta crítico: X dias após vencimento
+  alertaParcela3Dias: int("alertaParcela3Dias").default(30).notNull(),
   // Modo de emissão de boleto: cnab240 (padrão) ou api_btg (integração BTG em fase de testes)
   modoBoleto: mysqlEnum("modoBoleto", ["cnab240", "api_btg"]).default("cnab240").notNull(),
   // ─── Dados Jurídicos do Condomínio ───────────────────────────────────────
@@ -1414,3 +1421,34 @@ export const publicacoes = mysqlTable("publicacoes", {
 });
 export type Publicacao = typeof publicacoes.$inferSelect;
 export type InsertPublicacao = typeof publicacoes.$inferInsert;
+
+// ─── Alertas de Inadimplência de Acordos ──────────────────────────────────────
+// Registra alertas progressivos gerados pelo job de monitoramento de parcelas em atraso.
+// Cada alerta é único por (parcelaId + nivel) para evitar duplicidade.
+export const alertasInadimplenciaAcordo = mysqlTable("alertasInadimplenciaAcordo", {
+  id: int("id").autoincrement().primaryKey(),
+  acordoId: int("acordoId").notNull(),
+  parcelaId: int("parcelaId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  devedorId: int("devedorId").notNull(),
+  // Nível do alerta: 1 = primeiro aviso (5d), 2 = segundo aviso (10d), 3 = crítico (30d), 0 = primeira parcela não paga
+  nivel: int("nivel").notNull(),
+  diasAtraso: int("diasAtraso").notNull(),
+  valorParcela: int("valorParcela").notNull(),         // em centavos
+  dataVencimento: timestamp("dataVencimento").notNull(),
+  installmentNumber: int("installmentNumber").notNull(), // número da parcela
+  totalParcelas: int("totalParcelas").notNull(),
+  // Status do boleto vinculado à parcela
+  statusBoleto: varchar("statusBoleto", { length: 50 }),  // pendente, enviado, liquidado, etc.
+  temBoletoAtualizado: int("temBoletoAtualizado").default(0).notNull(), // 1 = sim
+  // Tratativa da equipe
+  status: mysqlEnum("status", ["pendente", "em_tratativa", "resolvido", "ignorado"]).default("pendente").notNull(),
+  resolvidoPor: int("resolvidoPor"),    // userId de quem resolveu
+  resolvidoEm: timestamp("resolvidoEm"),
+  observacao: text("observacao"),       // nota da equipe ao resolver
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AlertaInadimplenciaAcordo = typeof alertasInadimplenciaAcordo.$inferSelect;
+export type InsertAlertaInadimplenciaAcordo = typeof alertasInadimplenciaAcordo.$inferInsert;

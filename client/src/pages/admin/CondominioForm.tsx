@@ -131,6 +131,12 @@ export default function CondominioForm() {
     maxParcelas: 12,
     cancelamentoAutoAtivo: 0,
     cancelamentoPrazoDias: 20,
+    alertaParcela1Ativo: 1,
+    alertaParcela1Dias: 5,
+    alertaParcela2Ativo: 1,
+    alertaParcela2Dias: 10,
+    alertaParcela3Ativo: 1,
+    alertaParcela3Dias: 30,
     modoBoleto: "cnab240" as "cnab240" | "api_btg",
     // Jurídico
     juridicoAdvogadoResponsavel: "",
@@ -206,6 +212,12 @@ export default function CondominioForm() {
         maxParcelas: (condominio as any).maxParcelas ?? 12,
         cancelamentoAutoAtivo: (condominio as any).cancelamentoAutoAtivo ?? 0,
         cancelamentoPrazoDias: (condominio as any).cancelamentoPrazoDias ?? 20,
+        alertaParcela1Ativo: (condominio as any).alertaParcela1Ativo ?? 1,
+        alertaParcela1Dias: (condominio as any).alertaParcela1Dias ?? 5,
+        alertaParcela2Ativo: (condominio as any).alertaParcela2Ativo ?? 1,
+        alertaParcela2Dias: (condominio as any).alertaParcela2Dias ?? 10,
+        alertaParcela3Ativo: (condominio as any).alertaParcela3Ativo ?? 1,
+        alertaParcela3Dias: (condominio as any).alertaParcela3Dias ?? 30,
         modoBoleto: ((condominio as any).modoBoleto || "cnab240") as "cnab240" | "api_btg",
         juridicoAdvogadoResponsavel: (condominio as any).juridicoAdvogadoResponsavel || "",
         juridicoAdvogadoOAB: (condominio as any).juridicoAdvogadoOAB || "",
@@ -845,6 +857,137 @@ export default function CondominioForm() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Régua de Alertas Progressivos */}
+                  <div className="border-t pt-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <AlertCircle className="h-5 w-5 text-orange-500" />
+                      <h3 className="text-base font-semibold">Régua de Alertas de Inadimplência</h3>
+                      <Badge variant="outline" className="text-xs font-normal text-orange-600 border-orange-300 bg-orange-50">Acordos</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Configure os prazos para geração de alertas progressivos quando parcelas de acordos ficarem em atraso.
+                      Os alertas são enviados à equipe de cobrança para acompanhamento gradual da inadimplência.
+                    </p>
+                    <div className="space-y-3">
+                      {/* Alerta 1 */}
+                      <div className="p-4 rounded-lg border bg-yellow-50/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="text-sm font-medium text-yellow-800">Aviso Inicial</p>
+                            <p className="text-xs text-yellow-600">Primeiro contato com o devedor</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, alertaParcela1Ativo: prev.alertaParcela1Ativo === 1 ? 0 : 1 }))}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              formData.alertaParcela1Ativo === 1 ? "bg-yellow-500" : "bg-input"
+                            }`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${
+                              formData.alertaParcela1Ativo === 1 ? "translate-x-6" : "translate-x-1"
+                            }`} />
+                          </button>
+                        </div>
+                        {formData.alertaParcela1Ativo === 1 && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap">Gerar alerta após</Label>
+                            <Select
+                              value={String(formData.alertaParcela1Dias)}
+                              onValueChange={(v) => setFormData(prev => ({ ...prev, alertaParcela1Dias: parseInt(v) }))}
+                            >
+                              <SelectTrigger className="w-32 h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[1,2,3,5,7,10,15].map(n => (
+                                  <SelectItem key={n} value={String(n)}>{n} dia{n > 1 ? "s" : ""} de atraso</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Alerta 2 */}
+                      <div className="p-4 rounded-lg border bg-orange-50/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="text-sm font-medium text-orange-800">Segundo Aviso</p>
+                            <p className="text-xs text-orange-600">Reforço da necessidade de tratativa</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, alertaParcela2Ativo: prev.alertaParcela2Ativo === 1 ? 0 : 1 }))}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              formData.alertaParcela2Ativo === 1 ? "bg-orange-500" : "bg-input"
+                            }`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${
+                              formData.alertaParcela2Ativo === 1 ? "translate-x-6" : "translate-x-1"
+                            }`} />
+                          </button>
+                        </div>
+                        {formData.alertaParcela2Ativo === 1 && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap">Gerar alerta após</Label>
+                            <Select
+                              value={String(formData.alertaParcela2Dias)}
+                              onValueChange={(v) => setFormData(prev => ({ ...prev, alertaParcela2Dias: parseInt(v) }))}
+                            >
+                              <SelectTrigger className="w-32 h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[5,7,10,15,20,25,30].map(n => (
+                                  <SelectItem key={n} value={String(n)}>{n} dias de atraso</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Alerta 3 - Crítico */}
+                      <div className="p-4 rounded-lg border bg-red-50/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="text-sm font-medium text-red-800">Alerta Crítico</p>
+                            <p className="text-xs text-red-600">Análise do acordo — possível cancelamento</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, alertaParcela3Ativo: prev.alertaParcela3Ativo === 1 ? 0 : 1 }))}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              formData.alertaParcela3Ativo === 1 ? "bg-red-500" : "bg-input"
+                            }`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform ${
+                              formData.alertaParcela3Ativo === 1 ? "translate-x-6" : "translate-x-1"
+                            }`} />
+                          </button>
+                        </div>
+                        {formData.alertaParcela3Ativo === 1 && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap">Gerar alerta após</Label>
+                            <Select
+                              value={String(formData.alertaParcela3Dias)}
+                              onValueChange={(v) => setFormData(prev => ({ ...prev, alertaParcela3Dias: parseInt(v) }))}
+                            >
+                              <SelectTrigger className="w-32 h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[15,20,25,30,45,60,90].map(n => (
+                                  <SelectItem key={n} value={String(n)}>{n} dias de atraso</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

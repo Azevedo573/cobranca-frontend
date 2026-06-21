@@ -85,6 +85,7 @@ import DashboardJuridicoCondominio from "./pages/admin/juridico/DashboardJuridic
 import DashboardPublicacoes from "./pages/admin/juridico/DashboardPublicacoes";
 import MonitoramentosPublicacoes from "./pages/admin/juridico/MonitoramentosPublicacoes";
 import KanbanPublicacoes from "./pages/admin/juridico/KanbanPublicacoes";
+import AlertasInadimplencia from "./pages/AlertasInadimplencia";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -296,6 +297,9 @@ function Router() {
       {/* Rotas de Vencimentos */}
       <Route path="/vencimentos">
         {() => <ProtectedRoute component={Vencimentos} />}
+      </Route>
+      <Route path="/alertas-inadimplencia">
+        {() => <ProtectedRoute component={AlertasInadimplencia} allowedRoles={["admin", "cobrador", "colaborador"]} />}
       </Route>
 
       {/* Rotas de Operações de Cobrança */}

@@ -371,6 +371,12 @@ export const appRouter = router({
       maxParcelas: z.number().int().min(1).max(60).optional(),
       cancelamentoAutoAtivo: z.number().int().min(0).max(1).optional(),
       cancelamentoPrazoDias: z.number().int().min(1).max(90).optional(),
+      alertaParcela1Ativo: z.number().int().min(0).max(1).optional(),
+      alertaParcela1Dias: z.number().int().min(1).max(365).optional(),
+      alertaParcela2Ativo: z.number().int().min(0).max(1).optional(),
+      alertaParcela2Dias: z.number().int().min(1).max(365).optional(),
+      alertaParcela3Ativo: z.number().int().min(0).max(1).optional(),
+      alertaParcela3Dias: z.number().int().min(1).max(365).optional(),
       modoBoleto: z.enum(["cnab240", "api_btg"]).optional(),
       // Campos jurídicos
       juridicoAdvogadoResponsavel: z.string().max(255).optional().nullable(),
@@ -6651,6 +6657,121 @@ export const appRouter = router({
           const { toggleMonitoramento } = await import("./db-publicacoes");
           await toggleMonitoramento(input.id);
         }),
+    }),
+  }),
+
+  // ─── Alertas de Inadimplência de Acordos ─────────────────────────────────────
+  alertasAcordo: router({
+    // Listar alertas com filtros
+    list: protectedProcedure
+      .input(z.object({
+        status: z.enum(["pendente", "em_tratativa", "resolvido", "ignorado"]).optional(),
+        nivel: z.number().optional(),
+        condominioId: z.number().optional(),
+        page: z.number().default(1),
+        limit: z.number().default(50),
+      }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { alertasInadimplenciaAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
+        const { eq, and, desc, count } = await import("drizzle-orm");
+
+        const conditions: any[] = [];
+        if (input.status) conditions.push(eq(alertasInadimplenciaAcordo.status, input.status));
+        if (input.nivel !== undefined) conditions.push(eq(alertasInadimplenciaAcordo.nivel, input.nivel));
+        if (input.condominioId) conditions.push(eq(alertasInadimplenciaAcordo.condominioId, input.condominioId));
+        // Cobrador só vê alertas do seu condomínio
+        if (ctx.user.role !== "admin" && ctx.user.condominioId) {
+          conditions.push(eq(alertasInadimplenciaAcordo.condominioId, ctx.user.condominioId));
+        }
+
+        const offset = (input.page - 1) * input.limit;
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+        const [rows, totalRows] = await Promise.all([
+          db.select({
+            id: alertasInadimplenciaAcordo.id,
+            acordoId: alertasInadimplenciaAcordo.acordoId,
+            parcelaId: alertasInadimplenciaAcordo.parcelaId,
+            condominioId: alertasInadimplenciaAcordo.condominioId,
+            devedorId: alertasInadimplenciaAcordo.devedorId,
+            nivel: alertasInadimplenciaAcordo.nivel,
+            diasAtraso: alertasInadimplenciaAcordo.diasAtraso,
+            valorParcela: alertasInadimplenciaAcordo.valorParcela,
+            dataVencimento: alertasInadimplenciaAcordo.dataVencimento,
+            installmentNumber: alertasInadimplenciaAcordo.installmentNumber,
+            totalParcelas: alertasInadimplenciaAcordo.totalParcelas,
+            statusBoleto: alertasInadimplenciaAcordo.statusBoleto,
+            temBoletoAtualizado: alertasInadimplenciaAcordo.temBoletoAtualizado,
+            status: alertasInadimplenciaAcordo.status,
+            resolvidoEm: alertasInadimplenciaAcordo.resolvidoEm,
+            observacao: alertasInadimplenciaAcordo.observacao,
+            createdAt: alertasInadimplenciaAcordo.createdAt,
+            // Joins
+            devedorNome: devedores.name,
+            devedorUnidade: devedores.unitNumber,
+            devedorBloco: devedores.bloco,
+            condominioNome: condominios.name,
+          })
+          .from(alertasInadimplenciaAcordo)
+          .innerJoin(devedores, eq(alertasInadimplenciaAcordo.devedorId, devedores.id))
+          .innerJoin(condominios, eq(alertasInadimplenciaAcordo.condominioId, condominios.id))
+          .where(where)
+          .orderBy(desc(alertasInadimplenciaAcordo.nivel), desc(alertasInadimplenciaAcordo.diasAtraso))
+          .limit(input.limit)
+          .offset(offset),
+          db.select({ total: count() }).from(alertasInadimplenciaAcordo).where(where),
+        ]);
+
+        return { rows, total: Number(totalRows[0]?.total ?? 0) };
+      }),
+
+    // Atualizar status de um alerta
+    atualizarStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["pendente", "em_tratativa", "resolvido", "ignorado"]),
+        observacao: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { alertasInadimplenciaAcordo } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+
+        await db.update(alertasInadimplenciaAcordo)
+          .set({
+            status: input.status,
+            observacao: input.observacao,
+            resolvidoPor: ["resolvido", "ignorado"].includes(input.status) ? ctx.user.id : undefined,
+            resolvidoEm: ["resolvido", "ignorado"].includes(input.status) ? new Date() : undefined,
+            updatedAt: new Date(),
+          })
+          .where(eq(alertasInadimplenciaAcordo.id, input.id));
+
+        return { ok: true };
+      }),
+
+    // Contagem de alertas pendentes (para badge no menu)
+    contarPendentes: protectedProcedure.query(async ({ ctx }) => {
+      const db = await (await import("./db")).getDb();
+      if (!db) return { total: 0, criticos: 0 };
+      const { alertasInadimplenciaAcordo } = await import("../drizzle/schema");
+      const { eq, and, count } = await import("drizzle-orm");
+
+      const conditions: any[] = [eq(alertasInadimplenciaAcordo.status, "pendente")];
+      if (ctx.user.role !== "admin" && ctx.user.condominioId) {
+        conditions.push(eq(alertasInadimplenciaAcordo.condominioId, ctx.user.condominioId));
+      }
+
+      const [total, criticos] = await Promise.all([
+        db.select({ total: count() }).from(alertasInadimplenciaAcordo).where(and(...conditions)),
+        db.select({ total: count() }).from(alertasInadimplenciaAcordo)
+          .where(and(...conditions, eq(alertasInadimplenciaAcordo.nivel, 3))),
+      ]);
+
+      return { total: Number(total[0]?.total ?? 0), criticos: Number(criticos[0]?.total ?? 0) };
     }),
   }),
 });
