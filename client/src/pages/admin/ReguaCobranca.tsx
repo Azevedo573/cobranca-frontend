@@ -61,6 +61,10 @@ type Posicao = {
   template: string | null;
   ordem: number | null;
   ativa: number | null;
+  loopAtivo: number | null;
+  loopAlvoPosicaoId: number | null;
+  loopIntervaloDias: number | null;
+  loopMaxRepeticoes: number | null;
 };
 
 type Regua = {
@@ -210,6 +214,10 @@ export default function ReguaCobranca() {
     titulo: "",
     template: "",
     ativa: true,
+    loopAtivo: false,
+    loopAlvoPosicaoId: null as number | null,
+    loopIntervaloDias: 7,
+    loopMaxRepeticoes: 3,
   });
 
   const createRegua = trpc.regua.create.useMutation({
@@ -240,7 +248,7 @@ export default function ReguaCobranca() {
     onSuccess: () => {
       utils.regua.list.invalidate();
       setShowAddPosicao(null);
-      setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: "", ativa: true });
+      setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: "", ativa: true, loopAtivo: false, loopAlvoPosicaoId: null, loopIntervaloDias: 7, loopMaxRepeticoes: 3 });
       toast.success("Etapa adicionada!");
     },
     onError: (e) => toast.error(`Erro ao adicionar etapa: ${e.message}`),
@@ -630,7 +638,7 @@ export default function ReguaCobranca() {
                       <div className="text-center py-6">
                         <p className="text-sm text-muted-foreground mb-3">Nenhuma etapa configurada.</p>
                         <Button variant="outline" size="sm" onClick={() => {
-                          setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true });
+                          setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true, loopAtivo: false, loopAlvoPosicaoId: null, loopIntervaloDias: 7, loopMaxRepeticoes: 3 });
                           setShowAddPosicao(regua.id);
                         }}>
                           <Plus className="w-3 h-3 mr-1" /> Adicionar Primeira Etapa
@@ -684,6 +692,14 @@ export default function ReguaCobranca() {
                                   )}
                                 </div>
 
+                                {/* Indicador de loop */}
+                                {(pos.loopAtivo ?? 0) === 1 && (
+                                  <div className="mt-1 flex items-center justify-center gap-1 text-[10px] text-amber-600 font-medium">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                                    Loop
+                                    {(pos.loopMaxRepeticoes ?? 0) > 0 && <span>×{pos.loopMaxRepeticoes}</span>}
+                                  </div>
+                                )}
                                 {/* Ações */}
                                 <div className="flex gap-0.5 mt-1">
                                   <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setShowEditPosicao(pos)}>
@@ -701,7 +717,7 @@ export default function ReguaCobranca() {
                           <div className="relative flex flex-col items-center w-20 px-2 z-10">
                             <button
                               onClick={() => {
-                                setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true });
+                                setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true, loopAtivo: false, loopAlvoPosicaoId: null, loopIntervaloDias: 7, loopMaxRepeticoes: 3 });
                                 setShowAddPosicao(regua.id);
                               }}
                               className="w-12 h-12 rounded-full border-2 border-dashed border-primary text-primary flex items-center justify-center hover:bg-primary/10 transition-colors"
@@ -796,12 +812,46 @@ export default function ReguaCobranca() {
               <Switch checked={formPosicao.ativa} onCheckedChange={v => setFormPosicao(p => ({ ...p, ativa: v }))} />
               <Label>Etapa ativa</Label>
             </div>
+
+            {/* Looping */}
+            <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Switch checked={formPosicao.loopAtivo} onCheckedChange={v => setFormPosicao(p => ({ ...p, loopAtivo: v }))} />
+                <Label className="font-medium">Ativar looping nesta etapa</Label>
+              </div>
+              {formPosicao.loopAtivo && (
+                <div className="space-y-3 pl-2">
+                  <p className="text-xs text-muted-foreground">Após executar esta etapa, o sistema retornará a uma etapa anterior e repetirá o fluxo.</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-3">
+                      <Label className="text-xs">Retornar à etapa (ID da posição alvo)</Label>
+                      <Input type="number" placeholder="Deixe vazio para repetir esta mesma etapa"
+                        value={formPosicao.loopAlvoPosicaoId ?? ""}
+                        onChange={e => setFormPosicao(p => ({ ...p, loopAlvoPosicaoId: e.target.value ? Number(e.target.value) : null }))}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Vazio = repete esta etapa. Informe o ID de outra etapa para voltar a ela.</p>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Intervalo (dias)</Label>
+                      <Input type="number" min={1} value={formPosicao.loopIntervaloDias}
+                        onChange={e => setFormPosicao(p => ({ ...p, loopIntervaloDias: Number(e.target.value) }))} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Máx. repetições</Label>
+                      <Input type="number" min={0} value={formPosicao.loopMaxRepeticoes}
+                        onChange={e => setFormPosicao(p => ({ ...p, loopMaxRepeticoes: Number(e.target.value) }))} />
+                      <p className="text-xs text-muted-foreground mt-1">0 = ilimitado</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddPosicao(null)}>Cancelar</Button>
             <Button onClick={() => {
               if (!formPosicao.titulo.trim()) { toast.error("Informe o título"); return; }
-              createPosicao.mutate({ reguaId: showAddPosicao!, ...formPosicao, tipoAcao: formPosicao.tipoAcao as any, ativa: formPosicao.ativa ? 1 : 0 });
+              createPosicao.mutate({ reguaId: showAddPosicao!, ...formPosicao, tipoAcao: formPosicao.tipoAcao as any, ativa: formPosicao.ativa ? 1 : 0, loopAtivo: formPosicao.loopAtivo ? 1 : 0 });
             }} disabled={createPosicao.isPending}>
               {createPosicao.isPending ? "Adicionando..." : "Adicionar Etapa"}
             </Button>
@@ -846,6 +896,47 @@ export default function ReguaCobranca() {
                 <Switch checked={(showEditPosicao.ativa ?? 1) === 1} onCheckedChange={v => setShowEditPosicao(p => p ? { ...p, ativa: v ? 1 : 0 } : null)} />
                 <Label>Etapa ativa</Label>
               </div>
+
+              {/* Looping */}
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={(showEditPosicao.loopAtivo ?? 0) === 1}
+                    onCheckedChange={v => setShowEditPosicao(p => p ? { ...p, loopAtivo: v ? 1 : 0 } : null)}
+                  />
+                  <Label className="font-medium">Ativar looping nesta etapa</Label>
+                </div>
+                {(showEditPosicao.loopAtivo ?? 0) === 1 && (
+                  <div className="space-y-3 pl-2">
+                    <p className="text-xs text-muted-foreground">Após executar esta etapa, o sistema retornará a uma etapa anterior e repetirá o fluxo.</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-3">
+                        <Label className="text-xs">Retornar à etapa (ID da posição alvo)</Label>
+                        <Input type="number" placeholder="Deixe vazio para repetir esta mesma etapa"
+                          value={showEditPosicao.loopAlvoPosicaoId ?? ""}
+                          onChange={e => setShowEditPosicao(p => p ? { ...p, loopAlvoPosicaoId: e.target.value ? Number(e.target.value) : null } : null)}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Vazio = repete esta etapa. Informe o ID de outra etapa para voltar a ela.</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Intervalo (dias)</Label>
+                        <Input type="number" min={1}
+                          value={showEditPosicao.loopIntervaloDias ?? 7}
+                          onChange={e => setShowEditPosicao(p => p ? { ...p, loopIntervaloDias: Number(e.target.value) } : null)}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Máx. repetições</Label>
+                        <Input type="number" min={0}
+                          value={showEditPosicao.loopMaxRepeticoes ?? 3}
+                          onChange={e => setShowEditPosicao(p => p ? { ...p, loopMaxRepeticoes: Number(e.target.value) } : null)}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">0 = ilimitado</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter>
@@ -859,6 +950,10 @@ export default function ReguaCobranca() {
                 diasInadimplencia: showEditPosicao.diasInadimplencia,
                 template: showEditPosicao.template ?? "",
                 ativa: showEditPosicao.ativa ?? 1,
+                loopAtivo: showEditPosicao.loopAtivo ?? 0,
+                loopAlvoPosicaoId: showEditPosicao.loopAlvoPosicaoId ?? null,
+                loopIntervaloDias: showEditPosicao.loopIntervaloDias ?? 7,
+                loopMaxRepeticoes: showEditPosicao.loopMaxRepeticoes ?? 3,
               });
             }} disabled={updatePosicao.isPending}>
               {updatePosicao.isPending ? "Salvando..." : "Salvar"}

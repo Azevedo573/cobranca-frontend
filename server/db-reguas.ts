@@ -152,6 +152,10 @@ export async function createPosicao(data: {
   template?: string;
   ordem?: number;
   ativa?: number;
+  loopAtivo?: number;
+  loopAlvoPosicaoId?: number | null;
+  loopIntervaloDias?: number;
+  loopMaxRepeticoes?: number;
 }) {
   const db = await getDb();
   if (!db) return null as any;
@@ -163,6 +167,10 @@ export async function createPosicao(data: {
     template: data.template,
     ordem: data.ordem ?? 0,
     ativa: data.ativa ?? 1,
+    loopAtivo: data.loopAtivo ?? 0,
+    loopAlvoPosicaoId: data.loopAlvoPosicaoId ?? null,
+    loopIntervaloDias: data.loopIntervaloDias ?? 7,
+    loopMaxRepeticoes: data.loopMaxRepeticoes ?? 3,
   });
   return result.insertId;
 }
@@ -174,6 +182,10 @@ export async function updatePosicao(id: number, data: {
   template?: string;
   ordem?: number;
   ativa?: number;
+  loopAtivo?: number;
+  loopAlvoPosicaoId?: number | null;
+  loopIntervaloDias?: number;
+  loopMaxRepeticoes?: number;
 }) {
   const db = await getDb();
   if (!db) return null as any;

@@ -299,6 +299,11 @@ export const reguaPosicoes = mysqlTable("reguaPosicoes", {
   template: text("template"), // Texto da mensagem com variáveis: {{nome}}, {{valor}}, {{vencimento}}
   ordem: int("ordem").default(0).notNull(), // Ordem de exibição na linha do tempo
   ativa: int("ativa").default(1).notNull(),
+  // Looping: repetir a partir de uma etapa específica
+  loopAtivo: int("loopAtivo").default(0).notNull(), // 0=sem loop, 1=com loop
+  loopAlvoPosicaoId: int("loopAlvoPosicaoId"), // ID da posição alvo do loop (null = repetir esta mesma)
+  loopIntervaloDias: int("loopIntervaloDias").default(7), // Dias entre cada repetição do loop
+  loopMaxRepeticoes: int("loopMaxRepeticoes").default(3), // Máximo de repetições (0 = ilimitado)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

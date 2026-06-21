@@ -2587,6 +2587,10 @@ export const appRouter = router({
         template: z.string().optional(),
         ordem: z.number().optional(),
         ativa: z.number().optional(),
+        loopAtivo: z.number().optional(),
+        loopAlvoPosicaoId: z.number().nullable().optional(),
+        loopIntervaloDias: z.number().optional(),
+        loopMaxRepeticoes: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         const { createPosicao } = await import("./db-reguas");
@@ -2603,6 +2607,10 @@ export const appRouter = router({
         template: z.string().optional(),
         ordem: z.number().optional(),
         ativa: z.number().optional(),
+        loopAtivo: z.number().optional(),
+        loopAlvoPosicaoId: z.number().nullable().optional(),
+        loopIntervaloDias: z.number().optional(),
+        loopMaxRepeticoes: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         const { updatePosicao } = await import("./db-reguas");
