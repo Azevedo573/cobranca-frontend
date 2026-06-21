@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useAdminCondominio } from "@/hooks/useAdminCondominio";
-import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,11 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus, Trash2, Edit, Play, ChevronDown, ChevronUp,
-  MessageCircle, Mail, Phone, FileText, Bell, Zap,
-  Clock, AlertTriangle
+  MessageCircle, Mail, Phone, FileText, Bell,
+  Clock, AlertTriangle, Settings, Shield, History, Target, ListFilter
 } from "lucide-react";
+
+// ─── Constantes ────────────────────────────────────────────────────────────────
 
 const TIPO_ACAO_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   whatsapp: { label: "WhatsApp", icon: <MessageCircle className="w-4 h-4" />, color: "bg-green-100 text-green-700" },
@@ -28,15 +30,16 @@ const TIPO_ACAO_LABELS: Record<string, { label: string; icon: React.ReactNode; c
   notificacao_interna: { label: "Notificação Interna", icon: <Bell className="w-4 h-4" />, color: "bg-orange-100 text-orange-700" },
 };
 
-const TIPO_COBRANCA_LABELS: Record<string, string> = {
-  todos: "Todos os tipos",
-  condominio: "Cota Condominial",
-  salao_jogos: "Salão de Jogos",
-  churrasqueira: "Churrasqueira",
-  cota_extra: "Cota Extra",
-  multa: "Multa",
-  outros: "Outros",
-};
+const FINALIDADES = [
+  { value: "debitos_abertos", label: "Cobrança de unidade com débitos originais em aberto" },
+  { value: "acordo_ativo", label: "Cobrança de unidade com acordo ativo" },
+  { value: "boleto_acordo", label: "Envio de boleto de acordo" },
+  { value: "lembrete_vencimento_acordo", label: "Lembrete de vencimento de boleto de acordo" },
+  { value: "parcela_vencida", label: "Cobrança de parcela de acordo vencida" },
+  { value: "reenvio_boleto", label: "Reenvio de boleto atualizado" },
+  { value: "acordo_proximo_cancelamento", label: "Aviso de acordo próximo ao cancelamento" },
+  { value: "acordo_cancelado", label: "Comunicação de acordo cancelado" },
+];
 
 const TEMPLATES_PADRAO: Record<string, string> = {
   whatsapp: `Olá {{nome}}, tudo bem?\n\nInformamos que existe uma pendência financeira referente ao imóvel {{bloco}} Unidade {{unidade}} no valor de *{{valor}}* com vencimento em {{vencimento}}.\n\nJá se passaram *{{dias_atraso}} dias* do vencimento.\n\nPara regularizar sua situação, entre em contato conosco.\n\n_{{condominio}}_`,
@@ -46,6 +49,8 @@ const TEMPLATES_PADRAO: Record<string, string> = {
   ligacao: `Script: Boa tarde, posso falar com {{nome}}? Sou do escritório de cobrança do {{condominio}}. Estou ligando referente a uma pendência de {{valor}} com {{dias_atraso}} dias de atraso. Podemos regularizar?`,
   notificacao_interna: `Devedor {{nome}} ({{bloco}} Unidade {{unidade}}) com {{dias_atraso}} dias de atraso. Valor: {{valor}}.`,
 };
+
+// ─── Tipos ─────────────────────────────────────────────────────────────────────
 
 type Posicao = {
   id: number;
@@ -60,39 +65,145 @@ type Posicao = {
 
 type Regua = {
   id: number;
-  condominioId: number;
+  condominioId: number | null;
   nome: string;
   descricao: string | null;
   tipoCobranca: string | null;
   ativa: number | null;
   ultimaExecucao: Date | null;
   createdAt: Date | null;
+  abrangenciaCondominio: string | null;
+  condominiosSelecionados: string | null;
+  abrangenciaCategoria: string | null;
+  finalidades: string | null;
+  criterios: string | null;
+  regrasBloqueio: string | null;
+  prioridade: number | null;
+  intervaloMinimoContatos: number | null;
   posicoes: Posicao[];
 };
+
+type FormRegua = {
+  nome: string;
+  descricao: string;
+  tipoCobranca: string;
+  ativa: boolean;
+  abrangenciaCondominio: "todos" | "selecionados";
+  condominiosSelecionados: number[];
+  abrangenciaCategoria: "todos" | "padrao" | "ajuizada";
+  finalidades: string[];
+  criterios: {
+    diasAtrasoMin: number | null;
+    diasAtrasoMax: number | null;
+    exigeAcordoAtivo: boolean;
+    exigeDebitosAbertos: boolean;
+    exigeParcelaVencida: boolean;
+    exigeBoletoEmitido: boolean;
+    exigeProcessoJudicial: boolean;
+    exigeNegociacaoAndamento: boolean;
+  };
+  regrasBloqueio: {
+    naoDisparar_seContatoRecente: boolean;
+    diasIntervaloBloqueio: number;
+    interromper_aposPagemento: boolean;
+    interromper_aposAcordoCancelado: boolean;
+    naoIncluirParcelasFuturas: boolean;
+    priorizarAcordosComAtraso: boolean;
+  };
+  prioridade: number;
+  intervaloMinimoContatos: number;
+};
+
+const defaultFormRegua = (): FormRegua => ({
+  nome: "",
+  descricao: "",
+  tipoCobranca: "todos",
+  ativa: true,
+  abrangenciaCondominio: "todos",
+  condominiosSelecionados: [],
+  abrangenciaCategoria: "todos",
+  finalidades: [],
+  criterios: {
+    diasAtrasoMin: null,
+    diasAtrasoMax: null,
+    exigeAcordoAtivo: false,
+    exigeDebitosAbertos: false,
+    exigeParcelaVencida: false,
+    exigeBoletoEmitido: false,
+    exigeProcessoJudicial: false,
+    exigeNegociacaoAndamento: false,
+  },
+  regrasBloqueio: {
+    naoDisparar_seContatoRecente: false,
+    diasIntervaloBloqueio: 7,
+    interromper_aposPagemento: true,
+    interromper_aposAcordoCancelado: true,
+    naoIncluirParcelasFuturas: true,
+    priorizarAcordosComAtraso: false,
+  },
+  prioridade: 0,
+  intervaloMinimoContatos: 0,
+});
+
+function reguaToForm(r: Regua): FormRegua {
+  let criterios = defaultFormRegua().criterios;
+  let regrasBloqueio = defaultFormRegua().regrasBloqueio;
+  try { if (r.criterios) criterios = { ...criterios, ...JSON.parse(r.criterios) }; } catch {}
+  try { if (r.regrasBloqueio) regrasBloqueio = { ...regrasBloqueio, ...JSON.parse(r.regrasBloqueio) }; } catch {}
+  let condSel: number[] = [];
+  try { if (r.condominiosSelecionados) condSel = JSON.parse(r.condominiosSelecionados); } catch {}
+  let finalidades: string[] = [];
+  try { if (r.finalidades) finalidades = JSON.parse(r.finalidades); } catch {}
+  return {
+    nome: r.nome,
+    descricao: r.descricao ?? "",
+    tipoCobranca: r.tipoCobranca ?? "todos",
+    ativa: (r.ativa ?? 1) === 1,
+    abrangenciaCondominio: (r.abrangenciaCondominio as any) ?? "todos",
+    condominiosSelecionados: condSel,
+    abrangenciaCategoria: (r.abrangenciaCategoria as any) ?? "todos",
+    finalidades,
+    criterios,
+    regrasBloqueio,
+    prioridade: r.prioridade ?? 0,
+    intervaloMinimoContatos: r.intervaloMinimoContatos ?? 0,
+  };
+}
+
+function formToPayload(f: FormRegua) {
+  return {
+    nome: f.nome,
+    descricao: f.descricao,
+    tipoCobranca: f.tipoCobranca as any,
+    ativa: f.ativa ? 1 : 0,
+    abrangenciaCondominio: f.abrangenciaCondominio,
+    condominiosSelecionados: f.abrangenciaCondominio === "selecionados" ? JSON.stringify(f.condominiosSelecionados) : null,
+    abrangenciaCategoria: f.abrangenciaCategoria,
+    finalidades: f.finalidades.length > 0 ? JSON.stringify(f.finalidades) : null,
+    criterios: JSON.stringify(f.criterios),
+    regrasBloqueio: JSON.stringify(f.regrasBloqueio),
+    prioridade: f.prioridade,
+    intervaloMinimoContatos: f.intervaloMinimoContatos,
+  };
+}
+
+// ─── Componente principal ───────────────────────────────────────────────────────
 
 export default function ReguaCobranca() {
   const utils = trpc.useUtils();
 
-  const {
-    condominioId,
-    isAdmin,
-    condominios,
-    selectedCondominioId,
-    setSelectedCondominioId,
-  } = useAdminCondominio();
-
   const { data: reguas, isLoading } = trpc.regua.list.useQuery({});
+  const { data: condominios } = trpc.condominios.list.useQuery(undefined);
 
-  // Estados de modais
   const [showCreateRegua, setShowCreateRegua] = useState(false);
   const [showEditRegua, setShowEditRegua] = useState<Regua | null>(null);
   const [showAddPosicao, setShowAddPosicao] = useState<number | null>(null);
   const [showEditPosicao, setShowEditPosicao] = useState<Posicao | null>(null);
+  const [showHistorico, setShowHistorico] = useState<number | null>(null);
   const [expandedRegua, setExpandedRegua] = useState<number | null>(null);
   const [executandoRegua, setExecutandoRegua] = useState<number | null>(null);
 
-  // Form states
-  const [formRegua, setFormRegua] = useState({ nome: "", descricao: "", tipoCobranca: "todos", ativa: true });
+  const [formRegua, setFormRegua] = useState<FormRegua>(defaultFormRegua());
   const [formPosicao, setFormPosicao] = useState({
     diasInadimplencia: 0,
     tipoAcao: "whatsapp",
@@ -101,12 +212,11 @@ export default function ReguaCobranca() {
     ativa: true,
   });
 
-  // Mutations
   const createRegua = trpc.regua.create.useMutation({
     onSuccess: () => {
       utils.regua.list.invalidate();
       setShowCreateRegua(false);
-      setFormRegua({ nome: "", descricao: "", tipoCobranca: "todos", ativa: true });
+      setFormRegua(defaultFormRegua());
       toast.success("Régua criada com sucesso!");
     },
     onError: (e) => toast.error(`Erro ao criar régua: ${e.message}`),
@@ -122,10 +232,7 @@ export default function ReguaCobranca() {
   });
 
   const deleteRegua = trpc.regua.delete.useMutation({
-    onSuccess: () => {
-      utils.regua.list.invalidate();
-      toast.success("Régua excluída!");
-    },
+    onSuccess: () => { utils.regua.list.invalidate(); toast.success("Régua excluída!"); },
     onError: (e) => toast.error(`Erro ao excluir: ${e.message}`),
   });
 
@@ -134,575 +241,645 @@ export default function ReguaCobranca() {
       utils.regua.list.invalidate();
       setShowAddPosicao(null);
       setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: "", ativa: true });
-      toast.success("Posição adicionada!");
+      toast.success("Etapa adicionada!");
     },
-    onError: (e) => toast.error(`Erro ao adicionar posição: ${e.message}`),
+    onError: (e) => toast.error(`Erro ao adicionar etapa: ${e.message}`),
   });
 
   const updatePosicao = trpc.regua.updatePosicao.useMutation({
-    onSuccess: () => {
-      utils.regua.list.invalidate();
-      setShowEditPosicao(null);
-      toast.success("Posição atualizada!");
-    },
-    onError: (e) => toast.error(`Erro ao atualizar posição: ${e.message}`),
+    onSuccess: () => { utils.regua.list.invalidate(); setShowEditPosicao(null); toast.success("Etapa atualizada!"); },
+    onError: (e) => toast.error(`Erro ao atualizar etapa: ${e.message}`),
   });
 
   const deletePosicao = trpc.regua.deletePosicao.useMutation({
-    onSuccess: () => {
-      utils.regua.list.invalidate();
-      toast.success("Posição removida!");
-    },
-    onError: (e) => toast.error(`Erro ao remover posição: ${e.message}`),
+    onSuccess: () => { utils.regua.list.invalidate(); toast.success("Etapa removida!"); },
+    onError: (e) => toast.error(`Erro ao remover etapa: ${e.message}`),
   });
 
   const executarReguaMutation = trpc.regua.executar.useMutation({
     onSuccess: (data) => {
       setExecutandoRegua(null);
       utils.regua.list.invalidate();
-      toast.success(`Régua executada! ${data.disparosRealizados} disparo(s) realizado(s). ${data.disparosIgnorados} ignorado(s).`);
-      if (data.erros.length > 0) {
-        toast.error(`Atenção: erros na execução: ${data.erros.slice(0, 2).join("; ")}`);
-      }
+      toast.success(`Régua executada! ${data.disparosRealizados} disparo(s). ${data.disparosIgnorados} ignorado(s).`);
+      if (data.erros.length > 0) toast.error(`Atenção: ${data.erros.slice(0, 2).join("; ")}`);
     },
-    onError: (e) => {
-      setExecutandoRegua(null);
-      toast.error(`Erro ao executar régua: ${e.message}`);
-    },
+    onError: (e) => { setExecutandoRegua(null); toast.error(`Erro ao executar: ${e.message}`); },
   });
 
-  const handleOpenAddPosicao = (reguaId: number, tipoAcao = "whatsapp") => {
-    setFormPosicao({
-      diasInadimplencia: 0,
-      tipoAcao,
-      titulo: "",
-      template: TEMPLATES_PADRAO[tipoAcao] ?? "",
-      ativa: true,
-    });
-    setShowAddPosicao(reguaId);
+  const handleOpenEdit = (r: Regua) => {
+    setFormRegua(reguaToForm(r));
+    setShowEditRegua(r);
   };
 
-  const handleTipoAcaoChange = (tipo: string) => {
-    setFormPosicao(prev => ({
+  const handleSaveCreate = () => {
+    if (!formRegua.nome.trim()) { toast.error("Informe o nome da régua"); return; }
+    createRegua.mutate(formToPayload(formRegua));
+  };
+
+  const handleSaveEdit = () => {
+    if (!showEditRegua) return;
+    updateRegua.mutate({ id: showEditRegua.id, ...formToPayload(formRegua) });
+  };
+
+  const toggleFinalidade = (v: string) => {
+    setFormRegua(prev => ({
       ...prev,
-      tipoAcao: tipo,
-      template: prev.template || TEMPLATES_PADRAO[tipo] || "",
+      finalidades: prev.finalidades.includes(v)
+        ? prev.finalidades.filter(f => f !== v)
+        : [...prev.finalidades, v],
     }));
   };
 
+  const toggleCondominioSelecionado = (id: number) => {
+    setFormRegua(prev => ({
+      ...prev,
+      condominiosSelecionados: prev.condominiosSelecionados.includes(id)
+        ? prev.condominiosSelecionados.filter(c => c !== id)
+        : [...prev.condominiosSelecionados, id],
+    }));
+  };
 
+  const getFinalidadesLabel = (json: string | null) => {
+    if (!json) return "Todas";
+    try {
+      const arr: string[] = JSON.parse(json);
+      if (!arr.length) return "Todas";
+      return arr.map(v => FINALIDADES.find(f => f.value === v)?.label ?? v).join(", ");
+    } catch { return "—"; }
+  };
+
+  // ─── Formulário de régua (abas) ─────────────────────────────────────────────
+
+  const ReguaForm = () => (
+    <Tabs defaultValue="geral" className="w-full">
+      <TabsList className="grid w-full grid-cols-4 mb-4">
+        <TabsTrigger value="geral" className="flex items-center gap-1 text-xs"><Settings className="w-3 h-3" />Geral</TabsTrigger>
+        <TabsTrigger value="abrangencia" className="flex items-center gap-1 text-xs"><Target className="w-3 h-3" />Abrangência</TabsTrigger>
+        <TabsTrigger value="criterios" className="flex items-center gap-1 text-xs"><ListFilter className="w-3 h-3" />Critérios</TabsTrigger>
+        <TabsTrigger value="bloqueio" className="flex items-center gap-1 text-xs"><Shield className="w-3 h-3" />Bloqueios</TabsTrigger>
+      </TabsList>
+
+      {/* ABA GERAL */}
+      <TabsContent value="geral" className="space-y-4">
+        <div className="grid gap-4">
+          <div>
+            <Label>Nome da Régua *</Label>
+            <Input value={formRegua.nome} onChange={e => setFormRegua(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: Cobrança Padrão 30 dias" />
+          </div>
+          <div>
+            <Label>Descrição</Label>
+            <Textarea value={formRegua.descricao} onChange={e => setFormRegua(p => ({ ...p, descricao: e.target.value }))} placeholder="Descreva o objetivo desta régua..." rows={2} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Tipo de Cobrança</Label>
+              <Select value={formRegua.tipoCobranca} onValueChange={v => setFormRegua(p => ({ ...p, tipoCobranca: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os tipos</SelectItem>
+                  <SelectItem value="condominio">Cota Condominial</SelectItem>
+                  <SelectItem value="salao_jogos">Salão de Jogos</SelectItem>
+                  <SelectItem value="churrasqueira">Churrasqueira</SelectItem>
+                  <SelectItem value="cota_extra">Cota Extra</SelectItem>
+                  <SelectItem value="multa">Multa</SelectItem>
+                  <SelectItem value="outros">Outros</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Prioridade</Label>
+              <Input type="number" min={0} max={100} value={formRegua.prioridade} onChange={e => setFormRegua(p => ({ ...p, prioridade: Number(e.target.value) }))} />
+              <p className="text-xs text-muted-foreground mt-1">Maior valor = mais prioritária quando houver conflito</p>
+            </div>
+          </div>
+          <div>
+            <Label>Intervalo mínimo entre contatos (dias)</Label>
+            <Input type="number" min={0} value={formRegua.intervaloMinimoContatos} onChange={e => setFormRegua(p => ({ ...p, intervaloMinimoContatos: Number(e.target.value) }))} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={formRegua.ativa} onCheckedChange={v => setFormRegua(p => ({ ...p, ativa: v }))} />
+            <Label>Régua ativa</Label>
+          </div>
+        </div>
+      </TabsContent>
+
+      {/* ABA ABRANGÊNCIA */}
+      <TabsContent value="abrangencia" className="space-y-5">
+        <div>
+          <Label className="text-sm font-semibold">Condomínios</Label>
+          <div className="flex gap-3 mt-2">
+            {(["todos", "selecionados"] as const).map(v => (
+              <button key={v} type="button"
+                onClick={() => setFormRegua(p => ({ ...p, abrangenciaCondominio: v }))}
+                className={`px-3 py-1.5 rounded-md text-sm border transition-colors ${formRegua.abrangenciaCondominio === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>
+                {v === "todos" ? "Todos os condomínios" : "Condomínios específicos"}
+              </button>
+            ))}
+          </div>
+          {formRegua.abrangenciaCondominio === "selecionados" && (
+            <div className="mt-3 grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded-md p-3">
+              {condominios?.map(c => (
+                <label key={c.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Checkbox checked={formRegua.condominiosSelecionados.includes(c.id)} onCheckedChange={() => toggleCondominioSelecionado(c.id)} />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <Separator />
+
+        <div>
+          <Label className="text-sm font-semibold">Categoria da Unidade</Label>
+          <div className="flex gap-3 mt-2">
+            {([["todos", "Todas as categorias"], ["padrao", "Somente Padrão"], ["ajuizada", "Somente Ajuizada"]] as const).map(([v, label]) => (
+              <button key={v} type="button"
+                onClick={() => setFormRegua(p => ({ ...p, abrangenciaCategoria: v }))}
+                className={`px-3 py-1.5 rounded-md text-sm border transition-colors ${formRegua.abrangenciaCategoria === v ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Separator />
+
+        <div>
+          <Label className="text-sm font-semibold">Finalidades de Cobrança</Label>
+          <p className="text-xs text-muted-foreground mb-3">Selecione em quais situações esta régua deve ser aplicada. Se nenhuma for selecionada, aplica a todas.</p>
+          <div className="space-y-2">
+            {FINALIDADES.map(f => (
+              <label key={f.value} className="flex items-start gap-2 cursor-pointer text-sm">
+                <Checkbox
+                  checked={formRegua.finalidades.includes(f.value)}
+                  onCheckedChange={() => toggleFinalidade(f.value)}
+                  className="mt-0.5"
+                />
+                <span>{f.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </TabsContent>
+
+      {/* ABA CRITÉRIOS */}
+      <TabsContent value="criterios" className="space-y-4">
+        <p className="text-sm text-muted-foreground">Configure as condições que uma unidade deve atender para entrar nesta régua.</p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Dias de atraso mínimo</Label>
+            <Input type="number" min={0} placeholder="Sem mínimo"
+              value={formRegua.criterios.diasAtrasoMin ?? ""}
+              onChange={e => setFormRegua(p => ({ ...p, criterios: { ...p.criterios, diasAtrasoMin: e.target.value ? Number(e.target.value) : null } }))} />
+          </div>
+          <div>
+            <Label>Dias de atraso máximo</Label>
+            <Input type="number" min={0} placeholder="Sem máximo"
+              value={formRegua.criterios.diasAtrasoMax ?? ""}
+              onChange={e => setFormRegua(p => ({ ...p, criterios: { ...p.criterios, diasAtrasoMax: e.target.value ? Number(e.target.value) : null } }))} />
+          </div>
+        </div>
+
+        <Separator />
+        <Label className="text-sm font-semibold">Condições obrigatórias</Label>
+
+        {([
+          ["exigeDebitosAbertos", "Exige débitos originais em aberto"],
+          ["exigeAcordoAtivo", "Exige acordo ativo"],
+          ["exigeParcelaVencida", "Exige parcela de acordo vencida"],
+          ["exigeBoletoEmitido", "Exige boleto emitido"],
+          ["exigeProcessoJudicial", "Exige processo judicial / situação ajuizada"],
+          ["exigeNegociacaoAndamento", "Exige negociação em andamento"],
+        ] as [keyof typeof formRegua.criterios, string][]).map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
+            <Switch
+              checked={formRegua.criterios[key] as boolean}
+              onCheckedChange={v => setFormRegua(p => ({ ...p, criterios: { ...p.criterios, [key]: v } }))}
+            />
+            {label}
+          </label>
+        ))}
+      </TabsContent>
+
+      {/* ABA BLOQUEIOS */}
+      <TabsContent value="bloqueio" className="space-y-4">
+        <p className="text-sm text-muted-foreground">Defina regras para evitar cobranças duplicadas ou indevidas.</p>
+
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 border rounded-lg">
+            <Switch
+              checked={formRegua.regrasBloqueio.naoDisparar_seContatoRecente}
+              onCheckedChange={v => setFormRegua(p => ({ ...p, regrasBloqueio: { ...p.regrasBloqueio, naoDisparar_seContatoRecente: v } }))}
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Não disparar se houver contato recente</p>
+              {formRegua.regrasBloqueio.naoDisparar_seContatoRecente && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Label className="text-xs">Intervalo (dias):</Label>
+                  <Input type="number" min={1} className="w-24 h-7 text-sm"
+                    value={formRegua.regrasBloqueio.diasIntervaloBloqueio}
+                    onChange={e => setFormRegua(p => ({ ...p, regrasBloqueio: { ...p.regrasBloqueio, diasIntervaloBloqueio: Number(e.target.value) } }))} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {([
+            ["interromper_aposPagemento", "Interromper régua após pagamento ou baixa do boleto"],
+            ["interromper_aposAcordoCancelado", "Interromper régua quando acordo for cancelado ou quitado"],
+            ["naoIncluirParcelasFuturas", "Não incluir parcelas futuras aguardando liberação sequencial"],
+            ["priorizarAcordosComAtraso", "Priorizar unidades com acordos em atraso que bloqueiam próximas parcelas"],
+          ] as [keyof typeof formRegua.regrasBloqueio, string][]).map(([key, label]) => (
+            <label key={key} className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer text-sm">
+              <Switch
+                checked={formRegua.regrasBloqueio[key] as boolean}
+                onCheckedChange={v => setFormRegua(p => ({ ...p, regrasBloqueio: { ...p.regrasBloqueio, [key]: v } }))}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </TabsContent>
+    </Tabs>
+  );
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Zap className="w-6 h-6 text-yellow-500" />
+            <Clock className="w-6 h-6 text-primary" />
             Régua de Cobrança
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Configure fluxos automáticos de comunicação por dias de inadimplência
+            Configure réguas flexíveis com abrangência global ou segmentada por condomínio, categoria e finalidade.
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button onClick={() => setShowCreateRegua(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Régua
-          </Button>
-        </div>
+        <Button onClick={() => { setFormRegua(defaultFormRegua()); setShowCreateRegua(true); }}>
+          <Plus className="w-4 h-4 mr-2" /> Nova Régua
+        </Button>
       </div>
-
-      {/* Explicação */}
-      <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-800">
-        <CardContent className="pt-4 pb-3">
-          <div className="flex gap-3">
-            <Clock className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-yellow-800 dark:text-yellow-200">
-              <strong>Como funciona:</strong> Cada régua define uma linha do tempo de ações automáticas.
-              Por exemplo: enviar WhatsApp 3 dias antes do vencimento, e-mail no dia do vencimento, ligação após 5 dias de atraso.
-              Use <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">{"{{nome}}"}</code>,{" "}
-              <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">{"{{valor}}"}</code>,{" "}
-              <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">{"{{dias_atraso}}"}</code>,{" "}
-              <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">{"{{vencimento}}"}</code>,{" "}
-              <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">{"{{unidade}}"}</code>,{" "}
-              <code className="bg-yellow-100 dark:bg-yellow-900 px-1 rounded">{"{{bloco}}"}</code> nos templates.
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Lista de Réguas */}
       {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2].map(i => <div key={i} className="h-24 bg-muted animate-pulse rounded-lg" />)}
-        </div>
-      ) : !reguas?.length ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Zap className="w-10 h-10 mx-auto mb-3 text-muted-foreground opacity-40" />
-            <p className="text-muted-foreground">Nenhuma régua configurada ainda.</p>
-            <p className="text-sm text-muted-foreground mt-1">Crie sua primeira régua para automatizar as cobranças.</p>
-            <Button className="mt-4" onClick={() => setShowCreateRegua(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Criar Primeira Régua
-            </Button>
+        <div className="text-center py-12 text-muted-foreground">Carregando réguas...</div>
+      ) : !reguas || reguas.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12 text-muted-foreground">
+            <Clock className="w-12 h-12 mx-auto mb-4 opacity-30" />
+            <p>Nenhuma régua configurada.</p>
+            <p className="text-sm mt-1">Crie a primeira régua para automatizar as cobranças.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {(reguas as Regua[]).map((regua) => (
-            <Card key={regua.id} className={regua.ativa ? "" : "opacity-60"}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <CardTitle className="text-base">{regua.nome}</CardTitle>
-                      <Badge variant={regua.ativa ? "default" : "secondary"}>
-                        {regua.ativa ? "Ativa" : "Inativa"}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        {TIPO_COBRANCA_LABELS[regua.tipoCobranca ?? "todos"] ?? regua.tipoCobranca}
-                      </Badge>
+          {(reguas as Regua[]).map((regua) => {
+            const isExpanded = expandedRegua === regua.id;
+            let finalidadesArr: string[] = [];
+            try { if (regua.finalidades) finalidadesArr = JSON.parse(regua.finalidades); } catch {}
+
+            return (
+              <Card key={regua.id} className={`transition-all ${(regua.ativa ?? 1) === 0 ? "opacity-60" : ""}`}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <CardTitle className="text-base">{regua.nome}</CardTitle>
+                        <Badge variant={(regua.ativa ?? 1) === 1 ? "default" : "secondary"}>
+                          {(regua.ativa ?? 1) === 1 ? "Ativa" : "Inativa"}
+                        </Badge>
+                        {regua.prioridade ? (
+                          <Badge variant="outline" className="text-xs">Prioridade {regua.prioridade}</Badge>
+                        ) : null}
+                      </div>
+                      {regua.descricao && <CardDescription className="mt-1">{regua.descricao}</CardDescription>}
+
+                      {/* Badges de abrangência */}
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        <Badge variant="outline" className="text-xs">
+                          {regua.abrangenciaCondominio === "selecionados" ? "Condomínios específicos" : "Todos os condomínios"}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {regua.abrangenciaCategoria === "padrao" ? "Somente Padrão" : regua.abrangenciaCategoria === "ajuizada" ? "Somente Ajuizada" : "Todas as categorias"}
+                        </Badge>
+                        {finalidadesArr.length > 0 ? (
+                          <Badge variant="outline" className="text-xs text-blue-700 border-blue-300">
+                            {finalidadesArr.length} finalidade(s)
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-green-700 border-green-300">Todas as finalidades</Badge>
+                        )}
+                        <Badge variant="outline" className="text-xs">
+                          {regua.posicoes.length} etapa(s)
+                        </Badge>
+                      </div>
                     </div>
-                    {regua.descricao && (
-                      <CardDescription className="mt-1">{regua.descricao}</CardDescription>
-                    )}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                      <span>{regua.posicoes.length} posição(ões)</span>
-                      {regua.ultimaExecucao && (
-                        <span>Última execução: {new Date(regua.ultimaExecucao).toLocaleString("pt-BR")}</span>
-                      )}
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => setShowHistorico(regua.id)} title="Histórico">
+                        <History className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(regua)} title="Editar">
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm"
+                        onClick={() => { setExecutandoRegua(regua.id); executarReguaMutation.mutate({ reguaId: regua.id }); }}
+                        disabled={executandoRegua === regua.id}
+                        title="Executar agora">
+                        <Play className="w-4 h-4 text-green-600" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => { if (confirm("Excluir esta régua?")) deleteRegua.mutate({ id: regua.id }); }} title="Excluir">
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setExpandedRegua(isExpanded ? null : regua.id)}>
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setExpandedRegua(expandedRegua === regua.id ? null : regua.id)}
-                    >
-                      {expandedRegua === regua.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      {expandedRegua === regua.id ? "Recolher" : "Ver Posições"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      disabled={!regua.ativa || executandoRegua === regua.id}
-                      onClick={() => {
-                        setExecutandoRegua(regua.id);
-                        executarReguaMutation.mutate({ reguaId: regua.id });
-                      }}
-                    >
-                      <Play className="w-4 h-4 mr-1" />
-                      {executandoRegua === regua.id ? "Executando..." : "Executar"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setFormRegua({
-                          nome: regua.nome,
-                          descricao: regua.descricao ?? "",
-                          tipoCobranca: regua.tipoCobranca ?? "todos",
-                          ativa: !!regua.ativa,
-                        });
-                        setShowEditRegua(regua);
-                      }}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => {
-                        if (confirm(`Excluir a régua "${regua.nome}"? Todas as posições e histórico serão removidos.`)) {
-                          deleteRegua.mutate({ id: regua.id });
-                        }
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
+                </CardHeader>
 
-              {/* Posições expandidas */}
-              {expandedRegua === regua.id && (
-                <CardContent className="pt-0">
-                  <Separator className="mb-4" />
-                  <div className="space-y-3">
-                    {regua.posicoes.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        Nenhuma posição configurada. Adicione ações para esta régua.
-                      </p>
-                    ) : (
-                      <div className="relative">
-                        <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-border" />
-                        <div className="space-y-3">
-                          {[...regua.posicoes]
-                            .sort((a, b) => a.diasInadimplencia - b.diasInadimplencia)
-                            .map((posicao) => {
-                              const acao = TIPO_ACAO_LABELS[posicao.tipoAcao] ?? { label: posicao.tipoAcao, icon: <Bell className="w-4 h-4" />, color: "bg-gray-100 text-gray-700" };
-                              const diasLabel = posicao.diasInadimplencia < 0
-                                ? `${Math.abs(posicao.diasInadimplencia)} dias antes`
-                                : posicao.diasInadimplencia === 0
-                                ? "No vencimento"
-                                : `${posicao.diasInadimplencia} dias após`;
+                {isExpanded && (
+                  <CardContent className="pt-0">
+                    <Separator className="mb-4" />
 
-                              return (
-                                <div key={posicao.id} className="flex items-start gap-4 pl-2">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 z-10 ${posicao.ativa ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                                    {acao.icon}
-                                  </div>
-                                  <div className="flex-1 bg-muted/40 rounded-lg p-3">
-                                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-medium text-sm">{posicao.titulo}</span>
-                                        <Badge className={`text-xs ${acao.color}`} variant="outline">
-                                          {acao.label}
-                                        </Badge>
-                                        <Badge variant="outline" className="text-xs">
-                                          {diasLabel}
-                                        </Badge>
-                                        {!posicao.ativa && <Badge variant="secondary" className="text-xs">Inativa</Badge>}
-                                      </div>
-                                      <div className="flex gap-1">
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 w-7 p-0"
-                                          onClick={() => {
-                                            setFormPosicao({
-                                              diasInadimplencia: posicao.diasInadimplencia,
-                                              tipoAcao: posicao.tipoAcao,
-                                              titulo: posicao.titulo,
-                                              template: posicao.template ?? "",
-                                              ativa: !!posicao.ativa,
-                                            });
-                                            setShowEditPosicao(posicao);
-                                          }}
-                                        >
-                                          <Edit className="w-3 h-3" />
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                          onClick={() => {
-                                            if (confirm(`Remover a posição "${posicao.titulo}"?`)) {
-                                              deletePosicao.mutate({ id: posicao.id });
-                                            }
-                                          }}
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                    {posicao.template && (
-                                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2 whitespace-pre-wrap">
-                                        {posicao.template}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
+                    {/* Finalidades */}
+                    {finalidadesArr.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Finalidades</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {finalidadesArr.map(v => (
+                            <Badge key={v} variant="secondary" className="text-xs">
+                              {FINALIDADES.find(f => f.value === v)?.label ?? v}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     )}
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2"
-                      onClick={() => handleOpenAddPosicao(regua.id)}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Adicionar Posição
-                    </Button>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          ))}
+                    {/* Etapas */}
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Etapas de Comunicação</p>
+                      <Button variant="outline" size="sm" onClick={() => {
+                        setFormPosicao({ diasInadimplencia: 0, tipoAcao: "whatsapp", titulo: "", template: TEMPLATES_PADRAO.whatsapp, ativa: true });
+                        setShowAddPosicao(regua.id);
+                      }}>
+                        <Plus className="w-3 h-3 mr-1" /> Adicionar Etapa
+                      </Button>
+                    </div>
+
+                    {regua.posicoes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">Nenhuma etapa configurada.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {regua.posicoes.sort((a, b) => a.diasInadimplencia - b.diasInadimplencia).map((pos) => {
+                          const acao = TIPO_ACAO_LABELS[pos.tipoAcao];
+                          return (
+                            <div key={pos.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                              <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${acao?.color ?? "bg-gray-100 text-gray-700"}`}>
+                                {acao?.icon}
+                                {acao?.label ?? pos.tipoAcao}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{pos.titulo}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {pos.diasInadimplencia < 0
+                                    ? `${Math.abs(pos.diasInadimplencia)} dias antes do vencimento`
+                                    : pos.diasInadimplencia === 0
+                                    ? "No dia do vencimento"
+                                    : `${pos.diasInadimplencia} dias após o vencimento`}
+                                </p>
+                              </div>
+                              <Badge variant={(pos.ativa ?? 1) === 1 ? "default" : "secondary"} className="text-xs">
+                                {(pos.ativa ?? 1) === 1 ? "Ativa" : "Inativa"}
+                              </Badge>
+                              <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => setShowEditPosicao(pos)}>
+                                  <Edit className="w-3 h-3" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => { if (confirm("Remover esta etapa?")) deletePosicao.mutate({ id: pos.id }); }}>
+                                  <Trash2 className="w-3 h-3 text-red-500" />
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {regua.ultimaExecucao && (
+                      <p className="text-xs text-muted-foreground mt-3">
+                        Última execução: {new Date(regua.ultimaExecucao).toLocaleString("pt-BR")}
+                      </p>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Modal: Criar Régua */}
+      {/* ─── Modal Criar Régua ─── */}
       <Dialog open={showCreateRegua} onOpenChange={setShowCreateRegua}>
-        <DialogContent>
+        <DialogContent className="!max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nova Régua de Cobrança</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Nome da Régua *</Label>
-              <Input
-                placeholder="Ex: Régua Padrão Condominial"
-                value={formRegua.nome}
-                onChange={e => setFormRegua(prev => ({ ...prev, nome: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Descrição</Label>
-              <Textarea
-                placeholder="Descreva o objetivo desta régua..."
-                value={formRegua.descricao}
-                onChange={e => setFormRegua(prev => ({ ...prev, descricao: e.target.value }))}
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label>Tipo de Cobrança</Label>
-              <Select value={formRegua.tipoCobranca} onValueChange={v => setFormRegua(prev => ({ ...prev, tipoCobranca: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TIPO_COBRANCA_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={formRegua.ativa}
-                onCheckedChange={v => setFormRegua(prev => ({ ...prev, ativa: v }))}
-              />
-              <Label>Régua ativa</Label>
-            </div>
-          </div>
+          <ReguaForm />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateRegua(false)}>Cancelar</Button>
-            <Button
-              disabled={!formRegua.nome || createRegua.isPending}
-              onClick={() => createRegua.mutate({
-                nome: formRegua.nome,
-                descricao: formRegua.descricao || undefined,
-                tipoCobranca: formRegua.tipoCobranca as any,
-                ativa: formRegua.ativa ? 1 : 0,
-              })}
-            >
+            <Button onClick={handleSaveCreate} disabled={createRegua.isPending}>
               {createRegua.isPending ? "Criando..." : "Criar Régua"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Editar Régua */}
+      {/* ─── Modal Editar Régua ─── */}
       <Dialog open={!!showEditRegua} onOpenChange={() => setShowEditRegua(null)}>
-        <DialogContent>
+        <DialogContent className="!max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Régua</DialogTitle>
+            <DialogTitle>Editar Régua: {showEditRegua?.nome}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Nome da Régua *</Label>
-              <Input
-                value={formRegua.nome}
-                onChange={e => setFormRegua(prev => ({ ...prev, nome: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Descrição</Label>
-              <Textarea
-                value={formRegua.descricao}
-                onChange={e => setFormRegua(prev => ({ ...prev, descricao: e.target.value }))}
-                rows={2}
-              />
-            </div>
-            <div>
-              <Label>Tipo de Cobrança</Label>
-              <Select value={formRegua.tipoCobranca} onValueChange={v => setFormRegua(prev => ({ ...prev, tipoCobranca: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TIPO_COBRANCA_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={formRegua.ativa}
-                onCheckedChange={v => setFormRegua(prev => ({ ...prev, ativa: v }))}
-              />
-              <Label>Régua ativa</Label>
-            </div>
-          </div>
+          <ReguaForm />
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditRegua(null)}>Cancelar</Button>
-            <Button
-              disabled={!formRegua.nome || updateRegua.isPending}
-              onClick={() => showEditRegua && updateRegua.mutate({
-                id: showEditRegua.id,
-                nome: formRegua.nome,
-                descricao: formRegua.descricao || undefined,
-                tipoCobranca: formRegua.tipoCobranca as any,
-                ativa: formRegua.ativa ? 1 : 0,
-              })}
-            >
-              {updateRegua.isPending ? "Salvando..." : "Salvar"}
+            <Button onClick={handleSaveEdit} disabled={updateRegua.isPending}>
+              {updateRegua.isPending ? "Salvando..." : "Salvar Alterações"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Adicionar Posição */}
-      <Dialog open={showAddPosicao !== null} onOpenChange={() => setShowAddPosicao(null)}>
-        <DialogContent className="max-w-2xl">
+      {/* ─── Modal Adicionar Etapa ─── */}
+      <Dialog open={!!showAddPosicao} onOpenChange={() => setShowAddPosicao(null)}>
+        <DialogContent className="!max-w-xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Adicionar Posição na Régua</DialogTitle>
+            <DialogTitle>Adicionar Etapa de Comunicação</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <Label>Título da Etapa *</Label>
+              <Input value={formPosicao.titulo} onChange={e => setFormPosicao(p => ({ ...p, titulo: e.target.value }))} placeholder="Ex: Aviso de Vencimento" />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Dias de Inadimplência *</Label>
-                <Input
-                  type="number"
-                  placeholder="Ex: 5 (após) ou -3 (antes)"
-                  value={formPosicao.diasInadimplencia}
-                  onChange={e => setFormPosicao(prev => ({ ...prev, diasInadimplencia: parseInt(e.target.value) || 0 }))}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Negativo = antes do vencimento. Zero = no dia. Positivo = após vencimento.
-                </p>
-              </div>
-              <div>
-                <Label>Tipo de Ação *</Label>
-                <Select value={formPosicao.tipoAcao} onValueChange={handleTipoAcaoChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Label>Canal de Comunicação</Label>
+                <Select value={formPosicao.tipoAcao} onValueChange={v => setFormPosicao(p => ({ ...p, tipoAcao: v, template: p.template || TEMPLATES_PADRAO[v] || "" }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(TIPO_ACAO_LABELS).map(([value, { label }]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    {Object.entries(TIPO_ACAO_LABELS).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Dias (negativo = antes, 0 = no dia, positivo = após vencimento)</Label>
+                <Input type="number" value={formPosicao.diasInadimplencia} onChange={e => setFormPosicao(p => ({ ...p, diasInadimplencia: Number(e.target.value) }))} />
+              </div>
             </div>
             <div>
-              <Label>Título da Ação *</Label>
-              <Input
-                placeholder="Ex: Lembrete de vencimento via WhatsApp"
-                value={formPosicao.titulo}
-                onChange={e => setFormPosicao(prev => ({ ...prev, titulo: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Template da Mensagem</Label>
-              <Textarea
-                placeholder="Use {{nome}}, {{valor}}, {{vencimento}}, {{dias_atraso}}, {{unidade}}, {{bloco}}, {{condominio}}"
-                value={formPosicao.template}
-                onChange={e => setFormPosicao(prev => ({ ...prev, template: e.target.value }))}
-                rows={6}
-                className="font-mono text-sm"
-              />
+              <Label>Modelo de Mensagem</Label>
+              <Textarea value={formPosicao.template} onChange={e => setFormPosicao(p => ({ ...p, template: e.target.value }))} rows={6} placeholder="Use {{nome}}, {{valor}}, {{vencimento}}, {{dias_atraso}}, {{unidade}}, {{bloco}}, {{condominio}}" />
+              <p className="text-xs text-muted-foreground mt-1">Variáveis: {"{{nome}}"}, {"{{valor}}"}, {"{{vencimento}}"}, {"{{dias_atraso}}"}, {"{{unidade}}"}, {"{{bloco}}"}, {"{{condominio}}"}</p>
             </div>
             <div className="flex items-center gap-2">
-              <Switch
-                checked={formPosicao.ativa}
-                onCheckedChange={v => setFormPosicao(prev => ({ ...prev, ativa: v }))}
-              />
-              <Label>Posição ativa</Label>
+              <Switch checked={formPosicao.ativa} onCheckedChange={v => setFormPosicao(p => ({ ...p, ativa: v }))} />
+              <Label>Etapa ativa</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddPosicao(null)}>Cancelar</Button>
-            <Button
-              disabled={!formPosicao.titulo || createPosicao.isPending}
-              onClick={() => showAddPosicao !== null && createPosicao.mutate({
-                reguaId: showAddPosicao,
-                diasInadimplencia: formPosicao.diasInadimplencia,
-                tipoAcao: formPosicao.tipoAcao as any,
-                titulo: formPosicao.titulo,
-                template: formPosicao.template || undefined,
-                ativa: formPosicao.ativa ? 1 : 0,
-              })}
-            >
-              {createPosicao.isPending ? "Adicionando..." : "Adicionar Posição"}
+            <Button onClick={() => {
+              if (!formPosicao.titulo.trim()) { toast.error("Informe o título"); return; }
+              createPosicao.mutate({ reguaId: showAddPosicao!, ...formPosicao, tipoAcao: formPosicao.tipoAcao as any, ativa: formPosicao.ativa ? 1 : 0 });
+            }} disabled={createPosicao.isPending}>
+              {createPosicao.isPending ? "Adicionando..." : "Adicionar Etapa"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Editar Posição */}
+      {/* ─── Modal Editar Etapa ─── */}
       <Dialog open={!!showEditPosicao} onOpenChange={() => setShowEditPosicao(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="!max-w-xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Posição</DialogTitle>
+            <DialogTitle>Editar Etapa</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          {showEditPosicao && (
+            <div className="space-y-4">
               <div>
-                <Label>Dias de Inadimplência *</Label>
-                <Input
-                  type="number"
-                  value={formPosicao.diasInadimplencia}
-                  onChange={e => setFormPosicao(prev => ({ ...prev, diasInadimplencia: parseInt(e.target.value) || 0 }))}
-                />
+                <Label>Título *</Label>
+                <Input value={showEditPosicao.titulo} onChange={e => setShowEditPosicao(p => p ? { ...p, titulo: e.target.value } : null)} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Canal</Label>
+                  <Select value={showEditPosicao.tipoAcao} onValueChange={v => setShowEditPosicao(p => p ? { ...p, tipoAcao: v } : null)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TIPO_ACAO_LABELS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Dias</Label>
+                  <Input type="number" value={showEditPosicao.diasInadimplencia} onChange={e => setShowEditPosicao(p => p ? { ...p, diasInadimplencia: Number(e.target.value) } : null)} />
+                </div>
               </div>
               <div>
-                <Label>Tipo de Ação *</Label>
-                <Select value={formPosicao.tipoAcao} onValueChange={handleTipoAcaoChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(TIPO_ACAO_LABELS).map(([value, { label }]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Modelo de Mensagem</Label>
+                <Textarea value={showEditPosicao.template ?? ""} onChange={e => setShowEditPosicao(p => p ? { ...p, template: e.target.value } : null)} rows={6} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={(showEditPosicao.ativa ?? 1) === 1} onCheckedChange={v => setShowEditPosicao(p => p ? { ...p, ativa: v ? 1 : 0 } : null)} />
+                <Label>Etapa ativa</Label>
               </div>
             </div>
-            <div>
-              <Label>Título da Ação *</Label>
-              <Input
-                value={formPosicao.titulo}
-                onChange={e => setFormPosicao(prev => ({ ...prev, titulo: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Template da Mensagem</Label>
-              <Textarea
-                value={formPosicao.template}
-                onChange={e => setFormPosicao(prev => ({ ...prev, template: e.target.value }))}
-                rows={6}
-                className="font-mono text-sm"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={formPosicao.ativa}
-                onCheckedChange={v => setFormPosicao(prev => ({ ...prev, ativa: v }))}
-              />
-              <Label>Posição ativa</Label>
-            </div>
-          </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditPosicao(null)}>Cancelar</Button>
-            <Button
-              disabled={!formPosicao.titulo || updatePosicao.isPending}
-              onClick={() => showEditPosicao && updatePosicao.mutate({
+            <Button onClick={() => {
+              if (!showEditPosicao) return;
+              updatePosicao.mutate({
                 id: showEditPosicao.id,
-                diasInadimplencia: formPosicao.diasInadimplencia,
-                tipoAcao: formPosicao.tipoAcao as any,
-                titulo: formPosicao.titulo,
-                template: formPosicao.template || undefined,
-                ativa: formPosicao.ativa ? 1 : 0,
-              })}
-            >
+                titulo: showEditPosicao.titulo,
+                tipoAcao: showEditPosicao.tipoAcao as any,
+                diasInadimplencia: showEditPosicao.diasInadimplencia,
+                template: showEditPosicao.template ?? "",
+                ativa: showEditPosicao.ativa ?? 1,
+              });
+            }} disabled={updatePosicao.isPending}>
               {updatePosicao.isPending ? "Salvando..." : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ─── Modal Histórico ─── */}
+      <Dialog open={!!showHistorico} onOpenChange={() => setShowHistorico(null)}>
+        <DialogContent className="!max-w-4xl w-[95vw] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" /> Histórico de Execuções
+            </DialogTitle>
+          </DialogHeader>
+          {showHistorico && <HistoricoRegua reguaId={showHistorico} />}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Componente de Histórico ────────────────────────────────────────────────────
+
+function HistoricoRegua({ reguaId }: { reguaId: number }) {
+  const { data: disparos, isLoading } = trpc.regua.getDisparos.useQuery({ reguaId });
+
+  if (isLoading) return <div className="text-center py-8 text-muted-foreground">Carregando histórico...</div>;
+  if (!disparos || disparos.length === 0) return (
+    <div className="text-center py-8 text-muted-foreground">
+      <History className="w-10 h-10 mx-auto mb-3 opacity-30" />
+      <p>Nenhum disparo registrado ainda.</p>
+    </div>
+  );
+
+  const STATUS_COLORS: Record<string, string> = {
+    enviado: "bg-green-100 text-green-800",
+    pendente: "bg-yellow-100 text-yellow-800",
+    erro: "bg-red-100 text-red-800",
+    ignorado: "bg-gray-100 text-gray-700",
+  };
+
+  return (
+    <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+      <p className="text-sm text-muted-foreground mb-3">{disparos.length} registro(s) encontrado(s)</p>
+      {disparos.map((d: any) => (
+        <div key={d.id} className="flex items-start gap-3 p-3 border rounded-lg text-sm">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium">Devedor #{d.devedorId}</span>
+              <Badge className={`text-xs ${STATUS_COLORS[d.status] ?? "bg-gray-100 text-gray-700"}`}>{d.status}</Badge>
+              <Badge variant="outline" className="text-xs">{d.tipoAcao}</Badge>
+            </div>
+            {d.mensagemGerada && (
+              <p className="text-xs text-muted-foreground mt-1 truncate">{d.mensagemGerada.slice(0, 120)}...</p>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground shrink-0 text-right">
+            <p>{d.diasInadimplencia} dias atraso</p>
+            <p>{new Date(d.dataDisparo).toLocaleString("pt-BR")}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

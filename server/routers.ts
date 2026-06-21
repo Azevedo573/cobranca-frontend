@@ -2528,6 +2528,16 @@ export const appRouter = router({
         descricao: z.string().optional(),
         tipoCobranca: z.enum(["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
         ativa: z.number().optional(),
+        // Abrangência
+        abrangenciaCondominio: z.enum(["todos", "selecionados"]).optional(),
+        condominiosSelecionados: z.string().optional().nullable(), // JSON
+        abrangenciaCategoria: z.enum(["todos", "padrao", "ajuizada"]).optional(),
+        // Finalidades, critérios e regras (JSON strings)
+        finalidades: z.string().optional().nullable(),
+        criterios: z.string().optional().nullable(),
+        regrasBloqueio: z.string().optional().nullable(),
+        prioridade: z.number().optional(),
+        intervaloMinimoContatos: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         const { createRegua } = await import("./db-reguas");
@@ -2542,6 +2552,16 @@ export const appRouter = router({
         descricao: z.string().optional(),
         tipoCobranca: z.enum(["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).optional(),
         ativa: z.number().optional(),
+        // Abrangência
+        abrangenciaCondominio: z.enum(["todos", "selecionados"]).optional(),
+        condominiosSelecionados: z.string().optional().nullable(),
+        abrangenciaCategoria: z.enum(["todos", "padrao", "ajuizada"]).optional(),
+        // Finalidades, critérios e regras (JSON strings)
+        finalidades: z.string().optional().nullable(),
+        criterios: z.string().optional().nullable(),
+        regrasBloqueio: z.string().optional().nullable(),
+        prioridade: z.number().optional(),
+        intervaloMinimoContatos: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
         const { updateRegua } = await import("./db-reguas");

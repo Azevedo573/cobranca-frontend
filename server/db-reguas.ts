@@ -78,6 +78,14 @@ export async function createRegua(data: {
   descricao?: string;
   tipoCobranca?: TipoCobrancaRegua;
   ativa?: number;
+  abrangenciaCondominio?: "todos" | "selecionados";
+  condominiosSelecionados?: string | null;
+  abrangenciaCategoria?: "todos" | "padrao" | "ajuizada";
+  finalidades?: string | null;
+  criterios?: string | null;
+  regrasBloqueio?: string | null;
+  prioridade?: number;
+  intervaloMinimoContatos?: number;
 }) {
   const db = await getDb();
   if (!db) return null as any;
@@ -87,6 +95,14 @@ export async function createRegua(data: {
     descricao: data.descricao,
     tipoCobranca: data.tipoCobranca ?? "todos",
     ativa: data.ativa ?? 1,
+    abrangenciaCondominio: data.abrangenciaCondominio ?? "todos",
+    condominiosSelecionados: data.condominiosSelecionados ?? null,
+    abrangenciaCategoria: data.abrangenciaCategoria ?? "todos",
+    finalidades: data.finalidades ?? null,
+    criterios: data.criterios ?? null,
+    regrasBloqueio: data.regrasBloqueio ?? null,
+    prioridade: data.prioridade ?? 0,
+    intervaloMinimoContatos: data.intervaloMinimoContatos ?? 0,
   });
   return result.insertId;
 }
@@ -96,6 +112,14 @@ export async function updateRegua(id: number, data: {
   descricao?: string;
   tipoCobranca?: TipoCobrancaRegua;
   ativa?: number;
+  abrangenciaCondominio?: "todos" | "selecionados";
+  condominiosSelecionados?: string | null;
+  abrangenciaCategoria?: "todos" | "padrao" | "ajuizada";
+  finalidades?: string | null;
+  criterios?: string | null;
+  regrasBloqueio?: string | null;
+  prioridade?: number;
+  intervaloMinimoContatos?: number;
 }) {
   const db = await getDb();
   if (!db) return null as any;

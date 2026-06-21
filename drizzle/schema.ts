@@ -271,6 +271,20 @@ export const reguasCobranca = mysqlTable("reguasCobranca", {
   tipoCobranca: mysqlEnum("tipoCobranca", ["todos", "condominio", "salao_jogos", "churrasqueira", "cota_extra", "multa", "outros"]).default("todos").notNull(),
   ativa: int("ativa").default(1).notNull(), // 1 = ativa, 0 = inativa
   ultimaExecucao: timestamp("ultimaExecucao"),
+  // Abrangência
+  abrangenciaCondominio: mysqlEnum("abrangenciaCondominio", ["todos", "selecionados"]).default("todos").notNull(),
+  condominiosSelecionados: text("condominiosSelecionados"), // JSON: [1,2,3]
+  abrangenciaCategoria: mysqlEnum("abrangenciaCategoria", ["todos", "padrao", "ajuizada"]).default("todos").notNull(),
+  // Finalidades (JSON array de strings)
+  finalidades: text("finalidades"), // JSON: ["debitos_abertos","acordo_ativo",...]
+  // Critérios de elegibilidade (JSON)
+  criterios: text("criterios"), // JSON com os filtros avançados
+  // Regras de bloqueio (JSON)
+  regrasBloqueio: text("regrasBloqueio"), // JSON com as regras de bloqueio
+  // Prioridade entre réguas
+  prioridade: int("prioridade").default(0).notNull(), // maior = mais prioritário
+  // Intervalo mínimo entre contatos (dias)
+  intervaloMinimoContatos: int("intervaloMinimoContatos").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
