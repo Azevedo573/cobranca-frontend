@@ -852,7 +852,7 @@ export default function CondominioForm() {
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              Se a 1ª parcela não for paga em até {formData.cancelamentoPrazoDias} dias após a criação do acordo, ele será cancelado automaticamente
+                              Se a 1ª parcela não for paga em até {formData.cancelamentoPrazoDias} dias após o <strong>vencimento do boleto</strong>, o sistema gerará um alerta para a equipe avaliar o cancelamento do acordo
                             </p>
                           </div>
                         </div>
