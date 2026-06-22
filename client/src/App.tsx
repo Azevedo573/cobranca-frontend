@@ -355,13 +355,13 @@ function Router() {
         {() => <ProtectedRoute component={DashboardJuridico} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/admin/juridico/processos">
-        {() => <ProtectedRoute component={ProcessosJudiciais} allowedRoles={["admin"]} />}
+        {() => <ProtectedRoute component={ProcessosJudiciais} allowedRoles={["admin", "advogado"]} />}
       </Route>
       <Route path="/admin/juridico/processos/:id">
-        {() => <ProtectedRoute component={ProcessoDetalhes} allowedRoles={["admin"]} />}
+        {() => <ProtectedRoute component={ProcessoDetalhes} allowedRoles={["admin", "advogado"]} />}
       </Route>
       <Route path="/admin/juridico/prazos">
-        {() => <ProtectedRoute component={PrazosJuridicos} allowedRoles={["admin"]} />}
+        {() => <ProtectedRoute component={PrazosJuridicos} allowedRoles={["admin", "advogado"]} />}
       </Route>
       <Route path="/admin/juridico/intimacoes">
         {() => <ProtectedRoute component={CentralIntimacoes} allowedRoles={["admin"]} />}
