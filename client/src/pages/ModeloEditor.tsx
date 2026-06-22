@@ -36,6 +36,11 @@ const TIPOS_DOCUMENTO = [
   { value: "carta_cobranca", label: "Carta de Cobrança" },
   { value: "recibo_pagamento", label: "Recibo de Pagamento" },
   { value: "contrato_parcelamento", label: "Contrato de Parcelamento" },
+  // Tipos jurídicos
+  { value: "procuracao", label: "Procuração" },
+  { value: "carta_preposto", label: "Carta de Preposto" },
+  { value: "ata_audiencia", label: "Ata de Audiência" },
+  { value: "notificacao_juridica", label: "Notificação Jurídica" },
   { value: "outro", label: "Outro" },
 ] as const;
 
@@ -87,6 +92,20 @@ const CATEGORIAS_VARIAVEIS: Record<string, { chave: string; descricao: string }[
   ],
   Responsável: [
     { chave: "nomeResponsavel", descricao: "Nome do responsável" },
+  ],
+  Jurídico: [
+    { chave: "condominio", descricao: "Nome do condomínio" },
+    { chave: "representanteLegal", descricao: "Representante legal do condomínio" },
+    { chave: "tipoAcao", descricao: "Tipo de ação judicial" },
+    { chave: "numeroProcesso", descricao: "Número do processo judicial" },
+    { chave: "dataDocumento", descricao: "Data do documento" },
+    { chave: "assinatura", descricao: "Campo de assinatura" },
+    { chave: "nomePreposto", descricao: "Nome do preposto" },
+    { chave: "dataHoraAudiencia", descricao: "Data e hora da audiência" },
+    { chave: "advogadoResponsavel", descricao: "Advogado responsável" },
+    { chave: "oabAdvogado", descricao: "OAB do advogado" },
+    { chave: "varaCompetente", descricao: "Vara competente" },
+    { chave: "foroComarca", descricao: "Foro / Comarca" },
   ],
 };
 

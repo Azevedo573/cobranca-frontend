@@ -54,6 +54,7 @@ import ExecutivoDashboard from "./pages/admin/ExecutivoDashboard";
 import Auditoria from "./pages/admin/Auditoria";
 import ModelosDocumento from "./pages/ModelosDocumento";
 import ModeloEditor from "./pages/ModeloEditor";
+import PreencherModeloJuridico from "./pages/PreencherModeloJuridico";
 import Solicitacoes from "./pages/juridico/Solicitacoes";
 import TicketDetalhes from "./pages/juridico/TicketDetalhes";
 import TicketForm from "./pages/admin/TicketForm";
@@ -330,13 +331,16 @@ function Router() {
 
       {/* Rotas de Modelos de Documentos */}
       <Route path="/modelos-documento">
-        {() => <PermissionRoute component={ModelosDocumento} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="modelos_documento" />}
+        {() => <PermissionRoute component={ModelosDocumento} allowedRoles={["admin", "cobrador", "colaborador", "advogado"]} requiredModulo="modelos_documento" />}
       </Route>
       <Route path="/modelos-documento/novo">
         {() => <PermissionRoute component={ModeloEditor} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="modelos_documento" />}
       </Route>
       <Route path="/modelos-documento/:id/editar">
         {() => <PermissionRoute component={ModeloEditor} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="modelos_documento" />}
+      </Route>
+      <Route path="/modelos-documento/:id/preencher">
+        {() => <PermissionRoute component={PreencherModeloJuridico} allowedRoles={["admin", "cobrador", "colaborador", "advogado"]} requiredModulo="modelos_documento" />}
       </Route>
 
       {/* Módulo Jurídico — Central de Demandas */}

@@ -88,7 +88,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Condomínios", href: "/admin/condominios", icon: Building2, roles: ["admin"] },
       { label: "Usuários", href: "/admin/usuarios", icon: Users, roles: ["admin"] },
-      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "modelos_documento" },
+      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador", "advogado"], rbacModulo: "modelos_documento" },
       { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
     ],
   },

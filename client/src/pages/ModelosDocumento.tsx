@@ -27,6 +27,11 @@ import {
   Handshake,
   Receipt,
   ScrollText,
+  Scale,
+  ClipboardPen,
+  Gavel,
+  Bell,
+  ClipboardList,
 } from "lucide-react";
 
 const TIPO_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
@@ -36,8 +41,16 @@ const TIPO_LABELS: Record<string, { label: string; icon: React.ReactNode; color:
   carta_cobranca: { label: "Carta de Cobrança", icon: <Mail className="h-3.5 w-3.5" />, color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300" },
   recibo_pagamento: { label: "Recibo de Pagamento", icon: <Receipt className="h-3.5 w-3.5" />, color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300" },
   contrato_parcelamento: { label: "Contrato de Parcelamento", icon: <ScrollText className="h-3.5 w-3.5" />, color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300" },
+  // Tipos jurídicos
+  procuracao: { label: "Procuração", icon: <Scale className="h-3.5 w-3.5" />, color: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300" },
+  carta_preposto: { label: "Carta de Preposto", icon: <ClipboardPen className="h-3.5 w-3.5" />, color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300" },
+  ata_audiencia: { label: "Ata de Audiência", icon: <Gavel className="h-3.5 w-3.5" />, color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" },
+  notificacao_juridica: { label: "Notificação Jurídica", icon: <Bell className="h-3.5 w-3.5" />, color: "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300" },
   outro: { label: "Outro", icon: <FileText className="h-3.5 w-3.5" />, color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300" },
 };
+
+// Tipos que são jurídicos (exibem botão Preencher)
+const TIPOS_JURIDICOS = new Set(["procuracao", "carta_preposto", "ata_audiencia", "notificacao_juridica"]);
 
 export default function ModelosDocumento() {
   const { user } = useAuth();
@@ -168,12 +181,22 @@ export default function ModelosDocumento() {
                       <p className="text-xs text-muted-foreground">
                         Atualizado em {new Date(modelo.updatedAt).toLocaleDateString("pt-BR")}
                       </p>
-                      <Link href={`/modelos-documento/${modelo.id}/editar`}>
-                        <Button variant="outline" size="sm" className="w-full gap-2">
-                          <Pencil className="h-3.5 w-3.5" />
-                          Editar Modelo
-                        </Button>
-                      </Link>
+                      {TIPOS_JURIDICOS.has(modelo.tipo) && (
+                        <Link href={`/modelos-documento/${modelo.id}/preencher`}>
+                          <Button variant="default" size="sm" className="w-full gap-2 mb-1">
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            Preencher Documento
+                          </Button>
+                        </Link>
+                      )}
+                      {podeEditar && (
+                        <Link href={`/modelos-documento/${modelo.id}/editar`}>
+                          <Button variant="outline" size="sm" className="w-full gap-2">
+                            <Pencil className="h-3.5 w-3.5" />
+                            Editar Modelo
+                          </Button>
+                        </Link>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

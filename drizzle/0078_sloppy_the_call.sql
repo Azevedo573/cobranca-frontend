@@ -1,0 +1,1 @@
+ALTER TABLE `modelosDocumento` MODIFY COLUMN `tipo` enum('proposta_acordo','termo_acordo','notificacao_debito','carta_cobranca','recibo_pagamento','contrato_parcelamento','procuracao','carta_preposto','ata_audiencia','notificacao_juridica','outro') NOT NULL DEFAULT 'outro';

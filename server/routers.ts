@@ -4957,7 +4957,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         nome: z.string().min(1),
-        tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","outro"]),
+        tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","procuracao","carta_preposto","ata_audiencia","notificacao_juridica","outro"]),
         conteudoHtml: z.string(),
         condominioId: z.number().nullable().optional(),
         logoUrl: z.string().nullable().optional(),
@@ -4989,7 +4989,7 @@ export const appRouter = router({
       .input(z.object({
         id: z.number().int().positive(),
         nome: z.string().min(1).optional(),
-        tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","outro"]).optional(),
+        tipo: z.enum(["proposta_acordo","termo_acordo","notificacao_debito","carta_cobranca","recibo_pagamento","contrato_parcelamento","procuracao","carta_preposto","ata_audiencia","notificacao_juridica","outro"]).optional(),
         conteudoHtml: z.string().optional(),
         logoUrl: z.string().nullable().optional(),
         logoAlinhamento: z.enum(["esquerda","centro","direita"]).optional(),

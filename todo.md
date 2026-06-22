@@ -2421,3 +2421,10 @@
 - [x] usePermissions.ts: adicionar novos tipos de Modulo para modelos_documento e whatsapp
 - [x] Sidebar: remover modulo genérico dos grupos e adicionar rbacModulo por item (Cobrança, Automação, Banco, Importações, WhatsApp, Relatórios, Modelos)
 - [x] App.tsx: aplicar PermissionRoute com submódulo correto em rotas de modelos, whatsapp e atendimento
+
+## Variáveis Jurídicas e Tela de Preenchimento de Modelos
+- [x] Schema: adicionar tipos jurídicos no enum tipo da tabela modelosDocumento (procuracao, carta_preposto, ata_audiencia, notificacao_juridica)
+- [x] ModeloEditor: adicionar categoria "Jurídico" com variáveis (condominio, representanteLegal, tipoAcao, numeroProcesso, dataDocumento, assinatura, nomePreposto, dataHoraAudiencia)
+- [x] ModelosDocumento: adicionar botão "Preencher" para modelos jurídicos
+- [x] Criar página PreencherModeloJuridico.tsx com formulário de preenchimento e preview do documento
+- [x] Registrar rota /modelos-documento/:id/preencher no App.tsx

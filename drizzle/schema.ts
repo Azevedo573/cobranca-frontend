@@ -615,6 +615,11 @@ export const modelosDocumento = mysqlTable("modelosDocumento", {
     "carta_cobranca",
     "recibo_pagamento",
     "contrato_parcelamento",
+    // Tipos jurídicos
+    "procuracao",
+    "carta_preposto",
+    "ata_audiencia",
+    "notificacao_juridica",
     "outro",
   ]).notNull().default("outro"),
   // Conteúdo HTML do editor TipTap (inclui variáveis {{nomeDevedor}} etc.)
