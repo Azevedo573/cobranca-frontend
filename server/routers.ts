@@ -285,6 +285,7 @@ export const appRouter = router({
       }
     }),
     create: adminProcedure.input(z.object({
+      tipo: z.enum(["condominio", "empresa"]).default("condominio"),
       name: z.string(),
       cnpj: z.string().optional(),
       address: z.string().optional(),
@@ -344,6 +345,7 @@ export const appRouter = router({
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
+      tipo: z.enum(["condominio", "empresa"]).optional(),
       name: z.string().optional(),
       cnpj: z.string().optional(),
       taxaJurosMensal: z.string().optional(),

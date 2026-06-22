@@ -102,6 +102,8 @@ export default function CondominioForm() {
   };
 
   const [formData, setFormData] = useState({
+    // Tipo de cliente
+    tipo: "condominio" as "condominio" | "empresa",
     // Geral
     name: "",
     cnpj: "",
@@ -198,6 +200,7 @@ export default function CondominioForm() {
         email: condominio.email || "",
         managerName: condominio.managerName || "",
         managerEmail: condominio.managerEmail || "",
+        tipo: ((condominio as any).tipo || "condominio") as "condominio" | "empresa",
         username: condominio.username || "",
         password: "",
         taxaJurosMensal: condominio.taxaJurosMensal || "1.00",
@@ -417,7 +420,7 @@ export default function CondominioForm() {
               </Button>
               <div>
                 <h1 className="text-2xl font-bold text-primary">
-                  {isEdit ? "Editar Condomínio" : "Novo Condomínio"}
+                  {isEdit ? `Editar ${formData.tipo === "empresa" ? "Empresa" : "Condomínio"}` : `Novo ${formData.tipo === "empresa" ? "Empresa" : "Condomínio"}`}
                 </h1>
                 <p className="text-sm text-muted-foreground">Preencha os dados abaixo</p>
               </div>
@@ -459,6 +462,37 @@ export default function CondominioForm() {
             <TabsContent value="geral">
               <Card>
                 <CardContent className="pt-6 space-y-6">
+                  {/* Tipo de Cliente */}
+                  <div className="mb-4">
+                    <Label className="text-sm font-medium mb-2 block">Tipo de Cliente</Label>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, tipo: "condominio" }))}
+                        className={`flex-1 flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all ${
+                          formData.tipo === "condominio"
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/50"
+                        }`}
+                      >
+                        <Building2 className="h-4 w-4" />
+                        Condomínio
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, tipo: "empresa" }))}
+                        className={`flex-1 flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all ${
+                          formData.tipo === "empresa"
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/50"
+                        }`}
+                      >
+                        <Briefcase className="h-4 w-4" />
+                        Empresa
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Dados Básicos */}
                   <div>
                     <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
@@ -467,7 +501,7 @@ export default function CondominioForm() {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name">Nome do Condomínio *</Label>
+                        <Label htmlFor="name">{formData.tipo === "empresa" ? "Razão Social / Nome *" : "Nome do Condomínio *"}</Label>
                         <Input
                           id="name"
                           name="name"
@@ -589,7 +623,7 @@ export default function CondominioForm() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="email">E-mail</Label>
-                        <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="contato@condominio.com.br" />
+                        <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder={formData.tipo === "empresa" ? "contato@empresa.com.br" : "contato@condominio.com.br"} />
                       </div>
                     </div>
                   </div>
@@ -598,16 +632,16 @@ export default function CondominioForm() {
                   <div className="border-t pt-6">
                     <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
                       <Users className="h-4 w-4 text-primary" />
-                      Responsável pelo Condomínio
+                      {formData.tipo === "empresa" ? "Responsável pela Empresa" : "Responsável pelo Condomínio"}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="managerName">Nome do Síndico/Gestor</Label>
+                        <Label htmlFor="managerName">{formData.tipo === "empresa" ? "Nome do Responsável/Sócio" : "Nome do Síndico/Gestor"}</Label>
                         <Input id="managerName" name="managerName" value={formData.managerName} onChange={handleChange} placeholder="Nome completo" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="managerEmail">E-mail do Responsável</Label>
-                        <Input id="managerEmail" name="managerEmail" type="email" value={formData.managerEmail} onChange={handleChange} placeholder="sindico@email.com" />
+                        <Input id="managerEmail" name="managerEmail" type="email" value={formData.managerEmail} onChange={handleChange} placeholder={formData.tipo === "empresa" ? "responsavel@empresa.com.br" : "sindico@email.com"} />
                       </div>
                     </div>
                   </div>
@@ -619,8 +653,8 @@ export default function CondominioForm() {
                       <h3 className="text-base font-semibold">Usuário Administrador Principal</h3>
                     </div>
                     <p className="text-sm text-muted-foreground mb-4">
-                      O acesso ao condomínio é gerenciado pela <strong>tela de usuários</strong>.
-                      Cada condomínio pode ter múltiplos usuários, sendo um deles o administrador principal.
+                      O acesso {formData.tipo === "empresa" ? "à empresa" : "ao condomínio"} é gerenciado pela <strong>tela de usuários</strong>.
+                      Cada {formData.tipo === "empresa" ? "empresa" : "condomínio"} pode ter múltiplos usuários, sendo um deles o administrador principal.
                     </p>
                     {isEdit && condominioId ? (
                       <AdminPrincipalInfo condominioId={condominioId} />
@@ -629,8 +663,8 @@ export default function CondominioForm() {
                         <div className="flex items-start gap-3">
                           <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
                           <div className="text-sm text-amber-800 dark:text-amber-300">
-                            <strong>Novo condomínio:</strong> após salvar, acesse a{" "}
-                            <strong>tela de Usuários</strong> para cadastrar o administrador principal deste condomínio
+                            <strong>{formData.tipo === "empresa" ? "Nova empresa" : "Novo condomínio"}:</strong> após salvar, acesse a{" "}
+                            <strong>tela de Usuários</strong> para cadastrar o administrador principal {formData.tipo === "empresa" ? "desta empresa" : "deste condomínio"}
                             e definir suas credenciais de acesso.
                           </div>
                         </div>

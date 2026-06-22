@@ -10,7 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { trpc } from "@/lib/trpc";
-import { Building2, Plus, Pencil, Trash2, ArrowLeft } from "lucide-react";
+import { Building2, Plus, Pencil, Trash2, ArrowLeft, Briefcase } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import {
@@ -81,16 +82,16 @@ export default function Condominios() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Building2 className="h-5 w-5" />
-                  Condomínios Cadastrados
+                  Clientes Cadastrados
                 </CardTitle>
                 <CardDescription>
-                  Total: {condominios?.length || 0} condomínio(s)
+                  Total: {condominios?.length || 0} cliente(s)
                 </CardDescription>
               </div>
               <Link href="/admin/condominios/novo">
                 <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
                   <Plus className="mr-2 h-4 w-4" />
-                  Novo Condomínio
+                  Novo Cliente
                 </Button>
               </Link>
             </div>
@@ -105,6 +106,7 @@ export default function Condominios() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Nome</TableHead>
                     <TableHead>CNPJ</TableHead>
                     <TableHead>Cidade/Estado</TableHead>
@@ -116,6 +118,19 @@ export default function Condominios() {
                 <TableBody>
                   {condominios.map((cond) => (
                     <TableRow key={cond.id}>
+                      <TableCell>
+                        {(cond as any).tipo === "empresa" ? (
+                          <Badge variant="outline" className="gap-1 text-xs border-violet-300 text-violet-700 bg-violet-50 dark:bg-violet-950/30">
+                            <Briefcase className="h-3 w-3" />
+                            Empresa
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1 text-xs border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/30">
+                            <Building2 className="h-3 w-3" />
+                            Condomínio
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">{cond.name}</TableCell>
                       <TableCell>{cond.cnpj || "-"}</TableCell>
                       <TableCell>
