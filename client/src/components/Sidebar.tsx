@@ -64,6 +64,8 @@ interface MenuItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles: string[];
+  /** Submódulo RBAC: se definido, o item só aparece para colaborador/advogado se tiver permissão */
+  rbacModulo?: string;
 }
 
 interface MenuGroup {
@@ -112,19 +114,19 @@ const menuGroups: MenuGroup[] = [
     label: "Jurídico",
     icon: Scale,
     roles: ["admin", "sindico", "colaborador", "advogado"],
-    modulo: "juridico",
+    // modulo removido: controle granular agora é feito por item via rbacModulo
     items: [
       { label: "Dashboard", href: "/admin/juridico/dashboard", icon: BarChart2, roles: ["admin"] },
-      { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin"] },
-      { label: "Kanban", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin"] },
-      { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin"] },
+      { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
+      { label: "Kanban", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
+      { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_assembleias" },
       { label: "Condomínios", href: "/admin/juridico/condominios", icon: Building2, roles: ["admin"] },
-      { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin", "advogado"] },
-      { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin", "advogado"] },
+      { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_processos" },
+      { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_prazos" },
       { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
-      { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin"] },
-      { label: "Publicações Jurídicas", href: "/admin/juridico/publicacoes", icon: Newspaper, roles: ["admin"] },
-      { label: "Configurações MNI", href: "/admin/juridico/mni-config", icon: Settings2, roles: ["admin"] },
+      { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_intimacoes" },
+      { label: "Publicações Jurídicas", href: "/admin/juridico/publicacoes", icon: Newspaper, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_publicacoes" },
+      { label: "Configurações MNI", href: "/admin/juridico/mni-config", icon: Settings2, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_config" },
     ],
   },
 
@@ -362,10 +364,15 @@ export default function Sidebar() {
               const isOpen = openGroups[group.label] ?? false;
               const groupActive = isGroupActive(group);
 
-              // Filtrar itens do grupo pelo role
-              const visibleItems = group.items.filter((item) =>
-                item.roles.includes(user.role)
-              );
+              // Filtrar itens do grupo pelo role e pelo submódulo RBAC
+              const visibleItems = group.items.filter((item) => {
+                if (!item.roles.includes(user.role)) return false;
+                // Para colaborador e advogado: verificar permissão RBAC por item
+                if ((user.role === "colaborador" || user.role === "advogado") && item.rbacModulo) {
+                  return colaboradorPodeVer(item.rbacModulo);
+                }
+                return true;
+              });
               if (visibleItems.length === 0) return null;
 
               return (

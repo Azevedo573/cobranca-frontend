@@ -57,8 +57,8 @@ export default function AdvogadoDashboard() {
   const [, setLocation] = useLocation();
   const { can, hasProfile, isLoading: permsLoading } = usePermissions();
 
-  const podeVerProcessos = can("juridico", "visualizar");
-  const podeVerPrazos    = can("juridico", "visualizar");
+  const podeVerProcessos = can("juridico_processos", "visualizar");
+  const podeVerPrazos    = can("juridico_processos", "visualizar");
 
   // Dados do dashboard
   const { data: resumoProcessos } = trpc.processos.resumo.useQuery(undefined, { enabled: podeVerProcessos });

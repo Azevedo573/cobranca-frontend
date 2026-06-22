@@ -394,7 +394,7 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
 
 export default function ProcessosJudiciais() {
   const { can } = usePermissions();
-  const podeCriar = can("juridico", "criar");
+  const podeCriar = can("juridico_processos", "criar");
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todos");

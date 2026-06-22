@@ -233,8 +233,8 @@ type FiltroUrgencia = "todos" | "atrasado" | "hoje" | "7dias" | "15dias" | "30di
 
 export default function PrazosJuridicos() {
   const { can } = usePermissions();
-  const podeCriar = can("juridico", "criar");
-  const podeExcluir = can("juridico", "excluir");
+  const podeCriar = can("juridico_prazos", "criar");
+  const podeExcluir = can("juridico_prazos", "excluir");
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroUrgencia, setFiltroUrgencia] = useState<FiltroUrgencia>("todos");
   const [filtroStatus, setFiltroStatus] = useState<"pendente" | "concluido" | "todos">("pendente");

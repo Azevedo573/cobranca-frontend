@@ -341,34 +341,34 @@ function Router() {
 
       {/* Módulo Jurídico — Central de Demandas */}
       <Route path="/admin/juridico">
-        {() => <ProtectedRoute component={CentralDemandas} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={CentralDemandas} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_demandas" />}
       </Route>
       <Route path="/admin/juridico/kanban">
-        {() => <ProtectedRoute component={KanbanDemandas} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={KanbanDemandas} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_demandas" />}
       </Route>
       <Route path="/admin/juridico/demanda/:id">
-        {() => <ProtectedRoute component={DemandaDetalhes} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={DemandaDetalhes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_demandas" />}
       </Route>
       <Route path="/admin/juridico/assembleias">
-        {() => <ProtectedRoute component={Assembleias} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={Assembleias} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_assembleias" />}
       </Route>
       <Route path="/admin/juridico/dashboard">
         {() => <ProtectedRoute component={DashboardJuridico} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/admin/juridico/processos">
-        {() => <PermissionRoute component={ProcessosJudiciais} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico" />}
+        {() => <PermissionRoute component={ProcessosJudiciais} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_processos" />}
       </Route>
       <Route path="/admin/juridico/processos/:id">
-        {() => <PermissionRoute component={ProcessoDetalhes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico" />}
+        {() => <PermissionRoute component={ProcessoDetalhes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_processos" />}
       </Route>
       <Route path="/admin/juridico/prazos">
-        {() => <PermissionRoute component={PrazosJuridicos} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico" />}
+        {() => <PermissionRoute component={PrazosJuridicos} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_prazos" />}
       </Route>
       <Route path="/admin/juridico/intimacoes">
-        {() => <ProtectedRoute component={CentralIntimacoes} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={CentralIntimacoes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_intimacoes" />}
       </Route>
       <Route path="/admin/juridico/mni-config">
-        {() => <ProtectedRoute component={ConfiguracoesMNI} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={ConfiguracoesMNI} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_config" />}
       </Route>
       <Route path="/admin/juridico/busca-advogado">
         {() => <ProtectedRoute component={BuscaAdvogado} allowedRoles={["admin"]} />}
@@ -382,13 +382,13 @@ function Router() {
 
       {/* Publicações Jurídicas */}
       <Route path="/admin/juridico/publicacoes">
-        {() => <ProtectedRoute component={DashboardPublicacoes} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={DashboardPublicacoes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_publicacoes" />}
       </Route>
       <Route path="/admin/juridico/publicacoes/monitoramentos">
-        {() => <ProtectedRoute component={MonitoramentosPublicacoes} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={MonitoramentosPublicacoes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_publicacoes" />}
       </Route>
       <Route path="/admin/juridico/publicacoes/kanban">
-        {() => <ProtectedRoute component={KanbanPublicacoes} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={KanbanPublicacoes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_publicacoes" />}
       </Route>
 
       {/* Rotas do Módulo Jurídico (legado) */}

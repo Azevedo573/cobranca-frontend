@@ -2408,3 +2408,10 @@
 - [x] Mapear cada rota ao seu módulo RBAC correspondente
 - [x] Substituir allowedRoles estático por PermissionRoute nas rotas de módulos
 - [x] Admin/síndico/cobrador mantêm bypass total (sem verificação de perfil)
+
+## Submódulos Jurídicos no RBAC
+- [x] db-profiles.ts: substituir módulo "juridico" único por submódulos (processos, prazos, demandas, assembleias, intimacoes, publicacoes, juridico_config)
+- [x] usePermissions.ts: adicionar novos tipos de Modulo para os submódulos jurídicos
+- [x] Sidebar: mapear cada item jurídico ao seu submódulo RBAC
+- [x] App.tsx: aplicar PermissionRoute com o submódulo correto em cada rota jurídica
+- [x] Perfis padrão: atualizar seedDefaultProfiles para incluir os novos submódulos

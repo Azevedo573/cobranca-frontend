@@ -5187,7 +5187,7 @@ export const appRouter = router({
   // ─── Módulo Jurídico ────────────────────────────────────────────────────────
   juridico: router({
     // Listar tickets (admin vê todos; síndico vê apenas do seu condomínio)
-    listTickets: requirePermission("juridico", "visualizar")
+    listTickets: requirePermission("juridico_demandas", "visualizar")
       .input(z.object({ condominioId: z.number().optional() }))
       .query(async ({ input, ctx }) => {
         const { getAllTickets, getTicketsByCondominio } = await import("./db-juridico");
@@ -5201,7 +5201,7 @@ export const appRouter = router({
         return tickets.map((t) => ({ ...t, id: Number(t.id) }));
       }),
 
-    getTicket: requirePermission("juridico", "visualizar")
+    getTicket: requirePermission("juridico_demandas", "visualizar")
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
         const { getTicketById } = await import("./db-juridico");
@@ -5214,7 +5214,7 @@ export const appRouter = router({
         return { ...ticket, id: Number(ticket.id) };
       }),
 
-    createTicket: requirePermission("juridico", "criar")
+    createTicket: requirePermission("juridico_demandas", "criar")
       .input(z.object({
         titulo: z.string().min(3).max(255),
         descricao: z.string().min(10),
@@ -5272,7 +5272,7 @@ export const appRouter = router({
         return { ...ticket, id: Number(ticket.id) };
       }),
 
-    updateTicket: requirePermission("juridico", "editar")
+    updateTicket: requirePermission("juridico_demandas", "editar")
       .input(z.object({
         id: z.number(),
         status: z.enum(["aberto", "em_andamento", "aguardando_cliente", "resolvido", "cancelado"]).optional(),
