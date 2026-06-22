@@ -88,6 +88,7 @@ import DashboardPublicacoes from "./pages/admin/juridico/DashboardPublicacoes";
 import MonitoramentosPublicacoes from "./pages/admin/juridico/MonitoramentosPublicacoes";
 import KanbanPublicacoes from "./pages/admin/juridico/KanbanPublicacoes";
 import AlertasInadimplencia from "./pages/AlertasInadimplencia";
+import PermissionRoute from "./components/PermissionRoute";
 
 function ProtectedRoute({ component: Component, allowedRoles }: { component: React.ComponentType; allowedRoles?: string[] }) {
   const { user, loading } = useAuth();
@@ -220,7 +221,7 @@ function Router() {
 
       {/* Relatórios Consolidados */}
       <Route path="/relatorios">
-        {() => <ProtectedRoute component={Relatorios} allowedRoles={["admin", "user"]} />}
+        {() => <PermissionRoute component={Relatorios} allowedRoles={["admin", "colaborador", "advogado"]} requiredModulo="relatorios" />}
       </Route>
 
       {/* Régua de Cobrança */}
@@ -259,25 +260,25 @@ function Router() {
 
       {/* Rotas de Devedores */}
       <Route path="/devedores">
-        {() => <ProtectedRoute component={Devedores} />}
+        {() => <PermissionRoute component={Devedores} requiredModulo="devedores" />}
       </Route>
       <Route path="/devedores/:id/detalhes">
-        {() => <ProtectedRoute component={DevedorDetalhes} />}
+        {() => <PermissionRoute component={DevedorDetalhes} requiredModulo="devedores" />}
       </Route>
       <Route path="/devedores/:id/importar-dividas">
-        {() => <ProtectedRoute component={ImportarDividas} />}
+        {() => <PermissionRoute component={ImportarDividas} requiredModulo="devedores" />}
       </Route>
       <Route path="/devedores/:devedorId/tentativa/nova">
-        {() => <ProtectedRoute component={TentativaForm} />}
+        {() => <PermissionRoute component={TentativaForm} requiredModulo="tentativas" />}
       </Route>
       <Route path="/tentativas/nova">
         {() => <ProtectedRoute component={TentativaRapida} allowedRoles={["cobrador", "sindico"]} />}
       </Route>
       <Route path="/devedores/novo">
-        {() => <ProtectedRoute component={DevedorForm} />}
+        {() => <PermissionRoute component={DevedorForm} requiredModulo="devedores" />}
       </Route>
       <Route path="/devedores/:id/editar">
-        {() => <ProtectedRoute component={DevedorForm} />}
+        {() => <PermissionRoute component={DevedorForm} requiredModulo="devedores" />}
       </Route>
 
       {/* Rotas de Processos de Cobrança */}
@@ -293,38 +294,38 @@ function Router() {
 
       {/* Rotas de Acordos */}
       <Route path="/acordos">
-        {() => <ProtectedRoute component={Acordos} />}
+        {() => <PermissionRoute component={Acordos} requiredModulo="acordos" />}
       </Route>
       <Route path="/acordos/acompanhamento">
-        {() => <ProtectedRoute component={AcordosAcompanhamento} />}
+        {() => <PermissionRoute component={AcordosAcompanhamento} requiredModulo="acordos" />}
       </Route>
       <Route path="/acordos/:id">
-        {() => <ProtectedRoute component={AcordoDetalhes} />}
+        {() => <PermissionRoute component={AcordoDetalhes} requiredModulo="acordos" />}
       </Route>
       
       {/* Rotas de Vencimentos */}
       <Route path="/vencimentos">
-        {() => <ProtectedRoute component={Vencimentos} />}
+        {() => <PermissionRoute component={Vencimentos} requiredModulo="cobrancas" />}
       </Route>
       <Route path="/alertas-inadimplencia">
-        {() => <ProtectedRoute component={AlertasInadimplencia} allowedRoles={["admin", "cobrador", "colaborador"]} />}
+        {() => <PermissionRoute component={AlertasInadimplencia} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
       </Route>
 
       {/* Rotas de Operações de Cobrança */}
       <Route path="/operacoes">
-        {() => <ProtectedRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} />}
+        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
       </Route>
       {/* Rotas legadas — redirecionam para a tela unificada */}
       <Route path="/operacoes/cobranca-ativa">
-        {() => <ProtectedRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} />}
+        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
       </Route>
       <Route path="/operacoes/cobranca-passiva">
-        {() => <ProtectedRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} />}
+        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
       </Route>
 
       {/* Rotas de Tentativas */}
       <Route path="/tentativas">
-        {() => <ProtectedRoute component={TentativasCobranca} allowedRoles={["admin", "sindico", "cobrador"]} />}
+        {() => <PermissionRoute component={TentativasCobranca} allowedRoles={["admin", "sindico", "cobrador", "colaborador"]} requiredModulo="tentativas" />}
       </Route>
 
       {/* Rotas de Modelos de Documentos */}
@@ -355,13 +356,13 @@ function Router() {
         {() => <ProtectedRoute component={DashboardJuridico} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/admin/juridico/processos">
-        {() => <ProtectedRoute component={ProcessosJudiciais} allowedRoles={["admin", "advogado"]} />}
+        {() => <PermissionRoute component={ProcessosJudiciais} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico" />}
       </Route>
       <Route path="/admin/juridico/processos/:id">
-        {() => <ProtectedRoute component={ProcessoDetalhes} allowedRoles={["admin", "advogado"]} />}
+        {() => <PermissionRoute component={ProcessoDetalhes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico" />}
       </Route>
       <Route path="/admin/juridico/prazos">
-        {() => <ProtectedRoute component={PrazosJuridicos} allowedRoles={["admin", "advogado"]} />}
+        {() => <PermissionRoute component={PrazosJuridicos} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico" />}
       </Route>
       <Route path="/admin/juridico/intimacoes">
         {() => <ProtectedRoute component={CentralIntimacoes} allowedRoles={["admin"]} />}

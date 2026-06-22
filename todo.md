@@ -2402,3 +2402,9 @@
 - [x] Sidebar: aplicar colaboradorPodeVer para advogado no módulo jurídico
 - [x] Páginas de Processos e Prazos: aplicar can() para controle de ações (criar)
 - [x] Dashboard do Advogado: seções condicionais baseadas nas permissões do perfil
+
+## RBAC Dinâmico nas Rotas
+- [x] Criar componente PermissionRoute que verifica can(modulo, "visualizar") para colaborador/advogado
+- [x] Mapear cada rota ao seu módulo RBAC correspondente
+- [x] Substituir allowedRoles estático por PermissionRoute nas rotas de módulos
+- [x] Admin/síndico/cobrador mantêm bypass total (sem verificação de perfil)
