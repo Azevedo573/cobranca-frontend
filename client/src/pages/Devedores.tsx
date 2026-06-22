@@ -48,9 +48,10 @@ export default function Devedores() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_DEFAULT);
 
-  const condominioId = user?.role === "admin" ? selectedCondominioId : user?.condominioId;
+  const rolesComSeletorCondominio = ["admin", "advogado"];
+  const condominioId = rolesComSeletorCondominio.includes(user?.role ?? "") ? selectedCondominioId : user?.condominioId;
 
-  const { data: condominios } = trpc.condominios.list.useQuery(undefined, { enabled: user?.role === "admin" });
+  const { data: condominios } = trpc.condominios.list.useQuery(undefined, { enabled: rolesComSeletorCondominio.includes(user?.role ?? "") });
 
   // ── Dados: Devedores ───────────────────────────────────────────────────────
   const { data: devedores, isLoading: loadingDevedores } = trpc.devedores.list.useQuery(
@@ -307,7 +308,7 @@ export default function Devedores() {
 
             {/* Filtros */}
             <div className="mt-4 space-y-4">
-              {user?.role === "admin" && (
+              {rolesComSeletorCondominio.includes(user?.role ?? "") && (
                 <Select
                   value={selectedCondominioId?.toString() || ""}
                   onValueChange={(v) => setSelectedCondominioId(Number(v))}
