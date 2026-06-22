@@ -25,7 +25,12 @@ export const appRouter = router({
   mni: mniRouter,
   juridicoCondominios: juridicoCondominiosRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => {
+      if (!opts.ctx.user) return null;
+      // Nunca retornar o hash da senha para o cliente
+      const { passwordHash: _omit, ...safeUser } = opts.ctx.user;
+      return safeUser;
+    }),
     logout: publicProcedure.mutation(async ({ ctx }) => {
       await auditLogout(ctx);
       const cookieOptions = getSessionCookieOptions(ctx.req);
