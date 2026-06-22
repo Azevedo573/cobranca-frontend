@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Search, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +51,9 @@ export default function Users() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const [filtroCondominioId, setFiltroCondominioId] = useState<number | null>(null);
+  const [filtroBusca, setFiltroBusca] = useState("");
+  const [filtroRole, setFiltroRole] = useState("todos");
+  const [filtroStatus, setFiltroStatus] = useState("todos");
 
   const { data: condominios } = trpc.condominios.list.useQuery();
 
@@ -59,8 +64,19 @@ export default function Users() {
     { enabled: filtroCondominioId !== null }
   );
 
-  const users = filtroCondominioId !== null ? usersByCondominio : allUsers;
+  const usersBase = filtroCondominioId !== null ? usersByCondominio : allUsers;
   const loading = filtroCondominioId !== null ? loadingByCondominio : isLoading;
+
+  const users = usersBase?.filter(u => {
+    const buscaOk = !filtroBusca ||
+      u.name?.toLowerCase().includes(filtroBusca.toLowerCase()) ||
+      u.email?.toLowerCase().includes(filtroBusca.toLowerCase());
+    const roleOk = filtroRole === "todos" || u.role === filtroRole;
+    const statusOk = filtroStatus === "todos" ||
+      (filtroStatus === "ativo" && u.isActive === 1) ||
+      (filtroStatus === "inativo" && u.isActive !== 1);
+    return buscaOk && roleOk && statusOk;
+  });
 
   const deleteMutation = trpc.users.delete.useMutation({
     onSuccess: () => {
@@ -89,6 +105,8 @@ export default function Users() {
       admin: { variant: "default", label: "Administrador Master", className: "bg-purple-600 hover:bg-purple-700" },
       sindico: { variant: "secondary", label: "Síndico", className: "bg-blue-100 text-blue-700 border-blue-200" },
       cobrador: { variant: "outline", label: "Cobrador" },
+      colaborador: { variant: "outline", label: "Colaborador", className: "bg-green-50 text-green-700 border-green-200" },
+      advogado: { variant: "outline", label: "Advogado", className: "bg-amber-50 text-amber-700 border-amber-200" },
     };
     const config = variants[role] || { variant: "outline" as const, label: role };
     return (
@@ -142,21 +160,42 @@ export default function Users() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8 space-y-6">
 
-        {/* Filtro por Condomínio */}
+        {/* Filtros */}
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-base flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Filtrar por Condomínio
+              <Search className="h-4 w-4" />
+              Filtros
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-wrap gap-3">
+              {/* Busca por nome/email */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nome ou e-mail..."
+                  value={filtroBusca}
+                  onChange={e => setFiltroBusca(e.target.value)}
+                  className="pl-9 pr-9"
+                />
+                {filtroBusca && (
+                  <button
+                    onClick={() => setFiltroBusca("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro por condomínio */}
               <Select
                 value={filtroCondominioId !== null ? String(filtroCondominioId) : "todos"}
                 onValueChange={(v) => setFiltroCondominioId(v === "todos" ? null : Number(v))}
               >
-                <SelectTrigger className="w-72">
+                <SelectTrigger className="w-56">
+                  <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Todos os condomínios" />
                 </SelectTrigger>
                 <SelectContent>
@@ -166,9 +205,44 @@ export default function Users() {
                   ))}
                 </SelectContent>
               </Select>
-              {filtroCondominioId !== null && (
-                <Button variant="ghost" size="sm" onClick={() => setFiltroCondominioId(null)}>
-                  Limpar filtro
+
+              {/* Filtro por role */}
+              <Select value={filtroRole} onValueChange={setFiltroRole}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Todos os perfis" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os perfis</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="sindico">Síndico</SelectItem>
+                  <SelectItem value="cobrador">Cobrador</SelectItem>
+                  <SelectItem value="colaborador">Colaborador</SelectItem>
+                  <SelectItem value="advogado">Advogado</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Filtro por status */}
+              <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="ativo">Ativos</SelectItem>
+                  <SelectItem value="inativo">Inativos</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Limpar filtros */}
+              {(filtroCondominioId !== null || filtroBusca || filtroRole !== "todos" || filtroStatus !== "todos") && (
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setFiltroCondominioId(null);
+                  setFiltroBusca("");
+                  setFiltroRole("todos");
+                  setFiltroStatus("todos");
+                }}>
+                  <X className="h-4 w-4 mr-1" />
+                  Limpar filtros
                 </Button>
               )}
             </div>
