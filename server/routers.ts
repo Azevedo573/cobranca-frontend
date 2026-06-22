@@ -260,11 +260,14 @@ export const appRouter = router({
       }),
   }),
 
-  // Condominios (apenas admin)
+  // Condominios (admin + advogado/colaborador para seleção em formulários)
   condominios: router({
-    list: adminProcedure.query(async () => {
+    list: protectedProcedure.query(async ({ ctx }) => {
       const { getAllCondominios } = await import("./db-condominios");
-      return await getAllCondominios();
+      const todos = await getAllCondominios();
+      // Admin vê todos; advogado/colaborador vêem apenas ativos (para seleção em formulários)
+      if (ctx.user.role === "admin") return todos;
+      return (todos as any[]).filter((c: any) => !c.statusCadastro || c.statusCadastro === "ativo");
     }),
     getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getCondominioById } = await import("./db-condominios");
