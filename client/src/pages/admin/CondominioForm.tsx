@@ -11,7 +11,7 @@ import { trpc } from "@/lib/trpc";
 import {
   ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink,
   Scale, FileText, ToggleLeft, ToggleRight, AlertCircle, Settings2, Gavel,
-  MapPin, BookOpen, Briefcase, Upload, X, FileCheck, Loader2
+  MapPin, BookOpen, Briefcase, Upload, X, FileCheck, Loader2, Archive
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -151,6 +151,12 @@ export default function CondominioForm() {
     // estados de upload
 
     juridicoObservacoes: "",
+    // Arquivamento
+    statusCadastro: "ativo" as "ativo" | "inativo" | "arquivado",
+    dataRescisao: "",
+    motivoSaida: "",
+    situacaoJuridica: "" as "" | "sem_processos" | "processos_ativos" | "processos_encerrados",
+    observacoesSaida: "",
   });
 
   // Módulos ativos do condomínio
@@ -230,6 +236,12 @@ export default function CondominioForm() {
         juridicoConvencaoUrl: (condominio as any).juridicoConvencaoUrl || "",
         juridicoRegimentoUrl: (condominio as any).juridicoRegimentoUrl || "",
         juridicoObservacoes: (condominio as any).juridicoObservacoes || "",
+        // Arquivamento
+        statusCadastro: ((condominio as any).statusCadastro || "ativo") as "ativo" | "inativo" | "arquivado",
+        dataRescisao: (condominio as any).dataRescisao || "",
+        motivoSaida: (condominio as any).motivoSaida || "",
+        situacaoJuridica: ((condominio as any).situacaoJuridica || "") as "" | "sem_processos" | "processos_ativos" | "processos_encerrados",
+        observacoesSaida: (condominio as any).observacoesSaida || "",
       });
       try {
         const mods = JSON.parse((condominio as any).modulosAtivos || '["cobranca"]');
@@ -287,6 +299,12 @@ export default function CondominioForm() {
       juridicoConvencaoUrl: formData.juridicoConvencaoUrl || undefined,
       juridicoRegimentoUrl: formData.juridicoRegimentoUrl || undefined,
       juridicoObservacoes: formData.juridicoObservacoes || undefined,
+      // Arquivamento
+      statusCadastro: formData.statusCadastro || undefined,
+      dataRescisao: formData.dataRescisao || null,
+      motivoSaida: formData.motivoSaida || null,
+      situacaoJuridica: (formData.situacaoJuridica || null) as "sem_processos" | "processos_ativos" | "processos_encerrados" | null | undefined,
+      observacoesSaida: formData.observacoesSaida || null,
     };
 
     if (isEdit && condominioId) {
@@ -733,7 +751,90 @@ export default function CondominioForm() {
                     </div>
                   )}
 
-                  {/* Botão Salvar */}
+                  {/* Seção de Status / Arquivamento — visível apenas na edição */}
+                  {isEdit && (
+                    <div className="border-t pt-6">
+                      <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+                        <Archive className="h-4 w-4 text-amber-600" />
+                        Status do Cadastro
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Status *</Label>
+                          <Select
+                            value={formData.statusCadastro}
+                            onValueChange={(v) => setFormData(prev => ({ ...prev, statusCadastro: v as "ativo" | "inativo" | "arquivado" }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ativo">Ativo</SelectItem>
+                              <SelectItem value="inativo">Inativo</SelectItem>
+                              <SelectItem value="arquivado">Arquivado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {formData.statusCadastro !== "ativo" && (
+                          <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="dataRescisao">Data de Rescisão</Label>
+                                <Input
+                                  id="dataRescisao"
+                                  name="dataRescisao"
+                                  type="date"
+                                  value={formData.dataRescisao}
+                                  onChange={handleChange}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Situação dos Processos Judiciais</Label>
+                                <Select
+                                  value={formData.situacaoJuridica || "sem_processos"}
+                                  onValueChange={(v) => setFormData(prev => ({ ...prev, situacaoJuridica: v as "sem_processos" | "processos_ativos" | "processos_encerrados" }))}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="sem_processos">Sem processos</SelectItem>
+                                    <SelectItem value="processos_ativos">Processos ativos</SelectItem>
+                                    <SelectItem value="processos_encerrados">Processos encerrados</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="motivoSaida">Motivo da Saída</Label>
+                              <Textarea
+                                id="motivoSaida"
+                                name="motivoSaida"
+                                placeholder="Descreva o motivo da saída ou inativação..."
+                                value={formData.motivoSaida}
+                                onChange={handleChange}
+                                rows={3}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="observacoesSaida">Observações</Label>
+                              <Textarea
+                                id="observacoesSaida"
+                                name="observacoesSaida"
+                                placeholder="Observações adicionais sobre o encerramento..."
+                                value={formData.observacoesSaida}
+                                onChange={handleChange}
+                                rows={2}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botão Salvar — aba Geral */}
                   <div className="flex gap-4 pt-4 border-t">
                     <Button type="button" variant="outline" onClick={() => setLocation("/admin/condominios")} className="flex-1">
                       Cancelar

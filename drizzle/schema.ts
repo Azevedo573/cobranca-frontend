@@ -28,6 +28,11 @@ export type InsertUser = typeof users.$inferInsert;
 export const condominios = mysqlTable("condominios", {
   id: int("id").autoincrement().primaryKey(),
   tipo: mysqlEnum("tipo", ["condominio", "empresa"]).default("condominio").notNull(),
+  statusCadastro: varchar("statusCadastro", { length: 20 }).default("ativo").notNull(),
+  dataRescisao: varchar("dataRescisao", { length: 10 }),
+  motivoSaida: text("motivoSaida"),
+  situacaoJuridica: varchar("situacaoJuridica", { length: 30 }),
+  observacoesSaida: text("observacoesSaida"),
   name: varchar("name", { length: 255 }).notNull(),
   cnpj: varchar("cnpj", { length: 18 }),
   address: varchar("address", { length: 255 }),       // Logradouro

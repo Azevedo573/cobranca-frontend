@@ -389,6 +389,12 @@ export const appRouter = router({
       juridicoConvencaoUrl: z.string().max(500).optional().nullable(),
       juridicoRegimentoUrl: z.string().max(500).optional().nullable(),
       juridicoObservacoes: z.string().optional().nullable(),
+      // Campos de arquivamento
+      statusCadastro: z.enum(["ativo", "inativo", "arquivado"]).optional(),
+      dataRescisao: z.string().max(10).optional().nullable(),
+      motivoSaida: z.string().optional().nullable(),
+      situacaoJuridica: z.enum(["sem_processos", "processos_ativos", "processos_encerrados"]).optional().nullable(),
+      observacoesSaida: z.string().optional().nullable(),
     })).mutation(async ({ input, ctx }) => {
       // Validação: customBillingIssuer obrigatório quando billingIssuer = 'outro'
       if (input.billingIssuer === "outro" && !input.customBillingIssuer?.trim()) {
@@ -400,7 +406,21 @@ export const appRouter = router({
       await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(id), entityLabel: input.name, afterData: data as Record<string, unknown>, severity: "info" });
       return result;
     }),
-     delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+    arquivar: adminProcedure.input(z.object({
+      id: z.number(),
+      statusCadastro: z.enum(["ativo", "inativo", "arquivado"]),
+      dataRescisao: z.string().max(10).optional().nullable(),
+      motivoSaida: z.string().optional().nullable(),
+      situacaoJuridica: z.enum(["sem_processos", "processos_ativos", "processos_encerrados"]).optional().nullable(),
+      observacoesSaida: z.string().optional().nullable(),
+    })).mutation(async ({ input, ctx }) => {
+      const { id, ...data } = input;
+      const { updateCondominio } = await import("./db-condominios");
+      await updateCondominio(id, data);
+      await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(id), afterData: data as Record<string, unknown>, severity: "warning" });
+      return { success: true };
+    }),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
       const { deleteCondominio } = await import("./db-condominios");
       await deleteCondominio(input.id);
       await logAudit(ctx, { action: "delete", entity: "condominio", entityId: String(input.id), severity: "warning" });

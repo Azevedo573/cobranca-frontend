@@ -2380,3 +2380,10 @@
 - [ ] Modal PublicacaoDetalhes: texto completo, dados do tribunal, processo CNJ, fluxo de status
 - [ ] Integrar rotas em App.tsx
 - [ ] Adicionar entrada no menu lateral (DashboardLayout.tsx) em Jurídico
+
+## Arquivamento de Clientes (em vez de exclusão)
+- [x] Banco: adicionar colunas statusCadastro, dataRescisao, motivoSaida, situacaoJuridica, observacoesSaida na tabela condominios
+- [x] Schema Drizzle: campos adicionados em drizzle/schema.ts
+- [x] Backend routers.ts: campos de arquivamento adicionados no schema Zod do update; procedure arquivar criada
+- [x] Frontend Condominios.tsx: botão de exclusão substituído por modal de arquivamento; filtro de status (Todos/Ativo/Inativo/Arquivado); badge de status na tabela
+- [x] Frontend CondominioForm.tsx: seção de Status do Cadastro adicionada na aba Geral (visível apenas ao editar), com campos dataRescisao, motivoSaida, situacaoJuridica, observacoesSaida
