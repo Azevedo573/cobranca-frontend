@@ -111,7 +111,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Jurídico",
     icon: Scale,
-    roles: ["admin", "sindico", "colaborador"],
+    roles: ["admin", "sindico", "colaborador", "advogado"],
     modulo: "juridico",
     items: [
       { label: "Dashboard", href: "/admin/juridico/dashboard", icon: BarChart2, roles: ["admin"] },
@@ -119,8 +119,8 @@ const menuGroups: MenuGroup[] = [
       { label: "Kanban", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin"] },
       { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin"] },
       { label: "Condomínios", href: "/admin/juridico/condominios", icon: Building2, roles: ["admin"] },
-      { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin"] },
-      { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin"] },
+      { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin", "advogado"] },
+      { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin", "advogado"] },
       { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
       { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin"] },
       { label: "Publicações Jurídicas", href: "/admin/juridico/publicacoes", icon: Newspaper, roles: ["admin"] },
@@ -213,6 +213,7 @@ const dashboardItems: MenuItem[] = [
   { label: "Dashboard Síndico", href: "/sindico/dashboard", icon: LayoutDashboard, roles: ["sindico"] },
   { label: "Dashboard Cobrador", href: "/cobrador/dashboard", icon: LayoutDashboard, roles: ["cobrador"] },
   { label: "Meu Painel", href: "/colaborador/dashboard", icon: LayoutDashboard, roles: ["colaborador"] },
+  { label: "Painel Jurídico", href: "/advogado/dashboard", icon: LayoutDashboard, roles: ["advogado"] },
 ];
 
 export default function Sidebar() {

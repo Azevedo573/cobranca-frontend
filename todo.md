@@ -2387,3 +2387,10 @@
 - [x] Backend routers.ts: campos de arquivamento adicionados no schema Zod do update; procedure arquivar criada
 - [x] Frontend Condominios.tsx: botão de exclusão substituído por modal de arquivamento; filtro de status (Todos/Ativo/Inativo/Arquivado); badge de status na tabela
 - [x] Frontend CondominioForm.tsx: seção de Status do Cadastro adicionada na aba Geral (visível apenas ao editar), com campos dataRescisao, motivoSaida, situacaoJuridica, observacoesSaida
+
+## Login e Dashboard do Advogado
+- [x] Backend auth-colaborador.ts: aceitar role "advogado" além de "cobrador"
+- [x] Backend: mensagem de erro ajustada para roles permitidos
+- [x] App.tsx: redirecionamento para /advogado/dashboard quando role === "advogado"
+- [x] Criar página AdvogadoDashboard.tsx com visão jurídica (processos, prazos urgentes, resumo)
+- [x] Registrar rota /advogado/dashboard no App.tsx

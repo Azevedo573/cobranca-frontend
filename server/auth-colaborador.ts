@@ -41,9 +41,10 @@ export async function authenticateColaborador(
       return { success: false, message: "Usuário ou senha inválidos" };
     }
 
-    // Verificar se é colaborador
-    if (user.role !== "cobrador") {
-      return { success: false, message: "Acesso negado. Este login é apenas para colaboradores." };
+    // Verificar se é um role permitido neste login
+    const rolesPermitidos = ["cobrador", "colaborador", "sindico", "advogado"];
+    if (!rolesPermitidos.includes(user.role)) {
+      return { success: false, message: "Acesso negado. Use o login de administrador para este perfil." };
     }
 
     // Verificar se usuário está ativo

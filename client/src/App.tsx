@@ -62,6 +62,7 @@ import Profiles from "./pages/admin/Profiles";
 import ProfileEditor from "./pages/admin/ProfileEditor";
 import UsersProfiles from "./pages/admin/UsersProfiles";
 import ColaboradorDashboard from "./pages/colaborador/ColaboradorDashboard";
+import AdvogadoDashboard from "./pages/advogado/AdvogadoDashboard";
 import WhatsApp from "./pages/WhatsApp";
 import WhatsAppConfig from "./pages/configuracoes/WhatsAppConfig";
 import WhatsAppFilaConfig from "./pages/configuracoes/WhatsAppFilaConfig";
@@ -144,6 +145,7 @@ function Router() {
           if (user.role === "sindico") return <Redirect to="/sindico/dashboard" />;
           if (user.role === "cobrador") return <Redirect to="/cobrador/dashboard" />;
           if (user.role === "colaborador") return <Redirect to="/colaborador/dashboard" />;
+          if (user.role === "advogado") return <Redirect to="/advogado/dashboard" />;
           return <Redirect to="/login" />;
         }}
       </Route>
@@ -172,6 +174,11 @@ function Router() {
       {/* Rotas do Colaborador Interno */}
       <Route path="/colaborador/dashboard">
         {() => <ProtectedRoute component={ColaboradorDashboard} allowedRoles={["colaborador"]} />}
+      </Route>
+
+      {/* Rotas do Advogado */}
+      <Route path="/advogado/dashboard">
+        {() => <ProtectedRoute component={AdvogadoDashboard} allowedRoles={["advogado"]} />}
       </Route>
 
       {/* Rotas de Condomínios (Admin) */}
