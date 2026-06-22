@@ -446,7 +446,7 @@ export async function updateDemanda(
     prioridade: string;
     prazo: Date | null;
     responsavelId: number | null;
-    responsavelNome: string;
+    responsavelNome: string | null;
     condominioId: number | null;
   }>
 ) {

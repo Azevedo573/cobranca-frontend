@@ -1014,16 +1014,23 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
                     <div>
                       <Label className="text-xs text-muted-foreground">Responsável</Label>
                       <Select
-                        value={d.responsavelNome || "__none__"}
-                        onValueChange={v => handleUpdate("responsavelNome", v === "__none__" ? null : v)}
+                        value={d.responsavelId ? String(d.responsavelId) : "__none__"}
+                        onValueChange={v => {
+                          if (v === "__none__") {
+                            updateMutation.mutate({ id: demandaId!, responsavelId: null, responsavelNome: null });
+                          } else {
+                            const adv = (advogados as any[]).find((a: any) => String(a.id) === v);
+                            if (adv) updateMutation.mutate({ id: demandaId!, responsavelId: adv.id, responsavelNome: adv.name });
+                          }
+                        }}
                       >
                         <SelectTrigger className="mt-0.5 h-8 text-sm">
                           <SelectValue placeholder="Selecione um advogado..." />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Nenhum</SelectItem>
-                          {advogados.map((adv: any) => (
-                            <SelectItem key={adv.id} value={adv.name ?? "__none__"}>
+                          {(advogados as any[]).map((adv: any) => (
+                            <SelectItem key={adv.id} value={String(adv.id)}>
                               {adv.name ?? "(sem nome)"}
                             </SelectItem>
                           ))}

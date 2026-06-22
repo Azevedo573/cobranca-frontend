@@ -6454,7 +6454,7 @@ export const appRouter = router({
         prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
         prazo: z.string().optional().nullable(),
         responsavelId: z.number().int().positive().optional().nullable(),
-        responsavelNome: z.string().optional(),
+        responsavelNome: z.string().optional().nullable(),
         condominioId: z.number().int().positive().optional().nullable(),
       }))
       .mutation(async ({ input }) => {
