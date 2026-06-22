@@ -19,8 +19,12 @@ export default function LoginColaborador() {
     onSuccess: (result: any) => {
       if (result.success) {
         toast.success("Login realizado com sucesso!");
-        // Redirecionar para o dashboard do cobrador
-        window.location.href = "/cobrador/dashboard";
+        // Redirecionar conforme o role do usuário
+        const role = result.user?.role;
+        if (role === "advogado") window.location.href = "/advogado/dashboard";
+        else if (role === "sindico") window.location.href = "/sindico/dashboard";
+        else if (role === "colaborador") window.location.href = "/colaborador/dashboard";
+        else window.location.href = "/cobrador/dashboard";
       } else {
         toast.error(result.message || "Credenciais inválidas");
       }
@@ -56,7 +60,7 @@ export default function LoginColaborador() {
               Gomes & Silva
             </CardTitle>
             <CardDescription className="text-base mt-2">
-              Acesso para Colaboradores
+              Acesso para Colaboradores e Advogados
             </CardDescription>
           </div>
         </CardHeader>
@@ -65,12 +69,12 @@ export default function LoginColaborador() {
             <div className="space-y-2">
               <Label htmlFor="username" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
-                Usuário
+                E-mail
               </Label>
               <Input
                 id="username"
-                type="text"
-                placeholder="Digite seu usuário"
+                type="email"
+                placeholder="Digite seu e-mail"
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                 disabled={loginMutation.isPending}

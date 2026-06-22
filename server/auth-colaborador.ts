@@ -52,9 +52,11 @@ export async function authenticateColaborador(
       return { success: false, message: "Usuário inativo. Entre em contato com o administrador." };
     }
 
-    // Verificar senha (usamos openId como hash da senha por enquanto)
-    // Nota: Idealmente deveria ter um campo password na tabela users
-    const isPasswordValid = await bcrypt.compare(password, user.openId);
+    // Verificar senha usando o campo passwordHash
+    if (!user.passwordHash) {
+      return { success: false, message: "Usuário sem senha configurada. Entre em contato com o administrador." };
+    }
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
       return { success: false, message: "Usuário ou senha inválidos" };
