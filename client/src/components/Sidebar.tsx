@@ -228,8 +228,11 @@ export default function Sidebar() {
     { enabled: !!user, staleTime: 5 * 60 * 1000 }
   );
   // Admin sem condomínio vê todos os módulos
-  const modulosEfetivos = user?.role === "admin" && !user?.condominioId
+  // Advogado sempre vê o módulo jurídico independentemente do condomínio
+  const modulosEfetivos = (user?.role === "admin" && !user?.condominioId)
     ? ["cobranca", "juridico"]
+    : user?.role === "advogado"
+    ? ["juridico", ...(modulosAtivos ?? [])]
     : (modulosAtivos ?? ["cobranca"]);
 
   // Permissões RBAC do colaborador logado
