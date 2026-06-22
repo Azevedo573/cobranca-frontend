@@ -26,6 +26,8 @@ export const MODULOS = [
   { id: "juridico_intimacoes",  label: "Central de Intimações",  grupo: "Jurídico" },
   { id: "juridico_publicacoes", label: "Publicações Jurídicas",   grupo: "Jurídico" },
   { id: "juridico_config",      label: "Config. Jurídico / MNI", grupo: "Jurídico" },
+  { id: "modelos_documento", label: "Modelos de Documentos", grupo: "Operações" },
+  { id: "whatsapp",        label: "WhatsApp / Atendimento", grupo: "Comunicação" },
   { id: "configuracoes",  label: "Configurações",        grupo: "Administração" },
   { id: "usuarios",       label: "Usuários",             grupo: "Administração" },
   { id: "perfis",         label: "Perfis e Permissões",  grupo: "Administração" },

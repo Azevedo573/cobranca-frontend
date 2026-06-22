@@ -2415,3 +2415,9 @@
 - [x] Sidebar: mapear cada item jurídico ao seu submódulo RBAC
 - [x] App.tsx: aplicar PermissionRoute com o submódulo correto em cada rota jurídica
 - [x] Perfis padrão: atualizar seedDefaultProfiles para incluir os novos submódulos
+
+## Submódulos de Cobrança no RBAC
+- [x] db-profiles.ts: adicionar módulos modelos_documento e whatsapp
+- [x] usePermissions.ts: adicionar novos tipos de Modulo para modelos_documento e whatsapp
+- [x] Sidebar: remover modulo genérico dos grupos e adicionar rbacModulo por item (Cobrança, Automação, Banco, Importações, WhatsApp, Relatórios, Modelos)
+- [x] App.tsx: aplicar PermissionRoute com submódulo correto em rotas de modelos, whatsapp e atendimento

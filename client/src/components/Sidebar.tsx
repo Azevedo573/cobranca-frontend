@@ -88,7 +88,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Condomínios", href: "/admin/condominios", icon: Building2, roles: ["admin"] },
       { label: "Usuários", href: "/admin/usuarios", icon: Users, roles: ["admin"] },
-      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador"] },
+      { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "modelos_documento" },
       { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
     ],
   },
@@ -98,14 +98,14 @@ const menuGroups: MenuGroup[] = [
     label: "Cobrança",
     icon: Briefcase,
     roles: ["admin", "sindico", "cobrador", "colaborador"],
-    modulo: "cobranca",
+    // modulo removido: controle granular agora é feito por item via rbacModulo
     items: [
-      { label: "Operações", href: "/operacoes", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador"] },
-      { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador"] },
-      { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"] },
-      { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador"] },
-      { label: "Alertas de Inadimplência", href: "/alertas-inadimplencia", icon: AlertTriangle, roles: ["admin", "cobrador", "colaborador"] },
-      { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"] },
+      { label: "Operações", href: "/operacoes", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "cobrancas" },
+      { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "devedores" },
+      { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "acordos" },
+      { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "cobrancas" },
+      { label: "Alertas de Inadimplência", href: "/alertas-inadimplencia", icon: AlertTriangle, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "cobrancas" },
+      { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "tentativas" },
     ],
   },
 
@@ -134,11 +134,10 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Automação",
     icon: Bot,
-    roles: ["admin"],
-    modulo: "cobranca",
+    roles: ["admin", "colaborador"],
     items: [
-      { label: "Régua de Cobrança", href: "/admin/regua-cobranca", icon: Zap, roles: ["admin"] },
-      { label: "Histórico de Disparos", href: "/admin/historico-disparos", icon: HistoryIcon, roles: ["admin"] },
+      { label: "Régua de Cobrança", href: "/admin/regua-cobranca", icon: Zap, roles: ["admin", "colaborador"], rbacModulo: "automacao" },
+      { label: "Histórico de Disparos", href: "/admin/historico-disparos", icon: HistoryIcon, roles: ["admin", "colaborador"], rbacModulo: "automacao" },
     ],
   },
 
@@ -146,14 +145,13 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Banco",
     icon: Landmark,
-    roles: ["admin"],
-    modulo: "cobranca",
+    roles: ["admin", "colaborador"],
     items: [
       { label: "Configuração de Boleto", href: "/admin/configuracao-boleto", icon: Settings, roles: ["admin"] },
-      { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin"] },
-      { label: "Retorno CNAB 240", href: "/admin/retorno-cnab", icon: Download, roles: ["admin"] },
+      { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin", "colaborador"], rbacModulo: "banco" },
+      { label: "Retorno CNAB 240", href: "/admin/retorno-cnab", icon: Download, roles: ["admin", "colaborador"], rbacModulo: "banco" },
       { label: "BTG — Configuração", href: "/configuracoes/btg", icon: Settings, roles: ["admin"] },
-      { label: "BTG — Conciliação", href: "/admin/btg-conciliacao", icon: Landmark, roles: ["admin"] },
+      { label: "BTG — Conciliação", href: "/admin/btg-conciliacao", icon: Landmark, roles: ["admin", "colaborador"], rbacModulo: "banco" },
     ],
   },
 
@@ -161,12 +159,11 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Importações",
     icon: Download,
-    roles: ["admin"],
-    modulo: "cobranca",
+    roles: ["admin", "colaborador"],
     items: [
-      { label: "Importar Devedores", href: "/admin/importar-devedores", icon: Upload, roles: ["admin"] },
+      { label: "Importar Devedores", href: "/admin/importar-devedores", icon: Upload, roles: ["admin", "colaborador"], rbacModulo: "importacoes" },
       { label: "Importar Condomínios", href: "/admin/importar-condominios", icon: Building2, roles: ["admin"] },
-      { label: "Histórico de Importações", href: "/admin/historico-importacoes", icon: ClipboardList, roles: ["admin"] },
+      { label: "Histórico de Importações", href: "/admin/historico-importacoes", icon: ClipboardList, roles: ["admin", "colaborador"], rbacModulo: "importacoes" },
     ],
   },
 
@@ -187,7 +184,7 @@ const menuGroups: MenuGroup[] = [
     icon: MessageCircle,
     roles: ["admin", "cobrador", "colaborador"],
     items: [
-      { label: "Central de Atendimento", href: "/atendimento", icon: Headphones, roles: ["admin", "cobrador", "colaborador"] },
+      { label: "Central de Atendimento", href: "/atendimento", icon: Headphones, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "whatsapp" },
       { label: "Configurar Instâncias", href: "/configuracoes/whatsapp", icon: Settings, roles: ["admin"] },
       { label: "Fila de Envio", href: "/configuracoes/whatsapp-fila", icon: Activity, roles: ["admin"] },
       { label: "Config. Atendimento", href: "/configuracoes/atendimento", icon: Settings, roles: ["admin"] },
@@ -199,9 +196,9 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Relatórios",
     icon: BarChart3,
-    roles: ["admin"],
+    roles: ["admin", "colaborador"],
     items: [
-      { label: "Relatórios", href: "/relatorios", icon: FileText, roles: ["admin", "user"] },
+      { label: "Relatórios", href: "/relatorios", icon: FileText, roles: ["admin", "colaborador"], rbacModulo: "relatorios" },
       { label: "Produtividade", href: "/admin/relatorios/produtividade", icon: BarChart3, roles: ["admin"] },
       { label: "Centro de Inteligência", href: "/admin/executivo", icon: TrendingUp, roles: ["admin"] },
       { label: "Auditoria do Sistema", href: "/admin/auditoria", icon: Shield, roles: ["admin"] },

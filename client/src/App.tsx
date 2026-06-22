@@ -190,7 +190,7 @@ function Router() {
         {() => <ProtectedRoute component={CondominioForm} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/admin/importar-devedores">
-        {() => <ProtectedRoute component={ImportarDevedores} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={ImportarDevedores} allowedRoles={["admin", "colaborador"]} requiredModulo="importacoes" />}
       </Route>
       <Route path="/admin/importar-condominios">
         {() => <ProtectedRoute component={ImportarCondominios} allowedRoles={["admin"]} />}
@@ -226,16 +226,16 @@ function Router() {
 
       {/* Régua de Cobrança */}
       <Route path="/admin/regua-cobranca">
-        {() => <ProtectedRoute component={ReguaCobranca} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={ReguaCobranca} allowedRoles={["admin", "colaborador"]} requiredModulo="automacao" />}
       </Route>
 
       {/* Histórico de Disparos */}
       <Route path="/admin/historico-disparos">
-        {() => <ProtectedRoute component={HistoricoDisparos} allowedRoles={["admin"]} />}
+        {() => <PermissionRoute component={HistoricoDisparos} allowedRoles={["admin", "colaborador"]} requiredModulo="automacao" />}
       </Route>
       {/* CNAB 240 */}
       <Route path="/admin/cnab240">
-        {() => <ProtectedRoute component={CNAB240} allowedRoles={["admin", "sindico"]} />}
+        {() => <PermissionRoute component={CNAB240} allowedRoles={["admin", "sindico", "colaborador"]} requiredModulo="banco" />}
       </Route>
       {/* Configuração de Boleto */}
       <Route path="/admin/configuracao-boleto">
@@ -246,11 +246,11 @@ function Router() {
       </Route>
       {/* Histórico de Importações */}
       <Route path="/admin/historico-importacoes">
-        {() => <ProtectedRoute component={HistoricoImportacoes} allowedRoles={["admin", "sindico"]} />}
+        {() => <PermissionRoute component={HistoricoImportacoes} allowedRoles={["admin", "sindico", "colaborador"]} requiredModulo="importacoes" />}
       </Route>
       {/* Retorno CNAB 240 */}
       <Route path="/admin/retorno-cnab">
-        {() => <ProtectedRoute component={RetornoCNAB} allowedRoles={["admin", "sindico"]} />}
+        {() => <PermissionRoute component={RetornoCNAB} allowedRoles={["admin", "sindico", "colaborador"]} requiredModulo="banco" />}
       </Route>
 
       {/* Rota de Casos Prioritários */}
@@ -330,13 +330,13 @@ function Router() {
 
       {/* Rotas de Modelos de Documentos */}
       <Route path="/modelos-documento">
-        {() => <ProtectedRoute component={ModelosDocumento} />}
+        {() => <PermissionRoute component={ModelosDocumento} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="modelos_documento" />}
       </Route>
       <Route path="/modelos-documento/novo">
-        {() => <ProtectedRoute component={ModeloEditor} />}
+        {() => <PermissionRoute component={ModeloEditor} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="modelos_documento" />}
       </Route>
       <Route path="/modelos-documento/:id/editar">
-        {() => <ProtectedRoute component={ModeloEditor} />}
+        {() => <PermissionRoute component={ModeloEditor} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="modelos_documento" />}
       </Route>
 
       {/* Módulo Jurídico — Central de Demandas */}
@@ -426,7 +426,7 @@ function Router() {
         {() => <ProtectedRoute component={WhatsAppFilaConfig} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/atendimento">
-        {() => <ProtectedRoute component={Atendimento} />}
+        {() => <PermissionRoute component={Atendimento} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="whatsapp" />}
       </Route>
       <Route path="/configuracoes/atendimento">
         {() => <ProtectedRoute component={AtendimentoConfig} allowedRoles={["admin"]} />}

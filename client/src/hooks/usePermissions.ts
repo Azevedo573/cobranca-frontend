@@ -32,6 +32,8 @@ export type Modulo =
   | "juridico_intimacoes"
   | "juridico_publicacoes"
   | "juridico_config"
+  | "modelos_documento"
+  | "whatsapp"
   | "configuracoes"
   | "usuarios"
   | "perfis"
