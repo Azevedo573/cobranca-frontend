@@ -308,19 +308,19 @@ function Router() {
         {() => <PermissionRoute component={Vencimentos} requiredModulo="cobrancas" />}
       </Route>
       <Route path="/alertas-inadimplencia">
-        {() => <PermissionRoute component={AlertasInadimplencia} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
+        {() => <PermissionRoute component={AlertasInadimplencia} allowedRoles={["admin", "cobrador", "colaborador", "advogado"]} requiredModulo="cobrancas" />}
       </Route>
 
       {/* Rotas de Operações de Cobrança */}
       <Route path="/operacoes">
-        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
+        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador", "advogado"]} requiredModulo="cobrancas" />}
       </Route>
       {/* Rotas legadas — redirecionam para a tela unificada */}
       <Route path="/operacoes/cobranca-ativa">
-        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
+        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador", "advogado"]} requiredModulo="cobrancas" />}
       </Route>
       <Route path="/operacoes/cobranca-passiva">
-        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador"]} requiredModulo="cobrancas" />}
+        {() => <PermissionRoute component={Operacoes} allowedRoles={["admin", "cobrador", "colaborador", "advogado"]} requiredModulo="cobrancas" />}
       </Route>
 
       {/* Rotas de Tentativas */}

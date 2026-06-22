@@ -97,15 +97,15 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Cobrança",
     icon: Briefcase,
-    roles: ["admin", "sindico", "cobrador", "colaborador"],
+    roles: ["admin", "sindico", "cobrador", "colaborador", "advogado"],
     // modulo removido: controle granular agora é feito por item via rbacModulo
     items: [
-      { label: "Operações", href: "/operacoes", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "cobrancas" },
-      { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "devedores" },
-      { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "acordos" },
-      { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "cobrancas" },
-      { label: "Alertas de Inadimplência", href: "/alertas-inadimplencia", icon: AlertTriangle, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "cobrancas" },
-      { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador"], rbacModulo: "tentativas" },
+      { label: "Operações", href: "/operacoes", icon: PhoneCall, roles: ["admin", "cobrador", "colaborador", "advogado"], rbacModulo: "cobrancas" },
+      { label: "Devedores", href: "/devedores", icon: UserCircle, roles: ["admin", "sindico", "cobrador", "colaborador", "advogado"], rbacModulo: "devedores" },
+      { label: "Acordos", href: "/acordos", icon: HandshakeIcon, roles: ["admin", "sindico", "cobrador", "colaborador", "advogado"], rbacModulo: "acordos" },
+      { label: "Vencimentos Próximos", href: "/vencimentos", icon: Calendar, roles: ["admin", "sindico", "cobrador", "colaborador", "advogado"], rbacModulo: "cobrancas" },
+      { label: "Alertas de Inadimplência", href: "/alertas-inadimplencia", icon: AlertTriangle, roles: ["admin", "cobrador", "colaborador", "advogado"], rbacModulo: "cobrancas" },
+      { label: "Histórico de Contatos", href: "/tentativas", icon: Phone, roles: ["admin", "sindico", "cobrador", "colaborador", "advogado"], rbacModulo: "tentativas" },
     ],
   },
 
