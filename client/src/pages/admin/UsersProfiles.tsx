@@ -43,6 +43,7 @@ const ROLE_LABELS: Record<string, string> = {
   sindico: "Síndico",
   cobrador: "Cobrador",
   colaborador: "Colaborador Interno",
+  advogado: "Advogado",
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -50,6 +51,7 @@ const ROLE_COLORS: Record<string, string> = {
   sindico: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
   cobrador: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   colaborador: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  advogado: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
 };
 
 export default function UsersProfiles() {
@@ -180,6 +182,7 @@ export default function UsersProfiles() {
             <SelectItem value="sindico">Síndico</SelectItem>
             <SelectItem value="cobrador">Cobrador</SelectItem>
             <SelectItem value="colaborador">Colaborador Interno</SelectItem>
+            <SelectItem value="advogado">Advogado</SelectItem>
           </SelectContent>
         </Select>
       </div>

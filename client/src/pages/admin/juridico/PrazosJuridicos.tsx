@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -231,6 +232,9 @@ function ModalCriarPrazo({ open, onClose, onSuccess }: {
 type FiltroUrgencia = "todos" | "atrasado" | "hoje" | "7dias" | "15dias" | "30dias" | "futuro" | "concluido";
 
 export default function PrazosJuridicos() {
+  const { can } = usePermissions();
+  const podeCriar = can("juridico", "criar");
+  const podeExcluir = can("juridico", "excluir");
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroUrgencia, setFiltroUrgencia] = useState<FiltroUrgencia>("todos");
   const [filtroStatus, setFiltroStatus] = useState<"pendente" | "concluido" | "todos">("pendente");
@@ -303,10 +307,12 @@ export default function PrazosJuridicos() {
           <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
-          <Button onClick={() => setModalAberto(true)}>
-            <Plus className="w-4 h-4 mr-1.5" />
-            Novo Prazo
-          </Button>
+          {podeCriar && (
+            <Button onClick={() => setModalAberto(true)}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Novo Prazo
+            </Button>
+          )}
         </div>
       </div>
 

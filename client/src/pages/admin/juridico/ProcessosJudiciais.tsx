@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -392,6 +393,8 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
 // ─── Página Principal ─────────────────────────────────────────────────────────
 
 export default function ProcessosJudiciais() {
+  const { can } = usePermissions();
+  const podeCriar = can("juridico", "criar");
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todos");
@@ -424,10 +427,12 @@ export default function ProcessosJudiciais() {
           <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
-          <Button onClick={() => setModalAberto(true)}>
-            <Plus className="w-4 h-4 mr-1.5" />
-            Novo Processo
-          </Button>
+          {podeCriar && (
+            <Button onClick={() => setModalAberto(true)}>
+              <Plus className="w-4 h-4 mr-1.5" />
+              Novo Processo
+            </Button>
+          )}
         </div>
       </div>
 

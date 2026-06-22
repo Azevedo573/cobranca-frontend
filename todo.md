@@ -2394,3 +2394,11 @@
 - [x] App.tsx: redirecionamento para /advogado/dashboard quando role === "advogado"
 - [x] Criar página AdvogadoDashboard.tsx com visão jurídica (processos, prazos urgentes, resumo)
 - [x] Registrar rota /advogado/dashboard no App.tsx
+
+## RBAC para Advogado (Opção B)
+- [x] usePermissions.ts: incluir role "advogado" no sistema de perfis (remover do bypass)
+- [x] Backend getMyPermissions: funcionar para role advogado além de colaborador
+- [x] Tela UsersProfiles: exibir usuários advogados para atribuição de perfil
+- [x] Sidebar: aplicar colaboradorPodeVer para advogado no módulo jurídico
+- [x] Páginas de Processos e Prazos: aplicar can() para controle de ações (criar)
+- [x] Dashboard do Advogado: seções condicionais baseadas nas permissões do perfil

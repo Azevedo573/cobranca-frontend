@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -54,10 +55,14 @@ function formatDate(d: Date | string | null | undefined) {
 export default function AdvogadoDashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const { can, hasProfile, isLoading: permsLoading } = usePermissions();
+
+  const podeVerProcessos = can("juridico", "visualizar");
+  const podeVerPrazos    = can("juridico", "visualizar");
 
   // Dados do dashboard
-  const { data: resumoProcessos } = trpc.processos.resumo.useQuery(undefined);
-  const { data: resumoPrazos }    = trpc.prazos.resumo.useQuery(undefined);
+  const { data: resumoProcessos } = trpc.processos.resumo.useQuery(undefined, { enabled: podeVerProcessos });
+  const { data: resumoPrazos }    = trpc.prazos.resumo.useQuery(undefined, { enabled: podeVerPrazos });
 
   // Processos ativos (filtrado pelo advogado logado se tiver id)
   const filtroProcessos = useMemo(() => ({
@@ -92,9 +97,40 @@ export default function AdvogadoDashboard() {
     [todosPrazos]
   );
 
+  // Aguardando carregamento das permissões
+  if (permsLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center text-muted-foreground">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm">Carregando permissões...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Sem perfil atribuído
+  if (!hasProfile) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Scale className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+            <h2 className="text-lg font-semibold mb-1">Sem perfil de acesso</h2>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Seu usuário ainda não possui um perfil de acesso atribuído. Entre em contato com o administrador do sistema.
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      {/* ── Cards de resumo ─────────────────────────────────────────────── */}
+      {/* ── Cards de resumo ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardContent className="pt-5">

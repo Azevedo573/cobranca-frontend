@@ -235,9 +235,12 @@ export default function Sidebar() {
   // Permissões RBAC do colaborador logado
   const { can, profileLabel } = usePermissions();
 
-  // Verifica se o colaborador tem permissão de visualizar um módulo
-  const colaboradorPodeVer = (modulo: string) =>
-    can(modulo as Modulo, "visualizar");
+  // Verifica se o colaborador/advogado tem permissão de visualizar um módulo
+  const colaboradorPodeVer = (modulo: string) => {
+    // Para roles com bypass total, sempre permitir
+    if (user?.role === "admin" || user?.role === "sindico" || user?.role === "cobrador") return true;
+    return can(modulo as Modulo, "visualizar");
+  };
 
   // Estado de abertura de cada grupo — persiste no localStorage
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
