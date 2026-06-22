@@ -343,8 +343,9 @@ export async function getDemandas(filters?: {
   if (filters?.condominioId) conditions.push(eq(demandas.condominioId, filters.condominioId));
   if (filters?.colunaId) conditions.push(eq(demandas.colunaId, filters.colunaId));
   if (filters?.responsavelId) conditions.push(eq(demandas.responsavelId, filters.responsavelId));
-  // Advogados (role=user) só vêem as demandas atribuídas a eles
-  if (filters?.viewerRole === "user" && filters?.viewerUserId) {
+  // Advogados e colaboradores só vêem as demandas atribuídas a eles
+  const rolesRestritos = ["advogado", "colaborador", "user"];
+  if (rolesRestritos.includes(filters?.viewerRole ?? "") && filters?.viewerUserId) {
     conditions.push(eq(demandas.responsavelId, filters.viewerUserId));
   }
   const query = db
@@ -424,8 +425,9 @@ export async function getDemandaById(
     .where(eq(demandas.id, id))
     .limit(1);
   const row = rows[0] ?? null;
-  // Advogados (role=user) só podem ver demandas atribuídas a eles
-  if (row && viewer?.role === "user" && row.responsavelId !== viewer.userId) {
+  // Advogados e colaboradores só podem ver demandas atribuídas a eles
+  const rolesRestritosById = ["advogado", "colaborador", "user"];
+  if (row && rolesRestritosById.includes(viewer?.role ?? "") && row.responsavelId !== viewer?.userId) {
     return null; // acesso negado
   }
   return row;
