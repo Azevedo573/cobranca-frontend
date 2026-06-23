@@ -208,6 +208,7 @@ export default function ReguaCobranca() {
   const [executandoRegua, setExecutandoRegua] = useState<number | null>(null);
 
   const [formRegua, setFormRegua] = useState<FormRegua>(defaultFormRegua());
+  const [activeReguaTab, setActiveReguaTab] = useState("geral");
   const [formPosicao, setFormPosicao] = useState({
     diasInadimplencia: 0,
     tipoAcao: "whatsapp",
@@ -276,6 +277,7 @@ export default function ReguaCobranca() {
 
   const handleOpenEdit = (r: Regua) => {
     setFormRegua(reguaToForm(r));
+    setActiveReguaTab("geral");
     setShowEditRegua(r);
   };
 
@@ -319,7 +321,7 @@ export default function ReguaCobranca() {
   // ─── Formulário de régua (abas) ─────────────────────────────────────────────
 
   const ReguaForm = () => (
-    <Tabs defaultValue="geral" className="w-full">
+    <Tabs value={activeReguaTab} onValueChange={setActiveReguaTab} className="w-full">
       <TabsList className="grid w-full grid-cols-4 mb-4">
         <TabsTrigger value="geral" className="flex items-center gap-1 text-xs"><Settings className="w-3 h-3" />Geral</TabsTrigger>
         <TabsTrigger value="abrangencia" className="flex items-center gap-1 text-xs"><Target className="w-3 h-3" />Abrangência</TabsTrigger>
