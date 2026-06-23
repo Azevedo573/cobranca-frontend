@@ -2136,6 +2136,18 @@ export const appRouter = router({
       const dataFim = input.dataFim ? new Date(input.dataFim) : undefined;
       return await getDistribuicaoPorCondominio(dataInicio, dataFim);
     }),
+    cobranca: protectedProcedure.input(z.object({
+      condominioId: z.number().int().positive().optional(),
+      devedorId: z.number().int().positive().optional(),
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      resultadoContato: z.array(z.enum(["sem_resposta", "promessa_pagamento", "deseja_acordo", "recusa", "outro"])).optional(),
+      tipoContato: z.array(z.enum(["telefone", "email", "pessoal", "whatsapp", "sistema"])).optional(),
+      responsavelId: z.number().int().positive().optional(),
+    })).query(async ({ input }) => {
+      const { getRelatorioCobranca } = await import("./db-relatorios-extra");
+      return await getRelatorioCobranca(input);
+    }),
     inadimplencia: protectedProcedure.input(z.object({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),

@@ -29,6 +29,7 @@ import ProcessoCobrancaDetalhes from "./pages/ProcessoCobrancaDetalhes";
 import RelatorioProdutividade from "./pages/admin/RelatorioProdutividade";
 import Relatorios from "./pages/Relatorios";
 import RelatorioInadimplencia from "./pages/RelatorioInadimplencia";
+import RelatorioCobranca from "./pages/RelatorioCobranca";
 import ImportarDevedores from "./pages/admin/ImportarDevedores";
 import ImportarCondominios from "./pages/admin/ImportarCondominios";
 import ReguaCobranca from "./pages/admin/ReguaCobranca";
@@ -227,6 +228,9 @@ function Router() {
       </Route>
       <Route path="/relatorios/inadimplencia">
         {() => <PermissionRoute component={RelatorioInadimplencia} allowedRoles={["admin", "colaborador", "advogado"]} requiredModulo="relatorios" />}
+      </Route>
+      <Route path="/relatorios/cobranca">
+        {() => <PermissionRoute component={RelatorioCobranca} allowedRoles={["admin", "colaborador"]} requiredModulo="relatorios" />}
       </Route>
 
       {/* Régua de Cobrança */}

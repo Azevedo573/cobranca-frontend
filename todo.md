@@ -2446,3 +2446,19 @@
 - [x] Exportar Excel (via ExcelJS no frontend)
 - [x] Registrar rota /relatorios/inadimplencia no App.tsx
 - [x] Adicionar link no menu de Relatórios no Sidebar
+
+## Relatório de Produtividade / Cobrança
+- [x] Expandir procedure backend relatorios.produtividade com filtros: condominioId, devedorId, periodoInicio, periodoFim, resultadoContato, tipoContato, responsavelId
+- [x] Criar página RelatorioCobranca.tsx com filtros e tabela de tentativas detalhada
+- [x] Filtro 1: Condomínio (select, todos ou específico)
+- [x] Filtro 2: Unidade (select dinâmico baseado no condomínio)
+- [x] Filtro 3: Período do contato (data início e fim)
+- [x] Filtro 4: Resultado do contato (promessa de pagamento, sem resposta, recusa, outro)
+- [x] Filtro 5: Tipo de contato (telefone, e-mail, whatsapp, presencial, sistema/automação)
+- [x] Filtro 6: Responsável (select de operadores/usuários)
+- [x] Tabela detalhada: data, devedor, unidade, condomínio, tipo contato, resultado, notas, responsável
+- [x] Cards de resumo: total tentativas, por tipo, por resultado, taxa de sucesso
+- [x] Exportar Excel com ExcelJS
+- [x] Exportar PDF com jsPDF+autotable
+- [x] Registrar rota /relatorios/cobranca no App.tsx
+- [x] Adicionar link no menu Relatórios do Sidebar

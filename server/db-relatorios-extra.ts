@@ -1,7 +1,7 @@
 import { getDb } from "./db";
-import { and, eq, gte, lte, inArray, desc } from "drizzle-orm";
+import { and, eq, gte, lte, inArray, desc, like } from "drizzle-orm";
 import {
-  cobrancas, devedores, condominios, acordos,
+  cobrancas, devedores, condominios, acordos, users, tentativasCobranca,
 } from "../drizzle/schema";
 
 type FiltroBase = {
@@ -340,4 +340,134 @@ export async function getRelatorioInadimplenciaCompleto(filtro: FiltroInadimplen
   };
 
   return { rows: rowsFinal, totais };
+}
+
+// ─── 6. Relatório de Cobrança / Produtividade Detalhado ──────────────────────
+type FiltroRelatorioCobranca = {
+  condominioId?: number;
+  devedorId?: number;
+  dataInicio?: string;
+  dataFim?: string;
+  resultadoContato?: string[];
+  tipoContato?: string[];
+  responsavelId?: number;
+};
+
+export async function getRelatorioCobranca(filtro: FiltroRelatorioCobranca) {
+  const db = await getDb();
+  if (!db) return {
+    rows: [],
+    totais: { total: 0, semResposta: 0, promessa: 0, deseja_acordo: 0, recusa: 0, outro: 0 },
+    porTipo: {},
+    porResponsavel: [],
+  };
+
+  const cond: any[] = [];
+
+  if (filtro.condominioId) cond.push(eq(devedores.condominioId, filtro.condominioId));
+  if (filtro.devedorId) cond.push(eq(tentativasCobranca.devedorId, filtro.devedorId));
+  if (filtro.dataInicio) cond.push(gte(tentativasCobranca.attemptDate, new Date(filtro.dataInicio)));
+  if (filtro.dataFim) {
+    const fim = new Date(filtro.dataFim);
+    fim.setHours(23, 59, 59, 999);
+    cond.push(lte(tentativasCobranca.attemptDate, fim));
+  }
+  if (filtro.responsavelId) cond.push(eq(tentativasCobranca.userId, filtro.responsavelId));
+
+  // Filtro de resultado
+  if (filtro.resultadoContato && filtro.resultadoContato.length > 0) {
+    type ResultadoEnum = "sem_resposta" | "promessa_pagamento" | "deseja_acordo" | "recusa" | "outro";
+    cond.push(inArray(tentativasCobranca.result, filtro.resultadoContato as ResultadoEnum[]));
+  }
+
+  // Filtro de tipo de contato (sistema = não tem userId de operador real, ou contactType não existe no enum)
+  // "sistema" é tratado como tentativas sem userId humano (automação)
+  if (filtro.tipoContato && filtro.tipoContato.length > 0) {
+    const tiposHumanos = filtro.tipoContato.filter(t => t !== "sistema");
+    const incluiSistema = filtro.tipoContato.includes("sistema");
+
+    if (tiposHumanos.length > 0 && !incluiSistema) {
+      type ContactEnum = "telefone" | "email" | "pessoal" | "whatsapp";
+      cond.push(inArray(tentativasCobranca.contactType, tiposHumanos as ContactEnum[]));
+    }
+    // Se inclui sistema e humanos: sem filtro de tipo (busca todos)
+    // Se só sistema: filtramos por notes contendo "[AUTOMÁTICO" ou userId nulo
+    if (incluiSistema && tiposHumanos.length === 0) {
+      // Tentativas automáticas têm notes com prefixo [AUTOMÁTICO
+      cond.push(like(tentativasCobranca.notes, "[AUTOMÁTICO%"));
+    }
+  }
+
+  const rows = await db
+    .select({
+      id: tentativasCobranca.id,
+      devedorId: tentativasCobranca.devedorId,
+      nomeDevedor: devedores.name,
+      unidade: devedores.unitNumber,
+      bloco: devedores.bloco,
+      nomeCondominio: condominios.name,
+      responsavelId: users.id,
+      responsavelNome: users.name,
+      responsavelEmail: users.email,
+      tipoContato: tentativasCobranca.contactType,
+      resultado: tentativasCobranca.result,
+      notas: tentativasCobranca.notes,
+      dataContato: tentativasCobranca.attemptDate,
+      proximaData: tentativasCobranca.nextAttemptDate,
+    })
+    .from(tentativasCobranca)
+    .innerJoin(users, eq(tentativasCobranca.userId, users.id))
+    .innerJoin(devedores, eq(tentativasCobranca.devedorId, devedores.id))
+    .innerJoin(condominios, eq(devedores.condominioId, condominios.id))
+    .where(cond.length > 0 ? and(...cond) : undefined)
+    .orderBy(desc(tentativasCobranca.attemptDate))
+    .limit(5000);
+
+  // Totalizadores
+  const totais = {
+    total: rows.length,
+    semResposta: rows.filter(r => r.resultado === "sem_resposta").length,
+    promessa: rows.filter(r => r.resultado === "promessa_pagamento").length,
+    deseja_acordo: rows.filter(r => r.resultado === "deseja_acordo").length,
+    recusa: rows.filter(r => r.resultado === "recusa").length,
+    outro: rows.filter(r => r.resultado === "outro" || !r.resultado).length,
+  };
+
+  // Por tipo de contato
+  const porTipo: Record<string, number> = {};
+  for (const r of rows) {
+    const tipo = r.tipoContato ?? "desconhecido";
+    porTipo[tipo] = (porTipo[tipo] ?? 0) + 1;
+  }
+
+  // Por responsável
+  const mapaResp = new Map<number, { nome: string; total: number; promessa: number; semResposta: number; recusa: number }>();
+  for (const r of rows) {
+    const existing = mapaResp.get(r.responsavelId);
+    if (existing) {
+      existing.total++;
+      if (r.resultado === "promessa_pagamento") existing.promessa++;
+      if (r.resultado === "sem_resposta") existing.semResposta++;
+      if (r.resultado === "recusa") existing.recusa++;
+    } else {
+      mapaResp.set(r.responsavelId, {
+        nome: r.responsavelNome ?? "Sem nome",
+        total: 1,
+        promessa: r.resultado === "promessa_pagamento" ? 1 : 0,
+        semResposta: r.resultado === "sem_resposta" ? 1 : 0,
+        recusa: r.resultado === "recusa" ? 1 : 0,
+      });
+    }
+  }
+  const porResponsavel = Array.from(mapaResp.entries()).map(([id, v]) => ({
+    id,
+    nome: v.nome,
+    total: v.total,
+    promessa: v.promessa,
+    semResposta: v.semResposta,
+    recusa: v.recusa,
+    taxaSucesso: v.total > 0 ? Math.round((v.promessa / v.total) * 100) : 0,
+  })).sort((a, b) => b.total - a.total);
+
+  return { rows, totais, porTipo, porResponsavel };
 }

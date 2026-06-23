@@ -200,6 +200,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { label: "Relatórios", href: "/relatorios", icon: FileText, roles: ["admin", "colaborador"], rbacModulo: "relatorios" },
       { label: "Inadimplência", href: "/relatorios/inadimplencia", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "relatorios" },
+      { label: "Cobrança", href: "/relatorios/cobranca", icon: FileText, roles: ["admin", "colaborador"], rbacModulo: "relatorios" },
       { label: "Produtividade", href: "/admin/relatorios/produtividade", icon: BarChart3, roles: ["admin"] },
       { label: "Centro de Inteligência", href: "/admin/executivo", icon: TrendingUp, roles: ["admin"] },
       { label: "Auditoria do Sistema", href: "/admin/auditoria", icon: Shield, roles: ["admin"] },
