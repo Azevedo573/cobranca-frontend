@@ -2140,9 +2140,16 @@ export const appRouter = router({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
+      devedorId: z.number().int().positive().optional(),
+      atualizadoAte: z.string().optional(), // data base para cálculo de encargos
+      tiposCobranca: z.array(z.string()).optional(), // filtro por tipo
+      categoria: z.enum(["todos", "padrao", "ajuizada"]).optional(),
+      honorariosPerc: z.number().min(0).max(100).optional(), // % adicional de honorários
+      custasJudiciais: z.number().min(0).optional(), // R$ em centavos
+      outrasDespesas: z.number().min(0).optional(), // R$ em centavos
     })).query(async ({ input }) => {
-      const { getRelatorioInadimplencia } = await import("./db-relatorios-extra");
-      return await getRelatorioInadimplencia(input);
+      const { getRelatorioInadimplenciaCompleto } = await import("./db-relatorios-extra");
+      return await getRelatorioInadimplenciaCompleto(input);
     }),
     acordosPeriodo: protectedProcedure.input(z.object({
       dataInicio: z.string().optional(),

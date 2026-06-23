@@ -2428,3 +2428,21 @@
 - [x] ModelosDocumento: adicionar botão "Preencher" para modelos jurídicos
 - [x] Criar página PreencherModeloJuridico.tsx com formulário de preenchimento e preview do documento
 - [x] Registrar rota /modelos-documento/:id/preencher no App.tsx
+
+## Relatório de Inadimplência
+- [x] Criar procedure backend relatorios.inadimplencia com filtros: condominioId, unidadeId, periodoInicio, periodoFim, atualizadoAte, tiposCobranca, categoria, honorariosPerc, custasJudiciais, outrasDespesas
+- [x] Calcular valores atualizados (juros + multa + correção) até a data de atualização informada
+- [x] Criar página RelatorioInadimplencia.tsx com filtros completos
+- [x] Filtro 1: Condomínio (select)
+- [x] Filtro 2: Unidade (select dinâmico baseado no condomínio)
+- [x] Filtro 3: Período (data início e fim do vencimento)
+- [x] Filtro 4: Atualização (data base para cálculo de encargos)
+- [x] Filtro 5: Tipos de cobrança (cota condominial, acordo, multa, infração, salão de festa, churrasqueira, todos)
+- [x] Filtro 6: Categoria (ajuizados, padrão, todos)
+- [x] Filtro 7: Campos de acréscimo: honorários (%), custas judiciais (R$), outras despesas (R$)
+- [x] Tabela com colunas: unidade, devedor, vencimento, valor original, juros, multa, correção, honorários, custas, outras despesas, total atualizado
+- [x] Totalizadores: subtotal por devedor, total geral
+- [x] Exportar PDF (via jsPDF + jspdf-autotable no frontend)
+- [x] Exportar Excel (via ExcelJS no frontend)
+- [x] Registrar rota /relatorios/inadimplencia no App.tsx
+- [x] Adicionar link no menu de Relatórios no Sidebar

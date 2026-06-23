@@ -240,7 +240,7 @@ export default function Relatorios() {
               </CardContent></Card>
               <Card><CardContent className="pt-4">
                 <p className="text-xs text-muted-foreground">Total em Aberto</p>
-                <p className="text-2xl font-bold text-red-600">{fmtBRL(dadosInad.totais.totalValor)}</p>
+                <p className="text-2xl font-bold text-red-600">{fmtBRL(dadosInad.totais.totalValorOriginal ?? dadosInad.totais.totalAtualizado)}</p>
               </CardContent></Card>
               <Card><CardContent className="pt-4">
                 <p className="text-xs text-muted-foreground">Cobranças Pendentes</p>
