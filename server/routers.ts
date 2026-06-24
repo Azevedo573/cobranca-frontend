@@ -6267,6 +6267,255 @@ export const appRouter = router({
           .where(eq(whatsappFilaEnvio.id, input.id));
         return { success: true };
       }),
+
+    // ─── Grupos ──────────────────────────────────────────────────────────────────
+    listarGrupos: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(200).default(100),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { getGroups } = await import("./zapi-service");
+        return getGroups(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.page,
+          input.pageSize
+        );
+      }),
+
+    metadadosGrupo: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { getGroupMetadata } = await import("./zapi-service");
+        return getGroupMetadata(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone
+        );
+      }),
+
+    criarGrupo: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupName: z.string().min(1).max(100),
+        phones: z.array(z.string().min(1)).min(1),
+        autoInvite: z.boolean().default(false),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { createGroup } = await import("./zapi-service");
+        return createGroup(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupName,
+          input.phones,
+          input.autoInvite
+        );
+      }),
+
+    enviarMensagemGrupo: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+        message: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { sendTextToGroup } = await import("./zapi-service");
+        return sendTextToGroup(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone,
+          input.message
+        );
+      }),
+
+    adicionarParticipante: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+        phones: z.array(z.string().min(1)).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { addParticipants } = await import("./zapi-service");
+        return addParticipants(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone,
+          input.phones
+        );
+      }),
+
+    removerParticipante: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+        phones: z.array(z.string().min(1)).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { removeParticipants } = await import("./zapi-service");
+        return removeParticipants(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone,
+          input.phones
+        );
+      }),
+
+    atualizarNome: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+        groupName: z.string().min(1).max(100),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { updateGroupName } = await import("./zapi-service");
+        return updateGroupName(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone,
+          input.groupName
+        );
+      }),
+
+    atualizarDescricao: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+        description: z.string().max(512),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { updateGroupDescription } = await import("./zapi-service");
+        return updateGroupDescription(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone,
+          input.description
+        );
+      }),
+
+    obterLinkConvite: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { getGroupInviteLink } = await import("./zapi-service");
+        return getGroupInviteLink(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone
+        );
+      }),
+
+    promoverAdmin: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+        phones: z.array(z.string().min(1)).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { promoteToAdmin } = await import("./zapi-service");
+        return promoteToAdmin(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone,
+          input.phones
+        );
+      }),
+
+    removerAdmin: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+        phones: z.array(z.string().min(1)).min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { removeAdmin } = await import("./zapi-service");
+        return removeAdmin(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone,
+          input.phones
+        );
+      }),
+
+    sairDoGrupo: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        groupPhone: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const { leaveGroup } = await import("./zapi-service");
+        return leaveGroup(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          input.groupPhone
+        );
+      }),
   }),
 
   // ─── Custas Judiciais ───────────────────────────────────────────────────────

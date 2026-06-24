@@ -157,6 +157,194 @@ export async function sendOptionList(
   };
 }
 
+// ─── Grupos ──────────────────────────────────────────────────────────────────
+
+export interface ZApiGroup {
+  phone: string;
+  name: string;
+  isGroup: boolean;
+  unread: string;
+  lastMessageTime: string;
+  isMuted: string;
+  archived: boolean;
+  pinned: boolean;
+}
+
+export interface ZApiGroupParticipant {
+  phone: string;
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  name?: string;
+  short?: string;
+}
+
+export interface ZApiGroupMetadata {
+  phone: string;
+  description: string;
+  owner: string;
+  subject: string;
+  creation: number;
+  invitationLink: string;
+  adminOnlyMessage: boolean;
+  adminOnlySettings: boolean;
+  requireAdminApproval: boolean;
+  isGroupAnnouncement: boolean;
+  participants: ZApiGroupParticipant[];
+}
+
+/** Listar todos os grupos da instância (paginado) */
+export async function getGroups(
+  config: ZApiConfig,
+  page = 1,
+  pageSize = 100
+): Promise<ZApiGroup[]> {
+  const data = await zapiRequest(
+    config, "GET",
+    `/groups?page=${page}&pageSize=${pageSize}`
+  ) as any;
+  return Array.isArray(data) ? data : [];
+}
+
+/** Metadados completos de um grupo (inclui participantes) */
+export async function getGroupMetadata(
+  config: ZApiConfig,
+  groupPhone: string
+): Promise<ZApiGroupMetadata> {
+  const data = await zapiRequest(config, "GET", `/group-metadata/${groupPhone}`) as any;
+  return data;
+}
+
+/** Criar um novo grupo */
+export async function createGroup(
+  config: ZApiConfig,
+  groupName: string,
+  phones: string[],
+  autoInvite = false
+): Promise<{ phone: string; invitationLink: string; phonesNotAdded: string[] }> {
+  const data = await zapiRequest(config, "POST", "/create-group", {
+    groupName,
+    phones,
+    autoInvite,
+  }) as any;
+  return {
+    phone: data?.phone ?? "",
+    invitationLink: data?.invitationLink ?? "",
+    phonesNotAdded: data?.phonesNotAdded ?? [],
+  };
+}
+
+/** Enviar texto para um grupo */
+export async function sendTextToGroup(
+  config: ZApiConfig,
+  groupPhone: string,
+  message: string
+): Promise<{ zaapId: string; messageId: string }> {
+  const data = await zapiRequest(config, "POST", "/send-text", {
+    phone: groupPhone,
+    message,
+  }) as any;
+  return {
+    zaapId: data?.zaapId ?? "",
+    messageId: data?.messageId ?? "",
+  };
+}
+
+/** Adicionar participantes ao grupo */
+export async function addParticipants(
+  config: ZApiConfig,
+  groupPhone: string,
+  phones: string[]
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "POST", "/add-participant", {
+    phone: groupPhone,
+    phones,
+  });
+  return { success: true };
+}
+
+/** Remover participantes do grupo */
+export async function removeParticipants(
+  config: ZApiConfig,
+  groupPhone: string,
+  phones: string[]
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "POST", "/remove-participant", {
+    phone: groupPhone,
+    phones,
+  });
+  return { success: true };
+}
+
+/** Atualizar nome do grupo */
+export async function updateGroupName(
+  config: ZApiConfig,
+  groupPhone: string,
+  groupName: string
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "POST", "/update-group-name", {
+    phone: groupPhone,
+    groupName,
+  });
+  return { success: true };
+}
+
+/** Atualizar descrição do grupo */
+export async function updateGroupDescription(
+  config: ZApiConfig,
+  groupPhone: string,
+  description: string
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "POST", "/update-group-description", {
+    phone: groupPhone,
+    description,
+  });
+  return { success: true };
+}
+
+/** Obter link de convite do grupo */
+export async function getGroupInviteLink(
+  config: ZApiConfig,
+  groupPhone: string
+): Promise<{ invitationLink: string }> {
+  const data = await zapiRequest(config, "GET", `/invitation-link/${groupPhone}`) as any;
+  return { invitationLink: data?.invitationLink ?? data?.value ?? "" };
+}
+
+/** Sair do grupo */
+export async function leaveGroup(
+  config: ZApiConfig,
+  groupPhone: string
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "POST", "/leave-group", { phone: groupPhone });
+  return { success: true };
+}
+
+/** Promover participante a admin */
+export async function promoteToAdmin(
+  config: ZApiConfig,
+  groupPhone: string,
+  phones: string[]
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "POST", "/add-admin", {
+    phone: groupPhone,
+    phones,
+  });
+  return { success: true };
+}
+
+/** Remover admin do grupo */
+export async function removeAdmin(
+  config: ZApiConfig,
+  groupPhone: string,
+  phones: string[]
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "POST", "/remove-admin", {
+    phone: groupPhone,
+    phones,
+  });
+  return { success: true };
+}
+
 // ─── Formatar telefone para padrão Z-API ─────────────────────────────────────
 export function formatPhone(phone: string): string {
   // Remove tudo que não é número

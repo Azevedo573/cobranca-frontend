@@ -67,6 +67,7 @@ import UsersProfiles from "./pages/admin/UsersProfiles";
 import ColaboradorDashboard from "./pages/colaborador/ColaboradorDashboard";
 import AdvogadoDashboard from "./pages/advogado/AdvogadoDashboard";
 import WhatsApp from "./pages/WhatsApp";
+import WhatsAppGrupos from "./pages/WhatsAppGrupos";
 import WhatsAppConfig from "./pages/configuracoes/WhatsAppConfig";
 import WhatsAppFilaConfig from "./pages/configuracoes/WhatsAppFilaConfig";
 import Atendimento from "./pages/Atendimento";
@@ -428,6 +429,9 @@ function Router() {
         {() => <ProtectedRoute component={UsersProfiles} allowedRoles={["admin"]} />}
       </Route>
 
+      <Route path="/whatsapp/grupos">
+        {() => <ProtectedRoute component={WhatsAppGrupos} allowedRoles={["admin", "cobrador", "colaborador"]} />}
+      </Route>
       <Route path="/whatsapp">
         {() => { window.location.replace("/atendimento"); return null; }}
       </Route>

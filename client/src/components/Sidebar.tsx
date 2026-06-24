@@ -185,6 +185,7 @@ const menuGroups: MenuGroup[] = [
     roles: ["admin", "cobrador", "colaborador"],
     items: [
       { label: "Central de Atendimento", href: "/atendimento", icon: Headphones, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "whatsapp" },
+      { label: "Grupos", href: "/whatsapp/grupos", icon: Users, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Configurar Instâncias", href: "/configuracoes/whatsapp", icon: Settings, roles: ["admin"] },
       { label: "Fila de Envio", href: "/configuracoes/whatsapp-fila", icon: Activity, roles: ["admin"] },
       { label: "Config. Atendimento", href: "/configuracoes/atendimento", icon: Settings, roles: ["admin"] },

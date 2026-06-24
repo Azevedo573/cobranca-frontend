@@ -2465,3 +2465,10 @@
 
 ## Bug: Kanban Demandas - tarefa some ao trocar advogado responsável
 - [x] Corrigir procedure juridicoDemandas.update: ao trocar responsavelId, se a coluna atual for intermediária (pessoal de outro advogado), mover automaticamente para a coluna de entrada global
+
+## WhatsApp - Grupos (Z-API)
+- [ ] zapi-service.ts: adicionar funções getGroups, getGroupMetadata, createGroup, sendTextToGroup, addParticipants, removeParticipants, updateGroupName, updateGroupDescription, getInviteLink, leaveGroup, promoteAdmin, removeAdmin
+- [ ] backend: criar router whatsapp.grupos com procedures listarGrupos, metadadosGrupo, criarGrupo, enviarMensagemGrupo, adicionarParticipante, removerParticipante, atualizarNomeGrupo, obterLinkConvite, sairGrupo, promoverAdmin, removerAdmin
+- [ ] Criar página WhatsAppGrupos.tsx com: lista de grupos da instância, painel de detalhes do grupo (participantes, link de convite), modal criar grupo, envio de mensagem para o grupo, gerenciamento de participantes
+- [ ] Registrar rota /whatsapp/grupos no App.tsx
+- [ ] Adicionar link Grupos no menu WhatsApp do Sidebar
