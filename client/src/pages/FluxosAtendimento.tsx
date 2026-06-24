@@ -275,15 +275,15 @@ function ModalEditarNo({
 
   return (
     <Dialog open onOpenChange={onFechar}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-lg flex flex-col" style={{ maxHeight: '90vh' }}>
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             {iconeNo[no.tipo]}
             Editar Nó — {labelNo[no.tipo]}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto flex-1 pr-1">
           <div>
             <Label>Nome do nó</Label>
             <Input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Boas-vindas" className="mt-1" />
@@ -525,7 +525,7 @@ function ModalEditarNo({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 pt-2 border-t">
           <Button variant="outline" onClick={onFechar}>Cancelar</Button>
           <Button onClick={salvar} disabled={!nome.trim()}>Salvar nó</Button>
         </DialogFooter>
