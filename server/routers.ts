@@ -6342,7 +6342,7 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new Error("DB indisponível");
         const { whatsappInstancias, whatsappConversas, whatsappMensagens } = await import("../drizzle/schema");
-        const { eq, and } = await import("drizzle-orm");
+        const { eq, and, or } = await import("drizzle-orm");
         const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
         if (!inst) throw new Error("Instância não encontrada");
 
@@ -6354,17 +6354,28 @@ export const appRouter = router({
           input.message
         );
 
+        // Normalizar telefone do grupo para @g.us
+        const groupPhoneNorm = input.groupPhone.includes("-group")
+          ? input.groupPhone.replace("-group", "") + "@g.us"
+          : input.groupPhone;
+        const groupPhoneAlt = groupPhoneNorm.includes("@g.us")
+          ? groupPhoneNorm.replace("@g.us", "-group")
+          : groupPhoneNorm.replace("-group", "") + "@g.us";
+
         // Buscar ou criar conversa de grupo no banco
         let [conversa] = await db
           .select()
           .from(whatsappConversas)
-          .where(and(eq(whatsappConversas.instanciaId, input.instanciaId), eq(whatsappConversas.telefone, input.groupPhone)));
+          .where(and(
+            eq(whatsappConversas.instanciaId, input.instanciaId),
+            or(eq(whatsappConversas.telefone, groupPhoneNorm), eq(whatsappConversas.telefone, groupPhoneAlt))
+          ));
 
         if (!conversa) {
           const [insertResult] = await db.insert(whatsappConversas).values({
             instanciaId: input.instanciaId,
-            telefone: input.groupPhone,
-            nomeGrupo: input.groupPhone,
+            telefone: groupPhoneNorm,
+            nomeGrupo: groupPhoneNorm,
             isGroup: 1,
             status: "aberta",
             naoLidas: 0,
@@ -6619,31 +6630,43 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) return { conversaId: null, mensagens: [] };
         const { whatsappConversas, whatsappMensagens } = await import("../drizzle/schema");
-        const { eq, and, desc } = await import("drizzle-orm");
+        const { eq, and, desc, or } = await import("drizzle-orm");
 
-        // Buscar conversa existente
+        // Normalizar telefone: -group -> @g.us
+        const telefoneNorm = input.telefone.includes("-group")
+          ? input.telefone.replace("-group", "") + "@g.us"
+          : input.telefone;
+        // Buscar conversa existente (aceita ambos os formatos para compatibilidade)
+        const telefoneAlt = telefoneNorm.includes("@g.us")
+          ? telefoneNorm.replace("@g.us", "-group")
+          : telefoneNorm.replace("-group", "") + "@g.us";
+
         let [conversa] = await db
           .select()
           .from(whatsappConversas)
-          .where(and(eq(whatsappConversas.instanciaId, input.instanciaId), eq(whatsappConversas.telefone, input.telefone)));
+          .where(and(
+            eq(whatsappConversas.instanciaId, input.instanciaId),
+            or(eq(whatsappConversas.telefone, telefoneNorm), eq(whatsappConversas.telefone, telefoneAlt))
+          ));
 
         // Se não existe, criar (sem mensagens ainda)
         if (!conversa) {
           const [insertResult] = await db.insert(whatsappConversas).values({
             instanciaId: input.instanciaId,
-            telefone: input.telefone,
-            nomeGrupo: input.nomeGrupo ?? input.telefone,
+            telefone: telefoneNorm, // sempre usar formato @g.us
+            nomeGrupo: input.nomeGrupo ?? telefoneNorm,
             isGroup: 1,
             status: "aberta",
             naoLidas: 0,
           });
           const [nova] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, (insertResult as any).insertId));
           conversa = nova;
-        } else if (!conversa.isGroup) {
-          // Garantir isGroup=1 e nomeGrupo
+        } else {
+          // Garantir isGroup=1, nomeGrupo e telefone no formato correto
           await db.update(whatsappConversas).set({
             isGroup: 1,
-            nomeGrupo: input.nomeGrupo ?? conversa.nomeGrupo ?? input.telefone,
+            telefone: telefoneNorm,
+            nomeGrupo: input.nomeGrupo ?? conversa.nomeGrupo ?? telefoneNorm,
           }).where(eq(whatsappConversas.id, conversa.id));
         }
 

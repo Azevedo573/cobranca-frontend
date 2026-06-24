@@ -347,7 +347,13 @@ export async function removeAdmin(
 
 // ─── Formatar telefone para padrão Z-API ─────────────────────────────────────
 export function formatPhone(phone: string): string {
-  // Remove tudo que não é número
+  // Preservar formato de grupos WhatsApp (@g.us) — padrão Z-API
+  if (phone.includes("@g.us")) return phone; // ex: 120363408829748974@g.us
+  // Normalizar formato legado -group para @g.us
+  if (phone.includes("-group")) {
+    return phone.replace("-group", "") + "@g.us";
+  }
+  // Remove tudo que não é número para contatos normais
   const digits = phone.replace(/\D/g, "");
   // Se já começa com 55 (Brasil), retorna como está
   if (digits.startsWith("55") && digits.length >= 12) return digits;
