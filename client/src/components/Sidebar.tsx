@@ -90,6 +90,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Usuários", href: "/admin/usuarios", icon: Users, roles: ["admin"] },
       { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador", "advogado"], rbacModulo: "modelos_documento" },
       { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
+      { label: "Grupos WhatsApp", href: "/whatsapp/grupos", icon: Users, roles: ["admin"] },
     ],
   },
 
@@ -185,7 +186,6 @@ const menuGroups: MenuGroup[] = [
     roles: ["admin", "cobrador", "colaborador"],
     items: [
       { label: "Central de Atendimento", href: "/atendimento", icon: Headphones, roles: ["admin", "cobrador", "colaborador"], rbacModulo: "whatsapp" },
-      { label: "Grupos", href: "/whatsapp/grupos", icon: Users, roles: ["admin", "cobrador", "colaborador"] },
       { label: "Configurar Instâncias", href: "/configuracoes/whatsapp", icon: Settings, roles: ["admin"] },
       { label: "Fila de Envio", href: "/configuracoes/whatsapp-fila", icon: Activity, roles: ["admin"] },
       { label: "Config. Atendimento", href: "/configuracoes/atendimento", icon: Settings, roles: ["admin"] },

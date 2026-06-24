@@ -872,7 +872,13 @@ export default function Atendimento() {
   const { user } = useAuth();
 
   // Modo de visualização da coluna esquerda
-  const [abaSelecionada, setAbaSelecionada] = useState<"meus" | "fila" | "automatico" | "supervisor">("meus");
+  const [abaSelecionada, setAbaSelecionada] = useState<"meus" | "fila" | "automatico" | "supervisor" | "grupos">("meus");
+
+  // Estado da aba de grupos
+  const [grupoSelecionado, setGrupoSelecionado] = useState<{ phone: string; name: string; instanciaId: number } | null>(null);
+  const [mensagemGrupo, setMensagemGrupo] = useState("");
+  const [instanciaGrupoId, setInstanciaGrupoId] = useState<number | null>(null);
+  const [buscaGrupo, setBuscaGrupo] = useState("");
 
   // Atendimento selecionado (modo "meus" e "fila")
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<Atendimento | null>(null);
@@ -903,6 +909,26 @@ export default function Atendimento() {
 
   // Instâncias WhatsApp
   const { data: instancias = [] } = trpc.whatsapp.listarInstancias.useQuery(undefined, { refetchInterval: 30000 });
+
+  // Grupos da aba de grupos
+  const { data: gruposDaInstancia = [], isLoading: loadingGrupos, refetch: refetchGrupos } =
+    trpc.whatsapp.listarGrupos.useQuery(
+      { instanciaId: instanciaGrupoId ?? 0, pageSize: 200 },
+      { enabled: !!instanciaGrupoId && abaSelecionada === "grupos" }
+    );
+
+  const gruposFiltrados = (gruposDaInstancia as any[]).filter((g: any) =>
+    g.name?.toLowerCase().includes(buscaGrupo.toLowerCase()) ||
+    g.phone?.toLowerCase().includes(buscaGrupo.toLowerCase())
+  );
+
+  const enviarMensagemGrupoMutation = trpc.whatsapp.enviarMensagemGrupo.useMutation({
+    onSuccess: () => {
+      toast.success("Mensagem enviada para o grupo!");
+      setMensagemGrupo("");
+    },
+    onError: (e) => toast.error("Erro ao enviar: " + e.message),
+  });
 
 
 
@@ -1139,6 +1165,7 @@ export default function Atendimento() {
               { key: "meus", label: "Meus", count: meusAtendimentos.length },
               { key: "fila", label: "Fila", count: fila.length },
               { key: "automatico", label: "Automático", count: automaticos.length },
+              { key: "grupos", label: "Grupos", count: null },
               { key: "supervisor", label: "Supervisão", count: null },
             ] as const).map((aba) => (
               <button key={aba.key} onClick={() => setAbaSelecionada(aba.key)}
@@ -1159,6 +1186,32 @@ export default function Atendimento() {
             <div className="relative mt-2">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input placeholder="Buscar..." value={buscaConversa} onChange={(e) => setBuscaConversa(e.target.value)} className="pl-8 h-7 text-xs" />
+            </div>
+          )}
+          {/* Seletor de instância para grupos */}
+          {abaSelecionada === "grupos" && (
+            <div className="mt-2 space-y-1.5">
+              <Select value={instanciaGrupoId?.toString() ?? ""} onValueChange={(v) => { setInstanciaGrupoId(Number(v)); setGrupoSelecionado(null); }}>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Selecionar instância..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {(instancias as Instancia[]).map((inst) => (
+                    <SelectItem key={inst.id} value={inst.id.toString()} className="text-xs">
+                      <span className="flex items-center gap-1.5">
+                        <span className={cn("w-1.5 h-1.5 rounded-full", inst.ativo ? "bg-green-500" : "bg-gray-400")} />
+                        {inst.nome}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {instanciaGrupoId && (
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input placeholder="Buscar grupos..." value={buscaGrupo} onChange={(e) => setBuscaGrupo(e.target.value)} className="pl-8 h-7 text-xs" />
+                </div>
+              )}
             </div>
           )}
 
@@ -1215,6 +1268,51 @@ export default function Atendimento() {
             </div>
           )}
 
+          {/* Grupos */}
+          {abaSelecionada === "grupos" && (
+            <div className="flex flex-col h-full">
+              {!instanciaGrupoId ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-4">
+                  <Users className="h-8 w-8 text-muted-foreground/30 mb-2" />
+                  <p className="text-xs text-muted-foreground">Selecione uma instância acima</p>
+                </div>
+              ) : loadingGrupos ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : gruposFiltrados.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center px-3">
+                  <Users className="h-7 w-7 text-muted-foreground/30 mb-2" />
+                  <p className="text-xs text-muted-foreground">{buscaGrupo ? "Nenhum grupo encontrado" : "Nenhum grupo disponível"}</p>
+                </div>
+              ) : (
+                <div className="divide-y overflow-y-auto flex-1">
+                  {gruposFiltrados.map((grupo: any) => (
+                    <button
+                      key={grupo.phone}
+                      onClick={() => setGrupoSelecionado({ phone: grupo.phone, name: grupo.name || "Grupo", instanciaId: instanciaGrupoId })}
+                      className={cn(
+                        "w-full text-left px-3 py-2.5 hover:bg-accent transition-colors flex items-center gap-2.5",
+                        grupoSelecionado?.phone === grupo.phone ? "bg-accent" : ""
+                      )}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                        <Users className="h-4 w-4 text-green-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{grupo.name || "Grupo sem nome"}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{grupo.phone?.replace(/-group$/, "")}</p>
+                      </div>
+                      {Number(grupo.unread) > 0 && (
+                        <Badge className="bg-green-500 text-white text-[10px] h-4 px-1 shrink-0">{grupo.unread}</Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Supervisão — placeholder */}
           {abaSelecionada === "supervisor" && (
             <div className="flex items-center justify-center h-full text-xs text-muted-foreground p-4 text-center">
@@ -1225,7 +1323,75 @@ export default function Atendimento() {
       </div>
 
       {/* ── Coluna 3: Chat / Supervisão ──────────────────────────────────────── */}
-      {abaSelecionada === "supervisor" ? (
+      {abaSelecionada === "grupos" ? (
+        <div className="flex-1 flex flex-col min-w-0">
+          {!grupoSelecionado ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-muted/10">
+              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mb-4">
+                <Users className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-base font-semibold mb-1">Mensagens para Grupos</h3>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                Selecione um grupo na lista ao lado para enviar uma mensagem.
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Para gerenciar participantes, renomear ou criar grupos, acesse{" "}
+                <Link href="/whatsapp/grupos" className="text-primary hover:underline">Configurações de Grupos</Link>.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
+                <div className="w-9 h-9 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                  <Users className="h-4 w-4 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate">{grupoSelecionado.name}</p>
+                  <p className="text-xs text-muted-foreground">{grupoSelecionado.phone?.replace(/-group$/, "")}</p>
+                </div>
+                <Link href="/whatsapp/grupos">
+                  <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
+                    <Settings className="h-3.5 w-3.5" />Gerenciar
+                  </Button>
+                </Link>
+              </div>
+              <div className="flex-1 flex flex-col items-center justify-center bg-muted/10 p-8">
+                <div className="w-full max-w-lg space-y-4">
+                  <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20 text-center">
+                    <Users className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                    <p className="text-sm font-medium">{grupoSelecionado.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">A mensagem será enviada para todos os participantes do grupo</p>
+                  </div>
+                  <Textarea
+                    placeholder="Digite a mensagem para o grupo..."
+                    value={mensagemGrupo}
+                    onChange={(e) => setMensagemGrupo(e.target.value)}
+                    rows={6}
+                    className="resize-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && mensagemGrupo.trim()) {
+                        e.preventDefault();
+                        enviarMensagemGrupoMutation.mutate({ instanciaId: grupoSelecionado.instanciaId, groupPhone: grupoSelecionado.phone, message: mensagemGrupo.trim() });
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">{mensagemGrupo.length} caracteres · Ctrl+Enter para enviar</p>
+                    <Button
+                      className="gap-2 bg-green-600 hover:bg-green-700"
+                      disabled={!mensagemGrupo.trim() || enviarMensagemGrupoMutation.isPending}
+                      onClick={() => enviarMensagemGrupoMutation.mutate({ instanciaId: grupoSelecionado.instanciaId, groupPhone: grupoSelecionado.phone, message: mensagemGrupo.trim() })}
+                    >
+                      <Send className="h-4 w-4" />
+                      {enviarMensagemGrupoMutation.isPending ? "Enviando..." : "Enviar para o Grupo"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      ) : abaSelecionada === "supervisor" ? (
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center gap-2 px-4 py-3 border-b bg-background shrink-0">
             <BarChart2 className="h-5 w-5 text-primary" />
