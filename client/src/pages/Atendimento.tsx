@@ -931,12 +931,17 @@ export default function Atendimento() {
       { enabled: !!instanciaGrupoId && abaSelecionada === "grupos", refetchInterval: 5000 }
     );
 
-  // Mensagens da conversa de grupo selecionada
-  const { data: mensagensGrupo = [], refetch: refetchMensagensGrupo } =
-    trpc.whatsapp.listarMensagensGrupo.useQuery(
-      { conversaId: conversaGrupoSelecionada?.id ?? 0 },
-      { enabled: !!conversaGrupoSelecionada, refetchInterval: 3000 }
+  // Mensagens da conversa de grupo selecionada (busca pelo telefone do grupo)
+  const { data: dadosGrupoSelecionado, refetch: refetchMensagensGrupo } =
+    trpc.whatsapp.getMensagensGrupoPorTelefone.useQuery(
+      {
+        instanciaId: instanciaGrupoId ?? 0,
+        telefone: grupoSelecionado?.phone ?? "",
+        nomeGrupo: grupoSelecionado?.name,
+      },
+      { enabled: !!grupoSelecionado && !!instanciaGrupoId, refetchInterval: 3000 }
     );
+  const mensagensGrupo = dadosGrupoSelecionado?.mensagens ?? [];
 
   const marcarGrupoLidoMutation = trpc.whatsapp.marcarGrupoLido.useMutation({
     onSuccess: () => refetchConversasGrupo(),
@@ -949,7 +954,6 @@ export default function Atendimento() {
 
   const enviarMensagemGrupoMutation = trpc.whatsapp.enviarMensagemGrupo.useMutation({
     onSuccess: () => {
-      toast.success("Mensagem enviada para o grupo!");
       setMensagemGrupo("");
       refetchMensagensGrupo();
       refetchConversasGrupo();
@@ -1415,16 +1419,11 @@ export default function Atendimento() {
 
               {/* Área de mensagens */}
               <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/5">
-                {!conversaGrupoSelecionada ? (
+                {(mensagensGrupo as any[]).length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center">
                     <MessageCircle className="h-10 w-10 text-muted-foreground/20 mb-3" />
                     <p className="text-sm text-muted-foreground">Nenhuma mensagem ainda</p>
-                    <p className="text-xs text-muted-foreground mt-1">As mensagens recebidas e enviadas aparecerão aqui</p>
-                  </div>
-                ) : (mensagensGrupo as any[]).length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <MessageCircle className="h-10 w-10 text-muted-foreground/20 mb-3" />
-                    <p className="text-sm text-muted-foreground">Nenhuma mensagem ainda</p>
+                    <p className="text-xs text-muted-foreground mt-1">Envie uma mensagem para iniciar a conversa</p>
                   </div>
                 ) : (
                   (mensagensGrupo as any[]).map((msg: any) => (

@@ -6338,19 +6338,64 @@ export const appRouter = router({
         groupPhone: z.string().min(1),
         message: z.string().min(1),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error("DB indisponível");
-        const { whatsappInstancias } = await import("../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
+        const { whatsappInstancias, whatsappConversas, whatsappMensagens } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
         const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
         if (!inst) throw new Error("Instância não encontrada");
+
+        // Enviar via Z-API
         const { sendTextToGroup } = await import("./zapi-service");
-        return sendTextToGroup(
+        const resultado = await sendTextToGroup(
           { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
           input.groupPhone,
           input.message
         );
+
+        // Buscar ou criar conversa de grupo no banco
+        let [conversa] = await db
+          .select()
+          .from(whatsappConversas)
+          .where(and(eq(whatsappConversas.instanciaId, input.instanciaId), eq(whatsappConversas.telefone, input.groupPhone)));
+
+        if (!conversa) {
+          const [insertResult] = await db.insert(whatsappConversas).values({
+            instanciaId: input.instanciaId,
+            telefone: input.groupPhone,
+            nomeGrupo: input.groupPhone,
+            isGroup: 1,
+            status: "aberta",
+            naoLidas: 0,
+            ultimaMensagem: input.message,
+            ultimaMensagemEm: new Date(),
+          });
+          const [nova] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, (insertResult as any).insertId));
+          conversa = nova;
+        } else {
+          // Garantir que isGroup está marcado
+          await db.update(whatsappConversas).set({
+            isGroup: 1,
+            ultimaMensagem: input.message,
+            ultimaMensagemEm: new Date(),
+          }).where(eq(whatsappConversas.id, conversa.id));
+        }
+
+        if (conversa) {
+          // Salvar mensagem enviada no banco
+          await db.insert(whatsappMensagens).values({
+            conversaId: conversa.id,
+            instanciaId: input.instanciaId,
+            direction: "out",
+            tipo: "text",
+            conteudo: input.message,
+            status: "enviada",
+            zApiMessageId: (resultado as any)?.messageId ?? null,
+          });
+        }
+
+        return resultado;
       }),
 
     adicionarParticipante: protectedProcedure
@@ -6560,6 +6605,56 @@ export const appRouter = router({
         const { whatsappConversas } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         await db.update(whatsappConversas).set({ naoLidas: 0 }).where(eq(whatsappConversas.id, input.conversaId));
+      }),
+
+    /** Busca (ou cria) conversa de grupo pelo telefone e retorna mensagens */
+    getMensagensGrupoPorTelefone: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        telefone: z.string().min(1),
+        nomeGrupo: z.string().optional(),
+        limit: z.number().int().min(1).max(200).default(80),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { conversaId: null, mensagens: [] };
+        const { whatsappConversas, whatsappMensagens } = await import("../drizzle/schema");
+        const { eq, and, desc } = await import("drizzle-orm");
+
+        // Buscar conversa existente
+        let [conversa] = await db
+          .select()
+          .from(whatsappConversas)
+          .where(and(eq(whatsappConversas.instanciaId, input.instanciaId), eq(whatsappConversas.telefone, input.telefone)));
+
+        // Se não existe, criar (sem mensagens ainda)
+        if (!conversa) {
+          const [insertResult] = await db.insert(whatsappConversas).values({
+            instanciaId: input.instanciaId,
+            telefone: input.telefone,
+            nomeGrupo: input.nomeGrupo ?? input.telefone,
+            isGroup: 1,
+            status: "aberta",
+            naoLidas: 0,
+          });
+          const [nova] = await db.select().from(whatsappConversas).where(eq(whatsappConversas.id, (insertResult as any).insertId));
+          conversa = nova;
+        } else if (!conversa.isGroup) {
+          // Garantir isGroup=1 e nomeGrupo
+          await db.update(whatsappConversas).set({
+            isGroup: 1,
+            nomeGrupo: input.nomeGrupo ?? conversa.nomeGrupo ?? input.telefone,
+          }).where(eq(whatsappConversas.id, conversa.id));
+        }
+
+        if (!conversa) return { conversaId: null, mensagens: [] };
+
+        const rows = await db.select().from(whatsappMensagens)
+          .where(eq(whatsappMensagens.conversaId, conversa.id))
+          .orderBy(desc(whatsappMensagens.createdAt))
+          .limit(input.limit);
+
+        return { conversaId: conversa.id, mensagens: rows.reverse() };
       }),
   }),
 
