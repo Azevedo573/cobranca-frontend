@@ -31,7 +31,7 @@ interface ConteudoMensagem { tipo: "mensagem"; texto: string; }
 interface ConteudoBotoes { tipo: "botoes"; texto: string; botoes: BotaoAcao[]; }
 interface OpcaoLista { id: string; titulo: string; descricao?: string; proximoNoId: number | null; }
 interface ConteudoListaOpcoes { tipo: "lista_opcoes"; mensagem: string; titulo: string; labelBotao: string; opcoes: OpcaoLista[]; }
-interface ConteudoTransferir { tipo: "transferir"; mensagem?: string; departamentoId?: number | null; }
+interface ConteudoTransferir { tipo: "transferir"; mensagem?: string; departamentoId?: number | null; filaId?: number | null; filaNome?: string | null; }
 interface ConteudoEncerrar { tipo: "encerrar"; mensagem?: string; }
 interface ConteudoInicio { tipo: "inicio"; texto?: string; }
 type ConteudoNo = ConteudoMensagem | ConteudoBotoes | ConteudoListaOpcoes | ConteudoTransferir | ConteudoEncerrar | ConteudoInicio;
@@ -168,9 +168,17 @@ function CardNo({
             </div>
           )}
           {conteudo.tipo === "transferir" && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {conteudo.mensagem || "Encaminha para atendente humano"}
-            </p>
+            <div className="mt-1 space-y-0.5">
+              {conteudo.filaNome && (
+                <p className="text-xs font-medium text-orange-600">→ Fila: {conteudo.filaNome}</p>
+              )}
+              {!conteudo.filaNome && (
+                <p className="text-xs text-muted-foreground">Fila: qualquer disponível</p>
+              )}
+              {conteudo.mensagem && (
+                <p className="text-xs text-muted-foreground">{conteudo.mensagem}</p>
+              )}
+            </div>
           )}
           {conteudo.tipo === "encerrar" && (
             <p className="text-xs text-muted-foreground mt-1">
@@ -218,6 +226,10 @@ function ModalEditarNo({
   const [conteudo, setConteudo] = useState<ConteudoNo>(
     no?.conteudo ?? { tipo: "mensagem", texto: "" }
   );
+
+  const { data: departamentos } = trpc.atendimento.listarDepartamentos.useQuery(undefined, {
+    enabled: conteudo.tipo === "transferir",
+  });
 
   if (!no) return null;
 
@@ -441,14 +453,50 @@ function ModalEditarNo({
           )}
 
           {conteudo.tipo === "transferir" && (
-            <div>
-              <Label>Mensagem antes de transferir (opcional)</Label>
-              <Textarea
-                value={conteudo.mensagem ?? ""}
-                onChange={e => setConteudo({ ...conteudo, mensagem: e.target.value })}
-                placeholder="Ex: Aguarde, vou te conectar com um atendente..."
-                className="mt-1"
-              />
+            <div className="space-y-3">
+              <div>
+                <Label>Fila de atendimento</Label>
+                <Select
+                  value={conteudo.filaId != null ? String(conteudo.filaId) : "__qualquer"}
+                  onValueChange={val => {
+                    if (val === "__qualquer") {
+                      setConteudo({ ...conteudo, filaId: null, filaNome: null });
+                    } else {
+                      const dep = departamentos?.find(d => d.id === Number(val));
+                      setConteudo({ ...conteudo, filaId: Number(val), filaNome: dep?.nome ?? null });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecionar fila..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__qualquer">Qualquer fila disponível</SelectItem>
+                    {(departamentos ?? []).map(dep => (
+                      <SelectItem key={dep.id} value={String(dep.id)}>
+                        <span className="flex items-center gap-2">
+                          {dep.cor && (
+                            <span className="inline-block w-2 h-2 rounded-full" style={{ background: dep.cor }} />
+                          )}
+                          {dep.nome}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!departamentos?.length && (
+                  <p className="text-xs text-muted-foreground mt-1">Nenhuma fila cadastrada. Crie filas em Configurações &gt; Atendimento.</p>
+                )}
+              </div>
+              <div>
+                <Label>Mensagem antes de transferir (opcional)</Label>
+                <Textarea
+                  value={conteudo.mensagem ?? ""}
+                  onChange={e => setConteudo({ ...conteudo, mensagem: e.target.value })}
+                  placeholder="Ex: Aguarde, vou te conectar com um atendente..."
+                  className="mt-1"
+                />
+              </div>
             </div>
           )}
 
