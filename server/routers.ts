@@ -6482,10 +6482,41 @@ export const appRouter = router({
         condominioId: z.number().int().positive().optional().nullable(),
       }))
       .mutation(async ({ input }) => {
-        const { updateDemanda } = await import("./db-demandas");
+        const { updateDemanda, getDemandaById, getColunaEntrada } = await import("./db-demandas");
         const { id, prazo, ...rest } = input;
+
+        // Se o responsável está sendo alterado, verificar se a coluna atual é intermediária
+        // de outro usuário. Se for, mover para a coluna de entrada ("Demandas Novas").
+        let colunaIdFinal = rest.colunaId;
+        if (rest.responsavelId !== undefined) {
+          // Buscar a demanda atual para saber a coluna
+          const demandaAtual = await getDemandaById(id, { role: "admin", userId: 0 });
+          if (demandaAtual && !colunaIdFinal) {
+            // Verificar se a coluna atual é intermediária de outro usuário
+            const { getDb } = await import("./db");
+            const { colunasDemanda } = await import("../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            const db = await getDb();
+            if (db) {
+              const [colunaAtual] = await db
+                .select()
+                .from(colunasDemanda)
+                .where(eq(colunasDemanda.id, demandaAtual.colunaId))
+                .limit(1);
+              // Se é coluna intermediária (pessoal de algum advogado), mover para entrada
+              if (colunaAtual?.tipo === "intermediaria") {
+                const colunaEntrada = await getColunaEntrada();
+                if (colunaEntrada) {
+                  colunaIdFinal = colunaEntrada.id;
+                }
+              }
+            }
+          }
+        }
+
         await updateDemanda(id, {
           ...rest,
+          ...(colunaIdFinal !== undefined ? { colunaId: colunaIdFinal } : {}),
           ...(prazo !== undefined ? { prazo: prazo ? new Date(prazo) : null } : {}),
         });
         return { success: true };

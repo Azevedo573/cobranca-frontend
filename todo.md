@@ -2462,3 +2462,6 @@
 - [x] Exportar PDF com jsPDF+autotable
 - [x] Registrar rota /relatorios/cobranca no App.tsx
 - [x] Adicionar link no menu Relatórios do Sidebar
+
+## Bug: Kanban Demandas - tarefa some ao trocar advogado responsável
+- [x] Corrigir procedure juridicoDemandas.update: ao trocar responsavelId, se a coluna atual for intermediária (pessoal de outro advogado), mover automaticamente para a coluna de entrada global
