@@ -64,10 +64,15 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
     if (payload.type !== "ReceivedCallback") return;
     if (payload.fromMe) return; // ignorar eco de mensagens enviadas por nós
 
-    const phone = formatPhone(payload.phone ?? payload.chatId ?? "");
+    const rawPhone = payload.phone ?? payload.chatId ?? "";
+    const phone = formatPhone(rawPhone);
     if (!phone) return;
 
+    // Detectar se é mensagem de grupo (chatId termina em @g.us ou phone contém -group)
+    const isGroup = rawPhone.includes("@g.us") || rawPhone.includes("-group") || phone.includes("-group");
+
     const senderName: string = payload.senderName ?? payload.pushName ?? null;
+    const groupName: string | null = isGroup ? (payload.chatName ?? payload.senderName ?? null) : null;
 
     // ── Buscar instância para obter token ─────────────────────────────────────
     const [instancia] = await db
@@ -90,7 +95,9 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       const [insertResult] = await db.insert(whatsappConversas).values({
         instanciaId,
         telefone: phone,
-        nomeContato: senderName,
+        nomeContato: isGroup ? null : senderName,
+        nomeGrupo: groupName,
+        isGroup: isGroup ? 1 : 0,
         status: "aberta",
         naoLidas: 1,
       });
@@ -103,7 +110,8 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       await db
         .update(whatsappConversas)
         .set({
-          nomeContato: senderName || conversa.nomeContato,
+          nomeContato: isGroup ? conversa.nomeContato : (senderName || conversa.nomeContato),
+          nomeGrupo: isGroup ? (groupName || conversa.nomeGrupo) : conversa.nomeGrupo,
           naoLidas: (conversa.naoLidas ?? 0) + 1,
           ultimaMensagemEm: new Date(),
         })
@@ -229,6 +237,12 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
         // Cair no bloco abaixo para garantir que existe atendimento na fila
       }
       // botResultado === "sem_fluxo": não há fluxo ativo → criar atendimento normal na fila
+    }
+
+    // ── Grupos não entram na fila de atendimento ─────────────────────────────
+    if (isGroup) {
+      console.log(`[Webhook] Mensagem de grupo recebida para conversa ${conversa?.id} — não criar atendimento`);
+      return;
     }
 
     // ── Criar atendimento na fila se não houver um aguardando/transferido ─────

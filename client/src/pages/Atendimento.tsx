@@ -876,9 +876,11 @@ export default function Atendimento() {
 
   // Estado da aba de grupos
   const [grupoSelecionado, setGrupoSelecionado] = useState<{ phone: string; name: string; instanciaId: number } | null>(null);
+  const [conversaGrupoSelecionada, setConversaGrupoSelecionada] = useState<{ id: number; nomeGrupo: string | null; telefone: string; naoLidas: number } | null>(null);
   const [mensagemGrupo, setMensagemGrupo] = useState("");
   const [instanciaGrupoId, setInstanciaGrupoId] = useState<number | null>(null);
   const [buscaGrupo, setBuscaGrupo] = useState("");
+  const messagesGrupoEndRef = useRef<HTMLDivElement>(null);
 
   // Atendimento selecionado (modo "meus" e "fila")
   const [atendimentoSelecionado, setAtendimentoSelecionado] = useState<Atendimento | null>(null);
@@ -910,8 +912,8 @@ export default function Atendimento() {
   // Instâncias WhatsApp
   const { data: instancias = [] } = trpc.whatsapp.listarInstancias.useQuery(undefined, { refetchInterval: 30000 });
 
-  // Grupos da aba de grupos
-  const { data: gruposDaInstancia = [], isLoading: loadingGrupos, refetch: refetchGrupos } =
+  // Grupos da aba de grupos — via Z-API (para lista de grupos disponíveis)
+  const { data: gruposDaInstancia = [], isLoading: loadingGrupos } =
     trpc.whatsapp.listarGrupos.useQuery(
       { instanciaId: instanciaGrupoId ?? 0, pageSize: 200 },
       { enabled: !!instanciaGrupoId && abaSelecionada === "grupos" }
@@ -922,10 +924,35 @@ export default function Atendimento() {
     g.phone?.toLowerCase().includes(buscaGrupo.toLowerCase())
   );
 
+  // Conversas de grupo salvas no banco (para histórico)
+  const { data: conversasGrupo = [], refetch: refetchConversasGrupo } =
+    trpc.whatsapp.listarConversasGrupo.useQuery(
+      { instanciaId: instanciaGrupoId ?? 0 },
+      { enabled: !!instanciaGrupoId && abaSelecionada === "grupos", refetchInterval: 5000 }
+    );
+
+  // Mensagens da conversa de grupo selecionada
+  const { data: mensagensGrupo = [], refetch: refetchMensagensGrupo } =
+    trpc.whatsapp.listarMensagensGrupo.useQuery(
+      { conversaId: conversaGrupoSelecionada?.id ?? 0 },
+      { enabled: !!conversaGrupoSelecionada, refetchInterval: 3000 }
+    );
+
+  const marcarGrupoLidoMutation = trpc.whatsapp.marcarGrupoLido.useMutation({
+    onSuccess: () => refetchConversasGrupo(),
+  });
+
+  // Scroll automático nas mensagens de grupo
+  useEffect(() => {
+    messagesGrupoEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [mensagensGrupo]);
+
   const enviarMensagemGrupoMutation = trpc.whatsapp.enviarMensagemGrupo.useMutation({
     onSuccess: () => {
       toast.success("Mensagem enviada para o grupo!");
       setMensagemGrupo("");
+      refetchMensagensGrupo();
+      refetchConversasGrupo();
     },
     onError: (e) => toast.error("Erro ao enviar: " + e.message),
   });
@@ -1276,38 +1303,67 @@ export default function Atendimento() {
                   <Users className="h-8 w-8 text-muted-foreground/30 mb-2" />
                   <p className="text-xs text-muted-foreground">Selecione uma instância acima</p>
                 </div>
-              ) : loadingGrupos ? (
-                <div className="flex items-center justify-center py-8">
-                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
-              ) : gruposFiltrados.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center px-3">
-                  <Users className="h-7 w-7 text-muted-foreground/30 mb-2" />
-                  <p className="text-xs text-muted-foreground">{buscaGrupo ? "Nenhum grupo encontrado" : "Nenhum grupo disponível"}</p>
-                </div>
               ) : (
                 <div className="divide-y overflow-y-auto flex-1">
-                  {gruposFiltrados.map((grupo: any) => (
+                  {/* Grupos com histórico no banco */}
+                  {(conversasGrupo as any[]).filter((c: any) =>
+                    !buscaGrupo ||
+                    (c.nomeGrupo ?? "").toLowerCase().includes(buscaGrupo.toLowerCase())
+                  ).map((conversa: any) => (
                     <button
-                      key={grupo.phone}
-                      onClick={() => setGrupoSelecionado({ phone: grupo.phone, name: grupo.name || "Grupo", instanciaId: instanciaGrupoId })}
+                      key={conversa.id}
+                      onClick={() => {
+                        setConversaGrupoSelecionada({ id: conversa.id, nomeGrupo: conversa.nomeGrupo, telefone: conversa.telefone, naoLidas: conversa.naoLidas });
+                        setGrupoSelecionado({ phone: conversa.telefone, name: conversa.nomeGrupo || "Grupo", instanciaId: instanciaGrupoId });
+                        if (conversa.naoLidas > 0) marcarGrupoLidoMutation.mutate({ conversaId: conversa.id });
+                      }}
                       className={cn(
                         "w-full text-left px-3 py-2.5 hover:bg-accent transition-colors flex items-center gap-2.5",
-                        grupoSelecionado?.phone === grupo.phone ? "bg-accent" : ""
+                        conversaGrupoSelecionada?.id === conversa.id ? "bg-accent" : ""
                       )}
                     >
                       <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
                         <Users className="h-4 w-4 text-green-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">{grupo.name || "Grupo sem nome"}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{grupo.phone?.replace(/-group$/, "")}</p>
+                        <p className="text-xs font-medium truncate">{conversa.nomeGrupo || "Grupo sem nome"}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{conversa.ultimaMensagem || "Nenhuma mensagem"}</p>
                       </div>
-                      {Number(grupo.unread) > 0 && (
-                        <Badge className="bg-green-500 text-white text-[10px] h-4 px-1 shrink-0">{grupo.unread}</Badge>
+                      {Number(conversa.naoLidas) > 0 && (
+                        <Badge className="bg-green-500 text-white text-[10px] h-4 px-1 shrink-0">{conversa.naoLidas}</Badge>
                       )}
                     </button>
                   ))}
+                  {/* Grupos disponíveis via Z-API que ainda não têm histórico */}
+                  {gruposFiltrados.filter((g: any) =>
+                    !(conversasGrupo as any[]).some((c: any) => c.telefone === g.phone)
+                  ).map((grupo: any) => (
+                    <button
+                      key={grupo.phone}
+                      onClick={() => {
+                        setConversaGrupoSelecionada(null);
+                        setGrupoSelecionado({ phone: grupo.phone, name: grupo.name || "Grupo", instanciaId: instanciaGrupoId });
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2.5 hover:bg-accent transition-colors flex items-center gap-2.5",
+                        grupoSelecionado?.phone === grupo.phone && !conversaGrupoSelecionada ? "bg-accent" : ""
+                      )}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
+                        <Users className="h-4 w-4 text-green-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{grupo.name || "Grupo sem nome"}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">Sem mensagens ainda</p>
+                      </div>
+                    </button>
+                  ))}
+                  {(conversasGrupo as any[]).length === 0 && gruposFiltrados.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 text-center px-3">
+                      <Users className="h-7 w-7 text-muted-foreground/30 mb-2" />
+                      <p className="text-xs text-muted-foreground">{buscaGrupo ? "Nenhum grupo encontrado" : "Nenhum grupo disponível"}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1330,9 +1386,9 @@ export default function Atendimento() {
               <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mb-4">
                 <Users className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="text-base font-semibold mb-1">Mensagens para Grupos</h3>
+              <h3 className="text-base font-semibold mb-1">Conversas de Grupos</h3>
               <p className="text-sm text-muted-foreground max-w-xs">
-                Selecione um grupo na lista ao lado para enviar uma mensagem.
+                Selecione um grupo na lista ao lado para ver o histórico e enviar mensagens.
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Para gerenciar participantes, renomear ou criar grupos, acesse{" "}
@@ -1341,6 +1397,7 @@ export default function Atendimento() {
             </div>
           ) : (
             <>
+              {/* Header do grupo */}
               <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
                 <div className="w-9 h-9 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
                   <Users className="h-4 w-4 text-green-600" />
@@ -1355,38 +1412,76 @@ export default function Atendimento() {
                   </Button>
                 </Link>
               </div>
-              <div className="flex-1 flex flex-col items-center justify-center bg-muted/10 p-8">
-                <div className="w-full max-w-lg space-y-4">
-                  <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20 text-center">
-                    <Users className="h-6 w-6 text-green-600 mx-auto mb-2" />
-                    <p className="text-sm font-medium">{grupoSelecionado.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">A mensagem será enviada para todos os participantes do grupo</p>
+
+              {/* Área de mensagens */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/5">
+                {!conversaGrupoSelecionada ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <MessageCircle className="h-10 w-10 text-muted-foreground/20 mb-3" />
+                    <p className="text-sm text-muted-foreground">Nenhuma mensagem ainda</p>
+                    <p className="text-xs text-muted-foreground mt-1">As mensagens recebidas e enviadas aparecerão aqui</p>
                   </div>
+                ) : (mensagensGrupo as any[]).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <MessageCircle className="h-10 w-10 text-muted-foreground/20 mb-3" />
+                    <p className="text-sm text-muted-foreground">Nenhuma mensagem ainda</p>
+                  </div>
+                ) : (
+                  (mensagensGrupo as any[]).map((msg: any) => (
+                    <div key={msg.id} className={cn("flex", msg.direction === "out" ? "justify-end" : "justify-start")}>
+                      <div className={cn(
+                        "max-w-[70%] rounded-2xl px-3 py-2 text-sm shadow-sm",
+                        msg.direction === "out"
+                          ? "bg-green-600 text-white rounded-br-sm"
+                          : "bg-background border rounded-bl-sm"
+                      )}>
+                        {msg.tipo === "image" && msg.mediaUrl && (
+                          <img src={msg.mediaUrl} alt="imagem" className="rounded-lg max-w-full mb-1" />
+                        )}
+                        {msg.tipo === "document" && msg.mediaUrl && (
+                          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 underline text-xs">
+                            <FileText className="h-3.5 w-3.5" />{msg.nomeArquivo || "Documento"}
+                          </a>
+                        )}
+                        {msg.conteudo && <p className="whitespace-pre-wrap break-words">{msg.conteudo}</p>}
+                        <p className={cn("text-[10px] mt-0.5", msg.direction === "out" ? "text-green-100" : "text-muted-foreground")}>
+                          {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div ref={messagesGrupoEndRef} />
+              </div>
+
+              {/* Campo de envio */}
+              <div className="px-4 py-3 border-t bg-background shrink-0">
+                <div className="flex items-end gap-2">
                   <Textarea
-                    placeholder="Digite a mensagem para o grupo..."
+                    placeholder="Digite uma mensagem para o grupo..."
                     value={mensagemGrupo}
                     onChange={(e) => setMensagemGrupo(e.target.value)}
-                    rows={6}
-                    className="resize-none"
+                    rows={2}
+                    className="resize-none flex-1 text-sm"
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && mensagemGrupo.trim()) {
+                      if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
-                        enviarMensagemGrupoMutation.mutate({ instanciaId: grupoSelecionado.instanciaId, groupPhone: grupoSelecionado.phone, message: mensagemGrupo.trim() });
+                        if (mensagemGrupo.trim()) {
+                          enviarMensagemGrupoMutation.mutate({ instanciaId: grupoSelecionado.instanciaId, groupPhone: grupoSelecionado.phone, message: mensagemGrupo.trim() });
+                        }
                       }
                     }}
                   />
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">{mensagemGrupo.length} caracteres · Ctrl+Enter para enviar</p>
-                    <Button
-                      className="gap-2 bg-green-600 hover:bg-green-700"
-                      disabled={!mensagemGrupo.trim() || enviarMensagemGrupoMutation.isPending}
-                      onClick={() => enviarMensagemGrupoMutation.mutate({ instanciaId: grupoSelecionado.instanciaId, groupPhone: grupoSelecionado.phone, message: mensagemGrupo.trim() })}
-                    >
-                      <Send className="h-4 w-4" />
-                      {enviarMensagemGrupoMutation.isPending ? "Enviando..." : "Enviar para o Grupo"}
-                    </Button>
-                  </div>
+                  <Button
+                    size="icon"
+                    className="h-10 w-10 bg-green-600 hover:bg-green-700 shrink-0"
+                    disabled={!mensagemGrupo.trim() || enviarMensagemGrupoMutation.isPending}
+                    onClick={() => enviarMensagemGrupoMutation.mutate({ instanciaId: grupoSelecionado.instanciaId, groupPhone: grupoSelecionado.phone, message: mensagemGrupo.trim() })}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
                 </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Enter para enviar · Shift+Enter para nova linha</p>
               </div>
             </>
           )}

@@ -826,6 +826,8 @@ export const whatsappConversas = mysqlTable("whatsappConversas", {
   ultimaMensagem: text("ultimaMensagem"),
   ultimaMensagemEm: timestamp("ultimaMensagemEm"),
   naoLidas: int("naoLidas").default(0).notNull(),
+  isGroup: int("isGroup").default(0).notNull(), // 1 = conversa de grupo WhatsApp
+  nomeGrupo: varchar("nomeGrupo", { length: 255 }), // nome do grupo (para grupos)
   status: mysqlEnum("status", ["aberta", "fechada", "aguardando"]).default("aberta").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

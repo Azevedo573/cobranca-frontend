@@ -6516,6 +6516,51 @@ export const appRouter = router({
           input.groupPhone
         );
       }),
+
+    // ─── Conversas de grupo salvas no banco ───────────────────────────────────
+    listarConversasGrupo: protectedProcedure
+      .input(z.object({
+        instanciaId: z.number().int().positive(),
+        busca: z.string().optional(),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { whatsappConversas } = await import("../drizzle/schema");
+        const { eq, and, like, desc } = await import("drizzle-orm");
+        const conditions = [eq(whatsappConversas.instanciaId, input.instanciaId), eq(whatsappConversas.isGroup, 1)];
+        if (input.busca) conditions.push(like(whatsappConversas.nomeGrupo, `%${input.busca}%`));
+        return db.select().from(whatsappConversas)
+          .where(and(...conditions))
+          .orderBy(desc(whatsappConversas.ultimaMensagemEm));
+      }),
+
+    listarMensagensGrupo: protectedProcedure
+      .input(z.object({
+        conversaId: z.number().int().positive(),
+        limit: z.number().int().min(1).max(200).default(80),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { whatsappMensagens } = await import("../drizzle/schema");
+        const { eq, desc } = await import("drizzle-orm");
+        const rows = await db.select().from(whatsappMensagens)
+          .where(eq(whatsappMensagens.conversaId, input.conversaId))
+          .orderBy(desc(whatsappMensagens.createdAt))
+          .limit(input.limit);
+        return rows.reverse();
+      }),
+
+    marcarGrupoLido: protectedProcedure
+      .input(z.object({ conversaId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return;
+        const { whatsappConversas } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(whatsappConversas).set({ naoLidas: 0 }).where(eq(whatsappConversas.id, input.conversaId));
+      }),
   }),
 
   // ─── Custas Judiciais ───────────────────────────────────────────────────────
