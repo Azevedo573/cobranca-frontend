@@ -29,7 +29,26 @@ interface BotaoAcao {
 
 interface ConteudoMensagem { tipo: "mensagem"; texto: string; }
 interface ConteudoBotoes { tipo: "botoes"; texto: string; botoes: BotaoAcao[]; }
-interface OpcaoLista { id: string; titulo: string; descricao?: string; proximoNoId: number | null; }
+type TipoAcaoOpcao =
+  | "DIRECIONAR_FILA"
+  | "DIRECIONAR_ATENDENTE"
+  | "CONTINUAR_NO"
+  | "ENCERRAR_ATENDIMENTO"
+  | "VOLTAR_MENU"
+  | "ENVIAR_MENSAGEM"
+  | "CRIAR_TAREFA";
+
+interface OpcaoLista {
+  id: string;
+  titulo: string;
+  descricao?: string;
+  tipoAcao: TipoAcaoOpcao | null;
+  filaDestinoId?: number | null;
+  atendenteDestinoId?: number | null;
+  proximoNoId?: number | null;
+  mensagemEncerramento?: string;
+  mensagemPersonalizada?: string;
+}
 interface ConteudoListaOpcoes { tipo: "lista_opcoes"; mensagem: string; titulo: string; labelBotao: string; opcoes: OpcaoLista[]; }
 interface ConteudoTransferir { tipo: "transferir"; mensagem?: string; departamentoId?: number | null; filaId?: number | null; filaNome?: string | null; }
 interface ConteudoEncerrar { tipo: "encerrar"; mensagem?: string; }
@@ -155,11 +174,20 @@ function CardNo({
               <p className="text-xs text-muted-foreground line-clamp-1">{conteudo.mensagem}</p>
               <div className="flex flex-wrap gap-1">
                 {conteudo.opcoes.map((op, i) => {
-                  const proximo = todos.find(n => n.id === op.proximoNoId);
+                  const labelAcao: Record<string, string> = {
+                    DIRECIONAR_FILA: "📥 Fila",
+                    DIRECIONAR_ATENDENTE: "👤 Atendente",
+                    CONTINUAR_NO: "➡️ Nó",
+                    ENCERRAR_ATENDIMENTO: "❌ Encerrar",
+                    VOLTAR_MENU: "↩️ Menu",
+                    ENVIAR_MENSAGEM: "💬 Mensagem",
+                    CRIAR_TAREFA: "📋 Tarefa",
+                  };
                   return (
                     <div key={i} className="flex items-center gap-1">
                       <Badge variant="secondary" className="text-xs py-0 bg-teal-100 text-teal-700">{op.titulo}</Badge>
-                      {proximo && <span className="text-xs text-muted-foreground">→ {proximo.nome}</span>}
+                      {op.tipoAcao && <span className="text-xs text-muted-foreground">{labelAcao[op.tipoAcao]}</span>}
+                      {!op.tipoAcao && <span className="text-xs text-destructive">sem ação</span>}
                     </div>
                   );
                 })}
@@ -228,13 +256,25 @@ function ModalEditarNo({
   );
 
   const { data: departamentos } = trpc.atendimento.listarDepartamentos.useQuery(undefined, {
-    enabled: conteudo.tipo === "transferir",
+    enabled: conteudo.tipo === "transferir" || conteudo.tipo === "lista_opcoes",
+  });
+
+  const { data: operadores } = trpc.atendimento.listarOperadores.useQuery(undefined, {
+    enabled: conteudo.tipo === "lista_opcoes",
   });
 
   if (!no) return null;
 
   const salvar = () => {
     if (!nome.trim()) return;
+    // Validar que todas as opções da lista têm ação configurada
+    if (conteudo.tipo === "lista_opcoes") {
+      const semAcao = conteudo.opcoes.some(op => !op.tipoAcao);
+      if (semAcao) {
+        toast.error("Configure a ação de todas as opções antes de salvar.");
+        return;
+      }
+    }
     onSalvar({ ...no, nome: nome.trim(), conteudo });
   };
 
@@ -257,12 +297,12 @@ function ModalEditarNo({
   const adicionarOpcao = () => {
     if (conteudo.tipo !== "lista_opcoes") return;
     const novoId = `op${Date.now()}`;
-    setConteudo({ ...conteudo, opcoes: [...conteudo.opcoes, { id: novoId, titulo: "", descricao: "", proximoNoId: null }] });
+    setConteudo({ ...conteudo, opcoes: [...conteudo.opcoes, { id: novoId, titulo: "", descricao: "", tipoAcao: null }] });
   };
 
-  const atualizarOpcao = (idx: number, campo: keyof OpcaoLista, valor: string | number | null) => {
+  const atualizarOpcao = (idx: number, campos: Partial<OpcaoLista>) => {
     if (conteudo.tipo !== "lista_opcoes") return;
-    const novas = conteudo.opcoes.map((op, i) => i === idx ? { ...op, [campo]: valor } : op);
+    const novas = conteudo.opcoes.map((op, i) => i === idx ? { ...op, ...campos } : op);
     setConteudo({ ...conteudo, opcoes: novas });
   };
 
@@ -402,44 +442,156 @@ function ModalEditarNo({
                     <Plus className="w-3 h-3 mr-1" /> Adicionar
                   </Button>
                 </div>
-                <ScrollArea className="max-h-64">
+                <ScrollArea className="max-h-72">
                   <div className="space-y-3 pr-1">
                     {conteudo.opcoes.map((op, idx) => (
-                      <div key={idx} className="border rounded-lg p-3 space-y-2 bg-teal-50/50">
+                      <div key={op.id} className="border rounded-lg p-3 space-y-2 bg-teal-50/50">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-teal-700">Opção {idx + 1}</span>
                           <Button size="icon" variant="ghost" className="h-5 w-5 text-destructive" onClick={() => removerOpcao(idx)}>
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </div>
+                        {/* Título */}
                         <Input
                           value={op.titulo}
-                          onChange={e => atualizarOpcao(idx, "titulo", e.target.value)}
+                          onChange={e => atualizarOpcao(idx, { titulo: e.target.value })}
                           placeholder="Título da opção (ex: Cobrança)"
                           className="text-sm"
                         />
+                        {/* Descrição */}
                         <Input
                           value={op.descricao ?? ""}
-                          onChange={e => atualizarOpcao(idx, "descricao", e.target.value)}
+                          onChange={e => atualizarOpcao(idx, { descricao: e.target.value })}
                           placeholder="Descrição (opcional)"
                           className="text-sm"
                         />
-                        <Select
-                          value={op.proximoNoId?.toString() ?? "null"}
-                          onValueChange={v => atualizarOpcao(idx, "proximoNoId", v === "null" ? null : parseInt(v))}
-                        >
-                          <SelectTrigger className="text-sm">
-                            <SelectValue placeholder="Próximo nó..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="null">— Encerrar fluxo —</SelectItem>
-                            {nosDisponiveis.map(n => (
-                              <SelectItem key={n.id} value={n.id.toString()}>
-                                {labelNo[n.tipo]} — {n.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {/* Ação após seleção */}
+                        <div>
+                          <Label className="text-xs text-teal-700">Ação após seleção *</Label>
+                          <Select
+                            value={op.tipoAcao ?? ""}
+                            onValueChange={v => atualizarOpcao(idx, {
+                              tipoAcao: v as TipoAcaoOpcao,
+                              filaDestinoId: null,
+                              atendenteDestinoId: null,
+                              proximoNoId: null,
+                              mensagemEncerramento: "",
+                              mensagemPersonalizada: "",
+                            })}
+                          >
+                            <SelectTrigger className="text-sm mt-1">
+                              <SelectValue placeholder="Selecione uma ação..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="DIRECIONAR_FILA">📥 Direcionar para fila</SelectItem>
+                              <SelectItem value="DIRECIONAR_ATENDENTE">👤 Direcionar para atendente</SelectItem>
+                              <SelectItem value="CONTINUAR_NO">➡️ Continuar para outro nó</SelectItem>
+                              <SelectItem value="ENCERRAR_ATENDIMENTO">❌ Encerrar atendimento</SelectItem>
+                              <SelectItem value="VOLTAR_MENU">↩️ Voltar ao menu anterior</SelectItem>
+                              <SelectItem value="ENVIAR_MENSAGEM">💬 Enviar mensagem personalizada</SelectItem>
+                              <SelectItem value="CRIAR_TAREFA">📋 Criar tarefa para equipe</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {/* Campos dinâmicos por tipo de ação */}
+                        {op.tipoAcao === "DIRECIONAR_FILA" && (
+                          <div>
+                            <Label className="text-xs">Selecione a fila *</Label>
+                            <Select
+                              value={op.filaDestinoId?.toString() ?? ""}
+                              onValueChange={v => atualizarOpcao(idx, { filaDestinoId: parseInt(v) })}
+                            >
+                              <SelectTrigger className="text-sm mt-1">
+                                <SelectValue placeholder="Selecione uma fila..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(departamentos ?? []).map(d => (
+                                  <SelectItem key={d.id} value={d.id.toString()}>
+                                    <span className="flex items-center gap-2">
+                                      {d.cor && <span className="inline-block w-2 h-2 rounded-full" style={{ background: d.cor }} />}
+                                      {d.nome}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        {op.tipoAcao === "DIRECIONAR_ATENDENTE" && (
+                          <div>
+                            <Label className="text-xs">Selecione o atendente *</Label>
+                            <Select
+                              value={op.atendenteDestinoId?.toString() ?? ""}
+                              onValueChange={v => atualizarOpcao(idx, { atendenteDestinoId: parseInt(v) })}
+                            >
+                              <SelectTrigger className="text-sm mt-1">
+                                <SelectValue placeholder="Selecione um atendente..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(operadores ?? []).map(o => (
+                                  <SelectItem key={o.userId} value={o.userId.toString()}>
+                                    {o.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        {op.tipoAcao === "CONTINUAR_NO" && (
+                          <div>
+                            <Label className="text-xs">Selecione o próximo nó *</Label>
+                            <Select
+                              value={op.proximoNoId?.toString() ?? ""}
+                              onValueChange={v => atualizarOpcao(idx, { proximoNoId: parseInt(v) })}
+                            >
+                              <SelectTrigger className="text-sm mt-1">
+                                <SelectValue placeholder="Selecione um nó..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {nosDisponiveis.map(n => (
+                                  <SelectItem key={n.id} value={n.id.toString()}>
+                                    {labelNo[n.tipo]} — {n.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        {op.tipoAcao === "ENCERRAR_ATENDIMENTO" && (
+                          <div>
+                            <Label className="text-xs">Mensagem de encerramento (opcional)</Label>
+                            <Textarea
+                              value={op.mensagemEncerramento ?? ""}
+                              onChange={e => atualizarOpcao(idx, { mensagemEncerramento: e.target.value })}
+                              placeholder="Ex: Obrigado pelo contato!"
+                              className="text-sm mt-1 min-h-[60px]"
+                            />
+                          </div>
+                        )}
+                        {op.tipoAcao === "ENVIAR_MENSAGEM" && (
+                          <div>
+                            <Label className="text-xs">Mensagem personalizada *</Label>
+                            <Textarea
+                              value={op.mensagemPersonalizada ?? ""}
+                              onChange={e => atualizarOpcao(idx, { mensagemPersonalizada: e.target.value })}
+                              placeholder="Digite a mensagem que será enviada..."
+                              className="text-sm mt-1 min-h-[60px]"
+                            />
+                          </div>
+                        )}
+                        {op.tipoAcao === "VOLTAR_MENU" && (
+                          <p className="text-xs text-muted-foreground italic">O cliente será redirecionado ao menu anterior do fluxo.</p>
+                        )}
+                        {op.tipoAcao === "CRIAR_TAREFA" && (
+                          <p className="text-xs text-muted-foreground italic">Uma tarefa será criada para a equipe ao selecionar esta opção.</p>
+                        )}
+                        {/* Indicador de ação não configurada */}
+                        {!op.tipoAcao && (
+                          <p className="text-xs text-destructive flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" /> Ação obrigatória não configurada
+                          </p>
+                        )}
                       </div>
                     ))}
                     {conteudo.opcoes.length === 0 && (
