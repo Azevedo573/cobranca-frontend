@@ -14,7 +14,7 @@ import { sendText, sendOptionList, formatPhone } from "./zapi-service";
 
 // ─── Tipos internos ───────────────────────────────────────────────────────────
 
-type BotResultado = "automatico" | "transferir" | "sem_fluxo";
+type BotResultado = "automatico" | { tipo: "transferir"; departamentoId?: number | null; atendenteId?: number | null } | "sem_fluxo";
 
 interface ConteudoMensagem {
   tipo: "mensagem";
@@ -27,17 +27,35 @@ interface ConteudoBotoes {
   botoes: Array<{ label: string; proximoNoId: number | null }>;
 }
 
+type TipoAcaoOpcao =
+  | "DIRECIONAR_FILA"
+  | "DIRECIONAR_ATENDENTE"
+  | "CONTINUAR_NO"
+  | "ENCERRAR_ATENDIMENTO"
+  | "VOLTAR_MENU"
+  | "ENVIAR_MENSAGEM"
+  | "CRIAR_TAREFA";
+
+interface OpcaoListaEngine {
+  id: string;
+  titulo: string;
+  descricao?: string;
+  // Campos novos
+  tipoAcao?: TipoAcaoOpcao | null;
+  filaDestinoId?: number | null;
+  atendenteDestinoId?: number | null;
+  proximoNoId?: number | null;
+  mensagemEncerramento?: string;
+  mensagemPersonalizada?: string;
+  // Campo legado
+}
+
 interface ConteudoListaOpcoes {
   tipo: "lista_opcoes";
   mensagem: string;
-  titulo: string;         // título da lista
-  labelBotao: string;     // texto do botão que abre a lista
-  opcoes: Array<{
-    id: string;
-    titulo: string;
-    descricao?: string;
-    proximoNoId: number | null;
-  }>;
+  titulo: string;
+  labelBotao: string;
+  opcoes: OpcaoListaEngine[];
 }
 
 interface ConteudoTransferir {
@@ -216,7 +234,7 @@ async function avancarFluxo(params: {
   // Processar resposta do usuário para nó de lista de opções
   if (conteudo.tipo === "lista_opcoes") {
     const textoLower = texto.toLowerCase().trim();
-    let opcaoSelecionada: { id: string; titulo: string; proximoNoId: number | null } | undefined;
+    let opcaoSelecionada: OpcaoListaEngine | undefined;
 
     for (const op of conteudo.opcoes) {
       // Z-API retorna o id da opção selecionada ou o título
@@ -232,12 +250,62 @@ async function avancarFluxo(params: {
       return "automatico";
     }
 
-    if (opcaoSelecionada.proximoNoId === null) {
+    const tipoAcao = opcaoSelecionada.tipoAcao;
+
+    // ── Ação: Direcionar para fila ────────────────────────────────────────────
+    if (tipoAcao === "DIRECIONAR_FILA") {
+      await db.update(botSessoes).set({ status: "transferida", noAtualId: null, updatedAt: new Date() }).where(eq(botSessoes.id, sessao.id));
+      console.log(`[BotEngine] Opção selecionada: DIRECIONAR_FILA para departamento ${opcaoSelecionada.filaDestinoId}`);
+      return { tipo: "transferir", departamentoId: opcaoSelecionada.filaDestinoId ?? null };
+    }
+
+    // ── Ação: Direcionar para atendente ─────────────────────────────────────
+    if (tipoAcao === "DIRECIONAR_ATENDENTE") {
+      await db.update(botSessoes).set({ status: "transferida", noAtualId: null, updatedAt: new Date() }).where(eq(botSessoes.id, sessao.id));
+      console.log(`[BotEngine] Opção selecionada: DIRECIONAR_ATENDENTE para atendente ${opcaoSelecionada.atendenteDestinoId}`);
+      return { tipo: "transferir", atendenteId: opcaoSelecionada.atendenteDestinoId ?? null };
+    }
+
+    // ── Ação: Encerrar atendimento ──────────────────────────────────────────
+    if (tipoAcao === "ENCERRAR_ATENDIMENTO") {
+      if (opcaoSelecionada.mensagemEncerramento) {
+        await enviarTexto(opcaoSelecionada.mensagemEncerramento, telefone, zapiConfig);
+      }
       await encerrarSessao(db, sessao.id);
       return "automatico";
     }
 
-    const [proximoNo] = await db.select().from(botNos).where(eq(botNos.id, opcaoSelecionada.proximoNoId));
+    // ── Ação: Enviar mensagem personalizada ─────────────────────────────────
+    if (tipoAcao === "ENVIAR_MENSAGEM") {
+      if (opcaoSelecionada.mensagemPersonalizada) {
+        await enviarTexto(opcaoSelecionada.mensagemPersonalizada, telefone, zapiConfig);
+      }
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
+    }
+
+    // ── Ação: Voltar ao menu (reenviar nó atual) ────────────────────────────
+    if (tipoAcao === "VOLTAR_MENU") {
+      // Reenviar o próprio nó de lista
+      await enviarNo(conteudo, telefone, zapiConfig);
+      return "automatico";
+    }
+
+    // ── Ação: Criar tarefa ───────────────────────────────────────────────────
+    if (tipoAcao === "CRIAR_TAREFA") {
+      // TODO: implementar criação de tarefa automática
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
+    }
+
+    // ── Ação: Continuar para outro nó (ou campo legado proximoNoId) ──────────
+    const proximoNoIdAlvo = opcaoSelecionada.proximoNoId ?? null;
+    if (!proximoNoIdAlvo) {
+      await encerrarSessao(db, sessao.id);
+      return "automatico";
+    }
+
+    const [proximoNo] = await db.select().from(botNos).where(eq(botNos.id, proximoNoIdAlvo));
     if (!proximoNo) {
       await encerrarSessao(db, sessao.id);
       return "automatico";
@@ -276,7 +344,7 @@ async function executarNo(params: {
   if (conteudo.tipo === "transferir") {
     await db.update(botSessoes).set({ status: "transferida", noAtualId: null, updatedAt: new Date() }).where(eq(botSessoes.id, sessao.id));
     console.log(`[BotEngine] Sessão transferida para fila humana`);
-    return "transferir";
+    return { tipo: "transferir", departamentoId: (conteudo as any).departamentoId ?? (conteudo as any).filaId ?? null };
   }
 
   if (conteudo.tipo === "mensagem") {

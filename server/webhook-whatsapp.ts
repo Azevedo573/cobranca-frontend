@@ -195,6 +195,8 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
     }
 
     // ── Tentar processar pelo motor do bot ────────────────────────────────────
+    let botDepartamentoId: number | null = null;
+    let botAtendenteId: number | null = null;
     if (instancia) {
       const botResultado = await processarMensagemBot({
         instanciaId,
@@ -227,13 +229,20 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
         return;
       }
 
-      if (botResultado === "transferir") {
+      if (botResultado && typeof botResultado === "object" && botResultado.tipo === "transferir") {
         // Bot transferiu para fila humana — mudar atendimento automatico para aguardando
+        botDepartamentoId = botResultado.departamentoId ?? null;
+        botAtendenteId = botResultado.atendenteId ?? null;
         await db
           .update(atendimentos)
-          .set({ status: "aguardando", updatedAt: new Date() })
+          .set({
+            status: "aguardando",
+            departamentoId: botDepartamentoId ?? undefined,
+            operadorId: botAtendenteId ?? undefined,
+            updatedAt: new Date(),
+          })
           .where(and(eq(atendimentos.conversaId, conversa.id), eq(atendimentos.status, "automatico")));
-        console.log(`[Webhook] Atendimento automático transferido para fila humana: conversa ${conversa.id}`);
+        console.log(`[Webhook] Atendimento automático transferido para fila humana: conversa ${conversa.id}, departamento=${botDepartamentoId}, atendente=${botAtendenteId}`);
         // Cair no bloco abaixo para garantir que existe atendimento na fila
       }
       // botResultado === "sem_fluxo": não há fluxo ativo → criar atendimento normal na fila
@@ -272,9 +281,11 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
         prioridade: "normal",
         slaLimite,
         iniciadoEm: new Date(),
+        departamentoId: botDepartamentoId ?? undefined,
+        operadorId: botAtendenteId ?? undefined,
       });
 
-      console.log(`[Webhook] Novo atendimento criado na fila: ${protocolo} para conversa ${conversa.id} (${phone})`);
+      console.log(`[Webhook] Novo atendimento criado na fila: ${protocolo} para conversa ${conversa.id} (${phone}), departamento=${botDepartamentoId}`);
     } else {
       console.log(`[Webhook] Atendimento já existe na fila para conversa ${conversa.id} — não duplicar`);
     }
