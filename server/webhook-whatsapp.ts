@@ -129,6 +129,16 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
     if (payload.text?.message) {
       tipo = "text";
       conteudo = payload.text.message;
+    } else if (payload.listResponseMessage) {
+      // Resposta de lista interativa (Z-API): campo title = texto da opção selecionada
+      tipo = "text";
+      const listTitle = payload.listResponseMessage.title ?? payload.listResponseMessage.message ?? null;
+      const selectedRowId = payload.listResponseMessage.selectedRowId ?? null;
+      conteudo = listTitle ?? selectedRowId;
+    } else if (payload.buttonResponseMessage) {
+      // Resposta de botão interativo (Z-API)
+      tipo = "text";
+      conteudo = payload.buttonResponseMessage.buttonText ?? payload.buttonResponseMessage.message ?? null;
     } else if (payload.image) {
       tipo = "image";
       mediaUrl = payload.image.imageUrl ?? null;
