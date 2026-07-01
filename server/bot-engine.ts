@@ -94,10 +94,23 @@ export async function processarMensagemBot(params: {
   console.log(`[BotEngine] Processando: conversaId=${conversaId}, instanciaId=${instanciaId}, texto="${texto}"`);
 
   // 1. Verificar se há sessão ativa para esta conversa
-  const [sessaoAtiva] = await db
+  // Usar LIMIT 1 para pegar apenas a mais recente em caso de duplicatas
+  const sessoesAtivas = await db
     .select()
     .from(botSessoes)
-    .where(and(eq(botSessoes.conversaId, conversaId), eq(botSessoes.status, "ativa")));
+    .where(and(eq(botSessoes.conversaId, conversaId), eq(botSessoes.status, "ativa")))
+    .orderBy(botSessoes.id);
+
+  // Se houver múltiplas sessões ativas (race condition), encerrar as mais antigas
+  if (sessoesAtivas.length > 1) {
+    console.log(`[BotEngine] AVISO: ${sessoesAtivas.length} sessões ativas para conversa ${conversaId} — encerrando duplicatas`);
+    const idsParaEncerrar = sessoesAtivas.slice(0, -1).map(s => s.id);
+    for (const sid of idsParaEncerrar) {
+      await db.update(botSessoes).set({ status: "encerrada", updatedAt: new Date() }).where(eq(botSessoes.id, sid));
+    }
+  }
+
+  const sessaoAtiva = sessoesAtivas.length > 0 ? sessoesAtivas[sessoesAtivas.length - 1] : undefined;
 
   if (sessaoAtiva) {
     console.log(`[BotEngine] Sessão ativa: id=${sessaoAtiva.id}, noAtualId=${sessaoAtiva.noAtualId}`);
