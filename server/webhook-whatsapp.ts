@@ -122,7 +122,8 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
 
     // ── Determinar tipo e conteúdo da mensagem ────────────────────────────────
     let tipo: "text" | "image" | "document" | "audio" | "video" | "sticker" = "text";
-    let conteudo: string | null = null;
+    let conteudo: string | null = null;         // conteúdo salvo na mensagem (exibido ao usuário)
+    let textoBotEngine: string | null = null;   // texto enviado ao bot-engine (pode ser selectedRowId)
     let mediaUrl: string | null = null;
     let nomeArquivo: string | null = null;
 
@@ -139,10 +140,11 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       tipo = "text";
       const listTitle = payload.listResponseMessage.title ?? payload.listResponseMessage.message ?? null;
       const selectedRowId = payload.listResponseMessage.selectedRowId ?? null;
-      // Preferir selectedRowId como conteúdo — é o id exato da opção cadastrada no bot
-      // Fallback para title se selectedRowId não vier
-      conteudo = selectedRowId ?? listTitle;
-      console.log(`[Webhook] Lista interativa recebida: selectedRowId="${selectedRowId}", title="${listTitle}", conteudo enviado ao bot="${conteudo}"`);
+      // Exibir o título legível na conversa (ex: "Cobrança")
+      conteudo = listTitle ?? selectedRowId;
+      // Enviar selectedRowId ao bot-engine para identificar a opção com precisão
+      textoBotEngine = selectedRowId ?? listTitle;
+      console.log(`[Webhook] Lista interativa recebida: selectedRowId="${selectedRowId}", title="${listTitle}", exibido="${conteudo}", bot="${textoBotEngine}"`);
     
     } else if (payload.buttonResponseMessage) {
       // Resposta de botão interativo (Z-API)
@@ -221,7 +223,7 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
         instanciaId,
         conversaId: conversa.id,
         telefone: phone,
-        texto: conteudo ?? "",
+        texto: textoBotEngine ?? conteudo ?? "",
         instanceToken: instancia.token,
         instanceId: instancia.instanceId,
         clientToken: instancia.clientToken,
