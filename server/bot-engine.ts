@@ -236,15 +236,30 @@ async function avancarFluxo(params: {
     const textoLower = texto.toLowerCase().trim();
     let opcaoSelecionada: OpcaoListaEngine | undefined;
 
+    console.log(`[BotEngine] Lista opcoes — texto recebido: "${texto}", opcoes disponíveis: ${conteudo.opcoes.map(o => `id=${o.id} titulo=${o.titulo}`).join(" | ")}`);
+
     for (const op of conteudo.opcoes) {
-      // Z-API retorna o id da opção selecionada ou o título
-      if (textoLower === op.id.toLowerCase() || textoLower === op.titulo.toLowerCase() || textoLower.includes(op.titulo.toLowerCase())) {
+      // Prioridade 1: comparar com op.id exato (selectedRowId da Z-API)
+      if (textoLower === op.id.toLowerCase()) {
         opcaoSelecionada = op;
+        console.log(`[BotEngine] Opção encontrada por ID: ${op.id}`);
         break;
       }
     }
 
     if (!opcaoSelecionada) {
+      for (const op of conteudo.opcoes) {
+        // Prioridade 2: comparar com título exato ou parcial
+        if (textoLower === op.titulo.toLowerCase() || textoLower.includes(op.titulo.toLowerCase())) {
+          opcaoSelecionada = op;
+          console.log(`[BotEngine] Opção encontrada por título: ${op.titulo}`);
+          break;
+        }
+      }
+    }
+
+    if (!opcaoSelecionada) {
+      console.log(`[BotEngine] Opção não encontrada para texto "${texto}" — reenviando lista`);
       // Resposta inválida — reenviar lista
       await enviarNo(conteudo, telefone, zapiConfig);
       return "automatico";

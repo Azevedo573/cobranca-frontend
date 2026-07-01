@@ -126,6 +126,11 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
     let mediaUrl: string | null = null;
     let nomeArquivo: string | null = null;
 
+    // DEBUG: logar payload completo para tipos especiais
+    if (!payload.text?.message) {
+      console.log("[Webhook DEBUG] Payload tipo especial:", JSON.stringify(payload).substring(0, 500));
+    }
+
     if (payload.text?.message) {
       tipo = "text";
       conteudo = payload.text.message;
@@ -134,7 +139,11 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       tipo = "text";
       const listTitle = payload.listResponseMessage.title ?? payload.listResponseMessage.message ?? null;
       const selectedRowId = payload.listResponseMessage.selectedRowId ?? null;
-      conteudo = listTitle ?? selectedRowId;
+      // Preferir selectedRowId como conteúdo — é o id exato da opção cadastrada no bot
+      // Fallback para title se selectedRowId não vier
+      conteudo = selectedRowId ?? listTitle;
+      console.log(`[Webhook] Lista interativa recebida: selectedRowId="${selectedRowId}", title="${listTitle}", conteudo enviado ao bot="${conteudo}"`);
+    
     } else if (payload.buttonResponseMessage) {
       // Resposta de botão interativo (Z-API)
       tipo = "text";

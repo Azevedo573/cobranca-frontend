@@ -5875,18 +5875,78 @@ export const appRouter = router({
           horarioFimEnvio: input.horarioFimEnvio,
           diasSemana: input.diasSemana,
         };
+        // Gerar URL do webhook para esta instância
+        const appUrl = process.env.VITE_APP_ID
+          ? `https://sistemadecobranca.manus.space`
+          : `http://localhost:3000`;
+        const instanciaIdParaWebhook = input.id ?? 0; // será atualizado após insert
+
         if (input.id) {
           await db.update(whatsappInstancias)
             .set({ nome: input.nome, setor: input.setor, instanceId: input.instanceId, token: input.token, clientToken: input.clientToken, ativo: input.ativo, ...cadenciaFields })
             .where(eq(whatsappInstancias.id, input.id));
+          // Configurar webhook na Z-API automaticamente
+          try {
+            const { configurarWebhookRecebimento } = await import("./zapi-service");
+            const webhookUrl = `${appUrl}/api/webhook/whatsapp/${input.id}`;
+            await configurarWebhookRecebimento(
+              { instanceId: input.instanceId, token: input.token, clientToken: input.clientToken },
+              webhookUrl
+            );
+            await db.update(whatsappInstancias)
+              .set({ webhookUrl })
+              .where(eq(whatsappInstancias.id, input.id));
+            console.log(`[WhatsApp] Webhook configurado: ${webhookUrl}`);
+          } catch (e) {
+            console.error("[WhatsApp] Erro ao configurar webhook na Z-API:", e);
+          }
           return { success: true, id: input.id };
         } else {
           const [res] = await db.insert(whatsappInstancias).values({
             nome: input.nome, setor: input.setor, instanceId: input.instanceId,
             token: input.token, clientToken: input.clientToken, ativo: input.ativo, ...cadenciaFields,
           });
-          return { success: true, id: (res as any).insertId };
+          const newId = (res as any).insertId;
+          // Configurar webhook na Z-API automaticamente
+          try {
+            const { configurarWebhookRecebimento } = await import("./zapi-service");
+            const webhookUrl = `${appUrl}/api/webhook/whatsapp/${newId}`;
+            await configurarWebhookRecebimento(
+              { instanceId: input.instanceId, token: input.token, clientToken: input.clientToken },
+              webhookUrl
+            );
+            await db.update(whatsappInstancias)
+              .set({ webhookUrl })
+              .where(eq(whatsappInstancias.id, newId));
+            console.log(`[WhatsApp] Webhook configurado: ${webhookUrl}`);
+          } catch (e) {
+            console.error("[WhatsApp] Erro ao configurar webhook na Z-API:", e);
+          }
+          return { success: true, id: newId };
         }
+      }),
+
+    configurarWebhook: protectedProcedure
+      .input(z.object({ instanciaId: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB indisponível");
+        const { whatsappInstancias } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [inst] = await db.select().from(whatsappInstancias).where(eq(whatsappInstancias.id, input.instanciaId));
+        if (!inst) throw new Error("Instância não encontrada");
+        const appUrl = `https://sistemadecobranca.manus.space`;
+        const webhookUrl = `${appUrl}/api/webhook/whatsapp/${input.instanciaId}`;
+        const { configurarWebhookRecebimento } = await import("./zapi-service");
+        await configurarWebhookRecebimento(
+          { instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken },
+          webhookUrl
+        );
+        await db.update(whatsappInstancias)
+          .set({ webhookUrl })
+          .where(eq(whatsappInstancias.id, input.instanciaId));
+        console.log(`[WhatsApp] Webhook configurado manualmente: ${webhookUrl}`);
+        return { success: true, webhookUrl };
       }),
 
     deletarInstancia: protectedProcedure

@@ -13,7 +13,7 @@ export interface ZApiConfig {
 
 async function zapiRequest(
   config: ZApiConfig,
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "DELETE" | "PUT",
   path: string,
   body?: unknown
 ): Promise<unknown> {
@@ -342,6 +342,19 @@ export async function removeAdmin(
     phone: groupPhone,
     phones,
   });
+  return { success: true };
+}
+
+// ─── Configurar Webhook de recebimento ───────────────────────────────────────
+/**
+ * Registra a URL de webhook "on-receive" na instância Z-API.
+ * Deve ser chamado sempre que uma instância for criada ou editada.
+ */
+export async function configurarWebhookRecebimento(
+  config: ZApiConfig,
+  webhookUrl: string
+): Promise<{ success: boolean }> {
+  await zapiRequest(config, "PUT", "/update-webhook-received", { value: webhookUrl });
   return { success: true };
 }
 

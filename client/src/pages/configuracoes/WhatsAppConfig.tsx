@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import {
   Plus, Pencil, Trash2, Wifi, WifiOff, QrCode,
-  Building2, Scale, Globe, RefreshCw, ExternalLink, Shield,
+  Building2, Scale, Globe, RefreshCw, ExternalLink, Shield, Link,
 } from "lucide-react";
 
 const setorLabel = (s: string) => s === "cobranca" ? "Cobrança" : s === "juridico" ? "Jurídico" : "Geral";
@@ -63,6 +63,14 @@ export default function WhatsAppConfig() {
       setForm(emptyForm);
     },
     onError: (err) => toast.error("Erro: " + err.message),
+  });
+
+  const configurarWebhookMutation = trpc.whatsapp.configurarWebhook.useMutation({
+    onSuccess: (data) => {
+      toast.success("Webhook configurado com sucesso!");
+      utils.whatsapp.listarInstancias.invalidate();
+    },
+    onError: (err) => toast.error("Erro ao configurar webhook: " + err.message),
   });
 
   const deletarMutation = trpc.whatsapp.deletarInstancia.useMutation({
@@ -202,6 +210,15 @@ export default function WhatsAppConfig() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline" size="sm" className="gap-1.5"
+                    onClick={() => configurarWebhookMutation.mutate({ instanciaId: inst.id })}
+                    disabled={configurarWebhookMutation.isPending}
+                    title="Registrar URL de webhook na Z-API para receber mensagens"
+                  >
+                    {configurarWebhookMutation.isPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link className="h-3.5 w-3.5" />}
+                    Webhook
+                  </Button>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setQrInstanciaId(inst.id)}>
                     <QrCode className="h-3.5 w-3.5" />
                     QR Code
