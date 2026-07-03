@@ -260,7 +260,7 @@ export default function WhatsAppConfig() {
           <DialogHeader>
             <DialogTitle>{form.id ? "Editar Instância" : "Nova Instância"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 max-h-[65vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Nome *</Label>
