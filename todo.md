@@ -2472,3 +2472,8 @@
 - [ ] Criar página WhatsAppGrupos.tsx com: lista de grupos da instância, painel de detalhes do grupo (participantes, link de convite), modal criar grupo, envio de mensagem para o grupo, gerenciamento de participantes
 - [ ] Registrar rota /whatsapp/grupos no App.tsx
 - [ ] Adicionar link Grupos no menu WhatsApp do Sidebar
+
+- [x] Criar tabela horarioAtendimento no schema (dia_semana, hora_inicio, hora_fim, ativo)
+- [x] Criar procedures tRPC: getHorarios, salvarHorarios
+- [x] Criar tela de configuração de horário de atendimento em Configurações
+- [x] Integrar verificação de horário do banco no bot-engine e webhook (substituir hardcoded 08:00-20:00)

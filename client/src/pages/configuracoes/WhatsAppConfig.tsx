@@ -28,11 +28,19 @@ type Instancia = {
   limiteHora?: number; limiteDia?: number;
   horarioInicioEnvio?: string; horarioFimEnvio?: string;
   diasSemana?: string;
+  horarioAtendimentoInicio?: string; horarioAtendimentoFim?: string;
+  diasAtendimento?: string;
+  mensagemForaHorario?: string | null;
 };
 
 type FormData = {
   id?: number; nome: string; setor: "cobranca" | "juridico" | "geral";
   instanceId: string; token: string; clientToken: string; ativo: number;
+  // Horário de atendimento (bot)
+  horarioAtendimentoInicio: string; horarioAtendimentoFim: string;
+  diasAtendimento: string;
+  mensagemForaHorario: string;
+  // Cadência anti-ban (fila proativa)
   delayMinSegundos: number; delayMaxSegundos: number;
   limiteHora: number; limiteDia: number;
   horarioInicioEnvio: string; horarioFimEnvio: string;
@@ -41,6 +49,9 @@ type FormData = {
 
 const emptyForm: FormData = {
   nome: "", setor: "cobranca", instanceId: "", token: "", clientToken: "", ativo: 1,
+  horarioAtendimentoInicio: "08:00", horarioAtendimentoFim: "20:00",
+  diasAtendimento: "0,1,2,3,4,5,6",
+  mensagemForaHorario: "",
   delayMinSegundos: 8, delayMaxSegundos: 25,
   limiteHora: 20, limiteDia: 150,
   horarioInicioEnvio: "08:00", horarioFimEnvio: "20:00",
@@ -85,6 +96,10 @@ export default function WhatsAppConfig() {
     setForm({
       id: inst.id, nome: inst.nome, setor: inst.setor as any,
       instanceId: inst.instanceId, token: inst.token, clientToken: inst.clientToken, ativo: inst.ativo,
+      horarioAtendimentoInicio: inst.horarioAtendimentoInicio ?? "08:00",
+      horarioAtendimentoFim: inst.horarioAtendimentoFim ?? "20:00",
+      diasAtendimento: inst.diasAtendimento ?? "0,1,2,3,4,5,6",
+      mensagemForaHorario: inst.mensagemForaHorario ?? "",
       delayMinSegundos: inst.delayMinSegundos ?? 8,
       delayMaxSegundos: inst.delayMaxSegundos ?? 25,
       limiteHora: inst.limiteHora ?? 20,
@@ -284,6 +299,58 @@ export default function WhatsAppConfig() {
                   <SelectItem value="0">Inativo</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Horário de Atendimento */}
+            <div className="border rounded-lg p-4 space-y-4 bg-green-50 dark:bg-green-950/20">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🕐</span>
+                <span className="text-sm font-semibold text-green-800 dark:text-green-400">Horário de Atendimento</span>
+                <span className="text-xs text-muted-foreground">Quando o bot responde mensagens recebidas</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Horário de início</Label>
+                  <Input type="time" value={form.horarioAtendimentoInicio}
+                    onChange={e => setForm(f => ({ ...f, horarioAtendimentoInicio: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Horário de fim</Label>
+                  <Input type="time" value={form.horarioAtendimentoFim}
+                    onChange={e => setForm(f => ({ ...f, horarioAtendimentoFim: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Dias de atendimento</Label>
+                <div className="flex gap-2 flex-wrap">
+                  {[{v:"0",l:"Dom"},{v:"1",l:"Seg"},{v:"2",l:"Ter"},{v:"3",l:"Qua"},{v:"4",l:"Qui"},{v:"5",l:"Sex"},{v:"6",l:"Sáb"}].map(d => {
+                    const dias = form.diasAtendimento.split(",").filter(Boolean);
+                    const ativo = dias.includes(d.v);
+                    return (
+                      <button key={d.v} type="button"
+                        onClick={() => {
+                          const novos = ativo ? dias.filter(x => x !== d.v) : [...dias, d.v];
+                          setForm(f => ({ ...f, diasAtendimento: novos.sort().join(",") }));
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          ativo ? "bg-green-500 text-white border-green-500" : "bg-background border-border text-muted-foreground"
+                        }`}>
+                        {d.l}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">O bot só responde nos dias marcados</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Mensagem fora do horário (opcional)</Label>
+                <Input
+                  placeholder="Ex: Nosso atendimento é das 08h às 20h. Retornaremos em breve!"
+                  value={form.mensagemForaHorario}
+                  onChange={e => setForm(f => ({ ...f, mensagemForaHorario: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">Enviada automaticamente quando o cliente escreve fora do horário. Deixe em branco para ignorar.</p>
+              </div>
             </div>
 
             {/* Cadência Anti-Ban */}

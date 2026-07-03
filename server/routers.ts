@@ -5852,7 +5852,12 @@ export const appRouter = router({
         token: z.string().min(1),
         clientToken: z.string().min(1),
         ativo: z.number().int().min(0).max(1).default(1),
-        // Cadência anti-ban
+        // Horário de atendimento (bot)
+        horarioAtendimentoInicio: z.string().default("00:00"),
+        horarioAtendimentoFim: z.string().default("23:59"),
+        diasAtendimento: z.string().default("0,1,2,3,4,5,6"),
+        mensagemForaHorario: z.string().optional(),
+        // Cadência anti-ban (fila proativa)
         delayMinSegundos: z.number().int().min(1).max(300).default(8),
         delayMaxSegundos: z.number().int().min(1).max(600).default(25),
         limiteHora: z.number().int().min(1).max(500).default(20),
@@ -5867,6 +5872,10 @@ export const appRouter = router({
         const { whatsappInstancias } = await import("../drizzle/schema");
         const { eq } = await import("drizzle-orm");
         const cadenciaFields = {
+          horarioAtendimentoInicio: input.horarioAtendimentoInicio,
+          horarioAtendimentoFim: input.horarioAtendimentoFim,
+          diasAtendimento: input.diasAtendimento,
+          mensagemForaHorario: input.mensagemForaHorario ?? null,
           delayMinSegundos: input.delayMinSegundos,
           delayMaxSegundos: input.delayMaxSegundos,
           limiteHora: input.limiteHora,

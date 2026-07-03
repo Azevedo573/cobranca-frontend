@@ -811,6 +811,19 @@ export const whatsappInstancias = mysqlTable("whatsappInstancias", {
   clientToken: varchar("clientToken", { length: 500 }).notNull(),
   webhookUrl: varchar("webhookUrl", { length: 500 }),
   ativo: int("ativo").default(1).notNull(),
+  // Horário de atendimento (bot recebe mensagens)
+  horarioAtendimentoInicio: varchar("horarioAtendimentoInicio", { length: 5 }).default("08:00").notNull(),
+  horarioAtendimentoFim: varchar("horarioAtendimentoFim", { length: 5 }).default("20:00").notNull(),
+  diasAtendimento: varchar("diasAtendimento", { length: 20 }).default("1,2,3,4,5").notNull(), // 0=dom,1=seg,...,6=sab
+  mensagemForaHorario: text("mensagemForaHorario"), // mensagem enviada fora do horário
+  // Horário de envio da fila proativa (régua de cobranças)
+  horarioInicioEnvio: varchar("horarioInicioEnvio", { length: 5 }).default("08:00").notNull(),
+  horarioFimEnvio: varchar("horarioFimEnvio", { length: 5 }).default("20:00").notNull(),
+  diasSemana: varchar("diasSemana", { length: 20 }).default("1,2,3,4,5").notNull(),
+  delayMinSegundos: int("delayMinSegundos").default(8).notNull(),
+  delayMaxSegundos: int("delayMaxSegundos").default(25).notNull(),
+  limiteHora: int("limiteHora").default(20).notNull(),
+  limiteDia: int("limiteDia").default(150).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

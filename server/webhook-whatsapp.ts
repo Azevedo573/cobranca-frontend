@@ -215,6 +215,40 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       return;
     }
 
+    // ── Verificar horário de atendimento ─────────────────────────────────────
+    if (instancia) {
+      const horarioInicio = (instancia as any).horarioAtendimentoInicio ?? "00:00";
+      const horarioFim = (instancia as any).horarioAtendimentoFim ?? "23:59";
+      const diasAtendimento = (instancia as any).diasAtendimento ?? "0,1,2,3,4,5,6";
+      const mensagemForaHorario = (instancia as any).mensagemForaHorario ?? null;
+
+      const agora = new Date();
+      const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+      const diaSemana = String(agora.getDay()); // 0=dom, 1=seg, ..., 6=sab
+      const diasPermitidos = diasAtendimento.split(",").map((d: string) => d.trim());
+
+      const dentroHorario = horaAtual >= horarioInicio && horaAtual <= horarioFim;
+      const diaPermitido = diasPermitidos.includes(diaSemana);
+
+      if (!dentroHorario || !diaPermitido) {
+        console.log(`[Webhook] Fora do horário de atendimento (${horarioInicio}–${horarioFim}, dias=${diasAtendimento}). Hora atual: ${horaAtual}, dia: ${diaSemana}`);
+        // Enviar mensagem de fora do horário se configurada e se não houver atendimento ativo
+        if (mensagemForaHorario && mensagemForaHorario.trim()) {
+          try {
+            const { sendText } = await import("./zapi-service");
+            await sendText(
+              { token: instancia.token, instanceId: instancia.instanceId, clientToken: instancia.clientToken },
+              phone,
+              mensagemForaHorario
+            );
+          } catch (e) {
+            console.error("[Webhook] Erro ao enviar mensagem fora do horário:", e);
+          }
+        }
+        return;
+      }
+    }
+
     // ── Tentar processar pelo motor do bot ────────────────────────────────────
     let botDepartamentoId: number | null = null;
     let botAtendenteId: number | null = null;
