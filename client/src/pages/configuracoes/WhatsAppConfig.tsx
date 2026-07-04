@@ -2,6 +2,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -344,10 +345,12 @@ export default function WhatsAppConfig() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Mensagem fora do horário (opcional)</Label>
-                <Input
-                  placeholder="Ex: Nosso atendimento é das 08h às 20h. Retornaremos em breve!"
+                <Textarea
+                  placeholder="Ex: Nosso atendimento é das 08h às 20h.&#10;Retornaremos em breve!"
                   value={form.mensagemForaHorario}
                   onChange={e => setForm(f => ({ ...f, mensagemForaHorario: e.target.value }))}
+                  rows={3}
+                  className="resize-none text-sm"
                 />
                 <p className="text-xs text-muted-foreground">Enviada automaticamente quando o cliente escreve fora do horário. Deixe em branco para ignorar.</p>
               </div>
