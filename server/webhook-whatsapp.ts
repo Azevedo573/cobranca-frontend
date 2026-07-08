@@ -222,25 +222,59 @@ export async function webhookWhatsappHandler(req: Request, res: Response) {
       const diasAtendimento = (instancia as any).diasAtendimento ?? "0,1,2,3,4,5,6";
       const mensagemForaHorario = (instancia as any).mensagemForaHorario ?? null;
 
+      // Usar fuso horário de Brasília (America/Sao_Paulo) para comparação de horário
       const agora = new Date();
-      const horaAtual = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
-      const diaSemana = String(agora.getDay()); // 0=dom, 1=seg, ..., 6=sab
+      const fusoOptions: Intl.DateTimeFormatOptions = { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false };
+      const horaAtual = new Intl.DateTimeFormat("pt-BR", fusoOptions).format(agora).replace(":", ":"); // HH:MM
+      const diaOptions: Intl.DateTimeFormatOptions = { timeZone: "America/Sao_Paulo", weekday: "short" };
+      // Obter dia da semana no fuso de Brasília (0=dom, 1=seg, ..., 6=sab)
+      const dataEmBrasilia = new Date(agora.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+      const diaSemana = String(dataEmBrasilia.getDay());
       const diasPermitidos = diasAtendimento.split(",").map((d: string) => d.trim());
 
       const dentroHorario = horaAtual >= horarioInicio && horaAtual <= horarioFim;
       const diaPermitido = diasPermitidos.includes(diaSemana);
 
       if (!dentroHorario || !diaPermitido) {
-        console.log(`[Webhook] Fora do horário de atendimento (${horarioInicio}–${horarioFim}, dias=${diasAtendimento}). Hora atual: ${horaAtual}, dia: ${diaSemana}`);
-        // Enviar mensagem de fora do horário se configurada e se não houver atendimento ativo
+        console.log(`[Webhook] Fora do horário de atendimento (${horarioInicio}–${horarioFim}, dias=${diasAtendimento}). Hora atual (BRT): ${horaAtual}, dia: ${diaSemana}`);
+        // Enviar mensagem de fora do horário apenas se não foi enviada nas últimas 8 horas
         if (mensagemForaHorario && mensagemForaHorario.trim()) {
           try {
-            const { sendText } = await import("./zapi-service");
-            await sendText(
-              { token: instancia.token, instanceId: instancia.instanceId, clientToken: instancia.clientToken },
-              phone,
-              mensagemForaHorario
-            );
+            const { gt } = await import("drizzle-orm");
+            const oitoHorasAtras = new Date(Date.now() - 8 * 60 * 60 * 1000);
+            const [ultimaAusencia] = await db
+              .select({ id: whatsappMensagens.id })
+              .from(whatsappMensagens)
+              .where(
+                and(
+                  eq(whatsappMensagens.conversaId, conversa.id),
+                  eq(whatsappMensagens.direction, "out"),
+                  eq(whatsappMensagens.conteudo, mensagemForaHorario),
+                  gt(whatsappMensagens.createdAt, oitoHorasAtras)
+                )
+              )
+              .limit(1);
+
+            if (!ultimaAusencia) {
+              const { sendText } = await import("./zapi-service");
+              await sendText(
+                { token: instancia.token, instanceId: instancia.instanceId, clientToken: instancia.clientToken },
+                phone,
+                mensagemForaHorario
+              );
+              // Salvar a mensagem de ausência no banco para controle
+              await db.insert(whatsappMensagens).values({
+                conversaId: conversa.id,
+                instanciaId,
+                direction: "out",
+                tipo: "text",
+                conteudo: mensagemForaHorario,
+                status: "enviada",
+              });
+              console.log(`[Webhook] Mensagem de ausência enviada para ${phone}`);
+            } else {
+              console.log(`[Webhook] Mensagem de ausência já enviada nas últimas 8h para ${phone} — ignorando`);
+            }
           } catch (e) {
             console.error("[Webhook] Erro ao enviar mensagem fora do horário:", e);
           }
