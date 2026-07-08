@@ -6007,7 +6007,9 @@ export const appRouter = router({
         if (!db) return [];
         const { whatsappConversas, whatsappInstancias } = await import("../drizzle/schema");
         const { eq, desc, like, and } = await import("drizzle-orm");
-        const conditions: any[] = [];
+        const conditions: any[] = [
+          eq(whatsappConversas.isGroup, 0), // NUNCA incluir grupos na lista de conversas individuais
+        ];
         if (input.instanciaId) conditions.push(eq(whatsappConversas.instanciaId, input.instanciaId));
         if (input.status) conditions.push(eq(whatsappConversas.status, input.status));
         if (input.busca) conditions.push(like(whatsappConversas.nomeContato, `%${input.busca}%`));
@@ -6018,7 +6020,7 @@ export const appRouter = router({
           })
           .from(whatsappConversas)
           .leftJoin(whatsappInstancias, eq(whatsappConversas.instanciaId, whatsappInstancias.id))
-          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .where(and(...conditions))
           .orderBy(desc(whatsappConversas.ultimaMensagemEm));
         return rows;
       }),
@@ -6054,7 +6056,9 @@ export const appRouter = router({
             )
           );
         const conversaIdsAtivos = idsAtivos.map((r) => r.conversaId).filter(Boolean) as number[];
-        const conditions: any[] = [];
+        const conditions: any[] = [
+          eq(whatsappConversas.isGroup, 0), // NUNCA incluir grupos na lista de conversas individuais
+        ];
         if (input.instanciaId) conditions.push(eq(whatsappConversas.instanciaId, input.instanciaId));
         if (input.busca) conditions.push(like(whatsappConversas.nomeContato, `%${input.busca}%`));
         if (conversaIdsAtivos.length > 0) {

@@ -372,6 +372,7 @@ export const atendimentoRouter = router({
         .leftJoin(devedores, eq(atendimentos.devedorId, devedores.id))
         .where(and(
           eq(atendimentos.status, "aguardando"),
+          eq(whatsappConversas.isGroup, 0), // Nunca mostrar grupos na fila de atendimento
           input?.departamentoId ? eq(atendimentos.departamentoId, input.departamentoId) : undefined,
         ))
         .orderBy(
@@ -408,7 +409,10 @@ export const atendimentoRouter = router({
       .leftJoin(whatsappConversas, eq(atendimentos.conversaId, whatsappConversas.id))
       .leftJoin(atendimentoDepartamentos, eq(atendimentos.departamentoId, atendimentoDepartamentos.id))
       .leftJoin(devedores, eq(atendimentos.devedorId, devedores.id))
-      .where(eq(atendimentos.status, "automatico"))
+      .where(and(
+        eq(atendimentos.status, "automatico"),
+        eq(whatsappConversas.isGroup, 0), // Nunca mostrar grupos no modo automático
+      ))
       .orderBy(asc(atendimentos.iniciadoEm));
     return rows;
   }),

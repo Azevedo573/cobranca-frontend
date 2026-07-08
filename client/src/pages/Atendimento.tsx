@@ -1407,8 +1407,13 @@ export default function Atendimento() {
                   <Users className="h-4 w-4 text-green-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{grupoSelecionado.name}</p>
-                  <p className="text-xs text-muted-foreground">{grupoSelecionado.phone?.replace(/-group$/, "")}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-sm truncate">{grupoSelecionado.name}</p>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-500/15 text-green-700 border border-green-500/30 shrink-0">
+                      <Users className="h-2.5 w-2.5" />GRUPO
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{grupoSelecionado.phone?.replace(/-group$/, "").replace(/@g\.us$/, "")}</p>
                 </div>
                 <Link href="/whatsapp/grupos">
                   <Button variant="outline" size="sm" className="h-8 text-xs gap-1">
@@ -1441,6 +1446,9 @@ export default function Atendimento() {
                           <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 underline text-xs">
                             <FileText className="h-3.5 w-3.5" />{msg.nomeArquivo || "Documento"}
                           </a>
+                        )}
+                        {msg.direction === "in" && msg.nomeContato && (
+                          <p className="text-[10px] font-semibold text-green-700 mb-0.5">{msg.nomeContato}</p>
                         )}
                         {msg.conteudo && <p className="whitespace-pre-wrap break-words">{msg.conteudo}</p>}
                         <p className={cn("text-[10px] mt-0.5", msg.direction === "out" ? "text-green-100" : "text-muted-foreground")}>
