@@ -308,6 +308,8 @@ function KanbanCard({
   concluindo,
   onMoverProxima,
   movendo,
+  onMoverAnterior,
+  voltando,
 }: {
   pub: any;
   onClick: () => void;
@@ -315,6 +317,8 @@ function KanbanCard({
   concluindo?: boolean;
   onMoverProxima?: (id: number) => void;
   movendo?: boolean;
+  onMoverAnterior?: (id: number) => void;
+  voltando?: boolean;
 }) {
   const tipo = TIPO_CONFIG[pub.tipo] ?? TIPO_CONFIG.outro;
 
@@ -327,12 +331,28 @@ function KanbanCard({
       }`}
       onClick={onClick}
     >
-      {/* Botão de avançar para próxima coluna (visível no hover) */}
-      {onMoverProxima && !isUltimaColuna && (
-        <div
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
+      {/* Botões de navegação entre colunas (visíveis no hover) */}
+      <div
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10 flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {onMoverAnterior && pub.status !== "nova" && (
+          <button
+            type="button"
+            disabled={voltando}
+            onClick={(e) => { e.stopPropagation(); onMoverAnterior(pub.id); }}
+            className="flex items-center gap-1 text-[10px] font-medium bg-muted hover:bg-muted/80 text-muted-foreground border border-border rounded-full px-2 py-0.5 transition-all disabled:opacity-50"
+            title="Voltar para coluna anterior"
+          >
+            {voltando ? (
+              <span className="h-3 w-3 border border-muted-foreground border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <ChevronLeft className="h-3 w-3" />
+            )}
+            Voltar
+          </button>
+        )}
+        {onMoverProxima && !isUltimaColuna && (
           <button
             type="button"
             disabled={movendo}
@@ -347,8 +367,8 @@ function KanbanCard({
             )}
             Avançar
           </button>
-        </div>
-      )}
+        )}
+      </div>
       <CardContent className="p-3">
         {/* Tipo + Checkbox */}
         <div className="flex items-center justify-between mb-2">
@@ -441,6 +461,27 @@ export default function KanbanPublicacoes() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  const [voltandoId, setVoltandoId] = useState<number | null>(null);
+
+  function handleMoverAnterior(id: number) {
+    const pub = publicacoes.find((p: any) => p.id === id);
+    if (!pub) return;
+    const idxAtual = COLUNAS.findIndex((c) => c.id === pub.status);
+    const anterior = COLUNAS[idxAtual - 1];
+    if (!anterior) return;
+    setVoltandoId(id);
+    updateStatusMutation.mutate(
+      { id, status: anterior.id as "nova" | "analisando" | "aguardando_providencia" | "providenciada" | "arquivada" },
+      {
+        onSuccess: () => {
+          toast.success(`← Voltou para "${anterior.label}"`);
+          setVoltandoId(null);
+        },
+        onError: () => setVoltandoId(null),
+      }
+    );
+  }
 
   function handleMoverProxima(id: number) {
     const pub = publicacoes.find((p: any) => p.id === id);
@@ -662,6 +703,8 @@ export default function KanbanPublicacoes() {
                         concluindo={concluindoId === pub.id}
                         onMoverProxima={handleMoverProxima}
                         movendo={movendoId === pub.id}
+                        onMoverAnterior={handleMoverAnterior}
+                        voltando={voltandoId === pub.id}
                       />
                     ))
                   )}

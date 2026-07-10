@@ -81,6 +81,8 @@ function KanbanCard({
   concluindo,
   onMoverProxima,
   movendo,
+  onMoverAnterior,
+  voltando,
 }: {
   demanda: any;
   onClick: () => void;
@@ -90,6 +92,8 @@ function KanbanCard({
   concluindo?: boolean;
   onMoverProxima?: (id: number) => void;
   movendo?: boolean;
+  onMoverAnterior?: (id: number) => void;
+  voltando?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `demanda-${demanda.id}`,
@@ -121,26 +125,44 @@ function KanbanCard({
       {...dragProps}
       onClick={onClick}
     >
-      {/* Botão de avançar para próxima coluna (visível no hover) */}
-      {onMoverProxima && !isSaida && !isOverlay && (
+      {/* Botões de navegação entre colunas (visíveis no hover) */}
+      {!isSaida && !isOverlay && (
         <div
-          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10"
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10 flex items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            disabled={movendo}
-            onClick={(e) => { e.stopPropagation(); onMoverProxima(demanda.id); }}
-            className="flex items-center gap-1 text-[10px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full px-2 py-0.5 transition-all disabled:opacity-50"
-            title="Mover para próxima coluna"
-          >
-            {movendo ? (
-              <span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
-            Avançar
-          </button>
+          {onMoverAnterior && (
+            <button
+              type="button"
+              disabled={voltando}
+              onClick={(e) => { e.stopPropagation(); onMoverAnterior(demanda.id); }}
+              className="flex items-center gap-1 text-[10px] font-medium bg-muted hover:bg-muted/80 text-muted-foreground border border-border rounded-full px-2 py-0.5 transition-all disabled:opacity-50"
+              title="Voltar para coluna anterior"
+            >
+              {voltando ? (
+                <span className="h-3 w-3 border border-muted-foreground border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <ChevronLeft className="h-3 w-3" />
+              )}
+              Voltar
+            </button>
+          )}
+          {onMoverProxima && (
+            <button
+              type="button"
+              disabled={movendo}
+              onClick={(e) => { e.stopPropagation(); onMoverProxima(demanda.id); }}
+              className="flex items-center gap-1 text-[10px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full px-2 py-0.5 transition-all disabled:opacity-50"
+              title="Mover para próxima coluna"
+            >
+              {movendo ? (
+                <span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              Avançar
+            </button>
+          )}
         </div>
       )}
       {/* Faixa de prioridade no topo */}
@@ -230,6 +252,8 @@ function KanbanColuna({
   concluindoId,
   onMoverProxima,
   movendoId,
+  onMoverAnterior,
+  voltandoId,
   collapsed,
   onToggleCollapse,
 }: {
@@ -244,6 +268,8 @@ function KanbanColuna({
   concluindoId?: number | null;
   onMoverProxima?: (id: number) => void;
   movendoId?: number | null;
+  onMoverAnterior?: (id: number) => void;
+  voltandoId?: number | null;
   collapsed?: boolean;
   onToggleCollapse: () => void;
 }) {
@@ -409,6 +435,8 @@ function KanbanColuna({
                 concluindo={concluindoId === d.id}
                 onMoverProxima={onMoverProxima}
                 movendo={movendoId === d.id}
+                onMoverAnterior={onMoverAnterior}
+                voltando={voltandoId === d.id}
               />
             ))}
             {demandas.length === 0 && !showPlaceholder && (
@@ -777,6 +805,7 @@ export default function KanbanDemandas() {
   });
 
   const [movendoId, setMovendoId] = useState<number | null>(null);
+  const [voltandoId, setVoltandoId] = useState<number | null>(null);
 
   function handleMoverProxima(id: number) {
     const demanda = demandas.find((d: any) => d.id === id);
@@ -803,6 +832,35 @@ export default function KanbanDemandas() {
         },
         onError: () => {
           setMovendoId(null);
+          refetchDemandas();
+        },
+      }
+    );
+  }
+
+  function handleMoverAnterior(id: number) {
+    const demanda = demandas.find((d: any) => d.id === id);
+    if (!demanda) return;
+    const colunasOrdenadas = [...colunas].sort((a: any, b: any) => a.ordem - b.ordem);
+    const idxAtual = colunasOrdenadas.findIndex((c: any) => c.id === demanda.colunaId);
+    const anterior = colunasOrdenadas.slice(0, idxAtual).reverse().find(
+      (c: any) => c.tipo !== "saida"
+    );
+    if (!anterior) return;
+    setVoltandoId(id);
+    setDemandasOrdem((prev: any[]) =>
+      prev.map((d: any) => d.id === id ? { ...d, colunaId: anterior.id } : d)
+    );
+    moverMutation.mutate(
+      { id, novaColunaId: anterior.id, novaOrdem: 0 },
+      {
+        onSuccess: () => {
+          toast.success(`← Voltou para "${anterior.nome}"`);
+          setVoltandoId(null);
+          refetchDemandas();
+        },
+        onError: () => {
+          setVoltandoId(null);
           refetchDemandas();
         },
       }
@@ -1209,8 +1267,10 @@ export default function KanbanDemandas() {
                 activeId={activeId}
                 onConcluir={handleConcluirDemanda}
                 concluindoId={concluindoId}
-                onMoverProxima={handleMoverProxima}
-                movendoId={movendoId}
+                 onMoverProxima={handleMoverProxima}
+                 movendoId={movendoId}
+                 onMoverAnterior={handleMoverAnterior}
+                 voltandoId={voltandoId}
                 collapsed={colunasColapsadas.has(col.id)}
                 onToggleCollapse={() => toggleColapsarColuna(col.id)}
               />
