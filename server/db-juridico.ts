@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { juridicoTickets, juridicoMensagens } from "../drizzle/schema";
+import { juridicoTickets, juridicoMensagens, condominios as condominiosTable } from "../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
 // ─── Tickets ─────────────────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ export async function getTicketsByCondominio(condominioId: number) {
       status: juridicoTickets.status,
       responsavelId: juridicoTickets.responsavelId,
       responsavelNome: users.name,
+      condominioNome: condominiosTable.name,
       criadoPorId: juridicoTickets.criadoPorId,
       resolvidoEm: juridicoTickets.resolvidoEm,
       createdAt: juridicoTickets.createdAt,
@@ -57,6 +58,7 @@ export async function getTicketsByCondominio(condominioId: number) {
     })
     .from(juridicoTickets)
     .leftJoin(users, eq(juridicoTickets.responsavelId, users.id))
+    .leftJoin(condominiosTable, eq(juridicoTickets.condominioId, condominiosTable.id))
     .where(eq(juridicoTickets.condominioId, condominioId))
     .orderBy(desc(juridicoTickets.createdAt));
   return rows;
@@ -77,6 +79,7 @@ export async function getAllTickets() {
       status: juridicoTickets.status,
       responsavelId: juridicoTickets.responsavelId,
       responsavelNome: users.name,
+      condominioNome: condominiosTable.name,
       criadoPorId: juridicoTickets.criadoPorId,
       resolvidoEm: juridicoTickets.resolvidoEm,
       createdAt: juridicoTickets.createdAt,
@@ -84,6 +87,7 @@ export async function getAllTickets() {
     })
     .from(juridicoTickets)
     .leftJoin(users, eq(juridicoTickets.responsavelId, users.id))
+    .leftJoin(condominiosTable, eq(juridicoTickets.condominioId, condominiosTable.id))
     .orderBy(desc(juridicoTickets.createdAt));
   return rows;
 }

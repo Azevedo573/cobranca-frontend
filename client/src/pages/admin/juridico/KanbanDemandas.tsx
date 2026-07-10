@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { CheckboxConclusao } from "@/components/CheckboxConclusao";
 import { PrioridadeBadge, prioridadeBorderClass } from "@/components/PrioridadeBadge";
 import { ModalDemandaDetalhes } from "@/components/ModalDemandaDetalhes";
@@ -39,7 +39,7 @@ import {
   Plus, List, GripVertical, Clock, AlertTriangle, Building2,
   MessageSquare, Mail, Phone, Globe, Users, FileText, Scale,
   Lock, Settings, Pencil, Trash2, Loader2, CheckCircle2,
-  ArrowRight, Inbox, MoreVertical, GripHorizontal,
+  ArrowRight, Inbox, MoreVertical, GripHorizontal, Search, ChevronLeft, X,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -202,6 +202,8 @@ function KanbanColuna({
   activeId,
   onConcluir,
   concluindoId,
+  collapsed,
+  onToggleCollapse,
 }: {
   coluna: any;
   demandas: any[];
@@ -212,6 +214,8 @@ function KanbanColuna({
   activeId: string | null;
   onConcluir?: (id: number) => void;
   concluindoId?: number | null;
+  collapsed?: boolean;
+  onToggleCollapse: () => void;
 }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: `coluna-${coluna.id}`,
@@ -229,6 +233,27 @@ function KanbanColuna({
   const isEntrada = coluna.tipo === "entrada";
   const isSaida = coluna.tipo === "saida";
   const isFixa = isEntrada || isSaida;
+
+  // Coluna colapsada
+  if (collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="flex flex-col items-center w-12 shrink-0 rounded-xl border bg-card shadow-sm cursor-pointer hover:bg-muted/30 transition-colors py-3 gap-2"
+        onClick={onToggleCollapse}
+        title={`Expandir: ${coluna.nome} (${demandas.length})`}
+      >
+        <span className="text-base">{coluna.icone}</span>
+        <Badge variant="secondary" className="text-xs px-1 py-0 h-5 w-full justify-center">{demandas.length}</Badge>
+        {atrasadas > 0 && (
+          <Badge variant="destructive" className="text-xs px-1 py-0 h-5 w-full justify-center">{atrasadas}</Badge>
+        )}
+        <div className="flex-1" />
+        <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground rotate-180" />
+      </div>
+    );
+  }
 
   const headerStyle = isEntrada
     ? "bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800"
@@ -288,6 +313,14 @@ function KanbanColuna({
             <span className={`text-sm font-semibold truncate ${headerTextStyle}`}>{coluna.nome}</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Botão de colapso */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+              className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+              title="Minimizar coluna"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
             <Badge
               variant="secondary"
               className={`text-xs px-1.5 py-0 h-5 ${
@@ -628,6 +661,25 @@ export default function KanbanDemandas() {
   const [filtroAdvogadoId, setFiltroAdvogadoId] = useState<number | null>(null);
   const [modalDemandaId, setModalDemandaId] = useState<number | null>(null);
   const [concluindoId, setConcluindoId] = useState<number | null>(null);
+  const [filtroBusca, setFiltroBusca] = useState("");
+  const [filtroPrioridade, setFiltroPrioridade] = useState("todos");
+  const [filtroPrazo, setFiltroPrazo] = useState("todos");
+  const [colunasColapsadas, setColunasColapsadas] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem("kanban-demandas-collapsed");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  function toggleColapsarColuna(colunaId: number) {
+    setColunasColapsadas(prev => {
+      const next = new Set(prev);
+      if (next.has(colunaId)) next.delete(colunaId);
+      else next.add(colunaId);
+      localStorage.setItem("kanban-demandas-collapsed", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  }
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -727,9 +779,40 @@ export default function KanbanDemandas() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  // Demandas filtradas
+  const demandasFiltradas = useMemo(() => {
+    let lista = demandas as any[];
+    if (filtroBusca.trim()) {
+      const q = filtroBusca.toLowerCase();
+      lista = lista.filter((d: any) =>
+        d.assunto?.toLowerCase().includes(q) ||
+        d.numero?.toLowerCase().includes(q) ||
+        d.condominioNome?.toLowerCase().includes(q)
+      );
+    }
+    if (filtroPrioridade !== "todos") {
+      lista = lista.filter((d: any) => d.prioridade === filtroPrioridade);
+    }
+    if (filtroPrazo !== "todos") {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfToday = new Date(startOfToday.getTime() + 86400000 - 1);
+      const endOfWeek = new Date(startOfToday.getTime() + 7 * 86400000 - 1);
+      lista = lista.filter((d: any) => {
+        if (!d.prazo) return filtroPrazo === "sem_prazo";
+        const prazoDate = new Date(d.prazo);
+        if (filtroPrazo === "atrasados") return prazoDate < startOfToday;
+        if (filtroPrazo === "hoje") return prazoDate >= startOfToday && prazoDate <= endOfToday;
+        if (filtroPrazo === "semana") return prazoDate > endOfToday && prazoDate <= endOfWeek;
+        return true;
+      });
+    }
+    return lista;
+  }, [demandas, filtroBusca, filtroPrioridade, filtroPrazo]);
+
   const demandasPorColuna = useCallback((colunaId: number) => {
-    return demandas.filter((d: any) => d.colunaId === colunaId);
-  }, [demandas]);
+    return demandasFiltradas.filter((d: any) => d.colunaId === colunaId);
+  }, [demandasFiltradas]);
 
   // Encontrar colunaId a partir de um over id
   const getColunaIdFromOver = useCallback((overId: string): number | null => {
@@ -866,12 +949,13 @@ export default function KanbanDemandas() {
   };
 
   // Estatísticas rápidas
-  const totalDemandas = demandas.length;
+  const totalDemandas = (demandas as any[]).length;
   const colunaEntrada = colunas.find((c: any) => c.tipo === "entrada");
   const colunaSaida = colunas.find((c: any) => c.tipo === "saida");
-  const demandasRecebidas = colunaEntrada ? demandasPorColuna(colunaEntrada.id).length : 0;
-  const demandasResolvidas = colunaSaida ? demandasPorColuna(colunaSaida.id).length : 0;
-  const demandasAtrasadas = demandas.filter((d: any) => isAtrasada(d.prazo)).length;
+  const demandasRecebidas = colunaEntrada ? (demandas as any[]).filter((d: any) => d.colunaId === colunaEntrada.id).length : 0;
+  const demandasResolvidas = colunaSaida ? (demandas as any[]).filter((d: any) => d.colunaId === colunaSaida.id).length : 0;
+  const demandasAtrasadas = (demandas as any[]).filter((d: any) => isAtrasada(d.prazo)).length;
+  const totalUrgentes = (demandas as any[]).filter((d: any) => d.prioridade === "urgente").length;
 
   if (isLoading) {
     return (
@@ -949,6 +1033,57 @@ export default function KanbanDemandas() {
         </div>
       </div>
 
+      {/* Filtros rápidos */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Buscar demanda..."
+            value={filtroBusca}
+            onChange={e => setFiltroBusca(e.target.value)}
+            className="w-full pl-8 pr-3 h-8 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {filtroBusca && (
+            <button onClick={() => setFiltroBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Select value={filtroPrioridade} onValueChange={setFiltroPrioridade}>
+          <SelectTrigger className="w-36 h-8 text-xs">
+            <SelectValue placeholder="Prioridade" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todas prioridades</SelectItem>
+            <SelectItem value="urgente">🔴 Urgente {totalUrgentes > 0 ? `(${totalUrgentes})` : ""}</SelectItem>
+            <SelectItem value="alta">🟠 Alta</SelectItem>
+            <SelectItem value="media">🟡 Média</SelectItem>
+            <SelectItem value="baixa">🟢 Baixa</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filtroPrazo} onValueChange={setFiltroPrazo}>
+          <SelectTrigger className="w-36 h-8 text-xs">
+            <SelectValue placeholder="Prazo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os prazos</SelectItem>
+            <SelectItem value="atrasados">⚠️ Atrasados {demandasAtrasadas > 0 ? `(${demandasAtrasadas})` : ""}</SelectItem>
+            <SelectItem value="hoje">📅 Vencem hoje</SelectItem>
+            <SelectItem value="semana">📆 Esta semana</SelectItem>
+            <SelectItem value="sem_prazo">— Sem prazo</SelectItem>
+          </SelectContent>
+        </Select>
+        {(filtroBusca || filtroPrioridade !== "todos" || filtroPrazo !== "todos") && (
+          <button
+            onClick={() => { setFiltroBusca(""); setFiltroPrioridade("todos"); setFiltroPrazo("todos"); }}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 h-8 rounded-md border hover:bg-muted/50 transition-colors"
+          >
+            <X className="h-3 w-3" /> Limpar filtros
+          </button>
+        )}
+      </div>
+
       {/* Legenda do fluxo */}
       <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 border">
         <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
@@ -993,6 +1128,8 @@ export default function KanbanDemandas() {
                 activeId={activeId}
                 onConcluir={handleConcluirDemanda}
                 concluindoId={concluindoId}
+                collapsed={colunasColapsadas.has(col.id)}
+                onToggleCollapse={() => toggleColapsarColuna(col.id)}
               />
             ))}
           </div>

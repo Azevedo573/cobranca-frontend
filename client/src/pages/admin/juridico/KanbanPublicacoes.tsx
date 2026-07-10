@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { CheckboxConclusao } from "@/components/CheckboxConclusao";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { useLocation } from "wouter";
 import {
   Bell, Eye, Clock, CheckCircle2, Archive, ArrowLeft, Plus,
   ChevronRight, Building2, Users, FileText, Gavel, Calendar,
-  Scale, BookOpen, EyeOff, MoveRight, ExternalLink
+  Scale, BookOpen, EyeOff, MoveRight, ExternalLink, Search, X, ChevronLeft,
 } from "lucide-react";
 
 // ─── Config de Colunas do Kanban ──────────────────────────────────────────────
@@ -382,6 +382,25 @@ export default function KanbanPublicacoes() {
   const [, navigate] = useLocation();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [concluindoId, setConcluindoId] = useState<number | null>(null);
+  const [filtroBusca, setFiltroBusca] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtroLida, setFiltroLida] = useState("todos");
+  const [colunasColapsadas, setColunasColapsadas] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem("kanban-publicacoes-collapsed");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  function toggleColapsarColuna(colId: string) {
+    setColunasColapsadas(prev => {
+      const next = new Set(prev);
+      if (next.has(colId)) next.delete(colId);
+      else next.add(colId);
+      localStorage.setItem("kanban-publicacoes-collapsed", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  }
 
   const utils = trpc.useUtils();
   const { data: publicacoes = [], isLoading } = trpc.publicacoes.listar.useQuery({ limit: 200 });
@@ -408,8 +427,31 @@ export default function KanbanPublicacoes() {
     );
   }
 
+  // Publicações filtradas
+  const publicacoesFiltradas = useMemo(() => {
+    let lista = publicacoes as any[];
+    if (filtroBusca.trim()) {
+      const q = filtroBusca.toLowerCase();
+      lista = lista.filter((p: any) =>
+        p.advogadoNome?.toLowerCase().includes(q) ||
+        p.tribunal?.toLowerCase().includes(q) ||
+        p.numeroCNJ?.toLowerCase().includes(q) ||
+        p.textoCompleto?.toLowerCase().includes(q)
+      );
+    }
+    if (filtroTipo !== "todos") {
+      lista = lista.filter((p: any) => p.tipo === filtroTipo);
+    }
+    if (filtroLida === "nao_lidas") {
+      lista = lista.filter((p: any) => p.lida === 0);
+    } else if (filtroLida === "lidas") {
+      lista = lista.filter((p: any) => p.lida !== 0);
+    }
+    return lista;
+  }, [publicacoes, filtroBusca, filtroTipo, filtroLida]);
+
   const porColuna = (colId: string) =>
-    (publicacoes as any[]).filter((p: any) => p.status === colId);
+    publicacoesFiltradas.filter((p: any) => p.status === colId);
 
   const totalNaoLidas = (publicacoes as any[]).filter((p: any) => p.lida === 0).length;
 
@@ -443,15 +485,81 @@ export default function KanbanPublicacoes() {
         </Button>
       </div>
 
+      {/* Filtros rápidos */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Buscar publicação..."
+            value={filtroBusca}
+            onChange={e => setFiltroBusca(e.target.value)}
+            className="w-full pl-8 pr-3 h-8 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          {filtroBusca && (
+            <button onClick={() => setFiltroBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+          <SelectTrigger className="w-36 h-8 text-xs">
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os tipos</SelectItem>
+            {Object.entries(TIPO_CONFIG).map(([k, v]) => (
+              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filtroLida} onValueChange={setFiltroLida}>
+          <SelectTrigger className="w-32 h-8 text-xs">
+            <SelectValue placeholder="Leitura" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todas</SelectItem>
+            <SelectItem value="nao_lidas">🔵 Não lidas {totalNaoLidas > 0 ? `(${totalNaoLidas})` : ""}</SelectItem>
+            <SelectItem value="lidas">Lidas</SelectItem>
+          </SelectContent>
+        </Select>
+        {(filtroBusca || filtroTipo !== "todos" || filtroLida !== "todos") && (
+          <button
+            onClick={() => { setFiltroBusca(""); setFiltroTipo("todos"); setFiltroLida("todos"); }}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 h-8 rounded-md border hover:bg-muted/50 transition-colors"
+          >
+            <X className="h-3 w-3" /> Limpar
+          </button>
+        )}
+      </div>
+
       {/* Kanban */}
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Carregando publicações...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto">
+        <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUNAS.map((col) => {
             const cards = porColuna(col.id);
+            const collapsed = colunasColapsadas.has(col.id);
+
+            if (collapsed) {
+              return (
+                <div
+                  key={col.id}
+                  className={`flex flex-col items-center w-12 shrink-0 rounded-xl border bg-card shadow-sm cursor-pointer hover:bg-muted/30 transition-colors py-3 gap-2 border-t-4 ${col.color}`}
+                  onClick={() => toggleColapsarColuna(col.id)}
+                  title={`Expandir: ${col.label} (${cards.length})`}
+                >
+                  <span className={col.headerText}>{col.icon}</span>
+                  <Badge className={`text-xs px-1 py-0 h-5 w-full justify-center ${col.badgeColor}`}>{cards.length}</Badge>
+                  <div className="flex-1" />
+                  <ChevronLeft className="h-3.5 w-3.5 text-muted-foreground rotate-180" />
+                </div>
+              );
+            }
+
             return (
-              <div key={col.id} className={`flex flex-col gap-2 min-w-[220px]`}>
+              <div key={col.id} className={`flex flex-col gap-2 min-w-[220px] w-56 shrink-0`}>
                 {/* Header da coluna */}
                 <div className={`rounded-lg p-3 border-t-4 ${col.color} ${col.headerBg}`}>
                   <div className={`flex items-center justify-between ${col.headerText}`}>
@@ -459,7 +567,16 @@ export default function KanbanPublicacoes() {
                       {col.icon}
                       {col.label}
                     </div>
-                    <Badge className={`text-xs ${col.badgeColor}`}>{cards.length}</Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge className={`text-xs ${col.badgeColor}`}>{cards.length}</Badge>
+                      <button
+                        onClick={() => toggleColapsarColuna(col.id)}
+                        className="opacity-50 hover:opacity-100 transition-opacity"
+                        title="Minimizar coluna"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 

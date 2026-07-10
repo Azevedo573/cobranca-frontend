@@ -6,6 +6,7 @@ import { CheckboxConclusao } from "@/components/CheckboxConclusao";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
@@ -48,11 +49,19 @@ import {
   Building2,
   UserCircle2,
   Filter,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  AlertTriangle,
+  CalendarClock,
 } from "lucide-react";
 import { Link } from "wouter";
+import { cn } from "@/lib/utils";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type Status = "aberto" | "em_andamento" | "aguardando_cliente" | "resolvido" | "cancelado";
+type FiltroPrazo = "todos" | "atrasados" | "hoje" | "semana";
+type FiltroPrioridade = "todos" | "urgente" | "alta" | "media" | "baixa";
 
 const COLUNAS: { id: Status; label: string; icon: React.ElementType; color: string; headerBg: string; dot: string }[] = [
   { id: "aberto",             label: "Aberto",             icon: AlertCircle,  color: "border-yellow-400/40 bg-yellow-500/5",  headerBg: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",  dot: "bg-yellow-400" },
@@ -83,6 +92,45 @@ function getInitials(name: string) {
   return name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
 }
 
+// ─── Helpers de prazo (SLA por prioridade) ───────────────────────────────────
+const SLA_DIAS: Record<string, number> = {
+  urgente: 1,
+  alta: 3,
+  media: 7,
+  baixa: 14,
+};
+
+function getPrazoInfo(createdAt: Date | string | null | undefined, prioridade: string): {
+  atrasado: boolean;
+  hoje: boolean;
+  semana: boolean;
+  label: string | null;
+} {
+  if (!createdAt) return { atrasado: false, hoje: false, semana: false, label: null };
+  const criado = new Date(createdAt);
+  const diasSLA = SLA_DIAS[prioridade] ?? 7;
+  const prazoDate = new Date(criado.getTime() + diasSLA * 86400000);
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(startOfToday.getTime() + 86400000 - 1);
+  const endOfWeek = new Date(startOfToday.getTime() + 7 * 86400000 - 1);
+
+  const atrasado = prazoDate < startOfToday;
+  const hoje = prazoDate >= startOfToday && prazoDate <= endOfToday;
+  const semana = prazoDate > endOfToday && prazoDate <= endOfWeek;
+
+  const label = atrasado
+    ? `SLA vencido: ${prazoDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`
+    : hoje
+    ? `SLA vence hoje`
+    : semana
+    ? `SLA: ${prazoDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}`
+    : null;
+
+  return { atrasado, hoje, semana, label };
+}
+
 // ─── Card de ticket (draggable) ───────────────────────────────────────────────
 function TicketCard({
   ticket,
@@ -97,6 +145,7 @@ function TicketCard({
 }) {
   const [, navigate] = useLocation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } = useSortable({ id: ticket.id });
+  const prazoInfo = getPrazoInfo(ticket.createdAt, ticket.prioridade);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -108,9 +157,18 @@ function TicketCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group bg-card border border-border rounded-lg p-3 shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer select-none ${
-        isDragging ? "shadow-xl ring-2 ring-primary/40 rotate-1" : ""
-      }`}
+      className={cn(
+        "group bg-card border rounded-lg p-3 shadow-sm hover:shadow-md transition-all cursor-pointer select-none",
+        isDragging ? "shadow-xl ring-2 ring-primary/40 rotate-1" : "",
+        // Borda vermelha pulsante para atrasados
+        prazoInfo.atrasado && ticket.status !== "resolvido" && ticket.status !== "cancelado"
+          ? "border-red-400/70 animate-[pulse_2s_ease-in-out_infinite]"
+          : prazoInfo.hoje && ticket.status !== "resolvido" && ticket.status !== "cancelado"
+          ? "border-orange-400/60"
+          : "border-border hover:border-primary/30",
+        // Opacidade reduzida para concluídos
+        ticket.status === "resolvido" ? "opacity-60" : ""
+      )}
       onClick={() => navigate(`/juridico/solicitacoes/${ticket.id}`)}
     >
       {/* Drag handle + header */}
@@ -141,13 +199,27 @@ function TicketCard({
               {ticket.prioridade === "urgente" ? "🔴 Urgente" : ticket.prioridade === "alta" ? "Alta" : ticket.prioridade === "media" ? "Média" : "Baixa"}
             </span>
           </div>
-          <p className={`text-sm font-semibold leading-snug line-clamp-2 transition-all duration-200 ${
-            ticket.status === "resolvido"
-              ? "line-through text-muted-foreground/60"
-              : "text-foreground"
-          }`}>{ticket.titulo}</p>
+          <p className={cn(
+            "text-sm font-semibold leading-snug line-clamp-2 transition-all duration-200",
+            ticket.status === "resolvido" ? "line-through text-muted-foreground/60" : "text-foreground"
+          )}>{ticket.titulo}</p>
         </div>
       </div>
+
+      {/* Indicador de prazo vencido */}
+      {prazoInfo.label && ticket.status !== "resolvido" && ticket.status !== "cancelado" && (
+        <div className={cn(
+          "ml-6 mb-2 flex items-center gap-1 text-[10px] font-medium rounded px-1.5 py-0.5 w-fit",
+          prazoInfo.atrasado
+            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+            : prazoInfo.hoje
+            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+        )}>
+          {prazoInfo.atrasado ? <AlertTriangle className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
+          {prazoInfo.label}
+        </div>
+      )}
 
       {/* Categoria */}
       <div className="ml-6 mb-2">
@@ -190,19 +262,60 @@ function TicketCard({
   );
 }
 
-// ─── Coluna do Kanban ─────────────────────────────────────────────────────────
+// ─── Coluna do Kanban (com colapso) ──────────────────────────────────────────
 function KanbanColuna({
   coluna,
   tickets,
   onConcluir,
   concluindoId,
+  collapsed,
+  onToggleCollapse,
 }: {
   coluna: typeof COLUNAS[0];
   tickets: any[];
   onConcluir: (id: number) => void;
   concluindoId: number | null;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const Icon = coluna.icon;
+  const urgentesCount = tickets.filter((t) => t.prioridade === "urgente").length;
+  const atrasadosCount = tickets.filter((t) => {
+    const p = getPrazoInfo(t.createdAt, t.prioridade);
+    return p.atrasado && t.status !== "resolvido" && t.status !== "cancelado";
+  }).length;
+
+  if (collapsed) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col items-center rounded-xl border py-3 px-2 gap-2 cursor-pointer hover:opacity-80 transition-all select-none",
+          coluna.color,
+          "min-w-[44px] w-[44px] flex-shrink-0"
+        )}
+        onClick={onToggleCollapse}
+        title={`Expandir coluna "${coluna.label}"`}
+      >
+        <span className={`w-2 h-2 rounded-full ${coluna.dot} flex-shrink-0`} />
+        <span
+          className="text-[10px] font-semibold writing-mode-vertical"
+          style={{ writingMode: "vertical-rl", textOrientation: "mixed", transform: "rotate(180deg)", letterSpacing: "0.05em" }}
+        >
+          {coluna.label}
+        </span>
+        <span className="text-xs font-bold bg-background/60 rounded-full px-1.5 py-0.5 mt-auto">
+          {tickets.length}
+        </span>
+        {atrasadosCount > 0 && (
+          <span className="text-[9px] font-bold bg-red-500 text-white rounded-full px-1 py-0.5">
+            {atrasadosCount}
+          </span>
+        )}
+        <ChevronRight className="h-3 w-3 text-muted-foreground mt-1" />
+      </div>
+    );
+  }
+
   return (
     <div className={`flex flex-col rounded-xl border ${coluna.color} min-w-[260px] w-[260px] flex-shrink-0`}>
       {/* Header da coluna */}
@@ -210,13 +323,49 @@ function KanbanColuna({
         <span className={`w-2 h-2 rounded-full ${coluna.dot}`} />
         <Icon className="h-3.5 w-3.5" />
         <span className="text-xs font-semibold flex-1">{coluna.label}</span>
-        <span className="text-xs font-bold bg-background/60 rounded-full px-2 py-0.5">
-          {tickets.length}
-        </span>
+        {/* Badges de urgentes e atrasados */}
+        <div className="flex items-center gap-1">
+          {atrasadosCount > 0 && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-[9px] font-bold bg-red-500 text-white rounded-full px-1.5 py-0.5 cursor-default">
+                    {atrasadosCount} atras.
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">{atrasadosCount} ticket(s) com prazo vencido</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {urgentesCount > 0 && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-[9px] font-bold bg-orange-500 text-white rounded-full px-1.5 py-0.5 cursor-default">
+                    {urgentesCount} urg.
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">{urgentesCount} ticket(s) urgente(s)</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <span className="text-xs font-bold bg-background/60 rounded-full px-2 py-0.5">
+            {tickets.length}
+          </span>
+          {/* Botão de colapso */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+            className="ml-1 p-0.5 rounded hover:bg-background/40 transition-colors"
+            title="Recolher coluna"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Cards */}
-      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-220px)]">
+      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-260px)]">
         <SortableContext items={tickets.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tickets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/40">
@@ -245,7 +394,11 @@ export default function KanbanJuridico() {
   const utils = trpc.useUtils();
   const [activeTicket, setActiveTicket] = useState<any | null>(null);
   const [filtroResponsavel, setFiltroResponsavel] = useState<string>("todos");
+  const [filtroPrioridade, setFiltroPrioridade] = useState<FiltroPrioridade>("todos");
+  const [filtroPrazo, setFiltroPrazo] = useState<FiltroPrazo>("todos");
+  const [busca, setBusca] = useState("");
   const [concluindoId, setConcluindoId] = useState<number | null>(null);
+  const [colunasColapsadas, setColunasColapsadas] = useState<Set<Status>>(new Set());
 
   const { data: tickets = [], isLoading } = trpc.juridico.listTickets.useQuery({});
   const { data: todosUsuarios = [] } = trpc.users.list.useQuery(
@@ -270,12 +423,44 @@ export default function KanbanJuridico() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  // Filtra tickets por responsável
+  // Filtros combinados
   const ticketsFiltrados = useMemo(() => {
-    if (filtroResponsavel === "todos") return tickets;
-    if (filtroResponsavel === "sem_responsavel") return tickets.filter((t) => !t.responsavelId);
-    return tickets.filter((t) => String(t.responsavelId) === filtroResponsavel);
-  }, [tickets, filtroResponsavel]);
+    let lista = [...tickets];
+
+    if (filtroResponsavel !== "todos") {
+      if (filtroResponsavel === "sem_responsavel") {
+        lista = lista.filter((t) => !t.responsavelId);
+      } else {
+        lista = lista.filter((t) => String(t.responsavelId) === filtroResponsavel);
+      }
+    }
+
+    if (filtroPrioridade !== "todos") {
+      lista = lista.filter((t) => t.prioridade === filtroPrioridade);
+    }
+
+    if (filtroPrazo !== "todos") {
+      lista = lista.filter((t) => {
+        const p = getPrazoInfo(t.createdAt, t.prioridade);
+        if (filtroPrazo === "atrasados") return p.atrasado;
+        if (filtroPrazo === "hoje") return p.hoje;
+        if (filtroPrazo === "semana") return p.semana;
+        return true;
+      });
+    }
+
+    if (busca.trim()) {
+      const q = busca.toLowerCase();
+      lista = lista.filter(
+        (t) =>
+          t.titulo?.toLowerCase().includes(q) ||
+          String(t.id).includes(q) ||
+          t.condominioNome?.toLowerCase().includes(q)
+      );
+    }
+
+    return lista;
+  }, [tickets, filtroResponsavel, filtroPrioridade, filtroPrazo, busca]);
 
   // Agrupa por status
   const ticketsPorStatus = useMemo(() => {
@@ -291,6 +476,28 @@ export default function KanbanJuridico() {
     }
     return mapa;
   }, [ticketsFiltrados]);
+
+  // Contadores para filtros rápidos
+  const totalAtrasados = useMemo(
+    () => tickets.filter((t) => {
+      const p = getPrazoInfo(t.createdAt, t.prioridade);
+      return p.atrasado && t.status !== "resolvido" && t.status !== "cancelado";
+    }).length,
+    [tickets]
+  );
+  const totalUrgentes = useMemo(
+    () => tickets.filter((t) => t.prioridade === "urgente" && t.status !== "resolvido" && t.status !== "cancelado").length,
+    [tickets]
+  );
+
+  function toggleColuna(id: Status) {
+    setColunasColapsadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function handleConcluir(id: number) {
     const ticket = tickets.find((t) => t.id === id);
@@ -325,9 +532,7 @@ export default function KanbanJuridico() {
     setActiveTicket(null);
     if (!over) return;
 
-    // Descobre a coluna de destino
     const overId = over.id;
-    // Se soltou em cima de outro ticket, descobre a coluna dele
     const overTicket = tickets.find((t) => t.id === overId);
     const novoStatus: Status | undefined = COLUNAS.find((c) => c.id === overId)?.id
       ?? (overTicket ? overTicket.status as Status : undefined);
@@ -337,7 +542,6 @@ export default function KanbanJuridico() {
     const ticket = tickets.find((t) => t.id === active.id);
     if (!ticket || ticket.status === novoStatus) return;
 
-    // Optimistic update
     utils.juridico.listTickets.setData({}, (old) =>
       (old ?? []).map((t) => t.id === ticket.id ? { ...t, status: novoStatus } : t)
     );
@@ -345,6 +549,8 @@ export default function KanbanJuridico() {
     updateTicket.mutate({ id: ticket.id, status: novoStatus });
     toast.success(`Ticket movido para "${COLUNAS.find((c) => c.id === novoStatus)?.label}"`);
   }
+
+  const filtrosAtivos = filtroPrioridade !== "todos" || filtroPrazo !== "todos" || busca.trim() !== "" || filtroResponsavel !== "todos";
 
   return (
     <div className="p-6 space-y-4">
@@ -355,29 +561,12 @@ export default function KanbanJuridico() {
           <div>
             <h1 className="text-xl font-bold">Kanban Jurídico</h1>
             <p className="text-xs text-muted-foreground">
-              {ticketsFiltrados.length} ticket{ticketsFiltrados.length !== 1 ? "s" : ""} no total
+              {ticketsFiltrados.length} ticket{ticketsFiltrados.length !== 1 ? "s" : ""}
+              {filtrosAtivos && <span className="text-primary font-medium"> (filtrado)</span>}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Filtro por responsável */}
-          {(user?.role === "admin" || user?.role === "colaborador") && (
-            <div className="flex items-center gap-1.5">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={filtroResponsavel} onValueChange={setFiltroResponsavel}>
-                <SelectTrigger className="w-48 h-8 text-xs">
-                  <SelectValue placeholder="Responsável" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os responsáveis</SelectItem>
-                  <SelectItem value="sem_responsavel">Sem responsável</SelectItem>
-                  {responsaveisOpcoes.map((u) => (
-                    <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
           {(user?.role === "admin" || user?.role === "colaborador") && (
             <Link href="/juridico/solicitacoes/novo">
               <Button size="sm" className="gap-1.5 h-8 text-xs">
@@ -389,15 +578,114 @@ export default function KanbanJuridico() {
         </div>
       </div>
 
-      {/* Legenda de prioridade */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-        <span className="font-medium">Prioridade:</span>
-        {Object.entries(PRIORIDADE_COLOR).map(([k, cls]) => (
-          <span key={k} className={`px-2 py-0.5 rounded-full ${cls}`}>
-            {k.charAt(0).toUpperCase() + k.slice(1)}
-          </span>
-        ))}
-        <span className="ml-2 text-muted-foreground/60">· Arraste os cards para mudar o status</span>
+      {/* Barra de filtros rápidos */}
+      <div className="flex items-center gap-2 flex-wrap bg-muted/30 rounded-xl px-3 py-2.5 border border-border/50">
+        {/* Busca por texto */}
+        <div className="relative flex-1 min-w-[160px] max-w-[240px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar ticket..."
+            className="pl-8 h-8 text-xs"
+          />
+        </div>
+
+        {/* Filtro por prioridade */}
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground font-medium">Prioridade:</span>
+          {(["todos", "urgente", "alta", "media", "baixa"] as FiltroPrioridade[]).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setFiltroPrioridade(p)}
+              className={cn(
+                "text-[10px] px-2 py-0.5 rounded-full font-medium transition-all border",
+                filtroPrioridade === p
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : p === "urgente"
+                  ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"
+                  : p === "alta"
+                  ? "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800"
+                  : p === "media"
+                  ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800"
+                  : p === "baixa"
+                  ? "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+              )}
+            >
+              {p === "todos" ? "Todas" : p === "urgente" ? "🔴 Urgente" : p.charAt(0).toUpperCase() + p.slice(1)}
+              {p === "urgente" && totalUrgentes > 0 && filtroPrioridade !== "urgente" && (
+                <span className="ml-1 bg-red-500 text-white rounded-full px-1 text-[8px]">{totalUrgentes}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtro por prazo */}
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground font-medium">Prazo:</span>
+          {([
+            { id: "todos", label: "Todos" },
+            { id: "atrasados", label: "⚠️ Atrasados" },
+            { id: "hoje", label: "Hoje" },
+            { id: "semana", label: "Esta semana" },
+          ] as { id: FiltroPrazo; label: string }[]).map((op) => (
+            <button
+              key={op.id}
+              type="button"
+              onClick={() => setFiltroPrazo(op.id)}
+              className={cn(
+                "text-[10px] px-2 py-0.5 rounded-full font-medium transition-all border",
+                filtroPrazo === op.id
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : op.id === "atrasados"
+                  ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+              )}
+            >
+              {op.label}
+              {op.id === "atrasados" && totalAtrasados > 0 && filtroPrazo !== "atrasados" && (
+                <span className="ml-1 bg-red-500 text-white rounded-full px-1 text-[8px]">{totalAtrasados}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtro por responsável */}
+        {(user?.role === "admin" || user?.role === "colaborador") && responsaveisOpcoes.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select value={filtroResponsavel} onValueChange={setFiltroResponsavel}>
+              <SelectTrigger className="w-40 h-8 text-xs">
+                <SelectValue placeholder="Responsável" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="sem_responsavel">Sem responsável</SelectItem>
+                {responsaveisOpcoes.map((u) => (
+                  <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Limpar filtros */}
+        {filtrosAtivos && (
+          <button
+            type="button"
+            onClick={() => {
+              setFiltroPrioridade("todos");
+              setFiltroPrazo("todos");
+              setBusca("");
+              setFiltroResponsavel("todos");
+            }}
+            className="text-[10px] px-2 py-0.5 rounded-full text-destructive border border-destructive/30 hover:bg-destructive/10 transition-all font-medium"
+          >
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       {/* Board */}
@@ -414,7 +702,7 @@ export default function KanbanJuridico() {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex gap-4 overflow-x-auto pb-4">
+          <div className="flex gap-3 overflow-x-auto pb-4 items-start">
             {COLUNAS.map((coluna) => (
               <KanbanColuna
                 key={coluna.id}
@@ -422,6 +710,8 @@ export default function KanbanJuridico() {
                 tickets={ticketsPorStatus[coluna.id]}
                 onConcluir={handleConcluir}
                 concluindoId={concluindoId}
+                collapsed={colunasColapsadas.has(coluna.id)}
+                onToggleCollapse={() => toggleColuna(coluna.id)}
               />
             ))}
           </div>
