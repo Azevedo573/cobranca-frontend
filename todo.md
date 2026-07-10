@@ -2483,3 +2483,15 @@
 - [ ] Integrar CheckboxConclusao no KanbanJuridico (conclui → status "resolvido")
 - [ ] Integrar CheckboxConclusao no KanbanDemandas (conclui → última coluna ou coluna marcada como conclusão)
 - [ ] Integrar CheckboxConclusao no KanbanPublicacoes (conclui → status "concluido")
+
+## Visão Consolidada do Administrador no KanbanDemandas
+
+- [x] Backend: procedure `listarDemandasConsolidadas` — retorna todas as demandas em colunas intermediárias (globais + pessoais de todos os advogados) com join para colunaNome, colunaUserId, colunaUserNome
+- [x] Backend: procedure `listarAdvogadosComDemandas` — retorna lista de usuários que têm demandas em colunas intermediárias (para popular o filtro)
+- [x] Frontend: toggle "Visão Admin" no header do KanbanDemandas (visível apenas para role=admin), persiste no localStorage
+- [x] Frontend: board consolidado com 3 colunas fixas: Demandas Recebidas → Em Andamento (unificada) → Demandas Resolvidas
+- [x] Frontend: coluna "Em Andamento" com Select de filtro por advogado e contador de demandas
+- [x] Frontend: KanbanCardConsolidado com badge da coluna original (ícone + nome) e avatar com iniciais do advogado responsável
+- [x] Frontend: legenda visual diferenciada para a visão consolidada (fundo violeta)
+- [x] Frontend: checkbox de conclusão funciona na visão consolidada (move para coluna de saída)
+- [x] Zero erros de TypeScript

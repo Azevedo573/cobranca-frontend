@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { Switch } from "@/components/ui/switch";
 import { CheckboxConclusao } from "@/components/CheckboxConclusao";
 import { PrioridadeBadge, prioridadeBorderClass } from "@/components/PrioridadeBadge";
 import { ModalDemandaDetalhes } from "@/components/ModalDemandaDetalhes";
@@ -37,7 +38,7 @@ import {
 import { toast } from "sonner";
 import {
   Plus, List, GripVertical, Clock, AlertTriangle, Building2,
-  MessageSquare, Mail, Phone, Globe, Users, FileText, Scale,
+  MessageSquare, Mail, Phone, Globe, Users, Users2, FileText, Scale,
   Lock, Settings, Pencil, Trash2, Loader2, CheckCircle2,
   ArrowRight, Inbox, MoreVertical, GripHorizontal, Search, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
@@ -63,6 +64,16 @@ const ICONES_DISPONIVEIS = [
 function isAtrasada(prazo: string | Date | null | undefined) {
   if (!prazo) return false;
   return new Date(prazo) < new Date();
+}
+
+function getInitials(name: string | null | undefined): string {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0].toUpperCase())
+    .join("");
 }
 
 function formatDate(d: string | Date | null | undefined) {
@@ -234,6 +245,96 @@ function DropPlaceholder() {
   return (
     <div className="h-20 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5 flex items-center justify-center text-xs text-primary/60 font-medium">
       Soltar aqui
+    </div>
+  );
+}
+
+// ─── Card Consolidado (Visão Admin) ─────────────────────────────────────────
+
+function KanbanCardConsolidado({
+  demanda,
+  onClick,
+  onConcluir,
+  concluindo,
+}: {
+  demanda: any;
+  onClick: () => void;
+  onConcluir?: (id: number) => void;
+  concluindo?: boolean;
+}) {
+  const prioBorder = prioridadeBorderClass(demanda.prioridade);
+  const atrasada = isAtrasada(demanda.prazo);
+  const isUrgente = demanda.prioridade === "urgente";
+
+  return (
+    <div
+      className={`relative bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all group select-none cursor-pointer ${
+        isUrgente ? "ring-1 ring-red-300 dark:ring-red-700" : ""
+      }`}
+      onClick={onClick}
+    >
+      <PrioridadeBadge prioridade={demanda.prioridade} variant="strip" />
+      <div className="flex items-start gap-2 p-3">
+        {onConcluir && (
+          <div className="mt-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            <CheckboxConclusao
+              concluido={false}
+              onToggle={() => onConcluir(demanda.id)}
+              disabled={concluindo}
+              size={18}
+            />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-1 mb-1">
+            <span className="text-xs font-mono text-muted-foreground">{demanda.numero}</span>
+            <PrioridadeBadge prioridade={demanda.prioridade} variant="pill" className="text-[10px] px-1.5 py-0.5" />
+          </div>
+          <p className="text-sm font-medium leading-snug line-clamp-2 group-hover:text-primary transition-colors mb-2">
+            {demanda.assunto}
+          </p>
+          {/* Badge da coluna original + avatar do advogado */}
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700"
+            >
+              <span>{demanda.colunaIcone}</span>
+              {demanda.colunaNome}
+            </span>
+            {demanda.colunaUserNome && (
+              <span
+                className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary/10 text-primary text-[9px] font-bold border border-primary/20"
+                title={demanda.colunaUserNome}
+              >
+                {getInitials(demanda.colunaUserNome)}
+              </span>
+            )}
+          </div>
+          {demanda.condominioNome && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+              <Building2 className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{demanda.condominioNome}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between text-xs text-muted-foreground mt-1.5">
+            <div className="flex items-center gap-1">
+              {CANAL_ICON[demanda.canal]}
+              {demanda.responsavelNome ? (
+                <span className="truncate max-w-[80px]">{demanda.responsavelNome}</span>
+              ) : (
+                <span className="text-orange-400 italic">Sem resp.</span>
+              )}
+            </div>
+            {demanda.prazo && (
+              <div className={`flex items-center gap-0.5 ${atrasada ? "text-red-500 font-semibold" : ""}`}>
+                {atrasada && <AlertTriangle className="h-3 w-3" />}
+                <Clock className="h-3 w-3" />
+                {formatDate(demanda.prazo)}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -737,6 +838,13 @@ export default function KanbanDemandas() {
     } catch { return new Set(); }
   });
 
+  // Visão consolidada do administrador
+  const [visaoAdmin, setVisaoAdmin] = useState<boolean>(() => {
+    try { return localStorage.getItem("kanban-demandas-visao-admin") === "true"; }
+    catch { return false; }
+  });
+  const [filtroAdvogadoConsolidado, setFiltroAdvogadoConsolidado] = useState<number | undefined>(undefined);
+
   function toggleColapsarColuna(colunaId: number) {
     setColunasColapsadas(prev => {
       const next = new Set(prev);
@@ -754,6 +862,17 @@ export default function KanbanDemandas() {
   const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery(undefined, {
     enabled: isAdmin,
   });
+
+  // Queries da visão consolidada (apenas admin)
+  const { data: advogadosComDemandas = [] } = trpc.juridicoDemandas.listarAdvogadosComDemandas.useQuery(undefined, {
+    enabled: isAdmin && visaoAdmin,
+  });
+
+  const { data: demandasConsolidadasRaw = [], isLoading: isLoadingConsolidado, refetch: refetchConsolidado } =
+    trpc.juridicoDemandas.listarDemandasConsolidadas.useQuery(
+      { filtroAdvogadoId: filtroAdvogadoConsolidado },
+      { enabled: isAdmin && visaoAdmin }
+    );
 
   // targetUserId: quando admin filtra por advogado, gerencia as etapas desse advogado
   const targetUserId = (isAdmin && filtroAdvogadoId) ? filtroAdvogadoId : undefined;
@@ -895,6 +1014,56 @@ export default function KanbanDemandas() {
       }
     );
   }
+
+  // Concluir demanda na visão consolidada (move para coluna de saída)
+  function handleConcluirConsolidado(id: number) {
+    const colunaSaida = colunas.find((c: any) => c.tipo === "saida");
+    if (!colunaSaida) { toast.error("Nenhuma coluna de saída configurada."); return; }
+    setConcluindoId(id);
+    moverMutation.mutate(
+      { id, novaColunaId: colunaSaida.id, novaOrdem: 0 },
+      {
+        onSuccess: () => {
+          toast.success("✅ Demanda concluída!");
+          setConcluindoId(null);
+          refetchConsolidado();
+          refetchDemandas();
+        },
+        onError: () => { setConcluindoId(null); refetchConsolidado(); },
+      }
+    );
+  }
+
+  // Demandas consolidadas filtradas (busca + prioridade + prazo)
+  const demandasConsolidadasFiltradas = useMemo(() => {
+    let lista = demandasConsolidadasRaw as any[];
+    if (filtroBusca.trim()) {
+      const q = filtroBusca.toLowerCase();
+      lista = lista.filter((d: any) =>
+        d.assunto?.toLowerCase().includes(q) ||
+        d.numero?.toLowerCase().includes(q) ||
+        d.condominioNome?.toLowerCase().includes(q)
+      );
+    }
+    if (filtroPrioridade !== "todos") {
+      lista = lista.filter((d: any) => d.prioridade === filtroPrioridade);
+    }
+    if (filtroPrazo !== "todos") {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfToday = new Date(startOfToday.getTime() + 86400000 - 1);
+      const endOfWeek = new Date(startOfToday.getTime() + 7 * 86400000 - 1);
+      lista = lista.filter((d: any) => {
+        if (!d.prazo) return filtroPrazo === "sem_prazo";
+        const prazoDate = new Date(d.prazo);
+        if (filtroPrazo === "atrasados") return prazoDate < startOfToday;
+        if (filtroPrazo === "hoje") return prazoDate >= startOfToday && prazoDate <= endOfToday;
+        if (filtroPrazo === "semana") return prazoDate > endOfToday && prazoDate <= endOfWeek;
+        return true;
+      });
+    }
+    return lista;
+  }, [demandasConsolidadasRaw, filtroBusca, filtroPrioridade, filtroPrazo]);
 
   const reordenarDemandaMutation = trpc.juridicoDemandas.reordenarDemandas.useMutation({
     onError: () => refetchDemandas(),
@@ -1124,8 +1293,23 @@ export default function KanbanDemandas() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Filtro por advogado — apenas admin */}
+          {/* Toggle Visão Admin — apenas admin */}
           {isAdmin && (
+            <div className="flex items-center gap-2 border rounded-lg px-3 py-1.5 bg-muted/30">
+              <Users2 className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">Visão Admin</span>
+              <Switch
+                checked={visaoAdmin}
+                onCheckedChange={(v) => {
+                  setVisaoAdmin(v);
+                  localStorage.setItem("kanban-demandas-visao-admin", String(v));
+                  if (!v) setFiltroAdvogadoConsolidado(undefined);
+                }}
+              />
+            </div>
+          )}
+          {/* Filtro por advogado — apenas admin na visão padrão */}
+          {isAdmin && !visaoAdmin && (
             <Select
               value={filtroAdvogadoId ? String(filtroAdvogadoId) : "todos"}
               onValueChange={(v) => setFiltroAdvogadoId(v === "todos" ? null : Number(v))}
@@ -1224,79 +1408,265 @@ export default function KanbanDemandas() {
       })()}
 
       {/* Legenda do fluxo */}
-      <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 border">
-        <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-          <Inbox className="h-3.5 w-3.5" />
-          <span className="font-medium">Demandas Recebidas</span>
-        </div>
-        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
-        <span className="italic">Etapas configuráveis pela equipe</span>
-        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
-        <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          <span className="font-medium">Demandas Resolvidas</span>
-        </div>
-        <span className="ml-auto flex items-center gap-1">
-          <GripHorizontal className="h-3 w-3" />
-          Arraste colunas intermediárias para reordenar
-        </span>
-      </div>
-
-      {/* Board */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={colunas.map((c: any) => `coluna-${c.id}`)}
-          strategy={horizontalListSortingStrategy}
-        >
-          <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
-            {colunas.map((col: any) => (
-              <KanbanColuna
-                key={col.id}
-                coluna={col}
-                demandas={demandasPorColuna(col.id)}
-                onNovaDemanda={(colunaId) => navigate(`/admin/juridico?nova=1&coluna=${colunaId}`)}
-                onClickDemanda={(id) => setModalDemandaId(id)}
-                onGerenciar={() => setModalGerenciar(true)}
-                isDragOver={overColunaId === col.id}
-                activeId={activeId}
-                onConcluir={handleConcluirDemanda}
-                concluindoId={concluindoId}
-                 onMoverProxima={handleMoverProxima}
-                 movendoId={movendoId}
-                 onMoverAnterior={handleMoverAnterior}
-                 voltandoId={voltandoId}
-                collapsed={colunasColapsadas.has(col.id)}
-                onToggleCollapse={() => toggleColapsarColuna(col.id)}
-              />
-            ))}
+      {!visaoAdmin && (
+        <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 border">
+          <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+            <Inbox className="h-3.5 w-3.5" />
+            <span className="font-medium">Demandas Recebidas</span>
           </div>
-        </SortableContext>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <span className="italic">Etapas configuráveis pela equipe</span>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            <span className="font-medium">Demandas Resolvidas</span>
+          </div>
+          <span className="ml-auto flex items-center gap-1">
+            <GripHorizontal className="h-3 w-3" />
+            Arraste colunas intermediárias para reordenar
+          </span>
+        </div>
+      )}
 
-        <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
-          {activeDemanda && (
-            <KanbanCard demanda={activeDemanda} onClick={() => {}} isOverlay />
-          )}
-          {activeColuna && !activeDemanda && (
-            <div className="w-72 rounded-xl border bg-card shadow-2xl opacity-90 rotate-1 scale-105">
-              <div className="px-3 py-2.5 border-b rounded-t-xl bg-muted/50">
-                <div className="flex items-center gap-2">
-                  <span>{activeColuna.icone}</span>
-                  <span className="text-sm font-semibold">{activeColuna.nome}</span>
+      {/* Legenda da visão admin */}
+      {visaoAdmin && (
+        <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground bg-violet-50 dark:bg-violet-950/20 rounded-lg px-3 py-2 border border-violet-200 dark:border-violet-800">
+          <Users2 className="h-3.5 w-3.5 text-violet-500" />
+          <span className="text-violet-700 dark:text-violet-300 font-medium">Visão Consolidada</span>
+          <span className="text-muted-foreground">—</span>
+          <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+            <Inbox className="h-3.5 w-3.5" />
+            <span>Recebidas</span>
+          </div>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <span className="text-violet-600 dark:text-violet-400 font-medium">Em Andamento (todas as etapas)</span>
+          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            <span>Resolvidas</span>
+          </div>
+          <span className="ml-auto text-[10px] text-muted-foreground/60 italic">
+            Cada card mostra a etapa original e o advogado responsável
+          </span>
+        </div>
+      )}
+
+      {/* Board Padrão */}
+      {!visaoAdmin && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={colunas.map((c: any) => `coluna-${c.id}`)}
+            strategy={horizontalListSortingStrategy}
+          >
+            <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+              {colunas.map((col: any) => (
+                <KanbanColuna
+                  key={col.id}
+                  coluna={col}
+                  demandas={demandasPorColuna(col.id)}
+                  onNovaDemanda={(colunaId) => navigate(`/admin/juridico?nova=1&coluna=${colunaId}`)}
+                  onClickDemanda={(id) => setModalDemandaId(id)}
+                  onGerenciar={() => setModalGerenciar(true)}
+                  isDragOver={overColunaId === col.id}
+                  activeId={activeId}
+                  onConcluir={handleConcluirDemanda}
+                  concluindoId={concluindoId}
+                  onMoverProxima={handleMoverProxima}
+                  movendoId={movendoId}
+                  onMoverAnterior={handleMoverAnterior}
+                  voltandoId={voltandoId}
+                  collapsed={colunasColapsadas.has(col.id)}
+                  onToggleCollapse={() => toggleColapsarColuna(col.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+
+          <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+            {activeDemanda && (
+              <KanbanCard demanda={activeDemanda} onClick={() => {}} isOverlay />
+            )}
+            {activeColuna && !activeDemanda && (
+              <div className="w-72 rounded-xl border bg-card shadow-2xl opacity-90 rotate-1 scale-105">
+                <div className="px-3 py-2.5 border-b rounded-t-xl bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    <span>{activeColuna.icone}</span>
+                    <span className="text-sm font-semibold">{activeColuna.nome}</span>
+                  </div>
+                </div>
+                <div className="p-2 text-xs text-muted-foreground/50 italic text-center py-4">
+                  Reordenando coluna...
                 </div>
               </div>
-              <div className="p-2 text-xs text-muted-foreground/50 italic text-center py-4">
-                Reordenando coluna...
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
+
+      {/* Board Consolidado (Visão Admin) */}
+      {visaoAdmin && (
+        <div className="flex gap-4 overflow-x-auto pb-4 flex-1">
+          {/* Coluna Entrada */}
+          {(() => {
+            const col = colunas.find((c: any) => c.tipo === "entrada");
+            if (!col) return null;
+            const demandasCol = demandasFiltradas.filter((d: any) => d.colunaId === col.id);
+            return (
+              <div className="flex flex-col w-72 shrink-0 rounded-xl border bg-card shadow-sm">
+                <div className="px-3 py-2.5 rounded-t-xl bg-blue-50 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-3.5 w-3.5 text-blue-400" />
+                      <span className="text-sm">{col.icone}</span>
+                      <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">{col.nome}</span>
+                    </div>
+                    <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-medium">{demandasCol.length}</span>
+                  </div>
+                  <p className="text-[10px] text-blue-500/70 dark:text-blue-400/60 mt-0.5">Entrada automática de novas demandas</p>
+                </div>
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="p-2 space-y-2 min-h-[80px]">
+                    {demandasCol.map((d: any) => (
+                      <KanbanCard
+                        key={d.id}
+                        demanda={d}
+                        onClick={() => setModalDemandaId(d.id)}
+                        onConcluir={handleConcluirDemanda}
+                        concluindo={concluindoId === d.id}
+                        onMoverProxima={handleMoverProxima}
+                        movendo={movendoId === d.id}
+                        onMoverAnterior={handleMoverAnterior}
+                        voltando={voltandoId === d.id}
+                      />
+                    ))}
+                    {demandasCol.length === 0 && (
+                      <div className="h-16 flex items-center justify-center text-xs text-muted-foreground/50 italic">Arraste cards aqui</div>
+                    )}
+                  </div>
+                </div>
+                <div className="p-2 border-t">
+                  <button
+                    onClick={() => navigate(`/admin/juridico?nova=1&coluna=${col.id}`)}
+                    className="w-full flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg px-2 py-1.5 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Adicionar demanda
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Coluna Em Andamento (unificada) */}
+          <div className="flex flex-col w-80 shrink-0 rounded-xl border bg-card shadow-sm">
+            <div className="px-3 py-2.5 rounded-t-xl border-b bg-violet-50 dark:bg-violet-950/20 border-violet-200 dark:border-violet-800">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <Users2 className="h-3.5 w-3.5 text-violet-500" />
+                  <span className="text-sm font-semibold text-violet-700 dark:text-violet-300">Em Andamento</span>
+                  {isLoadingConsolidado && <span className="h-3 w-3 border border-violet-400 border-t-transparent rounded-full animate-spin" />}
+                </div>
+                <span className="text-xs bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 px-1.5 py-0.5 rounded-full font-medium">
+                  {demandasConsolidadasFiltradas.length}
+                </span>
+              </div>
+              {/* Filtro por advogado */}
+              <Select
+                value={filtroAdvogadoConsolidado ? String(filtroAdvogadoConsolidado) : "todos"}
+                onValueChange={(v) => setFiltroAdvogadoConsolidado(v === "todos" ? undefined : Number(v))}
+              >
+                <SelectTrigger className="h-7 text-xs w-full border-violet-200 dark:border-violet-700">
+                  <SelectValue placeholder="Filtrar por advogado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os advogados ({(demandasConsolidadasRaw as any[]).length})</SelectItem>
+                  {(advogadosComDemandas as any[]).map((adv: any) => {
+                    const qtd = (demandasConsolidadasRaw as any[]).filter((d: any) => d.colunaUserId === adv.id).length;
+                    return (
+                      <SelectItem key={adv.id} value={String(adv.id)}>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary/10 text-primary text-[8px] font-bold">{getInitials(adv.name)}</span>
+                          <span>{adv.name}</span>
+                          <span className="text-muted-foreground text-[10px]">({qtd})</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-violet-500/70 dark:text-violet-400/60 mt-1">
+                Todas as etapas intermediárias de todos os advogados
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="p-2 space-y-2 min-h-[80px]">
+                {isLoadingConsolidado ? (
+                  <div className="h-16 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : demandasConsolidadasFiltradas.length === 0 ? (
+                  <div className="h-16 flex items-center justify-center text-xs text-muted-foreground/50 italic">
+                    Nenhuma demanda em andamento
+                  </div>
+                ) : (
+                  demandasConsolidadasFiltradas.map((d: any) => (
+                    <KanbanCardConsolidado
+                      key={d.id}
+                      demanda={d}
+                      onClick={() => setModalDemandaId(d.id)}
+                      onConcluir={handleConcluirConsolidado}
+                      concluindo={concluindoId === d.id}
+                    />
+                  ))
+                )}
               </div>
             </div>
-          )}
-        </DragOverlay>
-      </DndContext>
+          </div>
+
+          {/* Coluna Saída */}
+          {(() => {
+            const col = colunas.find((c: any) => c.tipo === "saida");
+            if (!col) return null;
+            const demandasCol = demandasFiltradas.filter((d: any) => d.colunaId === col.id);
+            return (
+              <div className="flex flex-col w-72 shrink-0 rounded-xl border bg-card shadow-sm">
+                <div className="px-3 py-2.5 rounded-t-xl bg-emerald-50 dark:bg-emerald-950/30 border-b border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-3.5 w-3.5 text-emerald-400" />
+                      <span className="text-sm">{col.icone}</span>
+                      <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{col.nome}</span>
+                    </div>
+                    <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-medium">{demandasCol.length}</span>
+                  </div>
+                  <p className="text-[10px] text-emerald-500/70 dark:text-emerald-400/60 mt-0.5">Mover aqui encerra a demanda</p>
+                </div>
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <div className="p-2 space-y-2 min-h-[80px]">
+                    {demandasCol.map((d: any) => (
+                      <KanbanCard
+                        key={d.id}
+                        demanda={d}
+                        onClick={() => setModalDemandaId(d.id)}
+                        isSaida
+                      />
+                    ))}
+                    {demandasCol.length === 0 && (
+                      <div className="h-16 flex items-center justify-center text-xs text-muted-foreground/50 italic">Nenhuma demanda concluída</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Modal de detalhes da demanda */}
       <ModalDemandaDetalhes

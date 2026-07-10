@@ -870,3 +870,93 @@ export async function getCobrancasVinculadas(demandaId: number) {
     qtdCobrancas: demanda.qtdCobrancas,
   };
 }
+
+// ─── Visão Consolidada do Administrador ──────────────────────────────────────
+
+/**
+ * Retorna todas as demandas em colunas intermediárias (globais + pessoais de todos os advogados).
+ * Inclui informações da coluna original (nome, userId, nome do dono da coluna).
+ * Usado exclusivamente na visão consolidada do administrador no KanbanDemandas.
+ */
+export async function listarDemandasConsolidadas(filtroAdvogadoId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Alias para o join de usuário dono da coluna
+  const colunaDono = users;
+
+  const conditions: any[] = [
+    eq(colunasDemanda.tipo, "intermediaria"),
+  ];
+  if (filtroAdvogadoId) {
+    conditions.push(eq(colunasDemanda.userId, filtroAdvogadoId));
+  }
+
+  return db
+    .select({
+      // Campos da demanda
+      id: demandas.id,
+      numero: demandas.numero,
+      condominioId: demandas.condominioId,
+      condominioNome: condominios.name,
+      colunaId: demandas.colunaId,
+      solicitante: demandas.solicitante,
+      solicitanteTipo: demandas.solicitanteTipo,
+      canal: demandas.canal,
+      assunto: demandas.assunto,
+      descricao: demandas.descricao,
+      tipo: demandas.tipo,
+      prioridade: demandas.prioridade,
+      prazo: demandas.prazo,
+      responsavelId: demandas.responsavelId,
+      responsavelNome: demandas.responsavelNome,
+      devedorId: demandas.devedorId,
+      cobrancaId: demandas.cobrancaId,
+      valorDivida: demandas.valorDivida,
+      nomeDevedor: demandas.nomeDevedor,
+      cpfDevedor: demandas.cpfDevedor,
+      unidadeDevedor: demandas.unidadeDevedor,
+      qtdCobrancas: demandas.qtdCobrancas,
+      criadoPorId: demandas.criadoPorId,
+      ordemColuna: demandas.ordemColuna,
+      createdAt: demandas.createdAt,
+      updatedAt: demandas.updatedAt,
+      // Campos da coluna original
+      colunaNome: colunasDemanda.nome,
+      colunaIcone: colunasDemanda.icone,
+      colunaCor: colunasDemanda.cor,
+      colunaUserId: colunasDemanda.userId,
+      // Nome do dono da coluna (null se coluna global)
+      colunaUserNome: colunaDono.name,
+    })
+    .from(demandas)
+    .innerJoin(colunasDemanda, eq(demandas.colunaId, colunasDemanda.id))
+    .leftJoin(condominios, eq(demandas.condominioId, condominios.id))
+    .leftJoin(colunaDono, eq(colunasDemanda.userId, colunaDono.id))
+    .where(and(...conditions))
+    .orderBy(asc(demandas.ordemColuna), desc(demandas.createdAt));
+}
+
+/**
+ * Retorna lista de usuários que têm pelo menos uma demanda em colunas intermediárias pessoais.
+ * Usado para popular o filtro de advogado na visão consolidada do administrador.
+ */
+export async function listarAdvogadosComDemandas() {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Busca usuários distintos que são donos de colunas intermediárias com pelo menos 1 demanda
+  const rows = await db
+    .selectDistinct({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+    })
+    .from(users)
+    .innerJoin(colunasDemanda, eq(colunasDemanda.userId, users.id))
+    .innerJoin(demandas, eq(demandas.colunaId, colunasDemanda.id))
+    .where(eq(colunasDemanda.tipo, "intermediaria"))
+    .orderBy(asc(users.name));
+
+  return rows;
+}

@@ -7132,6 +7132,26 @@ export const appRouter = router({
       const { getAdvogados } = await import("./db-demandas");
       return getAdvogados();
     }),
+
+    // ── Visão Consolidada do Administrador ───────────────────────────────────
+    listarDemandasConsolidadas: protectedProcedure
+      .input(z.object({ filtroAdvogadoId: z.number().int().positive().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem acessar a visão consolidada" });
+        }
+        const { listarDemandasConsolidadas } = await import("./db-demandas");
+        return listarDemandasConsolidadas(input?.filtroAdvogadoId);
+      }),
+
+    listarAdvogadosComDemandas: protectedProcedure
+      .query(async ({ ctx }) => {
+        if (ctx.user.role !== "admin") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem acessar esta lista" });
+        }
+        const { listarAdvogadosComDemandas } = await import("./db-demandas");
+        return listarAdvogadosComDemandas();
+      }),
     // Escalar devedor inadimplente para o jurídico
     escalarParaJuridico: protectedProcedure
       .input(z.object({
