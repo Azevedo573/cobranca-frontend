@@ -306,21 +306,49 @@ function KanbanCard({
   onClick,
   onConcluir,
   concluindo,
+  onMoverProxima,
+  movendo,
 }: {
   pub: any;
   onClick: () => void;
   onConcluir?: (id: number) => void;
   concluindo?: boolean;
+  onMoverProxima?: (id: number) => void;
+  movendo?: boolean;
 }) {
   const tipo = TIPO_CONFIG[pub.tipo] ?? TIPO_CONFIG.outro;
 
+  const isUltimaColuna = pub.status === "arquivada" || pub.status === "providenciada";
+
   return (
     <Card
-      className={`cursor-pointer hover:shadow-md transition-all border-l-4 ${
+      className={`relative cursor-pointer hover:shadow-md transition-all border-l-4 group ${
         pub.lida === 0 ? "border-l-blue-500" : "border-l-transparent"
       }`}
       onClick={onClick}
     >
+      {/* Botão de avançar para próxima coluna (visível no hover) */}
+      {onMoverProxima && !isUltimaColuna && (
+        <div
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            disabled={movendo}
+            onClick={(e) => { e.stopPropagation(); onMoverProxima(pub.id); }}
+            className="flex items-center gap-1 text-[10px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full px-2 py-0.5 transition-all disabled:opacity-50"
+            title="Avançar para próxima coluna"
+          >
+            {movendo ? (
+              <span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            Avançar
+          </button>
+        </div>
+      )}
       <CardContent className="p-3">
         {/* Tipo + Checkbox */}
         <div className="flex items-center justify-between mb-2">
@@ -382,6 +410,7 @@ export default function KanbanPublicacoes() {
   const [, navigate] = useLocation();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [concluindoId, setConcluindoId] = useState<number | null>(null);
+  const [movendoId, setMovendoId] = useState<number | null>(null);
   const [filtroBusca, setFiltroBusca] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroLida, setFiltroLida] = useState("todos");
@@ -412,6 +441,25 @@ export default function KanbanPublicacoes() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  function handleMoverProxima(id: number) {
+    const pub = publicacoes.find((p: any) => p.id === id);
+    if (!pub) return;
+    const idxAtual = COLUNAS.findIndex((c) => c.id === pub.status);
+    const proxima = COLUNAS[idxAtual + 1];
+    if (!proxima) return;
+    setMovendoId(id);
+    updateStatusMutation.mutate(
+      { id, status: proxima.id as "nova" | "analisando" | "aguardando_providencia" | "providenciada" | "arquivada" },
+      {
+        onSuccess: () => {
+          toast.success(`→ Movido para "${proxima.label}"`);
+          setMovendoId(null);
+        },
+        onError: () => setMovendoId(null),
+      }
+    );
+  }
 
   function handleConcluirPublicacao(id: number) {
     setConcluindoId(id);
@@ -579,6 +627,14 @@ export default function KanbanPublicacoes() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Badge className={`text-xs ${col.badgeColor}`}>{cards.length}</Badge>
+                      {(() => {
+                        const naoLidas = cards.filter((p: any) => p.lida === 0).length;
+                        return naoLidas > 0 ? (
+                          <Badge className="text-xs px-1.5 py-0 h-5 bg-blue-500 hover:bg-blue-500 text-white">
+                            {naoLidas} 🔵
+                          </Badge>
+                        ) : null;
+                      })()}
                       <button
                         onClick={() => toggleColapsarColuna(col.id)}
                         className="opacity-50 hover:opacity-100 transition-opacity"
@@ -604,6 +660,8 @@ export default function KanbanPublicacoes() {
                         onClick={() => setSelectedId(pub.id)}
                         onConcluir={handleConcluirPublicacao}
                         concluindo={concluindoId === pub.id}
+                        onMoverProxima={handleMoverProxima}
+                        movendo={movendoId === pub.id}
                       />
                     ))
                   )}

@@ -138,11 +138,15 @@ function TicketCard({
   isDragging = false,
   onConcluir,
   concluindo,
+  onMoverProxima,
+  movendo,
 }: {
   ticket: any;
   isDragging?: boolean;
   onConcluir?: (id: number) => void;
   concluindo?: boolean;
+  onMoverProxima?: (id: number) => void;
+  movendo?: boolean;
 }) {
   const [, navigate] = useLocation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } = useSortable({ id: ticket.id });
@@ -159,7 +163,7 @@ function TicketCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group bg-card border rounded-lg p-3 shadow-sm hover:shadow-md transition-all cursor-pointer select-none",
+        "group relative bg-card border rounded-lg p-3 shadow-sm hover:shadow-md transition-all cursor-pointer select-none",
         isDragging ? "shadow-xl ring-2 ring-primary/40 rotate-1" : "",
         // Borda vermelha pulsante para atrasados
         prazoInfo.atrasado && ticket.status !== "resolvido" && ticket.status !== "cancelado"
@@ -172,6 +176,34 @@ function TicketCard({
       )}
       onClick={() => navigate(`/juridico/solicitacoes/${ticket.id}`)}
     >
+      {/* Botão de mover para próxima coluna (visível no hover) */}
+      {onMoverProxima && ticket.status !== "resolvido" && ticket.status !== "cancelado" && (
+        <div
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  disabled={movendo}
+                  onClick={(e) => { e.stopPropagation(); onMoverProxima(ticket.id); }}
+                  className="flex items-center gap-1 text-[10px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full px-2 py-0.5 transition-all disabled:opacity-50"
+                >
+                  {movendo ? (
+                    <span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
+                  Avançar
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">Mover para próxima coluna</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
       {/* Drag handle + header */}
       <div className="flex items-start gap-2 mb-2">
         <div
@@ -269,6 +301,8 @@ function KanbanColuna({
   tickets,
   onConcluir,
   concluindoId,
+  onMoverProxima,
+  movendoId,
   collapsed,
   onToggleCollapse,
 }: {
@@ -276,6 +310,8 @@ function KanbanColuna({
   tickets: any[];
   onConcluir: (id: number) => void;
   concluindoId: number | null;
+  onMoverProxima?: (id: number) => void;
+  movendoId?: number | null;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }) {
@@ -383,6 +419,8 @@ function KanbanColuna({
                 ticket={t}
                 onConcluir={onConcluir}
                 concluindo={concluindoId === t.id}
+                onMoverProxima={onMoverProxima}
+                movendo={movendoId === t.id}
               />
             ))
           )}
@@ -402,6 +440,7 @@ export default function KanbanJuridico() {
   const [filtroPrazo, setFiltroPrazo] = useState<FiltroPrazo>("todos");
   const [busca, setBusca] = useState("");
   const [concluindoId, setConcluindoId] = useState<number | null>(null);
+  const [movendoId, setMovendoId] = useState<number | null>(null);
   const [colunasColapsadas, setColunasColapsadas] = useState<Set<Status>>(new Set());
 
   const { data: tickets = [], isLoading } = trpc.juridico.listTickets.useQuery({});
@@ -501,6 +540,34 @@ export default function KanbanJuridico() {
       else next.add(id);
       return next;
     });
+  }
+
+  function handleMoverProxima(id: number) {
+    const ticket = tickets.find((t) => t.id === id);
+    if (!ticket) return;
+    const idxAtual = COLUNAS.findIndex((c) => c.id === ticket.status);
+    // Pular "resolvido" e "cancelado" ao avançar
+    const proxima = COLUNAS.slice(idxAtual + 1).find(
+      (c) => c.id !== "resolvido" && c.id !== "cancelado"
+    ) ?? COLUNAS.find((c) => c.id === "resolvido");
+    if (!proxima || proxima.id === ticket.status) return;
+    setMovendoId(id);
+    utils.juridico.listTickets.setData({}, (old) =>
+      (old ?? []).map((t) => t.id === id ? { ...t, status: proxima.id } : t)
+    );
+    updateTicket.mutate(
+      { id, status: proxima.id as Status },
+      {
+        onSuccess: () => {
+          toast.success(`→ Movido para "${proxima.label}"`);
+          setMovendoId(null);
+        },
+        onError: () => {
+          setMovendoId(null);
+          utils.juridico.listTickets.invalidate();
+        },
+      }
+    );
   }
 
   function handleConcluir(id: number) {
@@ -724,6 +791,8 @@ export default function KanbanJuridico() {
                 tickets={ticketsPorStatus[coluna.id]}
                 onConcluir={handleConcluir}
                 concluindoId={concluindoId}
+                onMoverProxima={handleMoverProxima}
+                movendoId={movendoId}
                 collapsed={colunasColapsadas.has(coluna.id)}
                 onToggleCollapse={() => toggleColuna(coluna.id)}
               />

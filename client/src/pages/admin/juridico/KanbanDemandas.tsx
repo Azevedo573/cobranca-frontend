@@ -39,7 +39,7 @@ import {
   Plus, List, GripVertical, Clock, AlertTriangle, Building2,
   MessageSquare, Mail, Phone, Globe, Users, FileText, Scale,
   Lock, Settings, Pencil, Trash2, Loader2, CheckCircle2,
-  ArrowRight, Inbox, MoreVertical, GripHorizontal, Search, ChevronLeft, X,
+  ArrowRight, Inbox, MoreVertical, GripHorizontal, Search, ChevronLeft, ChevronRight, X,
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -79,6 +79,8 @@ function KanbanCard({
   isOverlay = false,
   onConcluir,
   concluindo,
+  onMoverProxima,
+  movendo,
 }: {
   demanda: any;
   onClick: () => void;
@@ -86,6 +88,8 @@ function KanbanCard({
   isOverlay?: boolean;
   onConcluir?: (id: number) => void;
   concluindo?: boolean;
+  onMoverProxima?: (id: number) => void;
+  movendo?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `demanda-${demanda.id}`,
@@ -109,7 +113,7 @@ function KanbanCard({
     <div
       ref={setNodeRef}
       style={isOverlay ? {} : style}
-      className={`bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all group select-none ${
+      className={`relative bg-card border border-l-4 ${prioBorder} rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all group select-none ${
         isSaida ? "opacity-75 cursor-default" : "cursor-grab active:cursor-grabbing"
       } ${isUrgente ? "ring-1 ring-red-300 dark:ring-red-700" : ""} ${
         isOverlay ? "rotate-2 shadow-2xl opacity-95 scale-105 cursor-grabbing" : ""
@@ -117,6 +121,28 @@ function KanbanCard({
       {...dragProps}
       onClick={onClick}
     >
+      {/* Botão de avançar para próxima coluna (visível no hover) */}
+      {onMoverProxima && !isSaida && !isOverlay && (
+        <div
+          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            disabled={movendo}
+            onClick={(e) => { e.stopPropagation(); onMoverProxima(demanda.id); }}
+            className="flex items-center gap-1 text-[10px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full px-2 py-0.5 transition-all disabled:opacity-50"
+            title="Mover para próxima coluna"
+          >
+            {movendo ? (
+              <span className="h-3 w-3 border border-primary border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+            Avançar
+          </button>
+        </div>
+      )}
       {/* Faixa de prioridade no topo */}
       <PrioridadeBadge prioridade={demanda.prioridade} variant="strip" />
 
@@ -202,6 +228,8 @@ function KanbanColuna({
   activeId,
   onConcluir,
   concluindoId,
+  onMoverProxima,
+  movendoId,
   collapsed,
   onToggleCollapse,
 }: {
@@ -214,6 +242,8 @@ function KanbanColuna({
   activeId: string | null;
   onConcluir?: (id: number) => void;
   concluindoId?: number | null;
+  onMoverProxima?: (id: number) => void;
+  movendoId?: number | null;
   collapsed?: boolean;
   onToggleCollapse: () => void;
 }) {
@@ -230,6 +260,7 @@ function KanbanColuna({
   };
 
   const atrasadas = demandas.filter(d => isAtrasada(d.prazo)).length;
+  const urgentes = demandas.filter(d => d.prioridade === "urgente").length;
   const isEntrada = coluna.tipo === "entrada";
   const isSaida = coluna.tipo === "saida";
   const isFixa = isEntrada || isSaida;
@@ -336,6 +367,11 @@ function KanbanColuna({
                 {atrasadas} ⚠
               </Badge>
             )}
+            {urgentes > 0 && !isSaida && (
+              <Badge className="text-xs px-1.5 py-0 h-5 bg-orange-500 hover:bg-orange-500 text-white">
+                {urgentes} 🔴
+              </Badge>
+            )}
             {!isFixa && onGerenciar && (
               <button
                 onClick={onGerenciar}
@@ -371,6 +407,8 @@ function KanbanColuna({
                 isSaida={isSaida}
                 onConcluir={onConcluir}
                 concluindo={concluindoId === d.id}
+                onMoverProxima={onMoverProxima}
+                movendo={movendoId === d.id}
               />
             ))}
             {demandas.length === 0 && !showPlaceholder && (
@@ -737,6 +775,39 @@ export default function KanbanDemandas() {
       refetchDemandas();
     },
   });
+
+  const [movendoId, setMovendoId] = useState<number | null>(null);
+
+  function handleMoverProxima(id: number) {
+    const demanda = demandas.find((d: any) => d.id === id);
+    if (!demanda) return;
+    // Encontrar a próxima coluna que não seja a de saída
+    const colunasOrdenadas = [...colunas].sort((a: any, b: any) => (a.ordem ?? 0) - (b.ordem ?? 0));
+    const idxAtual = colunasOrdenadas.findIndex((c: any) => c.id === demanda.colunaId);
+    const colunaSaida = colunasOrdenadas.find((c: any) => c.tipo === "saida");
+    const proxima = colunasOrdenadas.slice(idxAtual + 1).find(
+      (c: any) => c.tipo !== "saida"
+    ) ?? colunaSaida;
+    if (!proxima || proxima.id === demanda.colunaId) return;
+    setMovendoId(id);
+    setDemandasOrdem((prev: any[]) =>
+      prev.map((d: any) => d.id === id ? { ...d, colunaId: proxima.id } : d)
+    );
+    moverMutation.mutate(
+      { id, novaColunaId: proxima.id, novaOrdem: 0 },
+      {
+        onSuccess: () => {
+          toast.success(`→ Movido para "${proxima.nome}"`);
+          setMovendoId(null);
+          refetchDemandas();
+        },
+        onError: () => {
+          setMovendoId(null);
+          refetchDemandas();
+        },
+      }
+    );
+  }
 
   function handleConcluirDemanda(id: number) {
     const colunaSaida = colunas.find((c: any) => c.tipo === "saida");
@@ -1138,6 +1209,8 @@ export default function KanbanDemandas() {
                 activeId={activeId}
                 onConcluir={handleConcluirDemanda}
                 concluindoId={concluindoId}
+                onMoverProxima={handleMoverProxima}
+                movendoId={movendoId}
                 collapsed={colunasColapsadas.has(col.id)}
                 onToggleCollapse={() => toggleColapsarColuna(col.id)}
               />
