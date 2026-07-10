@@ -1034,24 +1034,29 @@ export default function KanbanDemandas() {
       </div>
 
       {/* Filtros rápidos */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      {(() => {
+        const qtdFiltros = (filtroBusca.trim() ? 1 : 0) + (filtroPrioridade !== "todos" ? 1 : 0) + (filtroPrazo !== "todos" ? 1 : 0);
+        const temFiltro = qtdFiltros > 0;
+        return (
+      <div className={`flex flex-wrap items-center gap-2 mb-3 rounded-xl px-3 py-2.5 border transition-all duration-200 ${temFiltro ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" : "bg-muted/30 border-border/50"}`}>
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 transition-colors duration-200 ${filtroBusca.trim() ? "text-primary" : "text-muted-foreground"}`} />
           <input
             type="text"
             placeholder="Buscar demanda..."
             value={filtroBusca}
             onChange={e => setFiltroBusca(e.target.value)}
-            className="w-full pl-8 pr-3 h-8 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            className={`w-full pl-8 pr-8 h-8 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 transition-all duration-200 ${filtroBusca.trim() ? "border-primary ring-1 ring-primary/40 bg-primary/5 focus:ring-primary" : "border-input focus:ring-primary"}`}
           />
           {filtroBusca && (
-            <button onClick={() => setFiltroBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <button onClick={() => setFiltroBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
         <Select value={filtroPrioridade} onValueChange={setFiltroPrioridade}>
-          <SelectTrigger className="w-36 h-8 text-xs">
+          <SelectTrigger className={`w-36 h-8 text-xs transition-all duration-200 ${filtroPrioridade !== "todos" ? "border-primary ring-1 ring-primary/40 bg-primary/5 text-primary font-medium" : ""}`}>
+            {filtroPrioridade !== "todos" && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0 inline-block" />}
             <SelectValue placeholder="Prioridade" />
           </SelectTrigger>
           <SelectContent>
@@ -1063,7 +1068,8 @@ export default function KanbanDemandas() {
           </SelectContent>
         </Select>
         <Select value={filtroPrazo} onValueChange={setFiltroPrazo}>
-          <SelectTrigger className="w-36 h-8 text-xs">
+          <SelectTrigger className={`w-36 h-8 text-xs transition-all duration-200 ${filtroPrazo !== "todos" ? "border-primary ring-1 ring-primary/40 bg-primary/5 text-primary font-medium" : ""}`}>
+            {filtroPrazo !== "todos" && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0 inline-block" />}
             <SelectValue placeholder="Prazo" />
           </SelectTrigger>
           <SelectContent>
@@ -1074,15 +1080,19 @@ export default function KanbanDemandas() {
             <SelectItem value="sem_prazo">— Sem prazo</SelectItem>
           </SelectContent>
         </Select>
-        {(filtroBusca || filtroPrioridade !== "todos" || filtroPrazo !== "todos") && (
+        {temFiltro && (
           <button
             onClick={() => { setFiltroBusca(""); setFiltroPrioridade("todos"); setFiltroPrazo("todos"); }}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 h-8 rounded-md border hover:bg-muted/50 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-destructive border border-destructive/30 hover:bg-destructive/10 px-2.5 h-8 rounded-full transition-all font-medium"
           >
-            <X className="h-3 w-3" /> Limpar filtros
+            <X className="h-3 w-3" />
+            Limpar
+            <span className="bg-destructive text-white rounded-full px-1.5 py-0 text-[9px] font-bold">{qtdFiltros}</span>
           </button>
         )}
       </div>
+        );
+      })()}
 
       {/* Legenda do fluxo */}
       <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 border">

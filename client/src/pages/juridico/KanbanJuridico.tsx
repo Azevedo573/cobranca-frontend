@@ -54,6 +54,7 @@ import {
   ChevronRight,
   AlertTriangle,
   CalendarClock,
+  X,
 } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
@@ -289,7 +290,7 @@ function KanbanColuna({
     return (
       <div
         className={cn(
-          "flex flex-col items-center rounded-xl border py-3 px-2 gap-2 cursor-pointer hover:opacity-80 transition-all select-none",
+          "flex flex-col items-center rounded-xl border py-3 px-2 gap-2 cursor-pointer hover:opacity-80 transition-all duration-300 select-none animate-in fade-in slide-in-from-left-2",
           coluna.color,
           "min-w-[44px] w-[44px] flex-shrink-0"
         )}
@@ -317,7 +318,10 @@ function KanbanColuna({
   }
 
   return (
-    <div className={`flex flex-col rounded-xl border ${coluna.color} min-w-[260px] w-[260px] flex-shrink-0`}>
+    <div className={cn(
+      "flex flex-col rounded-xl border min-w-[260px] w-[260px] flex-shrink-0 transition-all duration-300 animate-in fade-in slide-in-from-right-2",
+      coluna.color
+    )}>
       {/* Header da coluna */}
       <div className={`flex items-center gap-2 px-3 py-2.5 rounded-t-xl ${coluna.headerBg}`}>
         <span className={`w-2 h-2 rounded-full ${coluna.dot}`} />
@@ -551,6 +555,7 @@ export default function KanbanJuridico() {
   }
 
   const filtrosAtivos = filtroPrioridade !== "todos" || filtroPrazo !== "todos" || busca.trim() !== "" || filtroResponsavel !== "todos";
+  const qtdFiltrosAtivos = (filtroPrioridade !== "todos" ? 1 : 0) + (filtroPrazo !== "todos" ? 1 : 0) + (busca.trim() !== "" ? 1 : 0) + (filtroResponsavel !== "todos" ? 1 : 0);
 
   return (
     <div className="p-6 space-y-4">
@@ -579,7 +584,12 @@ export default function KanbanJuridico() {
       </div>
 
       {/* Barra de filtros rápidos */}
-      <div className="flex items-center gap-2 flex-wrap bg-muted/30 rounded-xl px-3 py-2.5 border border-border/50">
+      <div className={cn(
+        "flex items-center gap-2 flex-wrap rounded-xl px-3 py-2.5 border transition-all duration-200",
+        filtrosAtivos
+          ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
+          : "bg-muted/30 border-border/50"
+      )}>
         {/* Busca por texto */}
         <div className="relative flex-1 min-w-[160px] max-w-[240px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -681,9 +691,13 @@ export default function KanbanJuridico() {
               setBusca("");
               setFiltroResponsavel("todos");
             }}
-            className="text-[10px] px-2 py-0.5 rounded-full text-destructive border border-destructive/30 hover:bg-destructive/10 transition-all font-medium"
+            className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full text-destructive border border-destructive/30 hover:bg-destructive/10 transition-all font-medium"
           >
-            Limpar filtros
+            <X className="h-3 w-3" />
+            Limpar
+            <span className="bg-destructive text-white rounded-full px-1.5 py-0 text-[9px] font-bold">
+              {qtdFiltrosAtivos}
+            </span>
           </button>
         )}
       </div>

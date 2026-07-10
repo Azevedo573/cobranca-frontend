@@ -486,24 +486,29 @@ export default function KanbanPublicacoes() {
       </div>
 
       {/* Filtros rápidos */}
-      <div className="flex flex-wrap items-center gap-2">
+      {(() => {
+        const qtdFiltros = (filtroBusca.trim() ? 1 : 0) + (filtroTipo !== "todos" ? 1 : 0) + (filtroLida !== "todos" ? 1 : 0);
+        const temFiltro = qtdFiltros > 0;
+        return (
+      <div className={`flex flex-wrap items-center gap-2 rounded-xl px-3 py-2.5 border transition-all duration-200 ${temFiltro ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" : "bg-muted/30 border-border/50"}`}>
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 transition-colors duration-200 ${filtroBusca.trim() ? "text-primary" : "text-muted-foreground"}`} />
           <input
             type="text"
             placeholder="Buscar publicação..."
             value={filtroBusca}
             onChange={e => setFiltroBusca(e.target.value)}
-            className="w-full pl-8 pr-3 h-8 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            className={`w-full pl-8 pr-8 h-8 text-sm rounded-md border bg-background focus:outline-none focus:ring-1 transition-all duration-200 ${filtroBusca.trim() ? "border-primary ring-1 ring-primary/40 bg-primary/5 focus:ring-primary" : "border-input focus:ring-primary"}`}
           />
           {filtroBusca && (
-            <button onClick={() => setFiltroBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <button onClick={() => setFiltroBusca("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
         <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-          <SelectTrigger className="w-36 h-8 text-xs">
+          <SelectTrigger className={`w-36 h-8 text-xs transition-all duration-200 ${filtroTipo !== "todos" ? "border-primary ring-1 ring-primary/40 bg-primary/5 text-primary font-medium" : ""}`}>
+            {filtroTipo !== "todos" && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0 inline-block" />}
             <SelectValue placeholder="Tipo" />
           </SelectTrigger>
           <SelectContent>
@@ -514,7 +519,8 @@ export default function KanbanPublicacoes() {
           </SelectContent>
         </Select>
         <Select value={filtroLida} onValueChange={setFiltroLida}>
-          <SelectTrigger className="w-32 h-8 text-xs">
+          <SelectTrigger className={`w-32 h-8 text-xs transition-all duration-200 ${filtroLida !== "todos" ? "border-primary ring-1 ring-primary/40 bg-primary/5 text-primary font-medium" : ""}`}>
+            {filtroLida !== "todos" && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0 inline-block" />}
             <SelectValue placeholder="Leitura" />
           </SelectTrigger>
           <SelectContent>
@@ -523,15 +529,19 @@ export default function KanbanPublicacoes() {
             <SelectItem value="lidas">Lidas</SelectItem>
           </SelectContent>
         </Select>
-        {(filtroBusca || filtroTipo !== "todos" || filtroLida !== "todos") && (
+        {temFiltro && (
           <button
             onClick={() => { setFiltroBusca(""); setFiltroTipo("todos"); setFiltroLida("todos"); }}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 h-8 rounded-md border hover:bg-muted/50 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-destructive border border-destructive/30 hover:bg-destructive/10 px-2.5 h-8 rounded-full transition-all font-medium"
           >
-            <X className="h-3 w-3" /> Limpar
+            <X className="h-3 w-3" />
+            Limpar
+            <span className="bg-destructive text-white rounded-full px-1.5 py-0 text-[9px] font-bold">{qtdFiltros}</span>
           </button>
         )}
       </div>
+        );
+      })()}
 
       {/* Kanban */}
       {isLoading ? (
@@ -546,7 +556,7 @@ export default function KanbanPublicacoes() {
               return (
                 <div
                   key={col.id}
-                  className={`flex flex-col items-center w-12 shrink-0 rounded-xl border bg-card shadow-sm cursor-pointer hover:bg-muted/30 transition-colors py-3 gap-2 border-t-4 ${col.color}`}
+                  className={`flex flex-col items-center w-12 shrink-0 rounded-xl border bg-card shadow-sm cursor-pointer hover:bg-muted/30 transition-all duration-300 animate-in fade-in slide-in-from-left-2 py-3 gap-2 border-t-4 ${col.color}`}
                   onClick={() => toggleColapsarColuna(col.id)}
                   title={`Expandir: ${col.label} (${cards.length})`}
                 >
