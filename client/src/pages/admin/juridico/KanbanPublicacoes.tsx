@@ -1,4 +1,5 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import { CheckboxConclusao } from "@/components/CheckboxConclusao";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -300,7 +301,17 @@ function ModalDetalhePublicacao({ id, onClose }: { id: number; onClose: () => vo
 
 // ─── Card do Kanban ───────────────────────────────────────────────────────────
 
-function KanbanCard({ pub, onClick }: { pub: any; onClick: () => void }) {
+function KanbanCard({
+  pub,
+  onClick,
+  onConcluir,
+  concluindo,
+}: {
+  pub: any;
+  onClick: () => void;
+  onConcluir?: (id: number) => void;
+  concluindo?: boolean;
+}) {
   const tipo = TIPO_CONFIG[pub.tipo] ?? TIPO_CONFIG.outro;
 
   return (
@@ -311,11 +322,21 @@ function KanbanCard({ pub, onClick }: { pub: any; onClick: () => void }) {
       onClick={onClick}
     >
       <CardContent className="p-3">
-        {/* Tipo */}
+        {/* Tipo + Checkbox */}
         <div className="flex items-center justify-between mb-2">
-          <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium ${tipo.color}`}>
-            {tipo.icon}{tipo.label}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {onConcluir && pub.status !== "providenciada" && pub.status !== "arquivada" && (
+              <CheckboxConclusao
+                concluido={false}
+                onToggle={() => onConcluir(pub.id)}
+                disabled={concluindo}
+                size={16}
+              />
+            )}
+            <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium ${tipo.color}`}>
+              {tipo.icon}{tipo.label}
+            </span>
+          </div>
           {pub.lida === 0 && (
             <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" title="Não lida" />
           )}
@@ -360,6 +381,7 @@ function KanbanCard({ pub, onClick }: { pub: any; onClick: () => void }) {
 export default function KanbanPublicacoes() {
   const [, navigate] = useLocation();
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [concluindoId, setConcluindoId] = useState<number | null>(null);
 
   const utils = trpc.useUtils();
   const { data: publicacoes = [], isLoading } = trpc.publicacoes.listar.useQuery({ limit: 200 });
@@ -371,6 +393,20 @@ export default function KanbanPublicacoes() {
     },
     onError: (e) => toast.error(e.message),
   });
+
+  function handleConcluirPublicacao(id: number) {
+    setConcluindoId(id);
+    updateStatusMutation.mutate(
+      { id, status: "providenciada" },
+      {
+        onSuccess: () => {
+          toast.success("✅ Publicação marcada como providenciada!");
+          setConcluindoId(null);
+        },
+        onError: () => setConcluindoId(null),
+      }
+    );
+  }
 
   const porColuna = (colId: string) =>
     (publicacoes as any[]).filter((p: any) => p.status === colId);
@@ -439,6 +475,8 @@ export default function KanbanPublicacoes() {
                         key={pub.id}
                         pub={pub}
                         onClick={() => setSelectedId(pub.id)}
+                        onConcluir={handleConcluirPublicacao}
+                        concluindo={concluindoId === pub.id}
                       />
                     ))
                   )}

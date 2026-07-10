@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
+import { CheckboxConclusao } from "@/components/CheckboxConclusao";
 import { PrioridadeBadge, prioridadeBorderClass } from "@/components/PrioridadeBadge";
 import { ModalDemandaDetalhes } from "@/components/ModalDemandaDetalhes";
 import { useLocation } from "wouter";
@@ -76,11 +77,15 @@ function KanbanCard({
   onClick,
   isSaida,
   isOverlay = false,
+  onConcluir,
+  concluindo,
 }: {
   demanda: any;
   onClick: () => void;
   isSaida?: boolean;
   isOverlay?: boolean;
+  onConcluir?: (id: number) => void;
+  concluindo?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `demanda-${demanda.id}`,
@@ -115,7 +120,18 @@ function KanbanCard({
       {/* Faixa de prioridade no topo */}
       <PrioridadeBadge prioridade={demanda.prioridade} variant="strip" />
 
-      <div className="flex items-start gap-1 p-3">
+      <div className="flex items-start gap-2 p-3">
+        {/* Checkbox de conclusão rápida — só para cards fora da coluna de saída */}
+        {onConcluir && !isSaida && !isOverlay && (
+          <div className="mt-0.5 flex-shrink-0">
+            <CheckboxConclusao
+              concluido={false}
+              onToggle={() => onConcluir(demanda.id)}
+              disabled={concluindo}
+              size={18}
+            />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1 mb-1.5">
             <span className="text-xs font-mono text-muted-foreground">{demanda.numero}</span>
@@ -184,6 +200,8 @@ function KanbanColuna({
   onGerenciar,
   isDragOver,
   activeId,
+  onConcluir,
+  concluindoId,
 }: {
   coluna: any;
   demandas: any[];
@@ -192,6 +210,8 @@ function KanbanColuna({
   onGerenciar?: () => void;
   isDragOver: boolean;
   activeId: string | null;
+  onConcluir?: (id: number) => void;
+  concluindoId?: number | null;
 }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: `coluna-${coluna.id}`,
@@ -316,6 +336,8 @@ function KanbanColuna({
                 demanda={d}
                 onClick={() => onClickDemanda(d.id)}
                 isSaida={isSaida}
+                onConcluir={onConcluir}
+                concluindo={concluindoId === d.id}
               />
             ))}
             {demandas.length === 0 && !showPlaceholder && (
@@ -605,6 +627,7 @@ export default function KanbanDemandas() {
   const [modalGerenciar, setModalGerenciar] = useState(false);
   const [filtroAdvogadoId, setFiltroAdvogadoId] = useState<number | null>(null);
   const [modalDemandaId, setModalDemandaId] = useState<number | null>(null);
+  const [concluindoId, setConcluindoId] = useState<number | null>(null);
   const utils = trpc.useUtils();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -662,6 +685,35 @@ export default function KanbanDemandas() {
       refetchDemandas();
     },
   });
+
+  function handleConcluirDemanda(id: number) {
+    const colunaSaida = colunas.find((c: any) => c.tipo === "saida");
+    if (!colunaSaida) {
+      toast.error("Nenhuma coluna de saída configurada.");
+      return;
+    }
+    const demanda = demandas.find((d: any) => d.id === id);
+    if (!demanda || demanda.colunaId === colunaSaida.id) return;
+    setConcluindoId(id);
+    // Optimistic update
+    setDemandasOrdem((prev) =>
+      prev.map((d: any) => d.id === id ? { ...d, colunaId: colunaSaida.id } : d)
+    );
+    moverMutation.mutate(
+      { id, novaColunaId: colunaSaida.id, novaOrdem: 0 },
+      {
+        onSuccess: () => {
+          toast.success("✅ Demanda concluída!");
+          setConcluindoId(null);
+          refetchDemandas();
+        },
+        onError: () => {
+          setConcluindoId(null);
+          refetchDemandas();
+        },
+      }
+    );
+  }
 
   const reordenarDemandaMutation = trpc.juridicoDemandas.reordenarDemandas.useMutation({
     onError: () => refetchDemandas(),
@@ -939,6 +991,8 @@ export default function KanbanDemandas() {
                 onGerenciar={() => setModalGerenciar(true)}
                 isDragOver={overColunaId === col.id}
                 activeId={activeId}
+                onConcluir={handleConcluirDemanda}
+                concluindoId={concluindoId}
               />
             ))}
           </div>

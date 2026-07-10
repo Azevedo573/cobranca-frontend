@@ -2477,3 +2477,9 @@
 - [x] Criar procedures tRPC: getHorarios, salvarHorarios
 - [x] Criar tela de configuração de horário de atendimento em Configurações
 - [x] Integrar verificação de horário do banco no bot-engine e webhook (substituir hardcoded 08:00-20:00)
+
+## Fase 1 Kanban — Checkbox Redondo de Conclusão
+- [ ] Criar componente CheckboxConclusao reutilizável (bolinha circular com animação de check)
+- [ ] Integrar CheckboxConclusao no KanbanJuridico (conclui → status "resolvido")
+- [ ] Integrar CheckboxConclusao no KanbanDemandas (conclui → última coluna ou coluna marcada como conclusão)
+- [ ] Integrar CheckboxConclusao no KanbanPublicacoes (conclui → status "concluido")

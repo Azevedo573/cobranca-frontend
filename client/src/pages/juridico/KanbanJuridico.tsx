@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
+import { CheckboxConclusao } from "@/components/CheckboxConclusao";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -86,9 +87,13 @@ function getInitials(name: string) {
 function TicketCard({
   ticket,
   isDragging = false,
+  onConcluir,
+  concluindo,
 }: {
   ticket: any;
   isDragging?: boolean;
+  onConcluir?: (id: number) => void;
+  concluindo?: boolean;
 }) {
   const [, navigate] = useLocation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } = useSortable({ id: ticket.id });
@@ -118,6 +123,17 @@ function TicketCard({
         >
           <GripVertical className="h-4 w-4" />
         </div>
+        {/* Checkbox de conclusão rápida */}
+        {onConcluir && (
+          <div className="mt-0.5 flex-shrink-0">
+            <CheckboxConclusao
+              concluido={ticket.status === "resolvido"}
+              onToggle={() => onConcluir(ticket.id)}
+              disabled={concluindo}
+              size={18}
+            />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap mb-1">
             <span className="text-[10px] text-muted-foreground font-mono">#{ticket.id}</span>
@@ -125,7 +141,11 @@ function TicketCard({
               {ticket.prioridade === "urgente" ? "🔴 Urgente" : ticket.prioridade === "alta" ? "Alta" : ticket.prioridade === "media" ? "Média" : "Baixa"}
             </span>
           </div>
-          <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{ticket.titulo}</p>
+          <p className={`text-sm font-semibold leading-snug line-clamp-2 transition-all duration-200 ${
+            ticket.status === "resolvido"
+              ? "line-through text-muted-foreground/60"
+              : "text-foreground"
+          }`}>{ticket.titulo}</p>
         </div>
       </div>
 
@@ -174,9 +194,13 @@ function TicketCard({
 function KanbanColuna({
   coluna,
   tickets,
+  onConcluir,
+  concluindoId,
 }: {
   coluna: typeof COLUNAS[0];
   tickets: any[];
+  onConcluir: (id: number) => void;
+  concluindoId: number | null;
 }) {
   const Icon = coluna.icon;
   return (
@@ -200,7 +224,14 @@ function KanbanColuna({
               <p className="text-xs">Nenhum ticket</p>
             </div>
           ) : (
-            tickets.map((t) => <TicketCard key={t.id} ticket={t} />)
+            tickets.map((t) => (
+              <TicketCard
+                key={t.id}
+                ticket={t}
+                onConcluir={onConcluir}
+                concluindo={concluindoId === t.id}
+              />
+            ))
           )}
         </SortableContext>
       </div>
@@ -214,6 +245,7 @@ export default function KanbanJuridico() {
   const utils = trpc.useUtils();
   const [activeTicket, setActiveTicket] = useState<any | null>(null);
   const [filtroResponsavel, setFiltroResponsavel] = useState<string>("todos");
+  const [concluindoId, setConcluindoId] = useState<number | null>(null);
 
   const { data: tickets = [], isLoading } = trpc.juridico.listTickets.useQuery({});
   const { data: todosUsuarios = [] } = trpc.users.list.useQuery(
@@ -259,6 +291,29 @@ export default function KanbanJuridico() {
     }
     return mapa;
   }, [ticketsFiltrados]);
+
+  function handleConcluir(id: number) {
+    const ticket = tickets.find((t) => t.id === id);
+    if (!ticket) return;
+    const novoStatus: Status = ticket.status === "resolvido" ? "em_andamento" : "resolvido";
+    setConcluindoId(id);
+    utils.juridico.listTickets.setData({}, (old) =>
+      (old ?? []).map((t) => t.id === id ? { ...t, status: novoStatus } : t)
+    );
+    updateTicket.mutate(
+      { id, status: novoStatus },
+      {
+        onSuccess: () => {
+          toast.success(novoStatus === "resolvido" ? "✅ Ticket concluído!" : "Ticket reaberto.");
+          setConcluindoId(null);
+        },
+        onError: () => {
+          setConcluindoId(null);
+          utils.juridico.listTickets.invalidate();
+        },
+      }
+    );
+  }
 
   function handleDragStart(event: DragStartEvent) {
     const ticket = tickets.find((t) => t.id === event.active.id);
@@ -365,6 +420,8 @@ export default function KanbanJuridico() {
                 key={coluna.id}
                 coluna={coluna}
                 tickets={ticketsPorStatus[coluna.id]}
+                onConcluir={handleConcluir}
+                concluindoId={concluindoId}
               />
             ))}
           </div>
