@@ -884,7 +884,7 @@ export const appRouter = router({
     gerarBoletoPDF: protectedProcedure
       .input(z.object({ cobrancaId: z.number() }))
       .mutation(async ({ input }) => {
-        const { getCobrancaById } = await import("./db-cobrancas");
+        const { getCobrancaById, getCobrancasComCalculos } = await import("./db-cobrancas");
         const { getDevedorById } = await import("./db-devedores");
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         const { getCondominioById } = await import("./db-condominios");
@@ -904,6 +904,22 @@ export const appRouter = router({
 
         const condominio = await getCondominioById(cobranca.condominioId);
         if (!condominio) throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado" });
+
+        // Buscar todas as cobranças do devedor com valores calculados para a tabela de composição
+        const todasCobrancas = await getCobrancasComCalculos(cobranca.devedorId);
+        const itensCobranca = todasCobrancas.map((c) => ({
+          titulo: c.tipoCobranca
+            ? c.tipoCobranca.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+            : (c.description || "Condomínio"),
+          vencimento: c.dueDate ? new Date(c.dueDate) : new Date(),
+          valorOriginal: c.amount,
+          correcao: Math.round((c.breakdown.correcaoMonetaria || 0) * 100),
+          multa: Math.round((c.breakdown.multa || 0) * 100),
+          juros: Math.round((c.breakdown.juros || 0) * 100),
+          honorarios: Math.round((c.breakdown.honorarios || 0) * 100),
+          desconto: 0,
+          total: Math.round((c.breakdown.valorTotal || 0) * 100),
+        }));
 
         const dataVencimento = cobranca.dueDate ? new Date(cobranca.dueDate) : new Date();
         const dataEmissao = new Date();
@@ -965,6 +981,8 @@ export const appRouter = router({
           instrucoes,
           seuNumero: cobranca.nossoNumero,
           pixCopiaCola,
+          credorTitulo: condominio.name,
+          itensCobranca,
         };
 
         const pdfBuffer = await gerarBoletoPDF(dados);
@@ -1369,6 +1387,7 @@ export const appRouter = router({
         const { getDevedorById } = await import("./db-devedores");
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         const { getCondominioById } = await import("./db-condominios");
+        const { getCobrancasComCalculos } = await import("./db-cobrancas");
         const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
         const { gerarPixCopiaCola } = await import("./pix-emv");
         const { storagePut } = await import("./storage");
@@ -1456,6 +1475,23 @@ export const appRouter = router({
           instrucoes,
           seuNumero: parcela.nossoNumero,
           pixCopiaCola,
+          credorTitulo: condominio.name,
+          itensCobranca: await (async () => {
+            const todasCobrancas = await getCobrancasComCalculos(acordo.devedorId);
+            return todasCobrancas.map((c) => ({
+              titulo: c.tipoCobranca
+                ? c.tipoCobranca.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+                : (c.description || "Condomínio"),
+              vencimento: c.dueDate ? new Date(c.dueDate) : new Date(),
+              valorOriginal: c.amount,
+              correcao: Math.round((c.breakdown.correcaoMonetaria || 0) * 100),
+              multa: Math.round((c.breakdown.multa || 0) * 100),
+              juros: Math.round((c.breakdown.juros || 0) * 100),
+              honorarios: Math.round((c.breakdown.honorarios || 0) * 100),
+              desconto: 0,
+              total: Math.round((c.breakdown.valorTotal || 0) * 100),
+            }));
+          })(),
         };
 
         const pdfBuffer = await gerarBoletoPDF(dados);
@@ -1489,6 +1525,7 @@ export const appRouter = router({
       const { getDevedorById } = await import("./db-devedores");
       const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
       const { getCondominioById } = await import("./db-condominios");
+      const { getCobrancasComCalculos } = await import("./db-cobrancas");
       const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
       const { gerarPixCopiaCola } = await import("./pix-emv");
       const { storagePut } = await import("./storage");
@@ -1525,6 +1562,22 @@ export const appRouter = router({
 
       const nomeSacado = devedor.name ||
         `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
+
+      // Buscar cobranças do devedor uma única vez (fora do loop) para a tabela de composição
+      const todasCobrancasDevedor = await getCobrancasComCalculos(acordo.devedorId);
+      const itensCobrancaLote = todasCobrancasDevedor.map((c) => ({
+        titulo: c.tipoCobranca
+          ? c.tipoCobranca.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+          : (c.description || "Condomínio"),
+        vencimento: c.dueDate ? new Date(c.dueDate) : new Date(),
+        valorOriginal: c.amount,
+        correcao: Math.round((c.breakdown.correcaoMonetaria || 0) * 100),
+        multa: Math.round((c.breakdown.multa || 0) * 100),
+        juros: Math.round((c.breakdown.juros || 0) * 100),
+        honorarios: Math.round((c.breakdown.honorarios || 0) * 100),
+        desconto: 0,
+        total: Math.round((c.breakdown.valorTotal || 0) * 100),
+      }));
 
       const boletos: Array<{ parcelaId: number; numeroParcela: number; url: string; linhaDigitavel: string; valor: number; vencimento: string }> = [];
 
@@ -1584,6 +1637,8 @@ export const appRouter = router({
           instrucoes,
           seuNumero: parcela.nossoNumero!,
           pixCopiaCola,
+          credorTitulo: condominio.name,
+          itensCobranca: itensCobrancaLote,
         };
 
         const pdfBuffer = await gerarBoletoPDF(dados);
