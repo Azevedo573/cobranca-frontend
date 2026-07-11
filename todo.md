@@ -2495,3 +2495,17 @@
 - [x] Frontend: legenda visual diferenciada para a visão consolidada (fundo violeta)
 - [x] Frontend: checkbox de conclusão funciona na visão consolidada (move para coluna de saída)
 - [x] Zero erros de TypeScript
+
+## Redesign do Layout do Boleto PDF
+
+- [x] Novo cabeçalho: logo Gomes & Silva (canto esquerdo) + "Recibo do Pagador" (canto direito)
+- [x] Bloco Beneficiário | Pagador lado a lado com separador vertical
+- [x] Seção "Detalhes da fatura" com Vencimento e Valor em destaque (fonte maior)
+- [x] Campo "Credor do Título" e "Nosso Número" nos detalhes
+- [x] Tabela "Composição da cobrança" com colunas: Título, Vencimento, Vl. Orig., C. Monetária, Multa, Juros, Honorário, Vl. Desp., Desconto, Total
+- [x] Cabeçalho da tabela com fundo cinza e linhas alternadas nas linhas de dados
+- [x] Linha de total ao final da tabela
+- [x] Suporte a itensCobranca[] na interface DadosBoleto (campo opcional)
+- [x] Ficha de compensação BTG mantida fiel ao padrão (cabeçalho com logo + linha digitável)
+- [x] Campos da ficha: Local de pagamento, Beneficiário, Data doc., Nº doc., Espécie, Aceite, Data proc., Nosso Número, Carteira, Moeda, Valor, Instruções, Descontos/Multas, Pagador, Código de barras
+- [x] Zero erros de TypeScript, 17 testes do boleto-pdf passando
