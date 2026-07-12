@@ -452,17 +452,11 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     y += 6;
 
     // ── Composição da cobrança ──
-    doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
-      .text("Composição da cobrança", ML, y);
-    y += 12;
-
-    // Cabeçalho da tabela
+    // Constantes de layout da tabela
     const COL_TITULO = 80;
     const COL_VENC = 58;
-    const COL_NUM = 50; // colunas numéricas
+    const COL_NUM = 50;
     const COL_TOTAL = 52;
-    const colsNumericas = 7; // Vl.Orig, C.Monetária, Multa, Juros, Honorário, Vl.Desp, Desconto
-    const totalNumW = COL_NUM * colsNumericas + COL_TOTAL;
     const xTituloCol = ML;
     const xVencCol = xTituloCol + COL_TITULO;
     const xNum1 = xVencCol + COL_VENC;
@@ -473,54 +467,44 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     const xNum6 = xNum5 + COL_NUM;
     const xNum7 = xNum6 + COL_NUM;
     const xTotalCol = xNum7 + COL_NUM;
-
     const TABLE_H = 14;
     const TABLE_FONT = 6.5;
+    const PAGE_H = 841.89; // A4 altura em pontos
+    const MARGEM_INF = 30; // margem inferior mínima antes de quebrar
+    // Altura estimada da ficha de compensação (para garantir que caiba na última página)
+    const FICHA_H_ESTIMADA = 320;
 
-    // Fundo cinza no cabeçalho da tabela
-    doc.rect(ML, y, W, TABLE_H).fillColor(CINZA_FUNDO).fill();
-    hLine(y, ML, MR, CINZA_BORDA, 0.5);
-    hLine(y + TABLE_H, ML, MR, CINZA_BORDA, 0.5);
-
+    const colsVert = [xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol];
     const headers = ["Título", "Vencimento", "Vl. Orig.", "C. Monetária", "Multa", "Juros", "Honorário", "Vl. Desp.", "Desconto", "Total"];
     const headerXs = [xTituloCol, xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol];
     const headerWidths = [COL_TITULO, COL_VENC, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_TOTAL];
 
-    headers.forEach((h, i) => {
-      const isNum = i >= 2;
-      doc.font(FONTE_BOLD).fontSize(TABLE_FONT).fillColor(PRETO)
-        .text(h, headerXs[i] + 2, y + 4, { width: headerWidths[i] - 4, align: isNum ? "right" : "left", lineBreak: false });
-    });
+    /** Desenha o cabeçalho da tabela de composição na posição y atual e retorna o novo y */
+    const desenharCabecalhoTabela = (yT: number): number => {
+      doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
+        .text("Composição da cobrança", ML, yT);
+      yT += 12;
+      doc.rect(ML, yT, W, TABLE_H).fillColor(CINZA_FUNDO).fill();
+      hLine(yT, ML, MR, CINZA_BORDA, 0.5);
+      hLine(yT + TABLE_H, ML, MR, CINZA_BORDA, 0.5);
+      headers.forEach((h, i) => {
+        const isNum = i >= 2;
+        doc.font(FONTE_BOLD).fontSize(TABLE_FONT).fillColor(PRETO)
+          .text(h, headerXs[i] + 2, yT + 4, { width: headerWidths[i] - 4, align: isNum ? "right" : "left", lineBreak: false });
+      });
+      colsVert.forEach(x => vLine(x, yT, yT + TABLE_H, CINZA_BORDA));
+      return yT + TABLE_H;
+    };
 
-    // Linhas verticais do cabeçalho
-    [xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol].forEach(x => {
-      vLine(x, y, y + TABLE_H, CINZA_BORDA);
-    });
-
-    y += TABLE_H;
-
-    // Linhas de dados
-    const itens = dados.itensCobranca || [];
-    const MAX_ITENS_POR_PAGINA = 20;
-    const itensExibidos = itens.slice(0, MAX_ITENS_POR_PAGINA);
-    const itensOmitidos = itens.length - itensExibidos.length;
-
-    itensExibidos.forEach((item, rowIdx) => {
-      const rowY = y + rowIdx * TABLE_H;
-
-      // Fundo alternado
-      if (rowIdx % 2 === 1) {
+    /** Renderiza uma linha de dados da tabela na posição rowY */
+    const desenharLinhaTabela = (item: ItemCobranca, rowY: number, zebraIdx: number) => {
+      if (zebraIdx % 2 === 1) {
         doc.rect(ML, rowY, W, TABLE_H).fillColor("#fafafa").fill();
       }
-
       hLine(rowY + TABLE_H, ML, MR, CINZA_BORDA, 0.3);
-      [xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol].forEach(x => {
-        vLine(x, rowY, rowY + TABLE_H, CINZA_BORDA);
-      });
-
+      colsVert.forEach(x => vLine(x, rowY, rowY + TABLE_H, CINZA_BORDA));
       const textY = rowY + 4;
       const fmtNum = (v?: number) => v !== undefined ? formatarValorReais(v) : "0,00";
-
       doc.font(FONTE).fontSize(TABLE_FONT).fillColor(PRETO)
         .text(item.titulo, xTituloCol + 2, textY, { width: COL_TITULO - 4, lineBreak: false });
       doc.font(FONTE).fontSize(TABLE_FONT).fillColor(PRETO)
@@ -541,28 +525,57 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
         .text(fmtNum(item.desconto), xNum7 + 2, textY, { width: COL_NUM - 4, align: "right", lineBreak: false });
       doc.font(FONTE_BOLD).fontSize(TABLE_FONT).fillColor(PRETO)
         .text(fmtNum(item.total), xTotalCol + 2, textY, { width: COL_TOTAL - 4, align: "right", lineBreak: false });
-    });
+    };
 
-    y += itensExibidos.length * TABLE_H;
+    // Verificar se o cabeçalho da tabela + pelo menos 2 linhas cabem na página atual;
+    // se não couber, adicionar nova página antes de começar a tabela
+    if (y + 12 + TABLE_H * 3 > PAGE_H - MARGEM_INF) {
+      doc.addPage();
+      y = 18;
+    }
 
-    // Linha de reticências se houver itens omitidos
-    if (itensOmitidos > 0) {
-      hLine(y, ML, MR, CINZA_BORDA, 0.3);
-      [xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol].forEach(x => {
-        vLine(x, y, y + TABLE_H, CINZA_BORDA);
-      });
-      doc.font(FONTE).fontSize(TABLE_FONT).fillColor(CINZA_LABEL)
-        .text(`... mais ${itensOmitidos} item(ns) omitido(s)`, xTituloCol + 2, y + 4, { width: W - 4, lineBreak: false });
+    y = desenharCabecalhoTabela(y);
+
+    // Iterar sobre todos os itens com quebra de página automática
+    const itens = dados.itensCobranca || [];
+    let zebraIdx = 0;
+
+    for (const item of itens) {
+      // Se a próxima linha não cabe na página atual → quebrar
+      if (y + TABLE_H > PAGE_H - MARGEM_INF) {
+        doc.addPage();
+        y = 18;
+        // Repetir cabeçalho da tabela na nova página (com "(continuação)")
+        doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
+          .text("Composição da cobrança (continuação)", ML, y);
+        y += 12;
+        doc.rect(ML, y, W, TABLE_H).fillColor(CINZA_FUNDO).fill();
+        hLine(y, ML, MR, CINZA_BORDA, 0.5);
+        hLine(y + TABLE_H, ML, MR, CINZA_BORDA, 0.5);
+        headers.forEach((h, i) => {
+          const isNum = i >= 2;
+          doc.font(FONTE_BOLD).fontSize(TABLE_FONT).fillColor(PRETO)
+            .text(h, headerXs[i] + 2, y + 4, { width: headerWidths[i] - 4, align: isNum ? "right" : "left", lineBreak: false });
+        });
+        colsVert.forEach(x => vLine(x, y, y + TABLE_H, CINZA_BORDA));
+        y += TABLE_H;
+        zebraIdx = 0; // reiniciar zebra na nova página
+      }
+      desenharLinhaTabela(item, y, zebraIdx);
       y += TABLE_H;
+      zebraIdx++;
     }
 
     // Linha de total da tabela
+    // Se a linha de total + ficha de compensação não couberem, quebrar antes do total
+    if (y + (TABLE_H + 2) + 10 + FICHA_H_ESTIMADA > PAGE_H - MARGEM_INF) {
+      doc.addPage();
+      y = 18;
+    }
     doc.rect(ML, y, W, TABLE_H + 2).fillColor(CINZA_FUNDO).fill();
     hLine(y, ML, MR, CINZA_BORDA, 0.5);
     hLine(y + TABLE_H + 2, ML, MR, CINZA_BORDA, 0.8);
-    [xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol].forEach(x => {
-      vLine(x, y, y + TABLE_H + 2, CINZA_BORDA);
-    });
+    colsVert.forEach(x => vLine(x, y, y + TABLE_H + 2, CINZA_BORDA));
     doc.font(FONTE_BOLD).fontSize(TABLE_FONT + 0.5).fillColor(PRETO)
       .text("TOTAL", xTituloCol + 2, y + 4, { width: COL_TITULO - 4, lineBreak: false });
     doc.font(FONTE_BOLD).fontSize(TABLE_FONT + 0.5).fillColor(PRETO)
