@@ -2509,3 +2509,9 @@
 - [x] Ficha de compensação BTG mantida fiel ao padrão (cabeçalho com logo + linha digitável)
 - [x] Campos da ficha: Local de pagamento, Beneficiário, Data doc., Nº doc., Espécie, Aceite, Data proc., Nosso Número, Carteira, Moeda, Valor, Instruções, Descontos/Multas, Pagador, Código de barras
 - [x] Zero erros de TypeScript, 17 testes do boleto-pdf passando
+
+## Fase 1 — Correções de Integridade Jurídica
+
+- [x] 1.1 Corrigir numeração de demandas: substituir COUNT(*) por MAX(id)+1 em gerarNumeroDemanda
+- [x] 1.2 Responsável com vínculo forte: Select de usuários nos formulários de demanda e prazo
+- [x] 1.3 Corrigir anti-pattern setState no render em CentralIntimacoes

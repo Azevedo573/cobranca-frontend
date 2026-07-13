@@ -114,11 +114,13 @@ const TIPO_PRAZO_LABELS: Record<string, string> = {
 function ModalCriarPrazo({ open, onClose, onSuccess }: {
   open: boolean; onClose: () => void; onSuccess: () => void;
 }) {
+  const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
   const [form, setForm] = useState({
     titulo: "",
     tipo: "processual" as const,
     dataLimite: "",
     condominioNome: "",
+    responsavelId: "" as string,
     responsavelNome: "",
     observacoes: "",
   });
@@ -136,13 +138,14 @@ function ModalCriarPrazo({ open, onClose, onSuccess }: {
         tipo: form.tipo,
         dataLimite: new Date(form.dataLimite),
         condominioNome: form.condominioNome || undefined,
+        responsavelId: form.responsavelId ? Number(form.responsavelId) : undefined,
         responsavelNome: form.responsavelNome || undefined,
         observacoes: form.observacoes || undefined,
       });
       toast.success("Prazo criado com sucesso!");
       onSuccess();
       onClose();
-      setForm({ titulo: "", tipo: "processual", dataLimite: "", condominioNome: "", responsavelNome: "", observacoes: "" });
+      setForm({ titulo: "", tipo: "processual", dataLimite: "", condominioNome: "", responsavelId: "", responsavelNome: "", observacoes: "" });
     } catch (err: any) {
       toast.error("Erro ao criar prazo", { description: err.message });
     }
@@ -198,11 +201,21 @@ function ModalCriarPrazo({ open, onClose, onSuccess }: {
             </div>
             <div className="space-y-1.5">
               <Label>Responsável</Label>
-              <Input
-                value={form.responsavelNome}
-                onChange={(e) => setForm(p => ({ ...p, responsavelNome: e.target.value }))}
-                placeholder="Nome do advogado"
-              />
+              <Select
+                value={form.responsavelId}
+                onValueChange={v => {
+                  const adv = advogados.find((a: any) => String(a.id) === v);
+                  setForm(p => ({ ...p, responsavelId: v === "__none__" ? "" : v, responsavelNome: adv?.name ?? "" }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhum</SelectItem>
+                  {advogados.map((adv: any) => (
+                    <SelectItem key={adv.id} value={String(adv.id)}>{adv.name ?? "(sem nome)"}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="space-y-1.5">

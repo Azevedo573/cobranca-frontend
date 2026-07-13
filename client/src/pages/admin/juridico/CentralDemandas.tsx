@@ -84,6 +84,7 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
     tipo: "outro" as const,
     prioridade: "media" as const,
     prazo: "",
+    responsavelId: "" as string,
     responsavelNome: "",
     condominioId: "" as string,
     colunaId: colunaInicial ? String(colunaInicial) : "",
@@ -98,7 +99,7 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
       toast.success("Demanda criada com sucesso!");
       utils.juridicoDemandas.listar.invalidate();
       onClose();
-      setForm({ assunto: "", descricao: "", solicitante: "", solicitanteTipo: "Síndico", canal: "manual", tipo: "outro", prioridade: "media", prazo: "", responsavelNome: "", condominioId: "", colunaId: "" });
+      setForm({ assunto: "", descricao: "", solicitante: "", solicitanteTipo: "Síndico", canal: "manual", tipo: "outro", prioridade: "media", prazo: "", responsavelId: "", responsavelNome: "", condominioId: "", colunaId: "" });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -115,6 +116,7 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
       tipo: form.tipo,
       prioridade: form.prioridade,
       prazo: form.prazo || null,
+      responsavelId: form.responsavelId ? Number(form.responsavelId) : undefined,
       responsavelNome: form.responsavelNome || undefined,
       condominioId: form.condominioId ? Number(form.condominioId) : null,
       colunaId: Number(form.colunaId),
@@ -235,14 +237,20 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
           {/* Responsável */}
           <div className="col-span-2">
             <Label>Responsável pelo Atendimento</Label>
-            <Select value={form.responsavelNome} onValueChange={v => setForm(f => ({ ...f, responsavelNome: v }))}>
+            <Select
+              value={form.responsavelId}
+              onValueChange={v => {
+                const adv = advogados.find(a => String(a.id) === v);
+                setForm(f => ({ ...f, responsavelId: v === "__none__" ? "" : v, responsavelNome: adv?.name ?? "" }));
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione um advogado..." />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nenhum</SelectItem>
                 {advogados.map(adv => (
-                  <SelectItem key={adv.id} value={adv.name ?? "__none__"}>{adv.name ?? "(sem nome)"}</SelectItem>
+                  <SelectItem key={adv.id} value={String(adv.id)}>{adv.name ?? "(sem nome)"}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

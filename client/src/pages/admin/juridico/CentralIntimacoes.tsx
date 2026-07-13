@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -86,13 +86,14 @@ export default function CentralIntimacoes() {
       }
     );
 
-  // Após carregar o detalhe, invalida a lista para atualizar o status
-  const [lastInvalidatedId, setLastInvalidatedId] = useState<number | null>(null);
-  if (intimacaoDetalhe && intimacaoDetalhe.id !== lastInvalidatedId) {
-    setLastInvalidatedId(intimacaoDetalhe.id);
-    void utils.mni.listarIntimacoes.invalidate();
-    void utils.mni.countPendentes.invalidate();
-  }
+  // Após carregar o detalhe, invalida a lista para atualizar o status.
+  // Usa useEffect para evitar setState durante o render (anti-pattern que causa re-renders em cascata).
+  useEffect(() => {
+    if (intimacaoDetalhe) {
+      void utils.mni.listarIntimacoes.invalidate();
+      void utils.mni.countPendentes.invalidate();
+    }
+  }, [intimacaoDetalhe?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Buscar teor
   const buscarTeorMutation = trpc.mni.buscarTeor.useMutation({

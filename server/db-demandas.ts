@@ -272,10 +272,12 @@ export async function seedColunasPadrao(userId?: number) {
 async function gerarNumeroDemanda(): Promise<string> {
   const db = await getDb();
   if (!db) return "#0001";
+  // Usa MAX(id) para evitar colisão em inserções concorrentes.
+  // COUNT(*) geraria duplicatas se duas demandas fossem criadas ao mesmo tempo.
   const [result] = await db
-    .select({ count: sql<number>`COUNT(*)` })
+    .select({ maxId: sql<number>`COALESCE(MAX(${demandas.id}), 0)` })
     .from(demandas);
-  const num = (result?.count ?? 0) + 1;
+  const num = (result?.maxId ?? 0) + 1;
   return `#${String(num).padStart(4, "0")}`;
 }
 
