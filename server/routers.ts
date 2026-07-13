@@ -7300,6 +7300,101 @@ export const appRouter = router({
         await db.delete(anexosDemanda).where(eq(anexosDemanda.id, input.id));
         return { ok: true };
       }),
+
+    // Produtividade por advogado (admin only) — para o Dashboard Jurídico Unificado
+    produtividadeAdvogados: adminProcedure
+      .input(z.object({ mes: z.number().int().min(1).max(12).optional(), ano: z.number().int().optional() }).optional())
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { demandas, prazosJuridicos, processosJudiciais, users } = await import("../drizzle/schema");
+        const { eq, and, gte, lte, sql, asc } = await import("drizzle-orm");
+
+        const agora = new Date();
+        const ano = input?.ano ?? agora.getFullYear();
+        const mes = input?.mes ?? (agora.getMonth() + 1);
+        const inicioMes = new Date(ano, mes - 1, 1);
+        const fimMes = new Date(ano, mes, 0, 23, 59, 59);
+
+        // Buscar todos os advogados ativos
+        const advogados = await db
+          .select({ id: users.id, name: users.name, email: users.email })
+          .from(users)
+          .where(and(eq(users.role, "advogado"), eq(users.isActive, 1)))
+          .orderBy(asc(users.name));
+
+        if (advogados.length === 0) return [];
+
+        // Demandas concluídas no mês por advogado (colunaId = coluna de saída)
+        const { colunasDemanda } = await import("../drizzle/schema");
+        const [colunaSaida] = await db
+          .select({ id: colunasDemanda.id })
+          .from(colunasDemanda)
+          .where(eq(colunasDemanda.tipo, "saida"))
+          .limit(1);
+
+        const demandasConcluidasPorAdv = colunaSaida ? await db
+          .select({
+            responsavelId: demandas.responsavelId,
+            total: sql<number>`COUNT(*)`,
+          })
+          .from(demandas)
+          .where(
+            and(
+              eq(demandas.colunaId, colunaSaida.id),
+              gte(demandas.updatedAt, inicioMes),
+              lte(demandas.updatedAt, fimMes)
+            )
+          )
+          .groupBy(demandas.responsavelId) : [];
+
+        // Demandas ativas por advogado
+        const demandasAtivasPorAdv = await db
+          .select({
+            responsavelId: demandas.responsavelId,
+            total: sql<number>`COUNT(*)`,
+          })
+          .from(demandas)
+          .where(colunaSaida ? sql`${demandas.colunaId} != ${colunaSaida.id}` : sql`1=1`)
+          .groupBy(demandas.responsavelId);
+
+        // Prazos cumpridos vs atrasados por advogado
+        const prazosCumpridosPorAdv = await db
+          .select({
+            responsavelId: prazosJuridicos.responsavelId,
+            cumpridos: sql<number>`SUM(CASE WHEN ${prazosJuridicos.status} = 'concluido' THEN 1 ELSE 0 END)`,
+            atrasados: sql<number>`SUM(CASE WHEN ${prazosJuridicos.status} = 'atrasado' THEN 1 ELSE 0 END)`,
+          })
+          .from(prazosJuridicos)
+          .groupBy(prazosJuridicos.responsavelId);
+
+        // Processos ativos por advogado
+        const processosAtivosPorAdv = await db
+          .select({
+            advogadoId: processosJudiciais.advogadoId,
+            total: sql<number>`COUNT(*)`,
+          })
+          .from(processosJudiciais)
+          .where(eq(processosJudiciais.status, "ativo"))
+          .groupBy(processosJudiciais.advogadoId);
+
+        // Montar mapas para lookup O(1)
+        const mapConcluidas = new Map(demandasConcluidasPorAdv.map(r => [r.responsavelId, r.total ?? 0]));
+        const mapAtivas = new Map(demandasAtivasPorAdv.map(r => [r.responsavelId, r.total ?? 0]));
+        const mapPrazos = new Map(prazosCumpridosPorAdv.map(r => [r.responsavelId, r]));
+        const mapProcessos = new Map(processosAtivosPorAdv.map(r => [r.advogadoId, r.total ?? 0]));
+
+        return advogados.map(adv => ({
+          id: adv.id,
+          nome: adv.name,
+          email: adv.email,
+          demandasConcluidasMes: mapConcluidas.get(adv.id) ?? 0,
+          demandasAtivas: mapAtivas.get(adv.id) ?? 0,
+          prazosCumpridos: mapPrazos.get(adv.id)?.cumpridos ?? 0,
+          prazosAtrasados: mapPrazos.get(adv.id)?.atrasados ?? 0,
+          processosAtivos: mapProcessos.get(adv.id) ?? 0,
+        }));
+      }),
   }),
   // ─── Publicações Jurídicas ────────────────────────────────────────────────────────────────────
   publicacoes: router({

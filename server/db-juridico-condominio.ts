@@ -171,6 +171,7 @@ export async function getResumoJuridicoCondominio(condominioId: number) {
 }
 
 // ─── Lista de condomínios com indicadores jurídicos ──────────────────────────
+// Versão corrigida: usa GROUP BY em vez de N+1 queries por condomínio
 export async function listarCondominiosComJuridico() {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
@@ -178,7 +179,7 @@ export async function listarCondominiosComJuridico() {
   const agora = new Date();
   const em7Dias = new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  // Buscar todos os condomínios
+  // ── 1 query: todos os condomínios ──
   const todosCondominios = await db
     .select({
       id: condominios.id,
@@ -189,69 +190,79 @@ export async function listarCondominiosComJuridico() {
     .from(condominios)
     .orderBy(condominios.name);
 
-  // Para cada condomínio, buscar contadores jurídicos
-  const resultado = await Promise.all(
-    todosCondominios.map(async (cond) => {
-      const [processosAtivos] = await db
-        .select({ total: count() })
-        .from(processosJudiciais)
-        .where(
-          and(
-            eq(processosJudiciais.condominioId, cond.id),
-            eq(processosJudiciais.status, "ativo")
-          )
-        );
-
-      const [prazosUrgentes] = await db
-        .select({ total: count() })
-        .from(prazosJuridicos)
-        .where(
-          and(
-            eq(prazosJuridicos.condominioId, cond.id),
-            eq(prazosJuridicos.status, "pendente"),
-            lte(prazosJuridicos.dataLimite, em7Dias)
-          )
-        );
-
-      const [prazosAtrasados] = await db
-        .select({ total: count() })
-        .from(prazosJuridicos)
-        .where(
-          and(
-            eq(prazosJuridicos.condominioId, cond.id),
-            eq(prazosJuridicos.status, "pendente"),
-            lte(prazosJuridicos.dataLimite, agora)
-          )
-        );
-
-      const [totalDemandas] = await db
-        .select({ total: count() })
-        .from(demandas)
-        .where(eq(demandas.condominioId, cond.id));
-
-      const [valorEmDisputa] = await db
-        .select({ total: sum(processosJudiciais.valorCausa) })
-        .from(processosJudiciais)
-        .where(
-          and(
-            eq(processosJudiciais.condominioId, cond.id),
-            eq(processosJudiciais.status, "ativo")
-          )
-        );
-
-      return {
-        ...cond,
-        processosAtivos: processosAtivos.total ?? 0,
-        prazosUrgentes: prazosUrgentes.total ?? 0,
-        prazosAtrasados: prazosAtrasados.total ?? 0,
-        totalDemandas: totalDemandas.total ?? 0,
-        valorEmDisputa: Number(valorEmDisputa.total ?? 0),
-        temJuridico:
-          (processosAtivos.total ?? 0) > 0 ||
-          (totalDemandas.total ?? 0) > 0,
-      };
+  // ── 1 query: processos ativos agrupados por condomínio ──
+  const processosAtivosPorCond = await db
+    .select({
+      condominioId: processosJudiciais.condominioId,
+      total: count(),
+      valorEmDisputa: sum(processosJudiciais.valorCausa),
     })
-  );
+    .from(processosJudiciais)
+    .where(eq(processosJudiciais.status, "ativo"))
+    .groupBy(processosJudiciais.condominioId);
 
-  return resultado;
+  // ── 1 query: prazos urgentes (próximos 7 dias) agrupados por condomínio ──
+  const prazosUrgentesPorCond = await db
+    .select({
+      condominioId: prazosJuridicos.condominioId,
+      total: count(),
+    })
+    .from(prazosJuridicos)
+    .where(
+      and(
+        eq(prazosJuridicos.status, "pendente"),
+        gte(prazosJuridicos.dataLimite, agora),
+        lte(prazosJuridicos.dataLimite, em7Dias)
+      )
+    )
+    .groupBy(prazosJuridicos.condominioId);
+
+  // ── 1 query: prazos atrasados agrupados por condomínio ──
+  const prazosAtrasadosPorCond = await db
+    .select({
+      condominioId: prazosJuridicos.condominioId,
+      total: count(),
+    })
+    .from(prazosJuridicos)
+    .where(
+      and(
+        eq(prazosJuridicos.status, "pendente"),
+        lte(prazosJuridicos.dataLimite, agora)
+      )
+    )
+    .groupBy(prazosJuridicos.condominioId);
+
+  // ── 1 query: total de demandas agrupadas por condomínio ──
+  const demandasPorCond = await db
+    .select({
+      condominioId: demandas.condominioId,
+      total: count(),
+    })
+    .from(demandas)
+    .groupBy(demandas.condominioId);
+
+  // Montar mapas para lookup O(1)
+  const mapProcessos = new Map(processosAtivosPorCond.map(r => [r.condominioId, r]));
+  const mapPrazosUrgentes = new Map(prazosUrgentesPorCond.map(r => [r.condominioId, r.total ?? 0]));
+  const mapPrazosAtrasados = new Map(prazosAtrasadosPorCond.map(r => [r.condominioId, r.total ?? 0]));
+  const mapDemandas = new Map(demandasPorCond.map(r => [r.condominioId, r.total ?? 0]));
+
+  return todosCondominios.map((cond) => {
+    const proc = mapProcessos.get(cond.id);
+    const processosAtivos = proc?.total ?? 0;
+    const valorEmDisputa = Number(proc?.valorEmDisputa ?? 0);
+    const prazosUrgentes = mapPrazosUrgentes.get(cond.id) ?? 0;
+    const prazosAtrasados = mapPrazosAtrasados.get(cond.id) ?? 0;
+    const totalDemandas = mapDemandas.get(cond.id) ?? 0;
+
+    return {
+      ...cond,
+      processosAtivos,
+      prazosUrgentes,
+      prazosAtrasados,
+      totalDemandas,
+      valorEmDisputa,
+      temJuridico: processosAtivos > 0 || totalDemandas > 0,
+    };
+  });
 }

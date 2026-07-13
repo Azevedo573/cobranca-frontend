@@ -2521,3 +2521,9 @@
 - [x] 2.1 Intimação tratada → prazo criado automaticamente (backend tratarIntimacao + toast com link)
 - [x] 2.2 Movimentação DataJud → banner de sugestão de prazo no ProcessoDetalhes
 - [x] 2.3 Botão "Escalar para Processo Judicial" no DemandaDetalhes (tipos cobranca_judicial/processo)
+
+## Fase 3 — Dashboard Jurídico Unificado
+
+- [x] 3.3 Corrigir N+1 em listarCondominiosComJuridico (queries agregadas com GROUP BY)
+- [x] 3.1 Adicionar seções de Processos, Prazos e Publicações ao DashboardJuridico (backend + frontend)
+- [x] 3.2 Seção de Desempenho por Advogado no DashboardJuridico (backend + frontend)

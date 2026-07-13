@@ -9,7 +9,8 @@ import {
 } from "recharts";
 import {
   AlertTriangle, Clock, CheckCircle2, FileText, Calendar, TrendingUp,
-  Users, Building2, Plus, Kanban, List
+  Users, Scale, Timer, BookOpen, Gavel, Newspaper, Plus, Kanban, List,
+  TrendingDown, Award
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -25,16 +26,17 @@ const PRIORIDADE_LABELS: Record<string, string> = {
   baixa: "Baixa", media: "Média", alta: "Alta", urgente: "Urgente",
 };
 
-function MetricCard({ title, value, sub, icon, color = "text-foreground", trend }: {
+function MetricCard({ title, value, sub, icon, color = "text-foreground", trend, onClick }: {
   title: string;
   value: string | number;
   sub?: string;
   icon: React.ReactNode;
   color?: string;
   trend?: { value: number; label: string };
+  onClick?: () => void;
 }) {
   return (
-    <Card>
+    <Card className={onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""} onClick={onClick}>
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div>
@@ -57,38 +59,64 @@ function MetricCard({ title, value, sub, icon, color = "text-foreground", trend 
   );
 }
 
+function SectionHeader({ icon, title, subtitle, action }: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">{icon}</div>
+        <div>
+          <h2 className="text-base font-semibold">{title}</h2>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
 // ─── Página Principal ─────────────────────────────────────────────────────────
 
 export default function DashboardJuridico() {
   const [, navigate] = useLocation();
 
-  const { data: demandas = [], isLoading } = trpc.juridicoDemandas.listar.useQuery();
+  // ── Queries ───────────────────────────────────────────────────────────────
+  const { data: demandas = [], isLoading: loadingDemandas } = trpc.juridicoDemandas.listar.useQuery();
   const { data: colunas = [] } = trpc.juridicoDemandas.getColunas.useQuery();
   const { data: assembleias = [] } = trpc.juridicoDemandas.listarAssembleias.useQuery();
+  const { data: resumoProcessos } = trpc.processos.resumo.useQuery();
+  const { data: resumoPrazos } = trpc.prazos.resumo.useQuery();
+  const { data: resumoPublicacoes } = trpc.publicacoes.dashboard.useQuery();
+  const { data: produtividade = [] } = trpc.juridicoDemandas.produtividadeAdvogados.useQuery();
 
   const ds = demandas as any[];
   const cols = colunas as any[];
   const ass = assembleias as any[];
+  const rp = resumoProcessos as any;
+  const rpz = resumoPrazos as any;
+  const rpub = resumoPublicacoes as any;
+  const prod = produtividade as any[];
 
-  // ── Métricas ──────────────────────────────────────────────────────────────
-  const total = ds.length;
+  // ── Métricas de Demandas ──────────────────────────────────────────────────
   const hoje = new Date();
+  const total = ds.length;
   const atrasadas = ds.filter(d => d.prazo && new Date(d.prazo) < hoje).length;
   const semResponsavel = ds.filter(d => !d.responsavelNome).length;
   const urgentes = ds.filter(d => d.prioridade === "urgente").length;
-  const assembleiasFuturas = ass.filter(a => a.status === "agendada" && new Date(a.data) >= hoje).length;
-
-  // Coluna final (última coluna = concluídas)
+  const assembleiasFuturas = ass.filter((a: any) => a.status === "agendada" && new Date(a.data) >= hoje).length;
   const ultimaColuna = cols[cols.length - 1];
   const concluidas = ultimaColuna ? ds.filter(d => d.colunaId === ultimaColuna.id).length : 0;
   const emAndamento = total - concluidas;
   const taxaConclusao = total > 0 ? Math.round((concluidas / total) * 100) : 0;
 
   // ── Dados para gráficos ───────────────────────────────────────────────────
-  const porColuna = cols.map(c => ({
+  const porColuna = cols.map((c: any) => ({
     name: c.nome.length > 12 ? c.nome.substring(0, 12) + "…" : c.nome,
     total: ds.filter(d => d.colunaId === c.id).length,
-    icone: c.icone,
   }));
 
   const porPrioridade = Object.entries(PRIORIDADE_LABELS).map(([key, label]) => ({
@@ -97,38 +125,29 @@ export default function DashboardJuridico() {
     color: PRIORIDADE_COLORS[key],
   })).filter(p => p.value > 0);
 
-  const porTipo = ds.reduce((acc: Record<string, number>, d) => {
-    acc[d.tipo] = (acc[d.tipo] || 0) + 1;
-    return acc;
-  }, {});
-  const tipoData = Object.entries(porTipo)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([name, value]) => ({ name: name.replace("_", " "), value }));
-
   // ── Demandas atrasadas (top 5) ────────────────────────────────────────────
   const topAtrasadas = ds
     .filter(d => d.prazo && new Date(d.prazo) < hoje)
-    .sort((a, b) => new Date(a.prazo).getTime() - new Date(b.prazo).getTime())
+    .sort((a: any, b: any) => new Date(a.prazo).getTime() - new Date(b.prazo).getTime())
     .slice(0, 5);
 
   // ── Próximas assembleias ──────────────────────────────────────────────────
   const proximasAssembleias = ass
-    .filter(a => a.status === "agendada" && new Date(a.data) >= hoje)
-    .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime())
+    .filter((a: any) => a.status === "agendada" && new Date(a.data) >= hoje)
+    .sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())
     .slice(0, 3);
 
-  if (isLoading) {
+  if (loadingDemandas) {
     return <div className="p-6 text-muted-foreground">Carregando dashboard...</div>;
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard Jurídico</h1>
-          <p className="text-muted-foreground text-sm mt-1">Visão geral das demandas e assembleias</p>
+          <p className="text-muted-foreground text-sm mt-1">Visão unificada — Demandas · Processos · Prazos · Publicações</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => navigate("/admin/juridico/kanban")}>
@@ -143,110 +162,362 @@ export default function DashboardJuridico() {
         </div>
       </div>
 
-      {/* Métricas principais */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total de Demandas"
-          value={total}
-          sub={`${emAndamento} em andamento`}
-          icon={<FileText className="h-5 w-5" />}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SEÇÃO 1 — DEMANDAS                                                  */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="space-y-4">
+        <SectionHeader
+          icon={<FileText className="h-4 w-4" />}
+          title="Demandas"
+          subtitle="Central de demandas jurídicas"
+          action={
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate("/admin/juridico")}>
+              Ver todas
+            </Button>
+          }
         />
-        <MetricCard
-          title="Em Atraso"
-          value={atrasadas}
-          sub={atrasadas > 0 ? "Requerem atenção" : "Tudo em dia"}
-          icon={<AlertTriangle className="h-5 w-5" />}
-          color={atrasadas > 0 ? "text-red-500" : "text-green-600"}
-        />
-        <MetricCard
-          title="Urgentes"
-          value={urgentes}
-          sub="Alta prioridade"
-          icon={<Clock className="h-5 w-5" />}
-          color={urgentes > 0 ? "text-orange-500" : "text-foreground"}
-        />
-        <MetricCard
-          title="Assembleias"
-          value={assembleiasFuturas}
-          sub="Agendadas"
-          icon={<Calendar className="h-5 w-5" />}
-        />
-      </div>
 
-      {/* Taxa de conclusão */}
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span className="font-semibold">Taxa de Conclusão</span>
-            </div>
-            <span className="text-2xl font-bold text-green-600">{taxaConclusao}%</span>
-          </div>
-          <Progress value={taxaConclusao} className="h-3" />
-          <div className="flex justify-between text-xs text-muted-foreground mt-2">
-            <span>{concluidas} concluídas</span>
-            <span>{emAndamento} em andamento</span>
-            <span>{total} total</span>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <MetricCard
+            title="Total"
+            value={total}
+            sub={`${emAndamento} em andamento`}
+            icon={<FileText className="h-5 w-5" />}
+            onClick={() => navigate("/admin/juridico")}
+          />
+          <MetricCard
+            title="Em Atraso"
+            value={atrasadas}
+            sub={atrasadas > 0 ? "Requerem atenção" : "Tudo em dia"}
+            icon={<AlertTriangle className="h-5 w-5" />}
+            color={atrasadas > 0 ? "text-red-500" : "text-green-600"}
+          />
+          <MetricCard
+            title="Urgentes"
+            value={urgentes}
+            sub="Alta prioridade"
+            icon={<Clock className="h-5 w-5" />}
+            color={urgentes > 0 ? "text-orange-500" : "text-foreground"}
+          />
+          <MetricCard
+            title="Sem Responsável"
+            value={semResponsavel}
+            sub={semResponsavel > 0 ? "Atribuir responsável" : "Todos atribuídos"}
+            icon={<Users className="h-5 w-5" />}
+            color={semResponsavel > 0 ? "text-orange-500" : "text-foreground"}
+          />
+          <MetricCard
+            title="Assembleias"
+            value={assembleiasFuturas}
+            sub="Agendadas"
+            icon={<Calendar className="h-5 w-5" />}
+            onClick={() => navigate("/admin/juridico/assembleias")}
+          />
+        </div>
 
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Por coluna/status */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Demandas por Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={porColuna} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Por prioridade */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Distribuição por Prioridade</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {porPrioridade.length === 0 ? (
-              <div className="h-[200px] flex items-center justify-center text-muted-foreground text-sm">
-                Nenhuma demanda cadastrada
+        {/* Taxa de conclusão + gráficos */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <span className="font-semibold text-sm">Taxa de Conclusão</span>
+                </div>
+                <span className="text-2xl font-bold text-green-600">{taxaConclusao}%</span>
               </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={porPrioridade}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {porPrioridade.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
+              <Progress value={taxaConclusao} className="h-3" />
+              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                <span>{concluidas} concluídas</span>
+                <span>{emAndamento} em andamento</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Por Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={porColuna} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                   <Tooltip />
-                  <Legend formatter={(value) => <span className="text-xs">{value}</span>} />
-                </PieChart>
+                  <Bar dataKey="total" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Por Prioridade</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {porPrioridade.length === 0 ? (
+                <div className="h-[130px] flex items-center justify-center text-muted-foreground text-sm">
+                  Nenhuma demanda
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={130}>
+                  <PieChart>
+                    <Pie data={porPrioridade} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={3} dataKey="value">
+                      {porPrioridade.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend formatter={(value) => <span className="text-xs">{value}</span>} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Linha inferior: atrasadas + próximas assembleias */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SEÇÃO 2 — PROCESSOS                                                 */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="space-y-4">
+        <SectionHeader
+          icon={<Gavel className="h-4 w-4" />}
+          title="Processos Judiciais"
+          subtitle="Acompanhamento de processos ativos"
+          action={
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate("/admin/juridico/processos")}>
+              Ver todos
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard
+            title="Processos Ativos"
+            value={rp?.ativos ?? 0}
+            sub={`${rp?.total ?? 0} total`}
+            icon={<Scale className="h-5 w-5" />}
+            color={(rp?.ativos ?? 0) > 0 ? "text-blue-600" : "text-foreground"}
+            onClick={() => navigate("/admin/juridico/processos")}
+          />
+          <MetricCard
+            title="Suspensos"
+            value={rp?.suspensos ?? 0}
+            sub="Aguardando retomada"
+            icon={<Timer className="h-5 w-5" />}
+            color={(rp?.suspensos ?? 0) > 0 ? "text-orange-500" : "text-foreground"}
+          />
+          <MetricCard
+            title="Encerrados"
+            value={rp?.encerrados ?? 0}
+            sub="Concluídos"
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            color="text-green-600"
+          />
+          <MetricCard
+            title="Valor em Disputa"
+            value={rp?.valorEmDisputa != null
+              ? `R$ ${(rp.valorEmDisputa / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+              : "—"}
+            sub="Processos ativos"
+            icon={<TrendingUp className="h-5 w-5" />}
+          />
+        </div>
+
+        {/* Distribuição por fase */}
+        {rp?.porFase && rp.porFase.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold">Distribuição por Fase Processual</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={140}>
+                <BarChart data={rp.porFase.map((f: any) => ({ name: f.faseProcessual ?? "Sem fase", total: f.total }))} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SEÇÃO 3 — PRAZOS                                                    */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="space-y-4">
+        <SectionHeader
+          icon={<Timer className="h-4 w-4" />}
+          title="Prazos Processuais"
+          subtitle="Controle de prazos e vencimentos"
+          action={
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate("/admin/juridico/prazos")}>
+              Ver todos
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard
+            title="Atrasados"
+            value={rpz?.atrasados ?? 0}
+            sub={rpz?.atrasados > 0 ? "Ação imediata necessária" : "Nenhum atrasado"}
+            icon={<AlertTriangle className="h-5 w-5" />}
+            color={(rpz?.atrasados ?? 0) > 0 ? "text-red-500" : "text-green-600"}
+            onClick={() => navigate("/admin/juridico/prazos")}
+          />
+          <MetricCard
+            title="Vencem Hoje"
+            value={rpz?.vencemHoje ?? 0}
+            sub="Prazo final hoje"
+            icon={<Clock className="h-5 w-5" />}
+            color={(rpz?.vencemHoje ?? 0) > 0 ? "text-orange-500" : "text-foreground"}
+          />
+          <MetricCard
+            title="Próximos 7 dias"
+            value={rpz?.vencemEm7Dias ?? 0}
+            sub="Vencendo em breve"
+            icon={<Calendar className="h-5 w-5" />}
+            color={(rpz?.vencemEm7Dias ?? 0) > 0 ? "text-yellow-600" : "text-foreground"}
+          />
+          <MetricCard
+            title="Próximos 30 dias"
+            value={rpz?.vencemEm30Dias ?? 0}
+            sub="No horizonte"
+            icon={<BookOpen className="h-5 w-5" />}
+          />
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SEÇÃO 4 — PUBLICAÇÕES                                               */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <div className="space-y-4">
+        <SectionHeader
+          icon={<Newspaper className="h-4 w-4" />}
+          title="Publicações & Intimações"
+          subtitle="Monitoramento de diários oficiais"
+          action={
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate("/admin/juridico/publicacoes")}>
+              Ver todas
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard
+            title="Não Lidas"
+            value={rpub?.naoLidas ?? 0}
+            sub={rpub?.naoLidas > 0 ? "Aguardando leitura" : "Todas lidas"}
+            icon={<BookOpen className="h-5 w-5" />}
+            color={(rpub?.naoLidas ?? 0) > 0 ? "text-blue-600" : "text-foreground"}
+            onClick={() => navigate("/admin/juridico/publicacoes")}
+          />
+          <MetricCard
+            title="Novas"
+            value={rpub?.novas ?? 0}
+            sub="Status: nova"
+            icon={<Plus className="h-5 w-5" />}
+            color={(rpub?.novas ?? 0) > 0 ? "text-purple-600" : "text-foreground"}
+          />
+          <MetricCard
+            title="Aguardando Providência"
+            value={rpub?.aguardandoProvidencia ?? 0}
+            sub="Requerem ação"
+            icon={<AlertTriangle className="h-5 w-5" />}
+            color={(rpub?.aguardandoProvidencia ?? 0) > 0 ? "text-orange-500" : "text-foreground"}
+          />
+          <MetricCard
+            title="Hoje"
+            value={rpub?.hoje ?? 0}
+            sub="Publicadas hoje"
+            icon={<Calendar className="h-5 w-5" />}
+          />
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SEÇÃO 5 — DESEMPENHO POR ADVOGADO                                   */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {prod.length > 0 && (
+        <div className="space-y-4">
+          <SectionHeader
+            icon={<Award className="h-4 w-4" />}
+            title="Desempenho por Advogado"
+            subtitle={`Mês atual — ${new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}`}
+          />
+
+          <div className="grid grid-cols-1 gap-3">
+            {prod.map((adv: any) => {
+              const totalPrazos = (adv.prazosCumpridos ?? 0) + (adv.prazosAtrasados ?? 0);
+              const taxaPrazos = totalPrazos > 0 ? Math.round((adv.prazosCumpridos / totalPrazos) * 100) : null;
+              return (
+                <Card key={adv.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-4">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                        {adv.nome?.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()}
+                      </div>
+
+                      {/* Nome + métricas */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-semibold text-sm truncate">{adv.nome}</p>
+                          {taxaPrazos !== null && (
+                            <Badge
+                              variant="outline"
+                              className={`text-xs flex-shrink-0 ml-2 ${taxaPrazos >= 80 ? "text-green-600 border-green-200" : taxaPrazos >= 50 ? "text-yellow-600 border-yellow-200" : "text-red-500 border-red-200"}`}
+                            >
+                              {taxaPrazos}% prazos ok
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <p className="text-lg font-bold text-green-600">{adv.demandasConcluidasMes}</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Concluídas no mês</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <p className="text-lg font-bold">{adv.demandasAtivas}</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Demandas ativas</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <p className="text-lg font-bold text-blue-600">{adv.processosAtivos}</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Processos ativos</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-lg font-bold text-green-600">{adv.prazosCumpridos}</span>
+                              <span className="text-muted-foreground text-sm">/</span>
+                              <span className="text-lg font-bold text-red-500">{adv.prazosAtrasados}</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Prazos ok / atrasados</p>
+                          </div>
+                        </div>
+
+                        {taxaPrazos !== null && (
+                          <div className="mt-2">
+                            <Progress value={taxaPrazos} className="h-1.5" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* LINHA INFERIOR — Demandas atrasadas + Próximas assembleias          */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Demandas atrasadas */}
         <Card>
@@ -331,9 +602,7 @@ export default function DashboardJuridico() {
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {a.condominioNome ?? "Assembleia"}
-                        </p>
+                        <p className="text-sm font-medium truncate">{a.condominioNome ?? "Assembleia"}</p>
                         <p className="text-xs text-muted-foreground">{a.hora} · {a.tipo}</p>
                       </div>
                       <Badge variant="secondary" className="text-xs flex-shrink-0">
@@ -347,26 +616,6 @@ export default function DashboardJuridico() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Sem responsável */}
-      {semResponsavel > 0 && (
-        <Card className="border-orange-200 bg-orange-50/50">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-orange-500" />
-              <div>
-                <p className="font-semibold text-sm">
-                  {semResponsavel} demanda{semResponsavel > 1 ? "s" : ""} sem responsável
-                </p>
-                <p className="text-xs text-muted-foreground">Atribua um responsável para melhor acompanhamento</p>
-              </div>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => navigate("/admin/juridico")}>
-              Atribuir
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
