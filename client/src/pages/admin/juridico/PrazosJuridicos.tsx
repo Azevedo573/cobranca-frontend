@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import {
   Timer,
   Plus,
@@ -40,6 +39,9 @@ import {
   Scale,
   ExternalLink,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Building2,
 } from "lucide-react";
 
 // ─── Configurações de urgência ────────────────────────────────────────────────
@@ -248,11 +250,43 @@ function ModalCriarPrazo({ open, onClose, onSuccess }: {
 type FiltroUrgencia = "todos" | "atrasado" | "hoje" | "7dias" | "15dias" | "30dias" | "futuro" | "concluido";
 type ViewMode = "lista" | "calendario";
 
-// ─── Calendário de Prazos e Assembleias ──────────────────────────────────────
+// ─── Calendário Visual Mensal ──────────────────────────────────────────────────
+
+const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+const COR_URGENCIA: Record<string, string> = {
+  atrasado: "bg-red-500 text-white",
+  hoje:     "bg-orange-500 text-white",
+  "7dias":  "bg-amber-400 text-white",
+  "15dias": "bg-yellow-400 text-gray-900",
+  "30dias": "bg-blue-400 text-white",
+  futuro:   "bg-slate-400 text-white",
+  concluido:"bg-emerald-500 text-white",
+};
 
 function CalendarioPrazos({ prazos, assembleias }: { prazos: any[]; assembleias: any[] }) {
-  const [mesSelecionado, setMesSelecionado] = useState(new Date());
-  const [diaSelecionado, setDiaSelecionado] = useState<Date | undefined>(undefined);
+  const hoje = new Date();
+  const [mes, setMes] = useState(() => new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+  const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null);
+
+  // Navegar meses
+  const irParaMesAnterior = () => setMes(m => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+  const irParaProximoMes  = () => setMes(m => new Date(m.getFullYear(), m.getMonth() + 1, 1));
+  const irParaHoje = () => { setMes(new Date(hoje.getFullYear(), hoje.getMonth(), 1)); setDiaSelecionado(hoje.toISOString().slice(0, 10)); };
+
+  // Montar grid do mês: dias do mês + padding de início
+  const diasDoMes = useMemo(() => {
+    const ano = mes.getFullYear();
+    const m = mes.getMonth();
+    const primeiroDia = new Date(ano, m, 1).getDay(); // 0=Dom
+    const totalDias = new Date(ano, m + 1, 0).getDate();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < primeiroDia; i++) cells.push(null);
+    for (let d = 1; d <= totalDias; d++) cells.push(d);
+    // Completar última semana
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [mes]);
 
   // Mapear eventos por data (YYYY-MM-DD)
   const eventosPorData = useMemo(() => {
@@ -272,94 +306,171 @@ function CalendarioPrazos({ prazos, assembleias }: { prazos: any[]; assembleias:
     return mapa;
   }, [prazos, assembleias]);
 
-  const diasComEventos = useMemo(() => Object.keys(eventosPorData).map(d => new Date(d + "T12:00:00")), [eventosPorData]);
-  const diasAtrasados = useMemo(() => prazos
-    .filter(p => p.urgencia === "atrasado" && p.dataLimite)
-    .map(p => new Date(new Date(p.dataLimite).toISOString().slice(0, 10) + "T12:00:00")), [prazos]);
+  const eventosDia = diaSelecionado ? (eventosPorData[diaSelecionado] ?? { prazos: [], assembleias: [] }) : null;
 
-  const eventosDiaSelecionado = useMemo(() => {
-    if (!diaSelecionado) return null;
-    const chave = diaSelecionado.toISOString().slice(0, 10);
-    return eventosPorData[chave] ?? { prazos: [], assembleias: [] };
-  }, [diaSelecionado, eventosPorData]);
+  const hojeStr = hoje.toISOString().slice(0, 10);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
-      {/* Calendário */}
-      <div className="flex flex-col items-center">
-        <CalendarUI
-          mode="single"
-          selected={diaSelecionado}
-          onSelect={setDiaSelecionado}
-          month={mesSelecionado}
-          onMonthChange={setMesSelecionado}
-          modifiers={{ comEvento: diasComEventos, atrasado: diasAtrasados }}
-          modifiersClassNames={{
-            comEvento: "font-bold underline decoration-dotted",
-            atrasado: "text-red-600 dark:text-red-400",
-          }}
-          className="rounded-xl border bg-card p-3"
-        />
-        <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block" />Prazo</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Assembleia</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Atrasado</span>
+    <div className="space-y-4">
+      {/* Cabeçalho de navegação */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={irParaMesAnterior}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <h2 className="text-base font-semibold min-w-[160px] text-center">
+            {mes.toLocaleDateString("pt-BR", { month: "long", year: "numeric" }).replace(/^./, c => c.toUpperCase())}
+          </h2>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={irParaProximoMes}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
+        <Button variant="ghost" size="sm" className="text-xs" onClick={irParaHoje}>
+          Hoje
+        </Button>
       </div>
 
-      {/* Painel de eventos do dia */}
-      <div className="space-y-4">
-        {!diaSelecionado ? (
-          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-            <CalendarDays className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-sm">Selecione um dia para ver os eventos</p>
-          </div>
-        ) : eventosDiaSelecionado && (eventosDiaSelecionado.prazos.length > 0 || eventosDiaSelecionado.assembleias.length > 0) ? (
-          <>
-            <h3 className="font-semibold text-sm">
-              {diaSelecionado.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
-            </h3>
-            {eventosDiaSelecionado.prazos.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prazos ({eventosDiaSelecionado.prazos.length})</p>
-                {eventosDiaSelecionado.prazos.map((p: any) => {
-                  const urgCfg = p.urgencia ? URGENCIA_CONFIG[p.urgencia] : null;
+      {/* Grid do calendário */}
+      <div className="rounded-xl border bg-card overflow-hidden">
+        {/* Cabeçalho dos dias da semana */}
+        <div className="grid grid-cols-7 border-b">
+          {DIAS_SEMANA.map(d => (
+            <div key={d} className="py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
+          ))}
+        </div>
+
+        {/* Células dos dias */}
+        <div className="grid grid-cols-7">
+          {diasDoMes.map((dia, idx) => {
+            if (dia === null) {
+              return <div key={`empty-${idx}`} className="min-h-[90px] border-b border-r last:border-r-0 bg-muted/20" />;
+            }
+            const chave = `${mes.getFullYear()}-${String(mes.getMonth() + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+            const eventos = eventosPorData[chave];
+            const isHoje = chave === hojeStr;
+            const isSelecionado = chave === diaSelecionado;
+            const temEventos = eventos && (eventos.prazos.length > 0 || eventos.assembleias.length > 0);
+            const maxVisiveis = 3;
+            const totalEventos = eventos ? eventos.prazos.length + eventos.assembleias.length : 0;
+
+            return (
+              <div
+                key={chave}
+                onClick={() => setDiaSelecionado(isSelecionado ? null : chave)}
+                className={`min-h-[90px] border-b border-r last:border-r-0 p-1.5 cursor-pointer transition-colors ${
+                  isSelecionado
+                    ? "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                    : temEventos
+                    ? "hover:bg-muted/60"
+                    : "hover:bg-muted/30"
+                }`}
+              >
+                {/* Número do dia */}
+                <div className="flex justify-end mb-1">
+                  <span className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full ${
+                    isHoje
+                      ? "bg-primary text-primary-foreground font-bold"
+                      : isSelecionado
+                      ? "text-primary font-bold"
+                      : "text-muted-foreground"
+                  }`}>
+                    {dia}
+                  </span>
+                </div>
+
+                {/* Prazos */}
+                {eventos?.prazos.slice(0, maxVisiveis).map((p: any, i: number) => {
+                  const cor = COR_URGENCIA[p.urgencia ?? "futuro"] ?? "bg-slate-400 text-white";
                   return (
-                    <div key={p.id} className={`p-3 rounded-lg border text-sm ${urgCfg?.cardClass ?? "bg-card"}`}>
-                      <p className="font-medium">{p.titulo}</p>
-                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                        {p.responsavelNome && <span className="flex items-center gap-1"><User className="w-3 h-3" />{p.responsavelNome}</span>}
-                        {p.condominioNome && <span className="flex items-center gap-1"><Scale className="w-3 h-3" />{p.condominioNome}</span>}
-                        {urgCfg && <Badge className={`text-xs border ${urgCfg.badgeClass}`}>{urgCfg.label}</Badge>}
-                      </div>
+                    <div key={p.id} className={`text-[10px] leading-tight px-1.5 py-0.5 rounded mb-0.5 truncate ${cor}`}>
+                      {p.titulo}
                     </div>
                   );
                 })}
-              </div>
-            )}
-            {eventosDiaSelecionado.assembleias.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assembleias ({eventosDiaSelecionado.assembleias.length})</p>
-                {eventosDiaSelecionado.assembleias.map((a: any) => (
-                  <div key={a.id} className="p-3 rounded-lg border bg-amber-500/5 border-amber-500/20 text-sm">
-                    <p className="font-medium">{a.tipo === "ordinaria" ? "Assembleia Ordinária" : a.tipo === "extraordinaria" ? "Assembleia Extraordinária" : a.tipo}</p>
-                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                      {a.condominioNome && <span>{a.condominioNome}</span>}
-                      {a.hora && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{a.hora}</span>}
-                      {a.advogadoNome && <span className="flex items-center gap-1"><User className="w-3 h-3" />{a.advogadoNome}</span>}
-                    </div>
+
+                {/* Assembleias */}
+                {eventos?.assembleias.slice(0, Math.max(0, maxVisiveis - (eventos?.prazos.length ?? 0))).map((a: any) => (
+                  <div key={a.id} className="text-[10px] leading-tight px-1.5 py-0.5 rounded mb-0.5 truncate bg-amber-400 text-gray-900">
+                    🏢 {a.condominioNome ?? a.tipo}
                   </div>
                 ))}
+
+                {/* +N mais */}
+                {totalEventos > maxVisiveis && (
+                  <div className="text-[10px] text-muted-foreground px-1">
+                    +{totalEventos - maxVisiveis} mais
+                  </div>
+                )}
               </div>
-            )}
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-            <CheckCircle2 className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-sm">Nenhum evento em {diaSelecionado.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}</p>
-          </div>
-        )}
+            );
+          })}
+        </div>
       </div>
+
+      {/* Legenda */}
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-500 inline-block" />Atrasado</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-500 inline-block" />Vence hoje</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-400 inline-block" />7 dias</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-yellow-400 inline-block" />15 dias</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-400 inline-block" />30 dias</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-400 inline-block" />Futuro</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" />Concluído</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-400 inline-block" />🏢 Assembleia</span>
+      </div>
+
+      {/* Painel lateral do dia selecionado */}
+      {diaSelecionado && eventosDia && (eventosDia.prazos.length > 0 || eventosDia.assembleias.length > 0) && (
+        <div className="rounded-xl border bg-card p-4 space-y-4">
+          <h3 className="font-semibold text-sm">
+            {new Date(diaSelecionado + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+          </h3>
+
+          {eventosDia.prazos.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prazos ({eventosDia.prazos.length})</p>
+              {eventosDia.prazos.map((p: any) => {
+                const urgCfg = p.urgencia ? URGENCIA_CONFIG[p.urgencia] : null;
+                return (
+                  <div key={p.id} className={`p-3 rounded-lg border text-sm ${urgCfg?.cardClass ?? "bg-muted/30"}`}>
+                    <p className="font-medium">{p.titulo}</p>
+                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      {p.responsavelNome && <span className="flex items-center gap-1"><User className="w-3 h-3" />{p.responsavelNome}</span>}
+                      {p.condominioNome && <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{p.condominioNome}</span>}
+                      {urgCfg && <Badge className={`text-xs border ${urgCfg.badgeClass}`}>{urgCfg.label}</Badge>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {eventosDia.assembleias.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assembleias ({eventosDia.assembleias.length})</p>
+              {eventosDia.assembleias.map((a: any) => (
+                <div key={a.id} className="p-3 rounded-lg border bg-amber-500/5 border-amber-500/20 text-sm">
+                  <p className="font-medium">
+                    {a.tipo === "ordinaria" ? "Assembleia Ordinária" : a.tipo === "extraordinaria" ? "Assembleia Extraordinária" : a.tipo === "prestacao_contas" ? "Prestação de Contas" : a.tipo === "eleicao" ? "Eleição" : a.tipo}
+                  </p>
+                  <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                    {a.condominioNome && <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{a.condominioNome}</span>}
+                    {a.hora && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{a.hora}</span>}
+                    {a.advogadoNome && <span className="flex items-center gap-1"><User className="w-3 h-3" />{a.advogadoNome}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {diaSelecionado && eventosDia && eventosDia.prazos.length === 0 && eventosDia.assembleias.length === 0 && (
+        <div className="rounded-xl border bg-card p-6 flex flex-col items-center text-muted-foreground">
+          <CheckCircle2 className="w-8 h-8 mb-2 opacity-30" />
+          <p className="text-sm">Nenhum evento em {new Date(diaSelecionado + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}</p>
+        </div>
+      )}
     </div>
   );
 }
