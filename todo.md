@@ -2527,3 +2527,10 @@
 - [x] 3.3 Corrigir N+1 em listarCondominiosComJuridico (queries agregadas com GROUP BY)
 - [x] 3.1 Adicionar seções de Processos, Prazos e Publicações ao DashboardJuridico (backend + frontend)
 - [x] 3.2 Seção de Desempenho por Advogado no DashboardJuridico (backend + frontend)
+
+## Fase 4 — Melhorias Operacionais
+
+- [x] 4.1 Filtros avançados na CentralDemandas (responsável, condomínio, aging, prazo vencido)
+- [x] 4.2 Ações em lote no Kanban e na Lista (reatribuir, mover coluna, alterar prioridade)
+- [x] 4.3 Job de alertas automáticos de prazo (notifyOwner + fila WhatsApp)
+- [x] 4.4 Calendário de prazos e assembleias em PrazosJuridicos

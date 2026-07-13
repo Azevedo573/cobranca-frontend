@@ -23,11 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
 import {
   Timer,
   Plus,
   RefreshCw,
   Calendar,
+  List,
   User,
   CheckCircle2,
   XCircle,
@@ -37,6 +39,7 @@ import {
   Trash2,
   Scale,
   ExternalLink,
+  CalendarDays,
 } from "lucide-react";
 
 // ─── Configurações de urgência ────────────────────────────────────────────────
@@ -243,6 +246,123 @@ function ModalCriarPrazo({ open, onClose, onSuccess }: {
 // ─── Página Principal ─────────────────────────────────────────────────────────
 
 type FiltroUrgencia = "todos" | "atrasado" | "hoje" | "7dias" | "15dias" | "30dias" | "futuro" | "concluido";
+type ViewMode = "lista" | "calendario";
+
+// ─── Calendário de Prazos e Assembleias ──────────────────────────────────────
+
+function CalendarioPrazos({ prazos, assembleias }: { prazos: any[]; assembleias: any[] }) {
+  const [mesSelecionado, setMesSelecionado] = useState(new Date());
+  const [diaSelecionado, setDiaSelecionado] = useState<Date | undefined>(undefined);
+
+  // Mapear eventos por data (YYYY-MM-DD)
+  const eventosPorData = useMemo(() => {
+    const mapa: Record<string, { prazos: any[]; assembleias: any[] }> = {};
+    for (const p of prazos) {
+      if (!p.dataLimite) continue;
+      const chave = new Date(p.dataLimite).toISOString().slice(0, 10);
+      if (!mapa[chave]) mapa[chave] = { prazos: [], assembleias: [] };
+      mapa[chave].prazos.push(p);
+    }
+    for (const a of assembleias) {
+      if (!a.data) continue;
+      const chave = new Date(a.data).toISOString().slice(0, 10);
+      if (!mapa[chave]) mapa[chave] = { prazos: [], assembleias: [] };
+      mapa[chave].assembleias.push(a);
+    }
+    return mapa;
+  }, [prazos, assembleias]);
+
+  const diasComEventos = useMemo(() => Object.keys(eventosPorData).map(d => new Date(d + "T12:00:00")), [eventosPorData]);
+  const diasAtrasados = useMemo(() => prazos
+    .filter(p => p.urgencia === "atrasado" && p.dataLimite)
+    .map(p => new Date(new Date(p.dataLimite).toISOString().slice(0, 10) + "T12:00:00")), [prazos]);
+
+  const eventosDiaSelecionado = useMemo(() => {
+    if (!diaSelecionado) return null;
+    const chave = diaSelecionado.toISOString().slice(0, 10);
+    return eventosPorData[chave] ?? { prazos: [], assembleias: [] };
+  }, [diaSelecionado, eventosPorData]);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
+      {/* Calendário */}
+      <div className="flex flex-col items-center">
+        <CalendarUI
+          mode="single"
+          selected={diaSelecionado}
+          onSelect={setDiaSelecionado}
+          month={mesSelecionado}
+          onMonthChange={setMesSelecionado}
+          modifiers={{ comEvento: diasComEventos, atrasado: diasAtrasados }}
+          modifiersClassNames={{
+            comEvento: "font-bold underline decoration-dotted",
+            atrasado: "text-red-600 dark:text-red-400",
+          }}
+          className="rounded-xl border bg-card p-3"
+        />
+        <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block" />Prazo</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Assembleia</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />Atrasado</span>
+        </div>
+      </div>
+
+      {/* Painel de eventos do dia */}
+      <div className="space-y-4">
+        {!diaSelecionado ? (
+          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+            <CalendarDays className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm">Selecione um dia para ver os eventos</p>
+          </div>
+        ) : eventosDiaSelecionado && (eventosDiaSelecionado.prazos.length > 0 || eventosDiaSelecionado.assembleias.length > 0) ? (
+          <>
+            <h3 className="font-semibold text-sm">
+              {diaSelecionado.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+            </h3>
+            {eventosDiaSelecionado.prazos.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Prazos ({eventosDiaSelecionado.prazos.length})</p>
+                {eventosDiaSelecionado.prazos.map((p: any) => {
+                  const urgCfg = p.urgencia ? URGENCIA_CONFIG[p.urgencia] : null;
+                  return (
+                    <div key={p.id} className={`p-3 rounded-lg border text-sm ${urgCfg?.cardClass ?? "bg-card"}`}>
+                      <p className="font-medium">{p.titulo}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                        {p.responsavelNome && <span className="flex items-center gap-1"><User className="w-3 h-3" />{p.responsavelNome}</span>}
+                        {p.condominioNome && <span className="flex items-center gap-1"><Scale className="w-3 h-3" />{p.condominioNome}</span>}
+                        {urgCfg && <Badge className={`text-xs border ${urgCfg.badgeClass}`}>{urgCfg.label}</Badge>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {eventosDiaSelecionado.assembleias.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Assembleias ({eventosDiaSelecionado.assembleias.length})</p>
+                {eventosDiaSelecionado.assembleias.map((a: any) => (
+                  <div key={a.id} className="p-3 rounded-lg border bg-amber-500/5 border-amber-500/20 text-sm">
+                    <p className="font-medium">{a.tipo === "ordinaria" ? "Assembleia Ordinária" : a.tipo === "extraordinaria" ? "Assembleia Extraordinária" : a.tipo}</p>
+                    <div className="flex gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      {a.condominioNome && <span>{a.condominioNome}</span>}
+                      {a.hora && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{a.hora}</span>}
+                      {a.advogadoNome && <span className="flex items-center gap-1"><User className="w-3 h-3" />{a.advogadoNome}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+            <CheckCircle2 className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm">Nenhum evento em {diaSelecionado.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function PrazosJuridicos() {
   const { can } = usePermissions();
@@ -251,6 +371,7 @@ export default function PrazosJuridicos() {
   const [modalAberto, setModalAberto] = useState(false);
   const [filtroUrgencia, setFiltroUrgencia] = useState<FiltroUrgencia>("todos");
   const [filtroStatus, setFiltroStatus] = useState<"pendente" | "concluido" | "todos">("pendente");
+  const [viewMode, setViewMode] = useState<ViewMode>("lista");
 
   const { data: prazos, isLoading, refetch } = trpc.prazos.listar.useQuery({
     status: filtroStatus !== "todos" ? filtroStatus : undefined,
@@ -258,6 +379,7 @@ export default function PrazosJuridicos() {
   });
 
   const { data: resumo } = trpc.prazos.resumo.useQuery();
+  const { data: assembleias = [] } = trpc.juridicoDemandas.listarAssembleias.useQuery({});
 
   const concluirPrazo = trpc.prazos.concluir.useMutation();
   const cancelarPrazo = trpc.prazos.cancelar.useMutation();
@@ -317,6 +439,25 @@ export default function PrazosJuridicos() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Toggle lista/calendário */}
+          <div className="flex gap-1 p-1 bg-muted rounded-lg">
+            <button
+              onClick={() => setViewMode("lista")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
+                viewMode === "lista" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />Lista
+            </button>
+            <button
+              onClick={() => setViewMode("calendario")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${
+                viewMode === "calendario" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5" />Calendário
+            </button>
+          </div>
           <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
@@ -427,8 +568,10 @@ export default function PrazosJuridicos() {
         </div>
       </div>
 
-      {/* Lista de prazos */}
-      {isLoading ? (
+      {/* Calendário ou Lista */}
+      {viewMode === "calendario" ? (
+        <CalendarioPrazos prazos={prazosOrdenados} assembleias={assembleias as any[]} />
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>

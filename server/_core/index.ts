@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { startReguaJob } from "../job-regua";
 import { cancelamentoAutoHandler } from "../job-cancelamento-auto";
 import { alertasInadimplenciaHandler } from "../job-alertas-inadimplencia";
+import { alertasPrazosHandler } from "../job-alertas-prazos";
 import { iniciarJobFilaWhatsApp } from "../job-whatsapp-fila";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -43,6 +44,8 @@ async function startServer() {
   app.post("/api/scheduled/cancelamento-auto", cancelamentoAutoHandler);
   // Job de alertas progressivos de inadimplência de parcelas de acordo (Heartbeat cron)
   app.post("/api/scheduled/alertas-inadimplencia", alertasInadimplenciaHandler);
+  // Job de alertas automáticos de prazos jurídicos (Heartbeat cron — diário 08:00 UTC)
+  app.post("/api/scheduled/alertas-prazos", alertasPrazosHandler);
   // Webhook Z-API — recebe mensagens WhatsApp
   const { webhookWhatsappHandler } = await import("../webhook-whatsapp");
   app.post("/api/webhook/whatsapp/:instanciaId", webhookWhatsappHandler);

@@ -7075,6 +7075,30 @@ export const appRouter = router({
         await moverDemanda(input.id, input.novaColunaId, input.novaOrdem, ctx.user.id, ctx.user.name ?? undefined);
         return { success: true };
       }),
+    acaoEmLote: adminProcedure
+      .input(z.object({
+        ids: z.array(z.number().int().positive()),
+        acao: z.enum(["reatribuir", "mover_coluna", "alterar_prioridade"]),
+        responsavelId: z.number().int().positive().optional().nullable(),
+        responsavelNome: z.string().optional().nullable(),
+        colunaId: z.number().int().positive().optional(),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { updateDemanda } = await import("./db-demandas");
+        const updates: Record<string, any> = {};
+        if (input.acao === "reatribuir") {
+          updates.responsavelId = input.responsavelId ?? null;
+          updates.responsavelNome = input.responsavelNome ?? null;
+        } else if (input.acao === "mover_coluna" && input.colunaId) {
+          updates.colunaId = input.colunaId;
+        } else if (input.acao === "alterar_prioridade" && input.prioridade) {
+          updates.prioridade = input.prioridade;
+        }
+        await Promise.all(input.ids.map(id => updateDemanda(id, updates)));
+        return { atualizadas: input.ids.length };
+      }),
+
     reordenarDemandas: protectedProcedure
       .input(z.object({
         ids: z.array(z.number().int().positive()),
