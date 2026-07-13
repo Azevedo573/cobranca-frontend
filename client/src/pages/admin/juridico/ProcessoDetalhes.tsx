@@ -675,6 +675,8 @@ export default function ProcessoDetalhes() {
   const [modalParte, setModalParte] = useState(false);
   const [modalPrazo, setModalPrazo] = useState(false);
   const [modalFin, setModalFin] = useState(false);
+  // Banner de sugestão de prazo após sincronização DataJud
+  const [sugestaoPrazo, setSugestaoPrazo] = useState<{ novasMovs: number; movNome?: string } | null>(null);
 
   const { data: processo, isLoading, refetch } = trpc.processos.getById.useQuery(
     { id: processoId },
@@ -693,11 +695,27 @@ export default function ProcessoDetalhes() {
   const deletePrazo = trpc.prazos.delete.useMutation();
   const updateFin = trpc.processos.updateFinanceiro.useMutation();
 
+  const criarPrazoMutation = trpc.prazos.create.useMutation({
+    onSuccess: () => {
+      refetchPrazos();
+      setSugestaoPrazo(null);
+      toast.success("Prazo criado com sucesso!");
+    },
+    onError: (err: any) => toast.error("Erro ao criar prazo", { description: err.message }),
+  });
+
   const handleSincronizar = async () => {
     try {
       const r = await sincronizarDatajud.mutateAsync({ processoId });
-      toast.success(`Sincronizado! ${r.novasMovimentacoes} nova(s) movimentação(ões) importada(s)`);
       refetch();
+      if (r.novasMovimentacoes > 0) {
+        // Pega o nome da movimentação mais recente para exibir no banner
+        const movRecente = processo?.movimentacoes?.[0];
+        setSugestaoPrazo({ novasMovs: r.novasMovimentacoes, movNome: movRecente?.descricao ?? undefined });
+        toast.success(`Sincronizado! ${r.novasMovimentacoes} nova(s) movimentação(ões) importada(s)`);
+      } else {
+        toast.success("Sincronizado! Nenhuma novidade encontrada.");
+      }
     } catch (err: any) {
       toast.error("Erro ao sincronizar", { description: err.message });
     }
@@ -779,6 +797,58 @@ export default function ProcessoDetalhes() {
           </Button>
         </div>
       </div>
+
+      {/* Banner de sugestão de prazo após sincronização DataJud */}
+      {sugestaoPrazo && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 flex items-start gap-3">
+          <Timer className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+              {sugestaoPrazo.novasMovs} nova(s) movimentação(ões) importada(s) do DataJud
+            </p>
+            {sugestaoPrazo.movNome && (
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/70 mt-0.5 truncate">
+                Última: {sugestaoPrazo.movNome}
+              </p>
+            )}
+            <p className="text-xs text-amber-600/70 dark:text-amber-400/60 mt-0.5">
+              Deseja criar um prazo processual de 15 dias para responder a esta movimentação?
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-7 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+              disabled={criarPrazoMutation.isPending}
+              onClick={() => {
+                const dataLimite = new Date();
+                dataLimite.setDate(dataLimite.getDate() + 15);
+                criarPrazoMutation.mutate({
+                  titulo: `Prazo — Movimentação DataJud (${processo.numeroCNJ})`,
+                  tipo: "processual",
+                  processoId,
+                  condominioId: processo.condominioId ?? undefined,
+                  condominioNome: processo.condominioNome ?? undefined,
+                  dataLimite,
+                  alertas: JSON.stringify([7, 3, 1]),
+                });
+              }}
+            >
+              {criarPrazoMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+              Criar prazo (15 dias)
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs h-7 text-muted-foreground"
+              onClick={() => setSugestaoPrazo(null)}
+            >
+              Ignorar
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

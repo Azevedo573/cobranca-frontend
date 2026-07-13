@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
@@ -101,9 +101,11 @@ interface ModalCriarProcessoProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  condominioNomeInicial?: string;
+  demandaIdInicial?: number;
 }
 
-function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProps) {
+function ModalCriarProcesso({ open, onClose, onSuccess, condominioNomeInicial, demandaIdInicial }: ModalCriarProcessoProps) {
   const [modo, setModo] = useState<"manual" | "datajud">("datajud");
   const [buscandoDatajud, setBuscandoDatajud] = useState(false);
   const [dadosDatajud, setDadosDatajud] = useState<any>(null);
@@ -119,10 +121,10 @@ function ModalCriarProcesso({ open, onClose, onSuccess }: ModalCriarProcessoProp
     tipo: "civel" as const,
     faseProcessual: "distribuicao" as const,
     status: "ativo" as const,
-    condominioNome: "",
+    condominioNome: condominioNomeInicial ?? "",
     advogadoNome: "",
     valorCausa: "",
-    observacoes: "",
+    observacoes: demandaIdInicial ? `Originado da demanda #${demandaIdInicial}` : "",
   });
 
   const { data: tribunais } = trpc.processos.listarTribunais.useQuery();
@@ -398,7 +400,12 @@ export default function ProcessosJudiciais() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todos");
-  const [modalAberto, setModalAberto] = useState(false);
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  // Abre o modal automaticamente se vier de uma demanda (?nova=1)
+  const [modalAberto, setModalAberto] = useState(() => searchParams.get("nova") === "1");
+  const demandaIdParam = searchParams.get("demandaId") ? Number(searchParams.get("demandaId")) : undefined;
+  const condominioNomeParam = searchParams.get("condominioNome") ?? undefined;
 
   const { data: processos, isLoading, refetch } = trpc.processos.listar.useQuery({
     status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
@@ -435,6 +442,22 @@ export default function ProcessosJudiciais() {
           )}
         </div>
       </div>
+
+      {/* Banner: veio de uma demanda */}
+      {demandaIdParam && (
+        <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 flex items-center gap-3">
+          <Scale className="w-4 h-4 text-blue-500 shrink-0" />
+          <p className="text-sm text-blue-700 dark:text-blue-300 flex-1">
+            Criando processo a partir da demanda <strong>#{demandaIdParam}</strong>.
+            O vínculo será registrado automaticamente.
+          </p>
+          <Link href={`/admin/juridico/demandas/${demandaIdParam}`}>
+            <Button variant="ghost" size="sm" className="text-xs text-blue-600">
+              Voltar à demanda
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* KPIs */}
       {resumo && (
@@ -591,6 +614,8 @@ export default function ProcessosJudiciais() {
         open={modalAberto}
         onClose={() => setModalAberto(false)}
         onSuccess={() => refetch()}
+        condominioNomeInicial={condominioNomeParam}
+        demandaIdInicial={demandaIdParam}
       />
     </div>
   );

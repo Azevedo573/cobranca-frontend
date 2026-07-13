@@ -106,12 +106,24 @@ export default function CentralIntimacoes() {
 
   // Tratar intimação
   const tratarMutation = trpc.mni.tratarIntimacao.useMutation({
-    onSuccess: (_, vars) => {
-      toast.success(vars.status === "tratado" ? "Intimação concluída!" : "Intimação descartada");
+    onSuccess: (data, vars) => {
+      if (vars.status === "tratado" && data.prazoGeradoId) {
+        toast.success("Intimação concluída! Prazo criado automaticamente.", {
+          description: "Clique para visualizar o prazo gerado.",
+          action: {
+            label: "Ver prazo",
+            onClick: () => window.location.href = `/admin/juridico/prazos`,
+          },
+          duration: 8000,
+        });
+      } else {
+        toast.success(vars.status === "tratado" ? "Intimação concluída!" : "Intimação descartada");
+      }
       setIntimacaoSelecionadaId(null);
       setObservacoes("");
       utils.mni.listarIntimacoes.invalidate();
       utils.mni.countPendentes.invalidate();
+      utils.prazos.listar.invalidate();
     },
     onError: (err) => toast.error(`Erro: ${err.message}`),
   });

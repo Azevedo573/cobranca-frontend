@@ -45,6 +45,7 @@ import {
   addMovimentacao,
   addParte,
 } from "../db-processos";
+import { createPrazo } from "../db-prazos";
 import { criarMniClient, normalizarTipoParte } from "../mni-client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -256,18 +257,53 @@ export const mniRouter = router({
         id: z.number(),
         status: z.enum(["tratado", "descartado"]),
         observacoes: z.string().optional(),
-        prazoGeradoId: z.number().optional(),
+        // Se true, cria prazo automático de 15 dias úteis a partir da data de disponibilização
+        gerarPrazoAutomatico: z.boolean().optional().default(true),
+        diasPrazo: z.number().int().min(1).max(180).optional().default(15),
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const intimacao = await getIntimacao(input.id);
+      if (!intimacao) throw new TRPCError({ code: "NOT_FOUND", message: "Intimação não encontrada" });
+
+      let prazoGeradoId: number | undefined;
+
+      // Cria prazo automático quando a intimação é tratada (não descartada)
+      if (input.status === "tratado" && input.gerarPrazoAutomatico) {
+        const dataBase = intimacao.dataDisponibilizacao
+          ? new Date(intimacao.dataDisponibilizacao)
+          : new Date();
+        const dataLimite = new Date(dataBase);
+        dataLimite.setDate(dataLimite.getDate() + (input.diasPrazo ?? 15));
+
+        const processo = intimacao.processoId
+          ? await getProcessoById(intimacao.processoId)
+          : null;
+
+        const prazo = await createPrazo({
+          titulo: `Prazo — ${intimacao.tipoComunicacao ?? "Intimação"} (${intimacao.numeroCNJ ?? "sem CNJ"})`,
+          tipo: "processual",
+          processoId: intimacao.processoId ?? undefined,
+          condominioId: processo?.condominioId ?? undefined,
+          condominioNome: processo?.condominioNome ?? undefined,
+          responsavelId: ctx.user.id,
+          responsavelNome: ctx.user.name ?? undefined,
+          dataLimite,
+          alertas: JSON.stringify([7, 3, 1]),
+          observacoes: `Gerado automaticamente ao tratar intimação #${input.id}${input.observacoes ? ". " + input.observacoes : ""}`,
+          criadoPorId: ctx.user.id,
+        });
+        prazoGeradoId = prazo?.id;
+      }
+
       await dbTratarIntimacao(input.id, {
         status: input.status,
         tratadoPorId: ctx.user.id,
         tratadoPorNome: ctx.user.name || "Usuário",
         observacoes: input.observacoes,
-        prazoGeradoId: input.prazoGeradoId,
+        prazoGeradoId,
       });
-      return { ok: true };
+      return { ok: true, prazoGeradoId };
     }),
 
   // ── Sincronização de Processo ─────────────────────────────────────────────

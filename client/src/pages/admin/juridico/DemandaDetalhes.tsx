@@ -216,6 +216,25 @@ export default function DemandaDetalhes() {
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Botão Escalar para Processo Judicial — visível para tipos judiciais */}
+          {(d.tipo === "cobranca_judicial" || d.tipo === "processo" || d.tipo === "execucao" || d.tipo === "acompanhamento") && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950"
+              onClick={() => {
+                // Monta query params com dados da demanda para pré-preencher o formulário de processo
+                const params = new URLSearchParams();
+                params.set("demandaId", String(demandaId));
+                if (d.nomeDevedor) params.set("condominioNome", d.nomeDevedor);
+                if (d.assunto) params.set("assunto", d.assunto);
+                navigate(`/admin/juridico/processos?nova=1&${params.toString()}`);
+              }}
+            >
+              <Scale className="h-4 w-4 mr-1" />
+              Escalar para Processo
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
