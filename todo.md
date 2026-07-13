@@ -2534,3 +2534,8 @@
 - [x] 4.2 Ações em lote no Kanban e na Lista (reatribuir, mover coluna, alterar prioridade)
 - [x] 4.3 Job de alertas automáticos de prazo (notifyOwner + fila WhatsApp)
 - [x] 4.4 Calendário de prazos e assembleias em PrazosJuridicos
+
+## Relatório de Acordos
+- [x] Procedure backend getRelatorioAcordos (filtros: condominioId, dataInicio, dataFim)
+- [x] Página RelatorioAcordos.tsx com filtros, tabelas detalhadas e exportação PDF
+- [x] Rota e link de navegação na seção Relatórios

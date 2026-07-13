@@ -2246,6 +2246,14 @@ export const appRouter = router({
       const { getRelatorioRecuperacao } = await import("./db-relatorios-extra");
       return await getRelatorioRecuperacao(input);
     }),
+    acordosDetalhado: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+    })).query(async ({ input }) => {
+      const { getRelatorioAcordosDetalhado } = await import("./db-relatorios-extra");
+      return await getRelatorioAcordosDetalhado(input);
+    }),
   }),
   scoring: router({
     atualizarScore: protectedProcedure.input(z.object({

@@ -2,6 +2,7 @@ import { getDb } from "./db";
 import { and, eq, gte, lte, inArray, desc, like } from "drizzle-orm";
 import {
   cobrancas, devedores, condominios, acordos, users, tentativasCobranca,
+  acordoCobrancas, parcelasAcordo,
 } from "../drizzle/schema";
 
 type FiltroBase = {
@@ -470,4 +471,135 @@ export async function getRelatorioCobranca(filtro: FiltroRelatorioCobranca) {
   })).sort((a, b) => b.total - a.total);
 
   return { rows, totais, porTipo, porResponsavel };
+}
+
+// ─── Relatório de Acordos Detalhado ──────────────────────────────────────────
+export async function getRelatorioAcordosDetalhado(filtro: FiltroBase) {
+  const db = await getDb();
+  if (!db) return { acordos: [], totais: { totalAcordos: 0, valorTotal: 0, valorPago: 0 } };
+
+  // Usar imports do topo do arquivo
+  const acordosTable = acordos;
+
+  const cond: any[] = [];
+  if (filtro.condominioId) cond.push(eq(acordosTable.condominioId, filtro.condominioId));
+  if (filtro.dataInicio) cond.push(gte(acordosTable.createdAt, new Date(filtro.dataInicio)));
+  if (filtro.dataFim) {
+    const fim = new Date(filtro.dataFim);
+    fim.setHours(23, 59, 59, 999);
+    cond.push(lte(acordosTable.createdAt, fim));
+  }
+
+  // 1. Buscar acordos com dados do devedor e condomínio
+  const listaAcordos = await db
+    .select({
+      acordoId: acordosTable.id,
+      status: acordosTable.status,
+      totalAmount: acordosTable.totalAmount,
+      agreedAmount: acordosTable.agreedAmount,
+      installments: acordosTable.installments,
+      firstPaymentDate: acordosTable.firstPaymentDate,
+      valorPago: acordosTable.valorPago,
+      notes: acordosTable.notes,
+      createdAt: acordosTable.createdAt,
+      nomeDevedor: devedores.name,
+      cpfCnpj: devedores.cpfCnpj,
+      unidade: devedores.unitNumber,
+      bloco: devedores.bloco,
+      nomeCondominio: condominios.name,
+      condominioId: condominios.id,
+    })
+    .from(acordosTable)
+    .innerJoin(devedores, eq(acordosTable.devedorId, devedores.id))
+    .innerJoin(condominios, eq(acordosTable.condominioId, condominios.id))
+    .where(cond.length > 0 ? and(...cond) : undefined)
+    .orderBy(desc(acordosTable.createdAt))
+    .limit(500);
+
+  if (listaAcordos.length === 0) {
+    return { acordos: [], totais: { totalAcordos: 0, valorTotal: 0, valorPago: 0 } };
+  }
+
+  const acordoIds = listaAcordos.map((a) => a.acordoId);
+
+  // 2. Buscar cobranças originais de todos os acordos (via acordoCobrancas)
+  const cobrancasOriginais = await db
+    .select({
+      acordoId: acordoCobrancas.acordoId,
+      cobrancaId: acordoCobrancas.cobrancaId,
+      valorOriginalAcordo: acordoCobrancas.valorOriginal,
+      descricao: cobrancas.description,
+      tipoCobranca: cobrancas.tipoCobranca,
+      dataVencimento: cobrancas.dueDate,
+      monthReference: cobrancas.monthReference,
+      valorCobranca: cobrancas.amount,
+    })
+    .from(acordoCobrancas)
+    .innerJoin(cobrancas, eq(acordoCobrancas.cobrancaId, cobrancas.id))
+    .where(inArray(acordoCobrancas.acordoId, acordoIds))
+    .orderBy(cobrancas.dueDate);
+
+  // 3. Buscar parcelas de todos os acordos
+  const parcelas = await db
+    .select({
+      acordoId: parcelasAcordo.acordoId,
+      parcelaId: parcelasAcordo.id,
+      installmentNumber: parcelasAcordo.installmentNumber,
+      amount: parcelasAcordo.amount,
+      dueDate: parcelasAcordo.dueDate,
+      paymentDate: parcelasAcordo.paymentDate,
+      status: parcelasAcordo.status,
+      nossoNumero: parcelasAcordo.nossoNumero,
+      snapshotDescricao: parcelasAcordo.snapshotDescricao,
+      snapshotPrincipal: parcelasAcordo.snapshotPrincipal,
+      snapshotJuros: parcelasAcordo.snapshotJuros,
+      snapshotMulta: parcelasAcordo.snapshotMulta,
+      snapshotCorrecao: parcelasAcordo.snapshotCorrecao,
+      snapshotHonorarios: parcelasAcordo.snapshotHonorarios,
+      snapshotValorAtualizado: parcelasAcordo.snapshotValorAtualizado,
+    })
+    .from(parcelasAcordo)
+    .where(inArray(parcelasAcordo.acordoId, acordoIds))
+    .orderBy(parcelasAcordo.installmentNumber);
+
+  // 4. Agrupar por acordoId
+  const cobrancasPorAcordo: Record<number, typeof cobrancasOriginais> = {};
+  for (const c of cobrancasOriginais) {
+    if (!cobrancasPorAcordo[c.acordoId]) cobrancasPorAcordo[c.acordoId] = [];
+    cobrancasPorAcordo[c.acordoId].push(c);
+  }
+
+  const parcelasPorAcordo: Record<number, typeof parcelas> = {};
+  for (const p of parcelas) {
+    if (!parcelasPorAcordo[p.acordoId]) parcelasPorAcordo[p.acordoId] = [];
+    parcelasPorAcordo[p.acordoId].push(p);
+  }
+
+  // 5. Montar resultado final
+  const resultado = listaAcordos.map((a) => {
+    const cobsAcordo = cobrancasPorAcordo[a.acordoId] ?? [];
+    const parcsAcordo = parcelasPorAcordo[a.acordoId] ?? [];
+    const somaOriginal = cobsAcordo.reduce((s, c) => s + (c.valorOriginalAcordo ?? 0), 0);
+    const acrescimos = (a.agreedAmount ?? 0) - somaOriginal;
+    const valorPagoEfetivo = parcsAcordo
+      .filter((p) => p.status === "pago")
+      .reduce((s, p) => s + (p.amount ?? 0), 0);
+
+    return {
+      ...a,
+      cobrancasOriginais: cobsAcordo,
+      parcelas: parcsAcordo,
+      somaOriginal,
+      acrescimos: acrescimos > 0 ? acrescimos : 0,
+      valorPagoEfetivo,
+    };
+  });
+
+  const totais = {
+    totalAcordos: resultado.length,
+    valorTotal: resultado.reduce((s, a) => s + (a.agreedAmount ?? 0), 0),
+    valorPago: resultado.reduce((s, a) => s + a.valorPagoEfetivo, 0),
+  };
+
+  return { acordos: resultado, totais };
 }
