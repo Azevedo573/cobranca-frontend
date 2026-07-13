@@ -226,6 +226,77 @@ export async function getCobrancasComCalculos(devedorId: number): Promise<Cobran
 
 
 /**
+ * Busca cobranças originais de um acordo (via tabela acordoCobrancas) com valores calculados.
+ * Usa esta função no boleto do acordo para mostrar as dívidas originais mesmo quando
+ * o status das cobranças já é "em_acordo".
+ */
+export async function getCobrancasComCalculosPorAcordo(acordoId: number): Promise<CobrancaComCalculos[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  // 1. Buscar os vínculos acordoCobrancas → cobrancaId
+  const vinculos = await db.select().from(acordoCobrancas).where(eq(acordoCobrancas.acordoId, acordoId));
+  if (vinculos.length === 0) return [];
+
+  const { inArray } = await import("drizzle-orm");
+  const cobrancaIds = vinculos.map(v => v.cobrancaId);
+
+  // 2. Buscar as cobranças originais (independente do status)
+  const cobrancasList = await db.select().from(cobrancas).where(inArray(cobrancas.id, cobrancaIds));
+  if (cobrancasList.length === 0) return [];
+
+  // 3. Buscar configurações do condomínio
+  const condominioId = cobrancasList[0].condominioId;
+  const condominioData = await db.select().from(condominios).where(eq(condominios.id, condominioId)).limit(1);
+  if (!condominioData[0]) return [];
+
+  const condominio = condominioData[0];
+  const taxas = {
+    taxaJurosMensal: Number(condominio.taxaJurosMensal || 0),
+    taxaMulta: Number(condominio.taxaMulta || 0),
+    taxaHonorarios: Number(condominio.taxaHonorarios || 0),
+    correcaoMonetaria: Number(condominio.correcaoMonetaria || 0),
+  };
+
+  const aplicarCorrecaoBCB = Boolean(condominio.aplicarCorrecaoAuto) &&
+    condominio.indiceCorrecao &&
+    condominio.indiceCorrecao !== "NENHUM";
+
+  const cobrancasComCalculos: CobrancaComCalculos[] = [];
+
+  for (const cobranca of cobrancasList) {
+    const valorOriginal = cobranca.amount / 100;
+    if (!cobranca.dueDate) continue;
+    const dataVencimento = new Date(cobranca.dueDate);
+    const custasPropriaCobranca = cobranca.custasJudiciais ? cobranca.custasJudiciais / 100 : 0;
+
+    let breakdown = calcularValorDevido(valorOriginal, dataVencimento, taxas, custasPropriaCobranca);
+
+    if (aplicarCorrecaoBCB && condominio.indiceCorrecao) {
+      try {
+        const correcaoBCB = await calcularCorrecaoBCB(valorOriginal, dataVencimento, condominio.indiceCorrecao);
+        const baseHonorarios = valorOriginal + breakdown.juros + breakdown.multa + correcaoBCB;
+        const mesesAtraso = breakdown.mesesAtraso;
+        const honorarios = mesesAtraso > 0 ? (baseHonorarios * (taxas.taxaHonorarios / 100)) : 0;
+        breakdown = {
+          ...breakdown,
+          honorarios,
+          correcaoMonetaria: correcaoBCB,
+          valorTotal: valorOriginal + breakdown.juros + breakdown.multa + honorarios + custasPropriaCobranca + correcaoBCB,
+        };
+      } catch {
+        // mantém breakdown original
+      }
+    }
+
+    cobrancasComCalculos.push({ ...cobranca, breakdown });
+  }
+
+  return cobrancasComCalculos;
+}
+
+
+/**
  * Importar múltiplas cobranças de uma planilha Excel
  */
 export async function importarCobrancasPlanilha(

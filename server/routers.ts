@@ -1387,7 +1387,7 @@ export const appRouter = router({
         const { getDevedorById } = await import("./db-devedores");
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         const { getCondominioById } = await import("./db-condominios");
-        const { getCobrancasComCalculos } = await import("./db-cobrancas");
+        const { getCobrancasComCalculosPorAcordo } = await import("./db-cobrancas");
         const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
         const { gerarPixCopiaCola } = await import("./pix-emv");
         const { storagePut } = await import("./storage");
@@ -1477,7 +1477,9 @@ export const appRouter = router({
           pixCopiaCola,
           credorTitulo: condominio.name,
           itensCobranca: await (async () => {
-            const todasCobrancas = await getCobrancasComCalculos(acordo.devedorId);
+            // Buscar as cobranças originais do acordo (via acordoCobrancas),
+            // independente do status atual (que já será "em_acordo")
+            const todasCobrancas = await getCobrancasComCalculosPorAcordo(acordo.id);
             return todasCobrancas.map((c) => ({
               titulo: c.tipoCobranca
                 ? c.tipoCobranca.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
@@ -1525,7 +1527,7 @@ export const appRouter = router({
       const { getDevedorById } = await import("./db-devedores");
       const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
       const { getCondominioById } = await import("./db-condominios");
-      const { getCobrancasComCalculos } = await import("./db-cobrancas");
+      const { getCobrancasComCalculosPorAcordo } = await import("./db-cobrancas");
       const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
       const { gerarPixCopiaCola } = await import("./pix-emv");
       const { storagePut } = await import("./storage");
@@ -1563,8 +1565,9 @@ export const appRouter = router({
       const nomeSacado = devedor.name ||
         `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
 
-      // Buscar cobranças do devedor uma única vez (fora do loop) para a tabela de composição
-      const todasCobrancasDevedor = await getCobrancasComCalculos(acordo.devedorId);
+      // Buscar as cobranças originais do acordo uma única vez (fora do loop) para a tabela de composição
+      // Usa getCobrancasComCalculosPorAcordo para buscar via acordoCobrancas, ignorando o filtro de status
+      const todasCobrancasDevedor = await getCobrancasComCalculosPorAcordo(acordo.id);
       const itensCobrancaLote = todasCobrancasDevedor.map((c) => ({
         titulo: c.tipoCobranca
           ? c.tipoCobranca.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
