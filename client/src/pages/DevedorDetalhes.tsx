@@ -407,16 +407,34 @@ export default function DevedorDetalhes() {
                   <span className="text-xs text-muted-foreground">Telefone</span>
                   <div className="flex items-center gap-1">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-sm font-medium">{devedor.phone}</span>
+                    <span className="text-sm font-medium">{devedor.phone || "—"}</span>
                   </div>
                 </div>
+                {(devedor as any).phone2 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Telefone 2</span>
+                    <div className="flex items-center gap-1">
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm font-medium">{(devedor as any).phone2}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground flex-shrink-0">E-mail</span>
                   <div className="flex items-center gap-1 min-w-0">
                     <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm font-medium truncate">{devedor.email}</span>
+                    <span className="text-sm font-medium truncate">{devedor.email || "—"}</span>
                   </div>
                 </div>
+                {(devedor as any).email2 && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground flex-shrink-0">E-mail 2</span>
+                    <div className="flex items-center gap-1 min-w-0">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-sm font-medium truncate">{(devedor as any).email2}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Condomínio</span>
                   <span className="text-sm font-medium truncate max-w-[60%] text-right">

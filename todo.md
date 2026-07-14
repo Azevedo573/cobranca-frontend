@@ -2577,3 +2577,11 @@
 - [x] Frontend: cards de totais (total, promessas, sem resposta, recusas, outros)
 - [x] Frontend: botão Exportar PDF contextual (PDF real via backend)
 - [x] Frontend: botão Exportar Excel (ExcelJS client-side)
+
+## Melhorias — Demanda Jurídica e Cadastro de Devedor
+- [x] Demanda jurídica: tornar condomínio obrigatório no formulário de criação (validação antes de submeter com mensagem "Selecione o condomínio/empresa")
+- [x] Devedor: adicionar coluna email2 (varchar 320) na tabela devedores
+- [x] Devedor: adicionar coluna phone2 (varchar 20) na tabela devedores
+- [x] Devedor: atualizar procedure devedores.create e devedores.update para aceitar email2 e phone2
+- [x] Devedor: atualizar DevedorForm.tsx com campos Email 2 e Telefone 2
+- [x] Devedor: exibir email2 e phone2 no DevedorDetalhes.tsx quando preenchidos

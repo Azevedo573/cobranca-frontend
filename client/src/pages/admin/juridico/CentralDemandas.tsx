@@ -109,6 +109,9 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
   const handleSubmit = () => {
     if (!form.assunto.trim()) return toast.error("Informe o assunto da demanda");
     if (!form.colunaId) return toast.error("Selecione a coluna/status");
+    if (!form.condominioId || form.condominioId === "none") return toast.error("Selecione o condomínio/empresa");
+    const condId = parseInt(form.condominioId, 10);
+    if (isNaN(condId)) return toast.error("Selecione o condomínio/empresa");
     criar.mutate({
       assunto: form.assunto,
       descricao: form.descricao || undefined,
@@ -120,7 +123,7 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
       prazo: form.prazo || null,
       responsavelId: form.responsavelId ? Number(form.responsavelId) : undefined,
       responsavelNome: form.responsavelNome || undefined,
-      condominioId: form.condominioId ? Number(form.condominioId) : null,
+      condominioId: condId,
       colunaId: Number(form.colunaId),
     });
   };
@@ -146,15 +149,14 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
           </div>
           {/* Condomínio */}
           <div>
-            <Label>Condomínio</Label>
+            <Label>Condomínio / Empresa <span className="text-red-500">*</span></Label>
             <Select value={form.condominioId} onValueChange={v => setForm(f => ({ ...f, condominioId: v }))}>
-              <SelectTrigger className="overflow-hidden">
+              <SelectTrigger className={`overflow-hidden ${!form.condominioId || form.condominioId === "none" ? "border-muted" : ""}`}>
                 <span className="truncate block max-w-full">
-                  <SelectValue placeholder="Todos os condomínios" />
+                  <SelectValue placeholder="Selecione o condomínio/empresa" />
                 </span>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sem condomínio específico</SelectItem>
                 {(condominios as any[]).map((c: any) => (
                   <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                 ))}

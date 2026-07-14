@@ -95,7 +95,9 @@ export const devedores = mysqlTable("devedores", {
   unitNumber: varchar("unitNumber", { length: 50 }).notNull(),
   bloco: varchar("bloco", { length: 50 }),
   email: varchar("email", { length: 320 }),
+  email2: varchar("email2", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
+  phone2: varchar("phone2", { length: 20 }),
   // Endereço (necessário para emissão de boleto BTG)
   address: varchar("address", { length: 255 }),           // Logradouro
   addressNumber: varchar("addressNumber", { length: 20 }), // Número

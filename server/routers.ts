@@ -626,7 +626,9 @@ export const appRouter = router({
       statusUnidade: z.enum(["padrao", "ajuizado"]).optional(),
       cpfCnpj: z.string().optional(),
       email: z.string().optional(),
+      email2: z.string().optional(),
       phone: z.string().optional(),
+      phone2: z.string().optional(),
       totalDue: z.number().default(0),
       // Endereço (necessário para boleto BTG)
       address: z.string().optional(),
@@ -673,7 +675,9 @@ export const appRouter = router({
       statusUnidade: z.enum(["padrao", "ajuizado"]).optional(),
       cpfCnpj: z.string().optional(),
       email: z.string().optional(),
+      email2: z.string().optional(),
       phone: z.string().optional(),
+      phone2: z.string().optional(),
       totalDue: z.number().optional(),
       status: z.enum(["ativo", "pago", "acordo"]).optional(),
       // Endereço (necessário para boleto BTG)

@@ -168,7 +168,9 @@ export default function DevedorForm() {
         statusUnidade: formData.statusUnidade,
         cpfCnpj: formData.cpfCnpj || undefined,
         email: formData.email || undefined,
+        email2: (formData as any).email2 || undefined,
         phone: formData.phone || undefined,
+        phone2: (formData as any).phone2 || undefined,
         totalDue: totalDueInCents,
         ...enderecoPayload,
       });
@@ -181,7 +183,9 @@ export default function DevedorForm() {
         statusUnidade: formData.statusUnidade,
         cpfCnpj: formData.cpfCnpj || undefined,
         email: formData.email || undefined,
+        email2: (formData as any).email2 || undefined,
         phone: formData.phone || undefined,
+        phone2: (formData as any).phone2 || undefined,
         totalDue: totalDueInCents,
         ...enderecoPayload,
       });
@@ -385,6 +389,27 @@ export default function DevedorForm() {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="devedor@email.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone2">Telefone 2 <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                  <Input
+                    id="phone2"
+                    name="phone2"
+                    value={(formData as any).phone2 || ""}
+                    onChange={handleChange}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email2">E-mail 2 <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                  <Input
+                    id="email2"
+                    name="email2"
+                    type="email"
+                    value={(formData as any).email2 || ""}
+                    onChange={handleChange}
+                    placeholder="outro@email.com"
                   />
                 </div>
               </div>
