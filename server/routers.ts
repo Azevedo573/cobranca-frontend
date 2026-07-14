@@ -2295,6 +2295,92 @@ export const appRouter = router({
       const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
       return { url };
     }),
+
+    // ─── Relatório de Cobrança (Produtividade detalhada) ─────────────────────
+    listarUnidades: protectedProcedure.input(z.object({
+      condominioId: z.number().int().positive().optional(),
+    })).query(async ({ input }) => {
+      const { getUnidadesByCondominio } = await import("./db-relatorios");
+      return await getUnidadesByCondominio(input.condominioId);
+    }),
+
+    relatorioCobranca: adminProcedure.input(z.object({
+      condominioId: z.number().int().positive().optional(),
+      unitNumber: z.string().optional(),
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      results: z.array(z.string()).optional(),
+      contactTypes: z.array(z.string()).optional(),
+      userId: z.number().int().positive().optional(),
+      isSistema: z.boolean().optional(),
+    })).query(async ({ input }) => {
+      const { getRelatorioCobranca } = await import("./db-relatorios");
+      return await getRelatorioCobranca({
+        condominioId: input.condominioId,
+        unitNumber: input.unitNumber,
+        dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+        dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+        results: input.results,
+        contactTypes: input.contactTypes,
+        userId: input.userId,
+        isSistema: input.isSistema,
+      });
+    }),
+
+    gerarPDFCobranca: adminProcedure.input(z.object({
+      condominioId: z.number().int().positive().optional(),
+      unitNumber: z.string().optional(),
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      results: z.array(z.string()).optional(),
+      contactTypes: z.array(z.string()).optional(),
+      userId: z.number().int().positive().optional(),
+      isSistema: z.boolean().optional(),
+    })).mutation(async ({ input }) => {
+      const { getRelatorioCobranca } = await import("./db-relatorios");
+      const { gerarRelatorioCobrancaPDF } = await import("./relatorio-cobranca-pdf");
+      const { storagePut } = await import("./storage");
+      const { getDb } = await import("./db");
+      const { condominios } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const data = await getRelatorioCobranca({
+        condominioId: input.condominioId,
+        unitNumber: input.unitNumber,
+        dataInicio: input.dataInicio ? new Date(input.dataInicio) : undefined,
+        dataFim: input.dataFim ? new Date(input.dataFim) : undefined,
+        results: input.results,
+        contactTypes: input.contactTypes,
+        userId: input.userId,
+        isSistema: input.isSistema,
+      });
+
+      let nomeCondominio = "Todos os condomínios";
+      if (input.condominioId) {
+        const db = await getDb();
+        if (db) {
+          const [cond] = await db.select({ name: condominios.name }).from(condominios).where(eq(condominios.id, input.condominioId)).limit(1);
+          if (cond) nomeCondominio = cond.name;
+        }
+      }
+
+      const periodoLabel = (() => {
+        const ini = input.dataInicio ? new Date(input.dataInicio).toLocaleDateString("pt-BR") : "—";
+        const fim = input.dataFim ? new Date(input.dataFim).toLocaleDateString("pt-BR") : "—";
+        return input.dataInicio || input.dataFim ? `${ini} a ${fim}` : "Todo o período";
+      })();
+
+      const pdfBuffer = await gerarRelatorioCobrancaPDF({
+        nomeCondominio,
+        periodoLabel,
+        rows: data.rows,
+        totais: data.totais,
+      });
+
+      const fileKey = `relatorios/cobranca-${Date.now()}.pdf`;
+      const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+      return { url };
+    }),
   }),
   scoring: router({
     atualizarScore: protectedProcedure.input(z.object({

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,11 +79,64 @@ export default function Relatorios() {
     onError: (err) => toast.error(`Erro ao gerar PDF: ${err.message}`),
   });
 
+  // ─── Aba Produtividade (Relatório de Cobrança detalhado) ────────────────────
+  const [prodCondominioId, setProdCondominioId] = useState<string>("");
+  const [prodUnidade, setProdUnidade] = useState<string>("");
+  const [prodDataInicio, setProdDataInicio] = useState("");
+  const [prodDataFim, setProdDataFim] = useState("");
+  const [prodResultados, setProdResultados] = useState<string[]>([]);
+  const [prodTipos, setProdTipos] = useState<string[]>([]);
+  const [prodUserId, setProdUserId] = useState<string>("");
+  const [prodFiltroAtivo, setProdFiltroAtivo] = useState<{
+    condominioId?: number; unitNumber?: string; dataInicio?: string; dataFim?: string;
+    results?: string[]; contactTypes?: string[]; userId?: number; isSistema?: boolean;
+  } | null>(null);
+
+  const { data: listaUnidades = [] } = trpc.relatorios.listarUnidades.useQuery(
+    { condominioId: prodCondominioId && prodCondominioId !== "todos" ? parseInt(prodCondominioId) : undefined },
+    { enabled: tipoAtivo === "produtividade" }
+  );
+  const { data: listaOperadores = [] } = trpc.tentativas.listarColaboradores.useQuery(
+    undefined, { enabled: tipoAtivo === "produtividade" }
+  );
+
+  const prodFiltroTemValor = prodFiltroAtivo !== null;
   const { data: dadosProdRaw, isLoading: loadingProd, refetch: refetchProd } =
-    trpc.relatorios.produtividade.useQuery(
-      { dataInicio: filtro.dataInicio, dataFim: filtro.dataFim, condominioId: filtro.condominioId },
-      { enabled: tipoAtivo === "produtividade" }
+    trpc.relatorios.relatorioCobranca.useQuery(
+      prodFiltroAtivo ?? {},
+      { enabled: prodFiltroTemValor && tipoAtivo === "produtividade" }
     );
+
+  const gerarPDFCobrancaMutation = trpc.relatorios.gerarPDFCobranca.useMutation({
+    onSuccess: (result) => {
+      const link = document.createElement("a");
+      link.href = result.url;
+      link.setAttribute("download", `relatorio-cobranca-${new Date().toISOString().slice(0, 10)}.pdf`);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("PDF gerado com sucesso!");
+    },
+    onError: (err) => toast.error(`Erro ao gerar PDF: ${err.message}`),
+  });
+
+  const handleGerarRelatorioCobranca = () => {
+    const isSistema = prodTipos.includes("sistema") && prodTipos.length === 1 ? true
+      : prodTipos.includes("sistema") ? undefined : undefined;
+    const contactTypes = prodTipos.filter((t) => t !== "sistema");
+    setProdFiltroAtivo({
+      condominioId: prodCondominioId && prodCondominioId !== "todos" ? parseInt(prodCondominioId) : undefined,
+      unitNumber: prodUnidade && prodUnidade !== "todas" ? prodUnidade : undefined,
+      dataInicio: prodDataInicio || undefined,
+      dataFim: prodDataFim || undefined,
+      results: prodResultados.length > 0 ? prodResultados : undefined,
+      contactTypes: contactTypes.length > 0 ? contactTypes : undefined,
+      userId: prodUserId && prodUserId !== "todos" ? parseInt(prodUserId) : undefined,
+      isSistema: prodTipos.includes("sistema") ? true : undefined,
+    });
+  };
 
   const { data: dadosExtrato, isLoading: loadingExtrato, refetch: refetchExtrato } =
     trpc.relatorios.extrato.useQuery(filtro, { enabled: tipoAtivo === "extrato" });
@@ -127,12 +180,25 @@ export default function Relatorios() {
         ]));
       }
       if (tipoAtivo === "produtividade" && dadosProdRaw) {
-        addSheet("Produtividade", [
-          "Colaborador", "E-mail", "Total Tentativas", "Devedores Únicos",
-          "Sem Resposta", "Promessas", "Recusas", "Taxa Sucesso (%)",
-        ], dadosProdRaw.map((r) => [
-          r.colaboradorNome, r.colaboradorEmail, r.totalTentativas, r.devedoresUnicos,
-          r.tentativasSemResposta, r.tentativasPromessa, r.tentativasRecusa, r.taxaSucesso,
+        const CONTACT_LABELS_XLS: Record<string, string> = {
+          telefone: "Telefone", email: "E-mail", whatsapp: "WhatsApp", pessoal: "Presencial", sistema: "Sistema",
+        };
+        const RESULT_LABELS_XLS: Record<string, string> = {
+          promessa_pagamento: "Promessa de Pagamento", sem_resposta: "Sem Resposta",
+          recusa: "Recusa", deseja_acordo: "Deseja Acordo", outro: "Outro",
+        };
+        addSheet("Cobrança", [
+          "Data/Hora", "Devedor", "Unidade", "Condomínio",
+          "Tipo de Contato", "Resultado", "Responsável", "Observações",
+        ], dadosProdRaw.rows.map((r: any) => [
+          new Date(r.attemptDate).toLocaleString("pt-BR"),
+          r.nomeDevedor,
+          r.bloco ? `${r.bloco}/${r.unitNumber}` : r.unitNumber,
+          r.nomeCondominio,
+          r.isSistema ? "Sistema" : (CONTACT_LABELS_XLS[r.contactType] ?? r.contactType),
+          RESULT_LABELS_XLS[r.result ?? ""] ?? r.result ?? "—",
+          r.colaboradorNome,
+          r.notes ?? "",
         ]));
       }
       if (tipoAtivo === "extrato" && dadosExtrato) {
@@ -172,15 +238,37 @@ export default function Relatorios() {
     }
   }, [tipoAtivo, dadosInad, dadosAcordos, dadosProdRaw, dadosExtrato, dadosRecup]);
 
+  const CONTACT_LABELS_UI: Record<string, string> = {
+    telefone: "Telefone", email: "E-mail", whatsapp: "WhatsApp", pessoal: "Presencial", sistema: "Sistema",
+  };
+  const RESULT_LABELS_UI: Record<string, string> = {
+    promessa_pagamento: "Promessa de Pagamento", sem_resposta: "Sem Resposta",
+    recusa: "Recusa", deseja_acordo: "Deseja Acordo", outro: "Outro",
+  };
+  const RESULT_COLORS_UI: Record<string, string> = {
+    promessa_pagamento: "bg-green-100 text-green-800",
+    sem_resposta: "bg-yellow-100 text-yellow-800",
+    recusa: "bg-red-100 text-red-800",
+    deseja_acordo: "bg-purple-100 text-purple-800",
+    outro: "bg-gray-100 text-gray-700",
+  };
+  const CONTACT_COLORS_UI: Record<string, string> = {
+    telefone: "bg-blue-100 text-blue-800",
+    email: "bg-indigo-100 text-indigo-800",
+    whatsapp: "bg-green-100 text-green-800",
+    pessoal: "bg-orange-100 text-orange-800",
+    sistema: "bg-gray-100 text-gray-700",
+  };
+
   const handleRefresh = () => {
     if (tipoAtivo === "inadimplencia") refetchInad();
     else if (tipoAtivo === "acordos") refetchAcordos();
-    else if (tipoAtivo === "produtividade") refetchProd();
+    else if (tipoAtivo === "produtividade") { if (prodFiltroTemValor) refetchProd(); }
     else if (tipoAtivo === "extrato") refetchExtrato();
     else if (tipoAtivo === "recuperacao") refetchRecup();
   };
 
-  const isLoading = loadingInad || loadingAcordos || loadingProd || loadingExtrato || loadingRecup;
+  const isLoading = loadingInad || loadingAcordos || (tipoAtivo === "produtividade" ? false : loadingProd) || loadingExtrato || loadingRecup;
 
   // Helpers para a aba Acordos
   const fmtMes = (ref: string | null | undefined) => {
@@ -682,54 +770,193 @@ export default function Relatorios() {
           </Card>
         </TabsContent>
 
-        {/* ── Produtividade ── */}
+        {/* ── Produtividade (Relatório de Cobrança) ── */}
         <TabsContent value="produtividade" className="space-y-4 mt-4">
+          {/* Filtros locais da aba */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Filtros do Relatório de Cobrança</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {/* 1. Condomínio */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Condomínio</Label>
+                  <Select value={prodCondominioId} onValueChange={(v) => { setProdCondominioId(v); setProdUnidade(""); }}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Todos os condomínios" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os condomínios</SelectItem>
+                      {listaCondominios.map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* 2. Unidade */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Unidade</Label>
+                  <Select value={prodUnidade} onValueChange={setProdUnidade} disabled={listaUnidades.length === 0}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Todas as unidades" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas as unidades</SelectItem>
+                      {listaUnidades.map((u: string) => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* 3. Período */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Período do contato</Label>
+                  <div className="flex gap-1">
+                    <Input type="date" className="h-8 text-xs" value={prodDataInicio} onChange={(e) => setProdDataInicio(e.target.value)} />
+                    <Input type="date" className="h-8 text-xs" value={prodDataFim} onChange={(e) => setProdDataFim(e.target.value)} />
+                  </div>
+                </div>
+                {/* 4. Resultado */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Resultado do contato</Label>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {["promessa_pagamento", "sem_resposta", "recusa", "outro"].map((r) => (
+                      <button key={r} type="button"
+                        onClick={() => setProdResultados((prev) => prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r])}
+                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                          prodResultados.includes(r)
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        }`}>
+                        {RESULT_LABELS_UI[r]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* 5. Tipo de contato */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Tipo de contato</Label>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {["telefone", "email", "whatsapp", "pessoal", "sistema"].map((t) => (
+                      <button key={t} type="button"
+                        onClick={() => setProdTipos((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t])}
+                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                          prodTipos.includes(t)
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        }`}>
+                        {CONTACT_LABELS_UI[t]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* 6. Responsável */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Responsável</Label>
+                  <Select value={prodUserId} onValueChange={setProdUserId}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Todos os operadores" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos os operadores</SelectItem>
+                      {listaOperadores.map((u: any) => (
+                        <SelectItem key={u.id} value={String(u.id)}>{u.name ?? u.email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {/* Botões de ação */}
+              <div className="flex gap-2 pt-1">
+                <Button size="sm" onClick={handleGerarRelatorioCobranca} className="h-8 text-xs">
+                  <RefreshCw className="h-3 w-3 mr-1" /> Gerar Relatório
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs"
+                  disabled={!dadosProdRaw || gerarPDFCobrancaMutation.isPending}
+                  onClick={() => gerarPDFCobrancaMutation.mutate(prodFiltroAtivo ?? {})}>
+                  {gerarPDFCobrancaMutation.isPending
+                    ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Gerando PDF...</>
+                    : <><FileDown className="h-3 w-3 mr-1" /> Exportar PDF</>}
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs"
+                  disabled={!dadosProdRaw || exportando}
+                  onClick={exportarExcel}>
+                  {exportando ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Exportando...</>
+                    : <><Download className="h-3 w-3 mr-1" /> Exportar Excel</>}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cards de totais */}
           {dadosProdRaw && (
-            <div className="grid grid-cols-2 gap-4">
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total de Tentativas</p>
-                <p className="text-2xl font-bold">{dadosProdRaw.reduce((s, r) => s + r.totalTentativas, 0)}</p>
-              </CardContent></Card>
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Cobradores Ativos</p>
-                <p className="text-2xl font-bold">{dadosProdRaw.length}</p>
-              </CardContent></Card>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {[
+                { label: "Total de Contatos", value: dadosProdRaw.totais.total, color: "text-foreground" },
+                { label: "Promessas", value: dadosProdRaw.totais.promessas, color: "text-green-600" },
+                { label: "Sem Resposta", value: dadosProdRaw.totais.semResposta, color: "text-yellow-600" },
+                { label: "Recusas", value: dadosProdRaw.totais.recusas, color: "text-red-600" },
+                { label: "Outros", value: dadosProdRaw.totais.outros, color: "text-muted-foreground" },
+              ].map((c) => (
+                <Card key={c.label}><CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">{c.label}</p>
+                  <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+                </CardContent></Card>
+              ))}
             </div>
           )}
+
+          {/* Tabela de contatos */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Performance por Colaborador</CardTitle>
-              <CardDescription className="text-xs">{dadosProdRaw?.length ?? 0} colaboradores</CardDescription>
+              <CardTitle className="text-sm">Contatos Realizados</CardTitle>
+              <CardDescription className="text-xs">
+                {dadosProdRaw ? `${dadosProdRaw.rows.length} registros` : "Aplique os filtros e clique em Gerar Relatório"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               {loadingProd ? (
                 <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+              ) : !dadosProdRaw ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <BarChart3 className="h-10 w-10 mb-2 opacity-30" />
+                  <p className="text-sm">Selecione os filtros e clique em "Gerar Relatório"</p>
+                </div>
               ) : (
-                <div className="overflow-auto max-h-[480px]">
+                <div className="overflow-auto max-h-[520px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Colaborador</TableHead>
-                        <TableHead className="text-right">Tentativas</TableHead>
-                        <TableHead className="text-right">Devedores Contatados</TableHead>
-                        <TableHead className="text-right">Promessas</TableHead>
-                        <TableHead className="text-right">Sem Resposta</TableHead>
-                        <TableHead className="text-right">Taxa Sucesso</TableHead>
+                        <TableHead className="text-xs">Data/Hora</TableHead>
+                        <TableHead className="text-xs">Devedor</TableHead>
+                        <TableHead className="text-xs">Unidade</TableHead>
+                        <TableHead className="text-xs">Condomínio</TableHead>
+                        <TableHead className="text-xs">Tipo</TableHead>
+                        <TableHead className="text-xs">Resultado</TableHead>
+                        <TableHead className="text-xs">Responsável</TableHead>
+                        <TableHead className="text-xs">Observações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {dadosProdRaw?.map((r) => (
-                        <TableRow key={r.colaboradorId}>
-                          <TableCell className="font-medium">{r.colaboradorNome}</TableCell>
-                          <TableCell className="text-right">{r.totalTentativas}</TableCell>
-                          <TableCell className="text-right">{r.devedoresUnicos}</TableCell>
-                          <TableCell className="text-right text-green-600">{r.tentativasPromessa}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{r.tentativasSemResposta}</TableCell>
-                          <TableCell className="text-right font-semibold">{r.taxaSucesso}%</TableCell>
+                      {dadosProdRaw.rows.map((r: any) => (
+                        <TableRow key={r.tentativaId}>
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {new Date(r.attemptDate).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                          </TableCell>
+                          <TableCell className="text-xs font-medium">{r.nomeDevedor}</TableCell>
+                          <TableCell className="text-xs">{r.bloco ? `${r.bloco}/` : ""}{r.unitNumber}</TableCell>
+                          <TableCell className="text-xs max-w-[120px] truncate">{r.nomeCondominio}</TableCell>
+                          <TableCell className="text-xs">
+                            <Badge className={`text-[10px] ${CONTACT_COLORS_UI[r.isSistema ? "sistema" : r.contactType] ?? "bg-gray-100 text-gray-700"}`}>
+                              {r.isSistema ? "Sistema" : (CONTACT_LABELS_UI[r.contactType] ?? r.contactType)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <Badge className={`text-[10px] ${RESULT_COLORS_UI[r.result ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
+                              {RESULT_LABELS_UI[r.result ?? ""] ?? r.result ?? "—"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">{r.colaboradorNome}</TableCell>
+                          <TableCell className="text-xs max-w-[160px] truncate text-muted-foreground">{r.notes ?? "—"}</TableCell>
                         </TableRow>
                       ))}
-                      {!dadosProdRaw?.length && (
-                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum registro encontrado</TableCell></TableRow>
+                      {dadosProdRaw.rows.length === 0 && (
+                        <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum contato encontrado com os filtros selecionados</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>

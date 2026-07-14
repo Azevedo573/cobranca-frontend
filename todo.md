@@ -2565,3 +2565,15 @@
 - [x] Botão "Exportar PDF" contextual na aba Acordos (gera PDF real via backend)
 - [x] Exportação Excel atualizada para usar shape detalhado (acordos.acordos[])
 - [x] Grid de abas reduzido de 6 para 5 colunas
+
+## Relatório de Produtividade (Relatório de Cobrança) — Reformulação Completa
+- [x] Backend: criar função getRelatorioCobranca em db-relatorios.ts com filtros completos (condomínio, unidade, período, resultado, tipo, userId, isSistema)
+- [x] Backend: criar procedure relatorios.relatorioCobranca no routers.ts
+- [x] Backend: criar procedure relatorios.gerarPDFCobranca no routers.ts
+- [x] Backend: criar procedure relatorios.listarUnidades no routers.ts
+- [x] Backend: criar gerador PDF relatorio-cobranca-pdf.ts (PDFKit, mesmo padrão do relatório de acordos)
+- [x] Frontend: reformular aba Produtividade com filtros locais (condomínio, unidade, período, resultado, tipo, responsável)
+- [x] Frontend: tabela detalhada por contato (data, devedor, unidade, condomínio, tipo, resultado, responsável, observações)
+- [x] Frontend: cards de totais (total, promessas, sem resposta, recusas, outros)
+- [x] Frontend: botão Exportar PDF contextual (PDF real via backend)
+- [x] Frontend: botão Exportar Excel (ExcelJS client-side)
