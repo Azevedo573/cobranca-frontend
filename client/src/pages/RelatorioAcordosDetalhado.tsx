@@ -76,8 +76,11 @@ export default function RelatorioAcordosDetalhado() {
 
   const { data: listaCondominios = [] } = trpc.condominios.list.useQuery(undefined as any);
 
+  // Considera "ativo" apenas se pelo menos um valor está preenchido
+  const filtroTemValor = Object.values(filtroAtivo).some((v) => v !== undefined && v !== null);
+
   const { data, isLoading, refetch } = trpc.relatorios.acordosDetalhado.useQuery(filtroAtivo, {
-    enabled: Object.keys(filtroAtivo).length > 0,
+    enabled: filtroTemValor,
   });
 
   const handleFiltrar = () => {
@@ -90,8 +93,15 @@ export default function RelatorioAcordosDetalhado() {
 
   const gerarPDFMutation = trpc.relatorios.gerarPDFAcordos.useMutation({
     onSuccess: (result) => {
-      // Abrir o PDF em nova aba para download
-      window.open(result.url, "_blank");
+      // Criar link de download programático para evitar bloqueio de popup
+      const link = document.createElement("a");
+      link.href = result.url;
+      link.setAttribute("download", `relatorio-acordos-${new Date().toISOString().slice(0,10)}.pdf`);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       toast.success("PDF gerado com sucesso!");
     },
     onError: (err) => {
@@ -100,8 +110,8 @@ export default function RelatorioAcordosDetalhado() {
   });
 
   const handleGerarPDF = () => {
-    if (Object.keys(filtroAtivo).length === 0) {
-      toast.error("Selecione os filtros e gere o relatório antes de exportar o PDF.");
+    if (!filtroTemValor) {
+      toast.error("Selecione pelo menos um filtro e clique em Gerar Relatório antes de exportar o PDF.");
       return;
     }
     gerarPDFMutation.mutate(filtroAtivo);
@@ -219,7 +229,7 @@ export default function RelatorioAcordosDetalhado() {
         )}
 
         {/* Estado inicial */}
-        {!isLoading && Object.keys(filtroAtivo).length === 0 && (
+        {!isLoading && !filtroTemValor && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <HandshakeIcon className="h-12 w-12 text-muted-foreground/40 mb-4" />
             <p className="text-muted-foreground font-medium">Selecione os filtros e clique em "Gerar Relatório"</p>

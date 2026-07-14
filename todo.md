@@ -2553,3 +2553,8 @@
 - [x] Procedure tRPC relatorios.gerarPDFAcordos: busca dados, gera PDF, salva no S3 e retorna URL
 - [x] Botão "Exportar PDF" na página RelatorioAcordosDetalhado.tsx (substitui window.print)
 - [x] PDF estruturado: cabeçalho Gomes & Silva, seções por acordo, tabela cobranças originais, resumo acréscimos, tabela parcelas, rodapé Jetro Administradora
+
+## Correção: Botão Exportar PDF do Relatório de Acordos
+- [x] Corrigir window.open() bloqueado por popup blocker — substituído por link <a> programático com download
+- [x] Corrigir lógica filtroTemValor: Object.keys() retornava 3 mesmo com todos undefined — agora checa Object.values().some()
+- [x] Atualizar enabled da query e validação handleGerarPDF para usar filtroTemValor
