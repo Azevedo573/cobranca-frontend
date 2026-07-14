@@ -100,6 +100,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Modelos de Documentos", href: "/modelos-documento", icon: ScrollText, roles: ["admin", "cobrador", "colaborador", "advogado"], rbacModulo: "modelos_documento" },
       { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
       { label: "Grupos WhatsApp", href: "/whatsapp/grupos", icon: Users, roles: ["admin"] },
+      { label: "Auditoria do Sistema", href: "/admin/auditoria", icon: Shield, roles: ["admin"] },
     ],
   },
 
@@ -239,14 +240,32 @@ const menuGroups: MenuGroup[] = [
     label: "Relatórios",
     icon: BarChart3,
     roles: ["admin", "colaborador"],
-    items: [
-      { label: "Relatórios", href: "/relatorios", icon: FileText, roles: ["admin", "colaborador"], rbacModulo: "relatorios" },
-      { label: "Inadimplência", href: "/relatorios/inadimplencia", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "relatorios" },
-      { label: "Cobrança", href: "/relatorios/cobranca", icon: FileText, roles: ["admin", "colaborador"], rbacModulo: "relatorios" },
-      { label: "Acordos Detalhado", href: "/relatorios/acordos-detalhado", icon: FileText, roles: ["admin", "colaborador"], rbacModulo: "relatorios" },
-      { label: "Produtividade", href: "/admin/relatorios/produtividade", icon: BarChart3, roles: ["admin"] },
-      { label: "Centro de Inteligência", href: "/admin/executivo", icon: TrendingUp, roles: ["admin"] },
-      { label: "Auditoria do Sistema", href: "/admin/auditoria", icon: Shield, roles: ["admin"] },
+    items: [], // navegação via subGroups
+    subGroups: [
+      {
+        label: "Relatórios de Cobrança",
+        icon: FileText,
+        roles: ["admin", "colaborador"],
+        items: [
+          { label: "Painel de Relatórios", href: "/relatorios", icon: BarChart3, roles: ["admin", "colaborador"], rbacModulo: "relatorios" },
+        ],
+      },
+      {
+        label: "Relatórios de Produtividade",
+        icon: BarChart3,
+        roles: ["admin"],
+        items: [
+          { label: "Produtividade", href: "/admin/relatorios/produtividade", icon: Users, roles: ["admin"] },
+        ],
+      },
+      {
+        label: "Centro de Inteligência",
+        icon: TrendingUp,
+        roles: ["admin"],
+        items: [
+          { label: "Dashboard Executivo", href: "/admin/executivo", icon: TrendingUp, roles: ["admin"] },
+        ],
+      },
     ],
   },
 ];

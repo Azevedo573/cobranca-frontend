@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, RefreshCw, FileText, TrendingUp, HandshakeIcon, Receipt, BarChart3 } from "lucide-react";
+import { Loader2, Download, RefreshCw, FileText, TrendingUp, HandshakeIcon, Receipt, BarChart3, Printer, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 const fmtBRL = (v: number) =>
@@ -41,6 +42,10 @@ export default function Relatorios() {
   const [dataFim, setDataFim] = useState("");
   const [condominioId, setCondominioId] = useState<string>("");
   const [exportando, setExportando] = useState(false);
+
+  const exportarPDF = useCallback(() => {
+    window.print();
+  }, []);
 
   const { data: listaCondominios = [] } = trpc.condominios.list.useQuery(undefined as any);
 
@@ -161,11 +166,21 @@ export default function Relatorios() {
   const isLoading = loadingInad || loadingAcordos || loadingProd || loadingExtrato || loadingRecup;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 print:p-4">
+      {/* CSS de impressão */}
+      <style>{`
+        @media print {
+          [data-sidebar], nav, .no-print { display: none !important; }
+          .print\\:hidden { display: none !important; }
+          body { background: white !important; }
+          .overflow-auto { overflow: visible !important; max-height: none !important; }
+        }
+      `}</style>
+
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <div>
-          <h1 className="text-2xl font-bold">Relatórios</h1>
+          <h1 className="text-2xl font-bold">Painel de Relatórios</h1>
           <p className="text-sm text-muted-foreground">Exporte e analise dados do sistema</p>
         </div>
         <div className="flex gap-2">
@@ -173,11 +188,20 @@ export default function Relatorios() {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
+          <Button variant="outline" size="sm" onClick={exportarPDF}>
+            <Printer className="h-4 w-4 mr-2" />
+            Exportar PDF
+          </Button>
           <Button size="sm" onClick={exportarExcel} disabled={exportando || isLoading}>
             {exportando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
             Exportar Excel
           </Button>
         </div>
+      </div>
+      {/* Título visível apenas na impressão */}
+      <div className="hidden print:block">
+        <h1 className="text-2xl font-bold">Painel de Relatórios</h1>
+        <p className="text-sm text-muted-foreground">Gerado em {new Date().toLocaleDateString("pt-BR")}</p>
       </div>
 
       {/* Filtros */}
@@ -212,7 +236,7 @@ export default function Relatorios() {
 
       {/* Abas de relatórios */}
       <Tabs value={tipoAtivo} onValueChange={setTipoAtivo}>
-        <TabsList className="grid grid-cols-5 w-full">
+        <TabsList className="grid grid-cols-6 w-full print:hidden">
           <TabsTrigger value="inadimplencia" className="text-xs">
             <FileText className="h-3 w-3 mr-1" />Inadimplência
           </TabsTrigger>
@@ -227,6 +251,9 @@ export default function Relatorios() {
           </TabsTrigger>
           <TabsTrigger value="produtividade" className="text-xs">
             <BarChart3 className="h-3 w-3 mr-1" />Produtividade
+          </TabsTrigger>
+          <TabsTrigger value="acordos-detalhado" className="text-xs">
+            <FileText className="h-3 w-3 mr-1" />Acordos Detalhado
           </TabsTrigger>
         </TabsList>
 
@@ -553,6 +580,43 @@ export default function Relatorios() {
                   </Table>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {/* ── Acordos Detalhado ── */}
+        <TabsContent value="acordos-detalhado" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>Relatório de Acordos Detalhado</span>
+                <Link href="/relatorios/acordos-detalhado">
+                  <Button variant="outline" size="sm">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Abrir relatório completo
+                  </Button>
+                </Link>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                O relatório completo de acordos exibe cada acordo com suas cobranças originais, acréscimos e parcelas detalhadas, com opção de exportação em PDF.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
+                <HandshakeIcon className="h-12 w-12 text-muted-foreground/40" />
+                <div>
+                  <p className="font-medium">Relatório de Acordos Detalhado</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Visualize cada acordo com composição completa das cobranças originais,
+                    acréscimos calculados (juros, multa, honorários) e histórico de parcelas.
+                  </p>
+                </div>
+                <Link href="/relatorios/acordos-detalhado">
+                  <Button>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Abrir Relatório Completo
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

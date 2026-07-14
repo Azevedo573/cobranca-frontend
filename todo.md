@@ -2539,3 +2539,11 @@
 - [x] Procedure backend getRelatorioAcordos (filtros: condominioId, dataInicio, dataFim)
 - [x] Página RelatorioAcordos.tsx com filtros, tabelas detalhadas e exportação PDF
 - [x] Rota e link de navegação na seção Relatórios
+
+## Reorganização do Módulo de Relatórios
+- [x] Sidebar: reorganizar menu Relatórios em 3 sub-grupos (Cobrança, Produtividade, Centro de Inteligência)
+- [x] Sidebar: remover itens redundantes (Inadimplência, Cobrança, Acordos Detalhado) do menu
+- [x] Sidebar: mover Auditoria do Sistema para o grupo Configurações
+- [x] Relatorios.tsx: renomear título para "Painel de Relatórios"
+- [x] Relatorios.tsx: adicionar aba Acordos Detalhado com link para página dedicada
+- [x] Relatorios.tsx: adicionar exportação PDF em cada aba
