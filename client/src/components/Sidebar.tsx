@@ -271,10 +271,10 @@ export default function Sidebar() {
     { condominioId: user?.condominioId ?? undefined },
     { enabled: !!user, staleTime: 5 * 60 * 1000 }
   );
-  // Admin sem condomínio vê todos os módulos
+  // Admin sempre vê todos os módulos (independente de ter ou não condominioId)
   // Advogado sempre vê o módulo jurídico independentemente do condomínio
-  const modulosEfetivos = (user?.role === "admin" && !user?.condominioId)
-    ? ["cobranca", "juridico"]
+  const modulosEfetivos = user?.role === "admin"
+    ? ["cobranca", "juridico", "automacao", "banco", "relatorios"]
     : user?.role === "advogado"
     ? ["juridico", ...(modulosAtivos ?? [])]
     : (modulosAtivos ?? ["cobranca"]);
@@ -453,7 +453,18 @@ export default function Sidebar() {
                 }
                 return true;
               });
-              if (visibleItems.length === 0) return null;
+              // Verificar se o grupo tem sub-grupos com itens visíveis
+              const hasVisibleSubGroups = group.subGroups && group.subGroups.some((sg) =>
+                sg.roles.includes(user.role) &&
+                sg.items.some((item) => {
+                  if (!item.roles.includes(user.role)) return false;
+                  if ((user.role === "colaborador" || user.role === "advogado") && item.rbacModulo) {
+                    return colaboradorPodeVer(item.rbacModulo);
+                  }
+                  return true;
+                })
+              );
+              if (visibleItems.length === 0 && !hasVisibleSubGroups) return null;
 
               return (
                 <li key={group.label} className="mb-0.5">
