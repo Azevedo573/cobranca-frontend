@@ -2547,3 +2547,9 @@
 - [x] Relatorios.tsx: renomear título para "Painel de Relatórios"
 - [x] Relatorios.tsx: adicionar aba Acordos Detalhado com link para página dedicada
 - [x] Relatorios.tsx: adicionar exportação PDF em cada aba
+
+## PDF Real do Relatório de Acordos
+- [x] Criar gerador PDFKit (relatorio-acordos-pdf.ts) com layout fiel ao Markdown de referência
+- [x] Procedure tRPC relatorios.gerarPDFAcordos: busca dados, gera PDF, salva no S3 e retorna URL
+- [x] Botão "Exportar PDF" na página RelatorioAcordosDetalhado.tsx (substitui window.print)
+- [x] PDF estruturado: cabeçalho Gomes & Silva, seções por acordo, tabela cobranças originais, resumo acréscimos, tabela parcelas, rodapé Jetro Administradora

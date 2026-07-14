@@ -2254,6 +2254,47 @@ export const appRouter = router({
       const { getRelatorioAcordosDetalhado } = await import("./db-relatorios-extra");
       return await getRelatorioAcordosDetalhado(input);
     }),
+
+    gerarPDFAcordos: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+    })).mutation(async ({ input, ctx }) => {
+      const { getRelatorioAcordosDetalhado } = await import("./db-relatorios-extra");
+      const { gerarRelatorioAcordosPDF } = await import("./relatorio-acordos-pdf");
+      const { storagePut } = await import("./storage");
+      const { getDb } = await import("./db");
+      const { condominios } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const data = await getRelatorioAcordosDetalhado(input);
+
+      // Montar label do condomínio
+      let nomeCondominio = "Todos os condomínios";
+      if (input.condominioId) {
+        const db = await getDb();
+        if (db) {
+          const [cond] = await db.select({ name: condominios.name }).from(condominios).where(eq(condominios.id, input.condominioId)).limit(1);
+          if (cond) nomeCondominio = cond.name;
+        }
+      }
+
+      const periodoLabel = (() => {
+        const ini = input.dataInicio ? new Date(input.dataInicio).toLocaleDateString("pt-BR") : "—";
+        const fim = input.dataFim ? new Date(input.dataFim).toLocaleDateString("pt-BR") : "—";
+        return input.dataInicio || input.dataFim ? `${ini} a ${fim}` : "Todo o período";
+      })();
+
+      const pdfBuffer = await gerarRelatorioAcordosPDF({
+        nomeCondominio,
+        periodoLabel,
+        acordos: data.acordos as any,
+      });
+
+      const fileKey = `relatorios/acordos-${Date.now()}.pdf`;
+      const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+      return { url };
+    }),
   }),
   scoring: router({
     atualizarScore: protectedProcedure.input(z.object({

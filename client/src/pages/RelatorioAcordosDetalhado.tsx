@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Printer, FileText, RefreshCw, HandshakeIcon } from "lucide-react";
+import { Loader2, FileDown, FileText, RefreshCw, HandshakeIcon } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -88,8 +88,23 @@ export default function RelatorioAcordosDetalhado() {
     });
   };
 
-  const handleImprimir = () => {
-    window.print();
+  const gerarPDFMutation = trpc.relatorios.gerarPDFAcordos.useMutation({
+    onSuccess: (result) => {
+      // Abrir o PDF em nova aba para download
+      window.open(result.url, "_blank");
+      toast.success("PDF gerado com sucesso!");
+    },
+    onError: (err) => {
+      toast.error(`Erro ao gerar PDF: ${err.message}`);
+    },
+  });
+
+  const handleGerarPDF = () => {
+    if (Object.keys(filtroAtivo).length === 0) {
+      toast.error("Selecione os filtros e gere o relatório antes de exportar o PDF.");
+      return;
+    }
+    gerarPDFMutation.mutate(filtroAtivo);
   };
 
   const nomeCondominio = condominioId && condominioId !== "todos"
@@ -116,9 +131,16 @@ export default function RelatorioAcordosDetalhado() {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
-          <Button variant="outline" size="sm" onClick={handleImprimir} disabled={!data}>
-            <Printer className="h-4 w-4 mr-2" />
-            Imprimir / PDF
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarPDF}
+            disabled={!data || gerarPDFMutation.isPending}
+          >
+            {gerarPDFMutation.isPending
+              ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              : <FileDown className="h-4 w-4 mr-2" />}
+            {gerarPDFMutation.isPending ? "Gerando PDF..." : "Exportar PDF"}
           </Button>
         </div>
       </div>
