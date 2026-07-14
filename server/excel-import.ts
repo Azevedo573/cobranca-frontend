@@ -13,7 +13,9 @@ export function gerarTemplateExcel(): Buffer {
       "Nome Completo (opcional)": "João da Silva",
       "CPF/CNPJ (opcional)": "123.456.789-00",
       "Email": "joao@example.com",
+      "Email 2 (opcional)": "",
       "Telefone": "(11) 98765-4321",
+      "Telefone 2 (opcional)": "(11) 91111-2222",
       "Unidade": "101",
       "Bloco": "A",
       "Status da Unidade": "Padrão",
@@ -34,7 +36,9 @@ export function gerarTemplateExcel(): Buffer {
       "Nome Completo (opcional)": "Maria Santos",
       "CPF/CNPJ (opcional)": "987.654.321-00",
       "Email": "maria@example.com",
+      "Email 2 (opcional)": "maria2@example.com",
       "Telefone": "(11) 91234-5678",
+      "Telefone 2 (opcional)": "",
       "Unidade": "202",
       "Bloco": "B",
       "Status da Unidade": "Ajuizado",
@@ -61,7 +65,9 @@ export function gerarTemplateExcel(): Buffer {
     { wch: 30 }, // Nome Completo
     { wch: 18 }, // CPF/CNPJ
     { wch: 30 }, // Email
+    { wch: 30 }, // Email 2
     { wch: 18 }, // Telefone
+    { wch: 18 }, // Telefone 2
     { wch: 10 }, // Unidade
     { wch: 10 }, // Bloco
     { wch: 18 }, // Status da Unidade
@@ -93,8 +99,9 @@ export function gerarTemplateExcel(): Buffer {
     { "Instruções de Preenchimento": "7. Mês de Referência no formato: MM/AAAA" },
     { "Instruções de Preenchimento": "8. Valor Original deve ser numérico (use ponto para decimais)" },
     { "Instruções de Preenchimento": "9. Telefone no formato: (11) 98765-4321" },
-    { "Instruções de Preenchimento": "10. Não altere os nomes das colunas" },
-    { "Instruções de Preenchimento": "11. Remova as linhas de exemplo antes de importar" },
+    { "Instruções de Preenchimento": "10. Email 2 e Telefone 2 são opcionais — use quando o devedor tiver segundo contato" },
+    { "Instruções de Preenchimento": "11. Não altere os nomes das colunas" },
+    { "Instruções de Preenchimento": "12. Remova as linhas de exemplo antes de importar" },
   ];
   const wsInstrucoes = XLSX.utils.json_to_sheet(instrucoes);
   wsInstrucoes["!cols"] = [{ wch: 80 }];
@@ -112,7 +119,9 @@ export interface DadosImportacao {
   nomeCompleto?: string;
   cpfCnpj?: string;
   email?: string;
+  email2?: string;
   telefone?: string;
+  telefone2?: string;
   unidade: string;
   bloco?: string;
   statusUnidade?: "padrao" | "ajuizado";
@@ -238,7 +247,9 @@ export function processarPlanilha(buffer: Buffer): {
         nomeCompleto: nomeCompleto ? String(nomeCompleto) : undefined,
         cpfCnpj: cpfCnpj,
         email: row["Email"] ? String(row["Email"]) : undefined,
+        email2: row["Email 2 (opcional)"] ? String(row["Email 2 (opcional)"]) : (row["Email 2"] ? String(row["Email 2"]) : undefined),
         telefone: row["Telefone"] ? String(row["Telefone"]) : undefined,
+        telefone2: row["Telefone 2 (opcional)"] ? String(row["Telefone 2 (opcional)"]) : (row["Telefone 2"] ? String(row["Telefone 2"]) : undefined),
         unidade: String(row["Unidade"]),
         bloco: row["Bloco"] ? String(row["Bloco"]) : undefined,
         statusUnidade,

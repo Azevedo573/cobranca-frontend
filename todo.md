@@ -2585,3 +2585,10 @@
 - [x] Devedor: atualizar procedure devedores.create e devedores.update para aceitar email2 e phone2
 - [x] Devedor: atualizar DevedorForm.tsx com campos Email 2 e Telefone 2
 - [x] Devedor: exibir email2 e phone2 no DevedorDetalhes.tsx quando preenchidos
+
+## Planilha de Importação — Email 2 e Telefone 2
+- [x] Template Excel: adicionar colunas "Email 2 (opcional)" e "Telefone 2 (opcional)" após Email e Telefone
+- [x] Template Excel: adicionar instrução 10 explicando os novos campos opcionais
+- [x] Interface DadosImportacao: adicionar campos email2 e telefone2
+- [x] Parser processarPlanilha: ler colunas "Email 2 (opcional)" e "Telefone 2 (opcional)" do arquivo
+- [x] Procedure importação: passar email2 e phone2 ao createDevedor
