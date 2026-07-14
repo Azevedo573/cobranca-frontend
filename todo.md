@@ -2558,3 +2558,10 @@
 - [x] Corrigir window.open() bloqueado por popup blocker — substituído por link <a> programático com download
 - [x] Corrigir lógica filtroTemValor: Object.keys() retornava 3 mesmo com todos undefined — agora checa Object.values().some()
 - [x] Atualizar enabled da query e validação handleGerarPDF para usar filtroTemValor
+
+## Unificação das abas Acordos no Painel de Relatórios
+- [x] Remover aba "Acordos Detalhado" duplicada do Painel de Relatórios
+- [x] Substituir aba "Acordos" simples pelo layout detalhado completo (cobranças originais, acréscimos, parcelas)
+- [x] Botão "Exportar PDF" contextual na aba Acordos (gera PDF real via backend)
+- [x] Exportação Excel atualizada para usar shape detalhado (acordos.acordos[])
+- [x] Grid de abas reduzido de 6 para 5 colunas

@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Download, RefreshCw, FileText, TrendingUp, HandshakeIcon, Receipt, BarChart3, Printer, ExternalLink } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Loader2, Download, RefreshCw, FileText, TrendingUp, HandshakeIcon, Receipt, BarChart3, Printer, FileDown } from "lucide-react";
 import { toast } from "sonner";
 
 const fmtBRL = (v: number) =>
@@ -59,8 +59,25 @@ export default function Relatorios() {
   const { data: dadosInad, isLoading: loadingInad, refetch: refetchInad } =
     trpc.relatorios.inadimplencia.useQuery(filtro, { enabled: tipoAtivo === "inadimplencia" });
 
+  // Aba Acordos usa o shape detalhado (cobranças originais + parcelas)
+  const filtroAcordosTemValor = tipoAtivo === "acordos" && Object.values(filtro).some((v) => v !== undefined && v !== null);
   const { data: dadosAcordos, isLoading: loadingAcordos, refetch: refetchAcordos } =
-    trpc.relatorios.acordosPeriodo.useQuery(filtro, { enabled: tipoAtivo === "acordos" });
+    trpc.relatorios.acordosDetalhado.useQuery(filtro, { enabled: filtroAcordosTemValor });
+
+  const gerarPDFAcordosMutation = trpc.relatorios.gerarPDFAcordos.useMutation({
+    onSuccess: (result) => {
+      const link = document.createElement("a");
+      link.href = result.url;
+      link.setAttribute("download", `relatorio-acordos-${new Date().toISOString().slice(0, 10)}.pdf`);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("PDF gerado com sucesso!");
+    },
+    onError: (err) => toast.error(`Erro ao gerar PDF: ${err.message}`),
+  });
 
   const { data: dadosProdRaw, isLoading: loadingProd, refetch: refetchProd } =
     trpc.relatorios.produtividade.useQuery(
@@ -101,12 +118,12 @@ export default function Relatorios() {
       }
       if (tipoAtivo === "acordos" && dadosAcordos) {
         addSheet("Acordos", [
-          "Devedor", "CPF/CNPJ", "Unidade", "Bloco", "Condomínio",
+          "Devedor", "Unidade", "Bloco", "Condomínio",
           "Status", "Valor Acordo (R$)", "Parcelas", "Valor Pago (R$)", "Data Criação",
-        ], dadosAcordos.rows.map((r) => [
-          r.nomeDevedor, r.cpfCnpj ?? "", r.unidade ?? "", r.bloco ?? "", r.nomeCondominio,
-          STATUS_LABELS[r.status] ?? r.status, (r.valorTotal ?? 0) / 100,
-          r.numParcelas, (r.valorPago ?? 0) / 100, fmtDate(r.dataCriacao),
+        ], dadosAcordos.acordos.map((r: any) => [
+          r.nomeDevedor, r.unidade ?? "", r.bloco ?? "", r.nomeCondominio,
+          r.status, (r.agreedAmount ?? 0) / 100,
+          r.installments, (r.valorPagoEfetivo ?? 0) / 100, fmtDate(r.createdAt),
         ]));
       }
       if (tipoAtivo === "produtividade" && dadosProdRaw) {
@@ -165,6 +182,20 @@ export default function Relatorios() {
 
   const isLoading = loadingInad || loadingAcordos || loadingProd || loadingExtrato || loadingRecup;
 
+  // Helpers para a aba Acordos
+  const fmtMes = (ref: string | null | undefined) => {
+    if (!ref) return "—";
+    if (ref.includes("-")) { const [y, m] = ref.split("-"); return `${m}/${y}`; }
+    return ref;
+  };
+  const TIPO_LABELS_COBS: Record<string, string> = {
+    condominio: "Condomínio", salao_jogos: "Salão de Jogos", churrasqueira: "Churrasqueira",
+    cota_extra: "Cota Extra", multa: "Multa", outros: "Outros",
+  };
+  const STATUS_PARCELA_LABELS: Record<string, string> = {
+    pendente: "Pendente", pago: "Pago", atrasado: "Atrasado", cancelado: "Cancelado",
+  };
+
   return (
     <div className="p-6 space-y-6 print:p-4">
       {/* CSS de impressão */}
@@ -188,10 +219,27 @@ export default function Relatorios() {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
             Atualizar
           </Button>
-          <Button variant="outline" size="sm" onClick={exportarPDF}>
-            <Printer className="h-4 w-4 mr-2" />
-            Exportar PDF
-          </Button>
+          {tipoAtivo === "acordos" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!filtroAcordosTemValor) { toast.error("Selecione pelo menos um filtro para exportar o PDF."); return; }
+                gerarPDFAcordosMutation.mutate(filtro);
+              }}
+              disabled={!dadosAcordos || gerarPDFAcordosMutation.isPending}
+            >
+              {gerarPDFAcordosMutation.isPending
+                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                : <FileDown className="h-4 w-4 mr-2" />}
+              {gerarPDFAcordosMutation.isPending ? "Gerando PDF..." : "Exportar PDF"}
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={exportarPDF}>
+              <Printer className="h-4 w-4 mr-2" />
+              Exportar PDF
+            </Button>
+          )}
           <Button size="sm" onClick={exportarExcel} disabled={exportando || isLoading}>
             {exportando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
             Exportar Excel
@@ -236,7 +284,7 @@ export default function Relatorios() {
 
       {/* Abas de relatórios */}
       <Tabs value={tipoAtivo} onValueChange={setTipoAtivo}>
-        <TabsList className="grid grid-cols-6 w-full print:hidden">
+        <TabsList className="grid grid-cols-5 w-full print:hidden">
           <TabsTrigger value="inadimplencia" className="text-xs">
             <FileText className="h-3 w-3 mr-1" />Inadimplência
           </TabsTrigger>
@@ -251,9 +299,6 @@ export default function Relatorios() {
           </TabsTrigger>
           <TabsTrigger value="produtividade" className="text-xs">
             <BarChart3 className="h-3 w-3 mr-1" />Produtividade
-          </TabsTrigger>
-          <TabsTrigger value="acordos-detalhado" className="text-xs">
-            <FileText className="h-3 w-3 mr-1" />Acordos Detalhado
           </TabsTrigger>
         </TabsList>
 
@@ -326,73 +371,183 @@ export default function Relatorios() {
           </Card>
         </TabsContent>
 
-        {/* ── Acordos ── */}
+        {/* ── Acordos (detalhado) ── */}
         <TabsContent value="acordos" className="space-y-4 mt-4">
-          {dadosAcordos && (
-            <div className="grid grid-cols-3 gap-4">
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total de Acordos</p>
-                <p className="text-2xl font-bold">{dadosAcordos.totais.totalAcordos}</p>
-              </CardContent></Card>
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Valor Total Acordado</p>
-                <p className="text-2xl font-bold text-blue-600">{fmtBRL(dadosAcordos.totais.valorTotal)}</p>
-              </CardContent></Card>
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Valor Recuperado</p>
-                <p className="text-2xl font-bold text-green-600">{fmtBRL(dadosAcordos.totais.valorRecuperado)}</p>
-              </CardContent></Card>
+          {loadingAcordos && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Acordos no Período</CardTitle>
-              <CardDescription className="text-xs">{dadosAcordos?.rows.length ?? 0} registros</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loadingAcordos ? (
-                <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-              ) : (
-                <div className="overflow-auto max-h-[480px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Devedor</TableHead>
-                        <TableHead>Unidade</TableHead>
-                        <TableHead>Condomínio</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Valor Acordo</TableHead>
-                        <TableHead className="text-right">Parcelas</TableHead>
-                        <TableHead className="text-right">Valor Pago</TableHead>
-                        <TableHead>Data</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dadosAcordos?.rows.map((r) => (
-                        <TableRow key={r.acordoId}>
-                          <TableCell className="font-medium text-xs">{r.nomeDevedor}</TableCell>
-                          <TableCell className="text-xs">{r.bloco ? `${r.bloco}/` : ""}{r.unidade ?? "—"}</TableCell>
-                          <TableCell className="text-xs">{r.nomeCondominio}</TableCell>
-                          <TableCell>
-                            <Badge className={`text-[10px] ${STATUS_COLORS[r.status] ?? ""}`}>
-                              {STATUS_LABELS[r.status] ?? r.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right text-xs font-semibold">{fmtBRL(r.valorTotal ?? 0)}</TableCell>
-                          <TableCell className="text-right text-xs">{r.numParcelas}x</TableCell>
-                          <TableCell className="text-right text-xs text-green-600">{fmtBRL(r.valorPago ?? 0)}</TableCell>
-                          <TableCell className="text-xs">{fmtDate(r.dataCriacao)}</TableCell>
-                        </TableRow>
-                      ))}
-                      {!dadosAcordos?.rows.length && (
-                        <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum registro encontrado</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+
+          {!loadingAcordos && !filtroAcordosTemValor && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <HandshakeIcon className="h-12 w-12 text-muted-foreground/40 mb-4" />
+              <p className="text-muted-foreground font-medium">Selecione pelo menos um filtro para visualizar os acordos</p>
+              <p className="text-xs text-muted-foreground mt-1">Use os campos de data ou condomínio acima</p>
+            </div>
+          )}
+
+          {!loadingAcordos && filtroAcordosTemValor && dadosAcordos && dadosAcordos.acordos.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <FileText className="h-12 w-12 text-muted-foreground/40 mb-4" />
+              <p className="text-muted-foreground font-medium">Nenhum acordo encontrado no período</p>
+            </div>
+          )}
+
+          {dadosAcordos && dadosAcordos.acordos.length > 0 && (
+            <>
+              {/* Cards de totais */}
+              <div className="grid grid-cols-3 gap-4">
+                <Card><CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">Total de Acordos</p>
+                  <p className="text-2xl font-bold">{dadosAcordos.totais.totalAcordos}</p>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">Valor Total Acordado</p>
+                  <p className="text-2xl font-bold text-blue-600">{fmtBRL(dadosAcordos.totais.valorTotal)}</p>
+                </CardContent></Card>
+                <Card><CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground">Valor Pago</p>
+                  <p className="text-2xl font-bold text-green-600">{fmtBRL(dadosAcordos.totais.valorPago)}</p>
+                </CardContent></Card>
+              </div>
+
+              {/* Lista detalhada de acordos */}
+              {(dadosAcordos.acordos as any[]).map((acordo: any) => (
+                <div key={acordo.acordoId} className="border rounded-lg overflow-hidden">
+                  {/* Cabeçalho do acordo */}
+                  <div className="bg-muted/50 px-4 py-3 flex items-center justify-between border-b">
+                    <div className="flex items-center gap-3">
+                      <HandshakeIcon className="h-4 w-4 text-primary" />
+                      <span className="font-bold text-base">Acordo {String(acordo.acordoId).padStart(6, "0")}</span>
+                      <Badge className={`text-[10px] ${STATUS_COLORS[acordo.status] ?? ""}`}>
+                        {STATUS_LABELS[acordo.status] ?? acordo.status}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">Efetuado em {fmtDate(acordo.createdAt)}</span>
+                  </div>
+
+                  <div className="p-4 space-y-5">
+                    {/* Detalhes */}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Detalhes</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div><span className="text-xs text-muted-foreground block">Devedor</span><span className="font-medium">{acordo.nomeDevedor}</span></div>
+                        <div><span className="text-xs text-muted-foreground block">Unidade</span><span>{acordo.bloco ? `${acordo.bloco}/` : ""}{acordo.unidade ?? "—"}</span></div>
+                        <div><span className="text-xs text-muted-foreground block">Condomínio</span><span>{acordo.nomeCondominio}</span></div>
+                        <div><span className="text-xs text-muted-foreground block">Código do Acordo</span><span className="font-mono">{String(acordo.acordoId).padStart(6, "0")}</span></div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Cobranças Originais */}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Cobranças Originais</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-muted/40 text-left">
+                              <th className="px-2 py-1.5 border text-right w-20">Número</th>
+                              <th className="px-2 py-1.5 border text-center w-24">Vencimento</th>
+                              <th className="px-2 py-1.5 border text-center w-20">Competência</th>
+                              <th className="px-2 py-1.5 border">Descrição</th>
+                              <th className="px-2 py-1.5 border text-right w-28">Valor (R$)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {acordo.cobrancasOriginais.length === 0 ? (
+                              <tr><td colSpan={5} className="px-2 py-3 border text-center text-muted-foreground">Nenhuma cobrança original registrada</td></tr>
+                            ) : (
+                              <>
+                                {acordo.cobrancasOriginais.map((c: any, idx: number) => (
+                                  <tr key={idx} className={idx % 2 === 0 ? "" : "bg-muted/20"}>
+                                    <td className="px-2 py-1 border text-right font-mono">{c.cobrancaId}</td>
+                                    <td className="px-2 py-1 border text-center">{fmtDate(c.dataVencimento)}</td>
+                                    <td className="px-2 py-1 border text-center">{fmtMes(c.monthReference)}</td>
+                                    <td className="px-2 py-1 border">{c.descricao ?? TIPO_LABELS_COBS[c.tipoCobranca] ?? c.tipoCobranca}</td>
+                                    <td className="px-2 py-1 border text-right font-semibold">{(c.valorOriginalAcordo / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                ))}
+                                <tr className="bg-muted/40 font-semibold">
+                                  <td colSpan={4} className="px-2 py-1.5 border text-right">Subtotal das cobranças</td>
+                                  <td className="px-2 py-1.5 border text-right">{(acordo.somaOriginal / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                                </tr>
+                              </>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      {/* Resumo de acréscimos */}
+                      <div className="mt-3 flex justify-end">
+                        <table className="text-xs border-collapse min-w-[280px]">
+                          <thead><tr className="bg-muted/40"><th className="px-3 py-1.5 border text-left">Descrição</th><th className="px-3 py-1.5 border text-right">Valor (R$)</th></tr></thead>
+                          <tbody>
+                            <tr><td className="px-3 py-1 border">Acréscimos (juros, multa, honorários)</td><td className="px-3 py-1 border text-right">{(acordo.acrescimos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td></tr>
+                            <tr className="bg-muted/40 font-bold"><td className="px-3 py-1.5 border">Total Devido</td><td className="px-3 py-1.5 border text-right text-blue-700">{fmtBRL(acordo.agreedAmount)}</td></tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Parcelas do Acordo */}
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Parcelas do Acordo</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-muted/40 text-left">
+                              <th className="px-2 py-1.5 border text-right w-20">Parcela</th>
+                              <th className="px-2 py-1.5 border text-center w-24">Vencimento</th>
+                              <th className="px-2 py-1.5 border text-center w-24">Liquidação</th>
+                              <th className="px-2 py-1.5 border">Observação</th>
+                              <th className="px-2 py-1.5 border text-right w-28">Emitido (R$)</th>
+                              <th className="px-2 py-1.5 border text-right w-28">Pago (R$)</th>
+                              <th className="px-2 py-1.5 border text-center w-24">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {acordo.parcelas.length === 0 ? (
+                              <tr><td colSpan={7} className="px-2 py-3 border text-center text-muted-foreground">Nenhuma parcela registrada</td></tr>
+                            ) : (
+                              <>
+                                {acordo.parcelas.map((p: any, idx: number) => (
+                                  <tr key={idx} className={idx % 2 === 0 ? "" : "bg-muted/20"}>
+                                    <td className="px-2 py-1 border text-right font-mono">{p.nossoNumero ?? String(p.parcelaId).padStart(6, "0")}</td>
+                                    <td className="px-2 py-1 border text-center">{fmtDate(p.dueDate)}</td>
+                                    <td className="px-2 py-1 border text-center">{fmtDate(p.paymentDate)}</td>
+                                    <td className="px-2 py-1 border text-muted-foreground">{p.snapshotDescricao ?? (acordo.installments === 1 ? "Parcela única" : `Parcela ${p.installmentNumber}/${acordo.installments}`)}</td>
+                                    <td className="px-2 py-1 border text-right font-semibold">{(p.amount / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-2 py-1 border text-right text-green-700 font-semibold">{p.status === "pago" ? (p.amount / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "—"}</td>
+                                    <td className="px-2 py-1 border text-center">
+                                      <Badge className={`text-[10px] ${
+                                        p.status === "pago" ? "bg-green-100 text-green-800" :
+                                        p.status === "atrasado" ? "bg-red-100 text-red-800" :
+                                        p.status === "cancelado" ? "bg-gray-100 text-gray-500" :
+                                        "bg-yellow-100 text-yellow-800"
+                                      }`}>{STATUS_PARCELA_LABELS[p.status] ?? p.status}</Badge>
+                                    </td>
+                                  </tr>
+                                ))}
+                                <tr className="bg-muted/40 font-bold">
+                                  <td colSpan={4} className="px-2 py-1.5 border text-right">Total do Acordo</td>
+                                  <td className="px-2 py-1.5 border text-right text-blue-700">{fmtBRL(acordo.agreedAmount)}</td>
+                                  <td className="px-2 py-1.5 border text-right text-green-700">{fmtBRL(acordo.valorPagoEfetivo)}</td>
+                                  <td className="px-2 py-1.5 border" />
+                                </tr>
+                              </>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              ))}
+            </>
+          )}
         </TabsContent>
 
         {/* ── Extrato ── */}
@@ -583,43 +738,7 @@ export default function Relatorios() {
             </CardContent>
           </Card>
         </TabsContent>
-        {/* ── Acordos Detalhado ── */}
-        <TabsContent value="acordos-detalhado" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center justify-between">
-                <span>Relatório de Acordos Detalhado</span>
-                <Link href="/relatorios/acordos-detalhado">
-                  <Button variant="outline" size="sm">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Abrir relatório completo
-                  </Button>
-                </Link>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                O relatório completo de acordos exibe cada acordo com suas cobranças originais, acréscimos e parcelas detalhadas, com opção de exportação em PDF.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
-                <HandshakeIcon className="h-12 w-12 text-muted-foreground/40" />
-                <div>
-                  <p className="font-medium">Relatório de Acordos Detalhado</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Visualize cada acordo com composição completa das cobranças originais,
-                    acréscimos calculados (juros, multa, honorários) e histórico de parcelas.
-                  </p>
-                </div>
-                <Link href="/relatorios/acordos-detalhado">
-                  <Button>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Abrir Relatório Completo
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
       </Tabs>
     </div>
   );
