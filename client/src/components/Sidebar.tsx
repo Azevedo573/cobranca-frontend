@@ -68,12 +68,21 @@ interface MenuItem {
   rbacModulo?: string;
 }
 
+interface SubGroup {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles: string[];
+  items: MenuItem[];
+  rbacModulo?: string;
+}
+
 interface MenuGroup {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   roles: string[];
   items: MenuItem[];
   modulo?: string; // se definido, só aparece quando esse módulo está ativo no condomínio
+  subGroups?: SubGroup[]; // sub-grupos aninhados (nível 3)
 }
 
 const menuGroups: MenuGroup[] = [
@@ -110,54 +119,56 @@ const menuGroups: MenuGroup[] = [
     ],
   },
 
-  // ── Jurídico: Visão Geral ──
+  // ── Jurídico ──
   {
-    label: "Jurídico: Visão Geral",
-    icon: LayoutDashboard,
-    roles: ["admin"],
-    modulo: "juridico",
-    items: [
-      { label: "Dashboard Jurídico", href: "/admin/juridico/dashboard", icon: BarChart2, roles: ["admin"] },
-      { label: "Condomínios Jurídicos", href: "/admin/juridico/condominios", icon: Building2, roles: ["admin"] },
-      { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
-    ],
-  },
-
-  // ── Jurídico: Demandas ──
-  {
-    label: "Jurídico: Demandas",
-    icon: FolderOpen,
-    roles: ["admin", "colaborador", "advogado"],
-    modulo: "juridico",
-    items: [
-      { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
-      { label: "Kanban de Demandas", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
-      { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_assembleias" },
-    ],
-  },
-
-  // ── Jurídico: Processos & Prazos ──
-  {
-    label: "Jurídico: Processos & Prazos",
+    label: "Jurídico",
     icon: Scale,
     roles: ["admin", "colaborador", "advogado"],
     modulo: "juridico",
-    items: [
-      { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_processos" },
-      { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_prazos" },
-    ],
-  },
-
-  // ── Jurídico: Intimações & Publicações ──
-  {
-    label: "Jurídico: Intimações & Publicações",
-    icon: Bell,
-    roles: ["admin", "colaborador", "advogado"],
-    modulo: "juridico",
-    items: [
-      { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_intimacoes" },
-      { label: "Publicações Jurídicas", href: "/admin/juridico/publicacoes", icon: Newspaper, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_publicacoes" },
-      { label: "Configurações MNI", href: "/admin/juridico/mni-config", icon: Settings2, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_config" },
+    items: [], // items vazios — navegação via subGroups
+    subGroups: [
+      {
+        label: "Visão Geral",
+        icon: LayoutDashboard,
+        roles: ["admin"],
+        items: [
+          { label: "Dashboard Jurídico", href: "/admin/juridico/dashboard", icon: BarChart2, roles: ["admin"] },
+          { label: "Condomínios Jurídicos", href: "/admin/juridico/condominios", icon: Building2, roles: ["admin"] },
+          { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
+        ],
+      },
+      {
+        label: "Demandas",
+        icon: FolderOpen,
+        roles: ["admin", "colaborador", "advogado"],
+        rbacModulo: "juridico_demandas",
+        items: [
+          { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
+          { label: "Kanban de Demandas", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
+          { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_assembleias" },
+        ],
+      },
+      {
+        label: "Processos & Prazos",
+        icon: Scale,
+        roles: ["admin", "colaborador", "advogado"],
+        rbacModulo: "juridico_processos",
+        items: [
+          { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_processos" },
+          { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_prazos" },
+        ],
+      },
+      {
+        label: "Intimações & Publicações",
+        icon: Bell,
+        roles: ["admin", "colaborador", "advogado"],
+        rbacModulo: "juridico_intimacoes",
+        items: [
+          { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_intimacoes" },
+          { label: "Publicações Jurídicas", href: "/admin/juridico/publicacoes", icon: Newspaper, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_publicacoes" },
+          { label: "Configurações MNI", href: "/admin/juridico/mni-config", icon: Settings2, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_config" },
+        ],
+      },
     ],
   },
 
@@ -288,20 +299,58 @@ export default function Sidebar() {
     }
   });
 
-  // Abrir automaticamente o grupo que contém a rota ativa
+  // Estado de abertura de sub-grupos aninhados
+  const [openSubGroups, setOpenSubGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("sidebar-open-subgroups");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleSubGroup = (key: string) => {
+    setOpenSubGroups((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem("sidebar-open-subgroups", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Abrir automaticamente o grupo/sub-grupo que contém a rota ativa
   useEffect(() => {
     if (!user) return;
     const autoOpen: Record<string, boolean> = {};
+    const autoOpenSub: Record<string, boolean> = {};
     menuGroups.forEach((group) => {
       const hasActive = group.items.some(
         (item) => location === item.href || location.startsWith(item.href + "/")
       );
+      // Verificar sub-grupos
+      if (group.subGroups) {
+        group.subGroups.forEach((sg) => {
+          const sgActive = sg.items.some(
+            (item) => location === item.href || location.startsWith(item.href + "/")
+          );
+          if (sgActive) {
+            autoOpen[group.label] = true;
+            autoOpenSub[`${group.label}::${sg.label}`] = true;
+          }
+        });
+      }
       if (hasActive) autoOpen[group.label] = true;
     });
     if (Object.keys(autoOpen).length > 0) {
       setOpenGroups((prev) => {
         const next = { ...prev, ...autoOpen };
         localStorage.setItem("sidebar-open-groups", JSON.stringify(next));
+        return next;
+      });
+    }
+    if (Object.keys(autoOpenSub).length > 0) {
+      setOpenSubGroups((prev) => {
+        const next = { ...prev, ...autoOpenSub };
+        localStorage.setItem("sidebar-open-subgroups", JSON.stringify(next));
         return next;
       });
     }
@@ -436,9 +485,78 @@ export default function Sidebar() {
                     )}
                   </button>
 
-                  {/* Submenus */}
+                  {/* Submenus ou Sub-grupos aninhados */}
                   {!collapsed && isOpen && (
                     <ul className="mt-0.5 ml-3 pl-3 border-l border-border space-y-0.5">
+                      {/* Sub-grupos aninhados (nível 3) */}
+                      {group.subGroups && group.subGroups
+                        .filter((sg) => sg.roles.includes(user.role))
+                        .filter((sg) => {
+                          if ((user.role === "colaborador" || user.role === "advogado") && sg.rbacModulo) {
+                            return colaboradorPodeVer(sg.rbacModulo);
+                          }
+                          return true;
+                        })
+                        .map((sg) => {
+                          const SgIcon = sg.icon;
+                          const sgKey = `${group.label}::${sg.label}`;
+                          const sgOpen = openSubGroups[sgKey] ?? false;
+                          const sgVisibleItems = sg.items.filter((item) => {
+                            if (!item.roles.includes(user.role)) return false;
+                            if ((user.role === "colaborador" || user.role === "advogado") && item.rbacModulo) {
+                              return colaboradorPodeVer(item.rbacModulo);
+                            }
+                            return true;
+                          });
+                          if (sgVisibleItems.length === 0) return null;
+                          const sgActive = sgVisibleItems.some((item) => isItemActive(item.href));
+                          return (
+                            <li key={sgKey} className="mb-0.5">
+                              <button
+                                onClick={() => toggleSubGroup(sgKey)}
+                                className={cn(
+                                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-colors text-left",
+                                  "hover:bg-accent hover:text-accent-foreground",
+                                  sgActive && !sgOpen && "text-primary font-semibold"
+                                )}
+                              >
+                                <SgIcon className={cn("h-4 w-4 flex-shrink-0", sgActive && "text-primary")} />
+                                <span className="text-sm font-medium flex-1">{sg.label}</span>
+                                <ChevronDown
+                                  className={cn(
+                                    "h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200 text-muted-foreground",
+                                    sgOpen && "rotate-180"
+                                  )}
+                                />
+                              </button>
+                              {sgOpen && (
+                                <ul className="mt-0.5 ml-3 pl-3 border-l border-border space-y-0.5">
+                                  {sgVisibleItems.map((item) => {
+                                    const ItemIcon = item.icon;
+                                    const active = isItemActive(item.href);
+                                    return (
+                                      <li key={item.href}>
+                                        <Link
+                                          href={item.href}
+                                          className={cn(
+                                            "flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors",
+                                            "hover:bg-accent hover:text-accent-foreground",
+                                            active && "bg-primary/10 text-primary font-medium"
+                                          )}
+                                        >
+                                          <ItemIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                                          <span className="text-xs">{item.label}</span>
+                                        </Link>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                            </li>
+                          );
+                        })
+                      }
+                      {/* Itens diretos do grupo (sem sub-grupos) */}
                       {visibleItems.map((item) => {
                         const ItemIcon = item.icon;
                         const active = isItemActive(item.href);
