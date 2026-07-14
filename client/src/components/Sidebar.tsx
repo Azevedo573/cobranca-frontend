@@ -110,21 +110,51 @@ const menuGroups: MenuGroup[] = [
     ],
   },
 
-  // ── Jurídico ──
+  // ── Jurídico: Visão Geral ──
   {
-    label: "Jurídico",
-    icon: Scale,
-    roles: ["admin", "sindico", "colaborador", "advogado"],
-    // modulo removido: controle granular agora é feito por item via rbacModulo
+    label: "Jurídico: Visão Geral",
+    icon: LayoutDashboard,
+    roles: ["admin"],
+    modulo: "juridico",
     items: [
-      { label: "Dashboard", href: "/admin/juridico/dashboard", icon: BarChart2, roles: ["admin"] },
+      { label: "Dashboard Jurídico", href: "/admin/juridico/dashboard", icon: BarChart2, roles: ["admin"] },
+      { label: "Condomínios Jurídicos", href: "/admin/juridico/condominios", icon: Building2, roles: ["admin"] },
+      { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
+    ],
+  },
+
+  // ── Jurídico: Demandas ──
+  {
+    label: "Jurídico: Demandas",
+    icon: FolderOpen,
+    roles: ["admin", "colaborador", "advogado"],
+    modulo: "juridico",
+    items: [
       { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
-      { label: "Kanban", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
+      { label: "Kanban de Demandas", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
       { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_assembleias" },
-      { label: "Condomínios", href: "/admin/juridico/condominios", icon: Building2, roles: ["admin"] },
+    ],
+  },
+
+  // ── Jurídico: Processos & Prazos ──
+  {
+    label: "Jurídico: Processos & Prazos",
+    icon: Scale,
+    roles: ["admin", "colaborador", "advogado"],
+    modulo: "juridico",
+    items: [
       { label: "Processos Judiciais", href: "/admin/juridico/processos", icon: Scale, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_processos" },
       { label: "Prazos Jurídicos", href: "/admin/juridico/prazos", icon: Timer, roles: ["admin", "advogado", "colaborador"], rbacModulo: "juridico_prazos" },
-      { label: "Busca por Advogado", href: "/admin/juridico/busca-advogado", icon: Search, roles: ["admin"] },
+    ],
+  },
+
+  // ── Jurídico: Intimações & Publicações ──
+  {
+    label: "Jurídico: Intimações & Publicações",
+    icon: Bell,
+    roles: ["admin", "colaborador", "advogado"],
+    modulo: "juridico",
+    items: [
       { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_intimacoes" },
       { label: "Publicações Jurídicas", href: "/admin/juridico/publicacoes", icon: Newspaper, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_publicacoes" },
       { label: "Configurações MNI", href: "/admin/juridico/mni-config", icon: Settings2, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_config" },
