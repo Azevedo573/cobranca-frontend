@@ -2604,3 +2604,13 @@
 - [x] Frontend: seção de comentários dentro de cada tarefa expandida
 - [x] Frontend: badge contador de tarefas no KanbanCard (X/Y concluídas)
 - [x] Frontend: badge verde quando todas concluídas, amarelo quando há pendentes
+
+## Minhas Tarefas (visão do destinatário)
+- [x] Backend: procedure tarefas.minhasTarefas — retorna tarefas onde responsavelId = userId logado, com join na demanda (numero, assunto, condominio)
+- [x] Frontend: página MinhasTarefas.tsx com lista agrupada por status (Pendente, Em Andamento, Concluída)
+- [x] Frontend: filtros de status e prioridade
+- [x] Frontend: card de tarefa com link direto para a demanda relacionada
+- [x] Frontend: botão rápido para marcar como concluída/em andamento
+- [x] Frontend: seção de comentários expansível por tarefa
+- [x] App.tsx: rota /minhas-tarefas
+- [x] Sidebar: link "Minhas Tarefas" no menu (visível para todos os perfis)

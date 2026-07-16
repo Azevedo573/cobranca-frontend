@@ -51,6 +51,7 @@ import {
   Newspaper,
   AlertTriangle,
   Activity,
+  ListTodo,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useSidebarContext } from "./Layout";
@@ -146,6 +147,7 @@ const menuGroups: MenuGroup[] = [
         items: [
           { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
           { label: "Kanban de Demandas", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
+          { label: "Minhas Tarefas", href: "/minhas-tarefas", icon: ListTodo, roles: ["admin", "colaborador", "advogado", "sindico", "cobrador"] },
           { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_assembleias" },
         ],
       },

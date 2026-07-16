@@ -189,4 +189,60 @@ export const tarefasDemandaRouter = router({
       await db.delete(tarefaComentarios).where(eq(tarefaComentarios.id, input.id));
       return { ok: true };
     }),
+
+  // ─── Minhas Tarefas (tarefas atribuídas ao usuário logado) ────────────────────────────────────────
+  minhasTarefas: protectedProcedure
+    .input(z.object({
+      status: z.enum(["pendente", "em_andamento", "concluida", "todas"]).default("todas"),
+      prioridade: z.enum(["baixa", "media", "alta", "todas"]).default("todas"),
+    }))
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) return [];
+      const { tarefasDemanda, demandas: juridicoDemandas } = await import("../../drizzle/schema");
+      const { eq, and } = await import("drizzle-orm");
+
+      const conditions: any[] = [eq(tarefasDemanda.responsavelId, ctx.user.id)];
+      if (input.status !== "todas") conditions.push(eq(tarefasDemanda.status, input.status as any));
+      if (input.prioridade !== "todas") conditions.push(eq(tarefasDemanda.prioridade, input.prioridade as any));
+
+      const rows = await db
+        .select({
+          id: tarefasDemanda.id,
+          demandaId: tarefasDemanda.demandaId,
+          titulo: tarefasDemanda.titulo,
+          descricao: tarefasDemanda.descricao,
+          status: tarefasDemanda.status,
+          prioridade: tarefasDemanda.prioridade,
+          prazo: tarefasDemanda.prazo,
+          criadoPorNome: tarefasDemanda.criadoPorNome,
+          createdAt: tarefasDemanda.createdAt,
+          updatedAt: tarefasDemanda.updatedAt,
+          // dados da demanda
+          demandaNumero: juridicoDemandas.numero,
+          demandaAssunto: juridicoDemandas.assunto,
+          demandaCondominioId: juridicoDemandas.condominioId,
+        })
+        .from(tarefasDemanda)
+        .leftJoin(juridicoDemandas, eq(tarefasDemanda.demandaId, juridicoDemandas.id))
+        .where(and(...conditions))
+        .orderBy(tarefasDemanda.createdAt);
+
+      return rows;
+    }),
+
+  // ─── Mover status rapidamente (para drag-and-drop do Kanban) ───────────────────────────
+  moverStatus: protectedProcedure
+    .input(z.object({
+      id: z.number().int().positive(),
+      status: z.enum(["pendente", "em_andamento", "concluida"]),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+      const { tarefasDemanda } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      await db.update(tarefasDemanda).set({ status: input.status }).where(eq(tarefasDemanda.id, input.id));
+      return { ok: true };
+    }),
 });

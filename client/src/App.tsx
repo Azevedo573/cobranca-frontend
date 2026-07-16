@@ -78,6 +78,7 @@ import BTGConfig from "./pages/configuracoes/BTGConfig";
 import BTGConciliacao from "./pages/admin/BTGConciliacao";
 import CentralDemandas from "./pages/admin/juridico/CentralDemandas";
 import KanbanDemandas from "./pages/admin/juridico/KanbanDemandas";
+import MinhasTarefas from "./pages/MinhasTarefas";
 import DemandaDetalhes from "./pages/admin/juridico/DemandaDetalhes";
 import Assembleias from "./pages/admin/juridico/Assembleias";
 import DashboardJuridico from "./pages/admin/juridico/DashboardJuridico";
@@ -459,6 +460,9 @@ function Router() {
       </Route>
       <Route path="/admin/btg-conciliacao">
         {() => <ProtectedRoute component={BTGConciliacao} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/minhas-tarefas">
+        {() => <ProtectedRoute component={MinhasTarefas} allowedRoles={["admin", "colaborador", "advogado", "sindico", "cobrador"]} />}
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
