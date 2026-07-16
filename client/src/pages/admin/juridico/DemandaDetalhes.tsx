@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AbaTarefas } from "@/components/AbaTarefas";
 import { PrioridadeBadge, PRIORIDADE_CONFIG } from "@/components/PrioridadeBadge";
 import { useLocation, useParams, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -10,15 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft, Clock, AlertTriangle, User, Building2, MessageSquare, Mail, Phone,
   Globe, Users, FileText, Calendar, Edit2, Check, X, Send, Tag, Kanban, Trash2,
-  Scale, ExternalLink, Banknote, HandCoins
+  Scale, ExternalLink, Banknote, HandCoins, ListTodo, Plus, ChevronDown, ChevronRight,
+  CheckCircle2, Circle, Loader2
 } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
 
 const TIPO_LABEL: Record<string, string> = {
   parecer: "Parecer Jurídico", convencao: "Convenção/Regimento", assembleia: "Assembleia",
@@ -40,28 +42,21 @@ const CANAL_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
 };
 
 const TIMELINE_TIPO_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  criacao:       { label: "Criação",       color: "bg-green-100 text-green-700",  icon: <FileText className="h-3.5 w-3.5" /> },
-  atribuicao:    { label: "Atribuição",    color: "bg-blue-100 text-blue-700",    icon: <User className="h-3.5 w-3.5" /> },
-  movimentacao:  { label: "Movimentação",  color: "bg-purple-100 text-purple-700",icon: <Kanban className="h-3.5 w-3.5" /> },
-  comentario:    { label: "Comentário",    color: "bg-slate-100 text-slate-700",  icon: <MessageSquare className="h-3.5 w-3.5" /> },
-  email:         { label: "E-mail",        color: "bg-yellow-100 text-yellow-700",icon: <Mail className="h-3.5 w-3.5" /> },
+  criacao:       { label: "Criação",       color: "bg-green-100 text-green-700",    icon: <FileText className="h-3.5 w-3.5" /> },
+  atribuicao:    { label: "Atribuição",    color: "bg-blue-100 text-blue-700",      icon: <User className="h-3.5 w-3.5" /> },
+  movimentacao:  { label: "Movimentação",  color: "bg-purple-100 text-purple-700",  icon: <Kanban className="h-3.5 w-3.5" /> },
+  comentario:    { label: "Comentário",    color: "bg-slate-100 text-slate-700",    icon: <MessageSquare className="h-3.5 w-3.5" /> },
+  email:         { label: "E-mail",        color: "bg-yellow-100 text-yellow-700",  icon: <Mail className="h-3.5 w-3.5" /> },
   whatsapp:      { label: "WhatsApp",      color: "bg-emerald-100 text-emerald-700",icon: <MessageSquare className="h-3.5 w-3.5" /> },
-  conclusao:     { label: "Conclusão",     color: "bg-green-100 text-green-700",  icon: <Check className="h-3.5 w-3.5" /> },
-  cancelamento:  { label: "Cancelamento",  color: "bg-red-100 text-red-700",      icon: <X className="h-3.5 w-3.5" /> },
-  outro:         { label: "Outro",         color: "bg-slate-100 text-slate-700",  icon: <Tag className="h-3.5 w-3.5" /> },
+  conclusao:     { label: "Conclusão",     color: "bg-green-100 text-green-700",    icon: <Check className="h-3.5 w-3.5" /> },
+  cancelamento:  { label: "Cancelamento",  color: "bg-red-100 text-red-700",        icon: <X className="h-3.5 w-3.5" /> },
+  outro:         { label: "Outro",         color: "bg-slate-100 text-slate-700",    icon: <Tag className="h-3.5 w-3.5" /> },
 };
 
 function formatDateTime(d: string | Date | null | undefined) {
   if (!d) return "";
   return new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
-
-function formatDate(d: string | Date | null | undefined) {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-// ─── Componente de Campo Editável ─────────────────────────────────────────────
 
 function CampoEditavel({ label, value, onSave, type = "text" }: {
   label: string;
@@ -120,6 +115,7 @@ export default function DemandaDetalhes() {
   const demandaId = Number(params.id);
   const utils = trpc.useUtils();
 
+  const [abaAtiva, setAbaAtiva] = useState<"historico" | "tarefas">("historico");
   const [comentario, setComentario] = useState("");
   const [tipoComentario, setTipoComentario] = useState<"comentario" | "email" | "whatsapp" | "outro">("comentario");
 
@@ -127,6 +123,10 @@ export default function DemandaDetalhes() {
   const { data: timeline = [] } = trpc.juridicoDemandas.getTimeline.useQuery({ demandaId });
   const { data: colunas = [] } = trpc.juridicoDemandas.getColunas.useQuery();
   const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
+  const { data: contadores } = trpc.juridicoDemandas.tarefas.contadores.useQuery({ demandaId });
+
+  // Operadores = todos os usuários ativos (advogados + admins)
+  const operadores = advogados as any[];
 
   const updateMutation = trpc.juridicoDemandas.update.useMutation({
     onSuccess: () => {
@@ -216,14 +216,12 @@ export default function DemandaDetalhes() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* Botão Escalar para Processo Judicial — visível para tipos judiciais */}
           {(d.tipo === "cobranca_judicial" || d.tipo === "processo" || d.tipo === "execucao" || d.tipo === "acompanhamento") && (
             <Button
               variant="outline"
               size="sm"
               className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950"
               onClick={() => {
-                // Monta query params com dados da demanda para pré-preencher o formulário de processo
                 const params = new URLSearchParams();
                 params.set("demandaId", String(demandaId));
                 if (d.nomeDevedor) params.set("condominioNome", d.nomeDevedor);
@@ -277,7 +275,6 @@ export default function DemandaDetalhes() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {/* Snapshot da dívida */}
                   <div className="rounded-lg bg-red-50 border border-red-100 p-3 space-y-2">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                       {d.nomeDevedor && (
@@ -325,74 +322,115 @@ export default function DemandaDetalhes() {
             </Card>
           )}
 
-          {/* Timeline */}
+          {/* Abas: Histórico & Tarefas */}
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">
-                Histórico & Comentários ({(timeline as any[]).length})
-              </CardTitle>
+            <CardHeader className="pb-0">
+              <div className="flex gap-1 border-b -mx-6 px-6">
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    abaAtiva === "historico"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setAbaAtiva("historico")}
+                >
+                  <MessageSquare className="h-3.5 w-3.5 inline mr-1.5" />
+                  Histórico & Comentários ({(timeline as any[]).length})
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                    abaAtiva === "tarefas"
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setAbaAtiva("tarefas")}
+                >
+                  <ListTodo className="h-3.5 w-3.5" />
+                  Tarefas
+                  {contadores && contadores.total > 0 && (
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] px-1.5 py-0 ml-1 ${
+                        contadores.pendentes === 0
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                      }`}
+                    >
+                      {contadores.concluidas}/{contadores.total}
+                    </Badge>
+                  )}
+                </button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Adicionar comentário */}
-              <div className="space-y-2 p-3 bg-muted/30 rounded-lg border">
-                <div className="flex gap-2">
-                  <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
-                    <SelectTrigger className="w-36 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="comentario">Comentário</SelectItem>
-                      <SelectItem value="email">E-mail</SelectItem>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                      <SelectItem value="outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Textarea
-                  placeholder="Adicionar comentário ou registro de atividade..."
-                  rows={3}
-                  value={comentario}
-                  onChange={e => setComentario(e.target.value)}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    onClick={handleEnviarComentario}
-                    disabled={!comentario.trim() || comentarioMutation.isPending}
-                  >
-                    <Send className="h-3.5 w-3.5 mr-1" />
-                    {comentarioMutation.isPending ? "Enviando..." : "Registrar"}
-                  </Button>
-                </div>
-              </div>
+            <CardContent className="pt-4">
+              {abaAtiva === "historico" && (
+                <div className="space-y-4">
+                  {/* Adicionar comentário */}
+                  <div className="space-y-2 p-3 bg-muted/30 rounded-lg border">
+                    <div className="flex gap-2">
+                      <Select value={tipoComentario} onValueChange={v => setTipoComentario(v as any)}>
+                        <SelectTrigger className="w-36 h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="comentario">Comentário</SelectItem>
+                          <SelectItem value="email">E-mail</SelectItem>
+                          <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                          <SelectItem value="outro">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Textarea
+                      placeholder="Adicionar comentário ou registro de atividade..."
+                      rows={3}
+                      value={comentario}
+                      onChange={e => setComentario(e.target.value)}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        onClick={handleEnviarComentario}
+                        disabled={!comentario.trim() || comentarioMutation.isPending}
+                      >
+                        <Send className="h-3.5 w-3.5 mr-1" />
+                        {comentarioMutation.isPending ? "Enviando..." : "Registrar"}
+                      </Button>
+                    </div>
+                  </div>
 
-              {/* Eventos */}
-              <div className="space-y-3">
-                {(timeline as any[]).length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Nenhum evento registrado</p>
-                ) : (
-                  (timeline as any[]).map((evento: any) => {
-                    const tc = TIMELINE_TIPO_CONFIG[evento.tipo] ?? TIMELINE_TIPO_CONFIG.outro;
-                    return (
-                      <div key={evento.id} className="flex gap-3">
-                        <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${tc.color}`}>
-                          {tc.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs font-medium">{tc.label}</span>
-                            {evento.usuarioNome && (
-                              <span className="text-xs text-muted-foreground">por {evento.usuarioNome}</span>
-                            )}
-                            <span className="text-xs text-muted-foreground ml-auto">{formatDateTime(evento.criadoEm)}</span>
+                  {/* Eventos */}
+                  <div className="space-y-3">
+                    {(timeline as any[]).length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">Nenhum evento registrado</p>
+                    ) : (
+                      (timeline as any[]).map((evento: any) => {
+                        const tc = TIMELINE_TIPO_CONFIG[evento.tipo] ?? TIMELINE_TIPO_CONFIG.outro;
+                        return (
+                          <div key={evento.id} className="flex gap-3">
+                            <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${tc.color}`}>
+                              {tc.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-xs font-medium">{tc.label}</span>
+                                {evento.usuarioNome && (
+                                  <span className="text-xs text-muted-foreground">por {evento.usuarioNome}</span>
+                                )}
+                                <span className="text-xs text-muted-foreground ml-auto">{formatDateTime(evento.criadoEm)}</span>
+                              </div>
+                              <p className="text-sm text-foreground/80 whitespace-pre-wrap">{evento.descricao}</p>
+                            </div>
                           </div>
-                          <p className="text-sm text-foreground/80 whitespace-pre-wrap">{evento.descricao}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {abaAtiva === "tarefas" && (
+                <AbaTarefas demandaId={demandaId} operadores={operadores} />
+              )}
             </CardContent>
           </Card>
         </div>

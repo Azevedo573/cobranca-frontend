@@ -14,6 +14,7 @@ import { btgRouter } from "./routers/btg";
 import { processosRouter, prazosRouter } from "./routers/processos";
 import { mniRouter } from "./routers/mni";
 import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
+import { tarefasDemandaRouter } from "./routers/tarefas-demanda";
 export const appRouter = router({
 
   system: systemRouter,
@@ -7023,6 +7024,7 @@ export const appRouter = router({
 
   // ─── Módulo Jurídico — Central de Demandas ────────────────────────────────────
   juridicoDemandas: router({
+    tarefas: tarefasDemandaRouter,
     seedColunas: protectedProcedure
       .input(z.object({ targetUserId: z.number().int().positive().optional() }).optional())
       .mutation(async ({ input, ctx }) => {

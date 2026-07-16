@@ -2592,3 +2592,15 @@
 - [x] Interface DadosImportacao: adicionar campos email2 e telefone2
 - [x] Parser processarPlanilha: ler colunas "Email 2 (opcional)" e "Telefone 2 (opcional)" do arquivo
 - [x] Procedure importação: passar email2 e phone2 ao createDevedor
+
+## Tarefas Internas no Kanban
+- [x] Schema: adicionar tabela tarefasDemanda (id, demandaId, titulo, descricao, responsavelId, responsavelNome, status, prioridade, prazo, criadoPorId, criadoPorNome, createdAt, updatedAt)
+- [x] Schema: adicionar tabela tarefaComentarios (id, tarefaId, texto, autorId, autorNome, createdAt)
+- [x] Banco: criar colunas via ALTER TABLE (webdev_execute_sql)
+- [x] Backend: criar server/routers/tarefas-demanda.ts com procedures listar, create, update, delete, addComentario, getComentarios, deleteComentario, contadores
+- [x] Backend: importar e registrar sub-router de tarefas em juridicoDemandas no routers.ts
+- [x] Frontend: adicionar aba "Tarefas" na DemandaDetalhes.tsx com lista agrupada por status
+- [x] Frontend: Dialog de nova/editar tarefa com campos título, descrição, responsável, prioridade, prazo, status
+- [x] Frontend: seção de comentários dentro de cada tarefa expandida
+- [x] Frontend: badge contador de tarefas no KanbanCard (X/Y concluídas)
+- [x] Frontend: badge verde quando todas concluídas, amarelo quando há pendentes

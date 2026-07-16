@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { AbaTarefas } from "@/components/AbaTarefas";
 import { PrioridadeBadge, PRIORIDADE_CONFIG } from "@/components/PrioridadeBadge";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -24,7 +25,7 @@ import {
   Globe, Users, FileText, Calendar, Check, X, Send, Tag, Kanban, Trash2,
   Scale, ExternalLink, Loader2, Paperclip, Upload, Image, File, FileImage,
   Download, Eye, Bold, Italic, List, ListOrdered, Undo, Redo, Type,
-  CheckCircle2, ArrowRight, XCircle,
+  CheckCircle2, ArrowRight, XCircle, ListTodo,
 } from "lucide-react";
 
 // ─── TipTap ───────────────────────────────────────────────────────────────────
@@ -667,7 +668,12 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
   const utils = trpc.useUtils();
   const [comentario, setComentario] = useState("");
   const [tipoComentario, setTipoComentario] = useState<"comentario" | "email" | "whatsapp" | "outro">("comentario");
-  const [aba, setAba] = useState<"detalhes" | "historico" | "anexos">("detalhes");
+  const [aba, setAba] = useState<"detalhes" | "historico" | "tarefas" | "anexos">("detalhes");
+
+  const { data: contadoresTarefas } = trpc.juridicoDemandas.tarefas.contadores.useQuery(
+    { demandaId: demandaId! },
+    { enabled: demandaId != null }
+  );
 
   const { data: demanda, isLoading } = trpc.juridicoDemandas.getById.useQuery(
     { id: demandaId! },
@@ -804,6 +810,22 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
               {(timeline as any[]).length > 0 && (
                 <span className="text-xs bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 leading-none">
                   {(timeline as any[]).length}
+                </span>
+              )}
+            </button>
+            <button
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${aba === "tarefas" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setAba("tarefas")}
+            >
+              <ListTodo className="h-3.5 w-3.5" />
+              Tarefas
+              {contadoresTarefas && contadoresTarefas.total > 0 && (
+                <span className={`text-xs rounded-full px-1.5 py-0.5 leading-none ${
+                  contadoresTarefas.pendentes === 0
+                    ? "bg-green-100 text-green-700"
+                    : "bg-yellow-100 text-yellow-700"
+                }`}>
+                  {contadoresTarefas.concluidas}/{contadoresTarefas.total}
                 </span>
               )}
             </button>
@@ -1136,6 +1158,11 @@ export function ModalDemandaDetalhes({ demandaId, onClose, onDeleted }: ModalDem
               </div>
             </div>
 
+          ) : aba === "tarefas" ? (
+            /* ── ABA TAREFAS ── */
+            <div className="p-6">
+              <AbaTarefas demandaId={demandaId!} operadores={advogados as any[]} />
+            </div>
           ) : (
             /* ── ABA ANEXOS ── */
             <AbaAnexos demandaId={demandaId!} />

@@ -1525,3 +1525,34 @@ export const whatsappFilaEnvio = mysqlTable("whatsappFilaEnvio", {
 
 export type WhatsappFilaEnvio = typeof whatsappFilaEnvio.$inferSelect;
 export type InsertWhatsappFilaEnvio = typeof whatsappFilaEnvio.$inferInsert;
+
+// ─── Tarefas Internas de Demandas (Kanban) ────────────────────────────────────
+export const tarefasDemanda = mysqlTable("tarefasDemanda", {
+  id: int("id").autoincrement().primaryKey(),
+  demandaId: int("demandaId").notNull(),
+  titulo: varchar("titulo", { length: 255 }).notNull(),
+  descricao: text("descricao"),
+  responsavelId: int("responsavelId"),
+  responsavelNome: varchar("responsavelNome", { length: 255 }),
+  status: mysqlEnum("statusTarefa", ["pendente", "em_andamento", "concluida"]).default("pendente").notNull(),
+  prioridade: mysqlEnum("prioridadeTarefa", ["baixa", "media", "alta"]).default("media").notNull(),
+  prazo: timestamp("prazo"),
+  criadoPorId: int("criadoPorId"),
+  criadoPorNome: varchar("criadoPorNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TarefaDemanda = typeof tarefasDemanda.$inferSelect;
+export type InsertTarefaDemanda = typeof tarefasDemanda.$inferInsert;
+
+// Comentários/Observações de cada tarefa interna
+export const tarefaComentarios = mysqlTable("tarefaComentarios", {
+  id: int("id").autoincrement().primaryKey(),
+  tarefaId: int("tarefaId").notNull(),
+  texto: text("texto").notNull(),
+  autorId: int("autorId"),
+  autorNome: varchar("autorNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type TarefaComentario = typeof tarefaComentarios.$inferSelect;
+export type InsertTarefaComentario = typeof tarefaComentarios.$inferInsert;
