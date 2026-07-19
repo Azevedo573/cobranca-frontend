@@ -2614,3 +2614,11 @@
 - [x] Frontend: seção de comentários expansível por tarefa
 - [x] App.tsx: rota /minhas-tarefas
 - [x] Sidebar: link "Minhas Tarefas" no menu (visível para todos os perfis)
+
+## Monitoramento DOERJ — Dr. Higor
+- [ ] Banco: criar tabela doerj_publicacoes (id, materiaId, data, jornal, tipo, trecho, url, termoBusca, lida, createdAt)
+- [ ] Backend: endpoint /api/scheduled/doerj para receber publicações do AGENT cron
+- [ ] Backend: procedures doerj.listar, doerj.marcarLida, doerj.contadorNaoLidas
+- [ ] Frontend: página MonitoramentoDOERJ.tsx com lista de publicações e badge de não lidas
+- [ ] Sidebar: link "Diário Oficial RJ" no menu Jurídico
+- [ ] AGENT cron: job diário que acessa o DOERJ, busca por "Higor" e envia novas publicações ao endpoint

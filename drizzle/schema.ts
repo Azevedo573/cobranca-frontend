@@ -1556,3 +1556,20 @@ export const tarefaComentarios = mysqlTable("tarefaComentarios", {
 });
 export type TarefaComentario = typeof tarefaComentarios.$inferSelect;
 export type InsertTarefaComentario = typeof tarefaComentarios.$inferInsert;
+
+// ─── Monitoramento DOERJ ──────────────────────────────────────────────────────
+// Publicações encontradas no Diário Oficial do Estado do RJ por nome do advogado
+export const doerjPublicacoes = mysqlTable("doerj_publicacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  materiaId: varchar("materia_id", { length: 20 }).notNull(),
+  dataPublicacao: varchar("data_publicacao", { length: 10 }).notNull(),
+  jornal: varchar("jornal", { length: 100 }),
+  tipo: varchar("tipo", { length: 100 }),
+  trecho: text("trecho"),
+  url: varchar("url", { length: 500 }),
+  termoBusca: varchar("termo_busca", { length: 100 }).default("Higor"),
+  lida: int("lida").default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type DoerjPublicacao = typeof doerjPublicacoes.$inferSelect;
+export type InsertDoerjPublicacao = typeof doerjPublicacoes.$inferInsert;

@@ -7813,5 +7813,73 @@ export const appRouter = router({
       return { total: Number(total[0]?.total ?? 0), criticos: Number(criticos[0]?.total ?? 0) };
     }),
   }),
+
+  // ─── DOERJ — Monitoramento do Diário Oficial do Estado do RJ ─────────────────
+  doerj: router({
+    // Listar publicações encontradas
+    listar: protectedProcedure
+      .input(z.object({
+        lida: z.boolean().optional(),
+        limit: z.number().min(1).max(200).default(50),
+        offset: z.number().min(0).default(0),
+      }).optional())
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return { publicacoes: [], total: 0 };
+        const { doerjPublicacoes } = await import("../drizzle/schema");
+        const { eq, desc, count, and } = await import("drizzle-orm");
+        const limit = input?.limit ?? 50;
+        const offset = input?.offset ?? 0;
+        const conditions: ReturnType<typeof eq>[] = [];
+        if (input?.lida !== undefined) {
+          conditions.push(eq(doerjPublicacoes.lida, input.lida ? 1 : 0));
+        }
+        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+        const [rows, totalRows] = await Promise.all([
+          db.select().from(doerjPublicacoes)
+            .where(whereClause)
+            .orderBy(desc(doerjPublicacoes.dataPublicacao), desc(doerjPublicacoes.createdAt))
+            .limit(limit)
+            .offset(offset),
+          db.select({ total: count() }).from(doerjPublicacoes).where(whereClause),
+        ]);
+        return { publicacoes: rows, total: Number(totalRows[0]?.total ?? 0) };
+      }),
+
+    // Marcar uma publicação como lida
+    marcarLida: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { doerjPublicacoes } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(doerjPublicacoes).set({ lida: 1 }).where(eq(doerjPublicacoes.id, input.id));
+        return { ok: true };
+      }),
+
+    // Marcar todas como lidas
+    marcarTodasLidas: protectedProcedure
+      .mutation(async () => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+        const { doerjPublicacoes } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(doerjPublicacoes).set({ lida: 1 }).where(eq(doerjPublicacoes.lida, 0));
+        return { ok: true };
+      }),
+
+    // Contador de não lidas (para badge no menu)
+    contadorNaoLidas: protectedProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) return { total: 0 };
+        const { doerjPublicacoes } = await import("../drizzle/schema");
+        const { eq, count } = await import("drizzle-orm");
+        const [row] = await db.select({ total: count() }).from(doerjPublicacoes)
+          .where(eq(doerjPublicacoes.lida, 0));
+        return { total: Number(row?.total ?? 0) };
+      }),
+  }),
 });
 export type AppRouter = typeof appRouter;

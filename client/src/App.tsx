@@ -79,6 +79,7 @@ import BTGConciliacao from "./pages/admin/BTGConciliacao";
 import CentralDemandas from "./pages/admin/juridico/CentralDemandas";
 import KanbanDemandas from "./pages/admin/juridico/KanbanDemandas";
 import MinhasTarefas from "./pages/MinhasTarefas";
+import MonitoramentoDOERJ from "./pages/MonitoramentoDOERJ";
 import DemandaDetalhes from "./pages/admin/juridico/DemandaDetalhes";
 import Assembleias from "./pages/admin/juridico/Assembleias";
 import DashboardJuridico from "./pages/admin/juridico/DashboardJuridico";
@@ -463,6 +464,9 @@ function Router() {
       </Route>
       <Route path="/minhas-tarefas">
         {() => <ProtectedRoute component={MinhasTarefas} allowedRoles={["admin", "colaborador", "advogado", "sindico", "cobrador"]} />}
+      </Route>
+      <Route path="/doerj">
+        {() => <ProtectedRoute component={MonitoramentoDOERJ} allowedRoles={["admin", "advogado"]} />}
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

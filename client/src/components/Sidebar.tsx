@@ -169,6 +169,7 @@ const menuGroups: MenuGroup[] = [
         items: [
           { label: "Central de Intimações", href: "/admin/juridico/intimacoes", icon: Bell, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_intimacoes" },
           { label: "Publicações Jurídicas", href: "/admin/juridico/publicacoes", icon: Newspaper, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_publicacoes" },
+          { label: "Monitoramento DOERJ", href: "/doerj", icon: Newspaper, roles: ["admin", "advogado"] },
           { label: "Configurações MNI", href: "/admin/juridico/mni-config", icon: Settings2, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_config" },
         ],
       },
