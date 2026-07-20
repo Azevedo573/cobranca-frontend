@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity, Newspaper, Bot, Play } from "lucide-react";
+import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity, Newspaper, Bot, Play, Info } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -101,25 +101,26 @@ function CardDoerjAgentCron() {
             </p>
           </div>
         </div>
+        {/* Aviso sobre Run Now */}
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3 flex items-start gap-2">
+          <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
+            <p className="font-medium">Como executar o job manualmente (Run Now)</p>
+            <p>O bot que pesquisa no DOERJ é um AGENT cron do Manus e não pode ser disparado diretamente por aqui. Para forçar uma execução imediata:</p>
+            <ol className="list-decimal list-inside space-y-0.5 ml-1">
+              <li>Abra o painel de gerenciamento do Manus (botão <strong>⚙</strong> no canto superior direito da interface)</li>
+              <li>Clique em <strong>Settings</strong> no menu lateral</li>
+              <li>Clique em <strong>Schedules</strong></li>
+              <li>Localize o job <strong>"Monitoramento DOERJ"</strong> e clique em <strong>Run Now</strong></li>
+            </ol>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between pt-1">
           <p className="text-xs text-muted-foreground">
             Termos cadastrados: {monitoramentos.map((m) => m.nome).join(", ") || "Nenhum"}
           </p>
           <div className="flex items-center gap-2">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => executarMutation.mutate()}
-              disabled={executarMutation.isPending || ativos === 0}
-              title={ativos === 0 ? "Cadastre ao menos um termo ativo para executar" : "Disparar o job DOERJ agora"}
-            >
-              {executarMutation.isPending ? (
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Play className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              {executarMutation.isPending ? "Executando..." : "Executar Agora"}
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -127,6 +128,14 @@ function CardDoerjAgentCron() {
             >
               <Newspaper className="w-3.5 h-3.5 mr-1.5" />
               Gerenciar Termos
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/admin/juridico/publicacoes")}
+            >
+              <Activity className="w-3.5 h-3.5 mr-1.5" />
+              Ver Publicações
             </Button>
           </div>
         </div>
