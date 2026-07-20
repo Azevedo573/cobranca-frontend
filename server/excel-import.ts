@@ -274,34 +274,56 @@ export function processarPlanilha(buffer: Buffer): {
 
 /**
  * Normaliza valor de data do Excel para string DD/MM/AAAA
- * Aceita: string "DD/MM/AAAA" ou número serial do Excel (ex: 46063)
+ * Aceita: string "DD/MM/AAAA", "AAAA-MM-DD" ou número serial do Excel (ex: 46063)
+ *
+ * IMPORTANTE: usa exclusivamente operações UTC para evitar deslocamento de fuso horário.
+ * O Excel armazena datas como número de dias desde 01/01/1900 (sem timezone).
+ * Converter via new Date(ms) + getDate() usaria o horário local do servidor (UTC-3),
+ * o que deslocaria o dia em datas próximas da meia-noite UTC.
  */
 function normalizarData(valor: unknown): string {
   if (valor === null || valor === undefined) return "";
   const str = String(valor).trim();
-  // Já está no formato correto
+
+  // Já está no formato DD/MM/AAAA
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str;
-  // É número serial do Excel
-  const serial = Number(str);
-  if (!isNaN(serial) && serial > 1000) {
-    // Excel usa epoch 1/1/1900 (com bug do ano 1900 onde 1900 era tratado como bissexto)
-    // Subtrair 25569 converte de serial Excel para dias desde Unix epoch (01/01/1970)
-    // O bug do ano 1900 é compensado subtraindo 1 para seriais > 60
-    const excelEpoch = serial > 60 ? serial - 1 : serial;
-    const msFromEpoch = (excelEpoch - 25569) * 86400 * 1000;
-    const date = new Date(msFromEpoch);
-    const dia = String(date.getUTCDate()).padStart(2, "0");
-    const mes = String(date.getUTCMonth() + 1).padStart(2, "0");
-    const ano = String(date.getUTCFullYear());
+
+  // Formato ISO AAAA-MM-DD (ex: quando o Excel exporta como texto ISO)
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    const [ano, mes, dia] = str.slice(0, 10).split("-");
     return `${dia}/${mes}/${ano}`;
   }
+
+  // Número serial do Excel
+  // Excel conta dias a partir de 01/01/1900, com bug intencional: trata 1900 como bissexto.
+  // Seriais > 60 precisam subtrair 1 para compensar o dia extra (29/02/1900 inexistente).
+  // Não usar new Date() + getDate() pois isso aplicaria o offset do timezone do servidor.
+  // Em vez disso, calculamos dia/mês/ano diretamente a partir do número de dias.
+  const serial = Number(str);
+  if (!isNaN(serial) && serial > 1000) {
+    // Ajustar pelo bug do ano 1900 do Excel
+    const diasDesde1900 = serial > 60 ? serial - 2 : serial - 1;
+    // Epoch do Excel: 01/01/1900 = dia 1
+    // Calcular data a partir de 01/01/1900 + diasDesde1900 dias
+    // Usamos Date.UTC para garantir cálculo em UTC puro
+    const msBase = Date.UTC(1900, 0, 1); // 01/01/1900 UTC
+    const ms = msBase + diasDesde1900 * 86400000;
+    const d = new Date(ms);
+    const dia = String(d.getUTCDate()).padStart(2, "0");
+    const mes = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const ano = String(d.getUTCFullYear());
+    return `${dia}/${mes}/${ano}`;
+  }
+
   return str;
 }
 
 /**
- * Converte data DD/MM/AAAA para objeto Date
+ * Converte data DD/MM/AAAA para objeto Date (meia-noite UTC, sem deslocamento de fuso)
  */
 export function converterData(dataStr: string): Date {
   const [dia, mes, ano] = dataStr.split("/").map(Number);
-  return new Date(ano, mes - 1, dia);
+  // Usar Date.UTC garante que a data seja criada em UTC puro,
+  // evitando que o offset do servidor (UTC-3) desloque o dia.
+  return new Date(Date.UTC(ano, mes - 1, dia));
 }

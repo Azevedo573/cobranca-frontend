@@ -2622,3 +2622,8 @@
 - [x] Frontend: página MonitoramentoDOERJ.tsx com lista de publicações e badge de não lidas
 - [x] Sidebar: link "Diário Oficial RJ" no menu Jurídico
 - [x] AGENT cron: job diário que acessa o DOERJ, busca por "Higor" e envia novas publicações ao endpoint
+
+## Bug: Data errada na importação de dívida
+- [x] Corrigir normalizarData para não sofrer deslocamento de fuso ao converter serial Excel
+- [x] Corrigir converterData para usar UTC e evitar deslocamento de dia
+- [x] Verificar onde dataVencimento é salvo no banco para garantir consistência
