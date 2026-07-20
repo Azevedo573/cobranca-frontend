@@ -2,9 +2,10 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity, Newspaper, Bot } from "lucide-react";
+import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity, Newspaper, Bot, Play } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 
 function formatarData(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -46,6 +47,13 @@ function CardDoerjAgentCron() {
   const [, navigate] = useLocation();
   const { data: monitoramentos = [] } = trpc.doerjMonitoramentos.listar.useQuery();
   const ativos = monitoramentos.filter((m) => m.ativo === 1).length;
+
+  const executarMutation = trpc.doerjMonitoramentos.executarAgora.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message ?? "Job DOERJ disparado com sucesso!");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   return (
     <Card className="border border-border">
@@ -97,14 +105,30 @@ function CardDoerjAgentCron() {
           <p className="text-xs text-muted-foreground">
             Termos cadastrados: {monitoramentos.map((m) => m.nome).join(", ") || "Nenhum"}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/admin/juridico/publicacoes/monitoramentos")}
-          >
-            <Newspaper className="w-3.5 h-3.5 mr-1.5" />
-            Gerenciar Termos
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => executarMutation.mutate()}
+              disabled={executarMutation.isPending || ativos === 0}
+              title={ativos === 0 ? "Cadastre ao menos um termo ativo para executar" : "Disparar o job DOERJ agora"}
+            >
+              {executarMutation.isPending ? (
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Play className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              {executarMutation.isPending ? "Executando..." : "Executar Agora"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/admin/juridico/publicacoes/monitoramentos")}
+            >
+              <Newspaper className="w-3.5 h-3.5 mr-1.5" />
+              Gerenciar Termos
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

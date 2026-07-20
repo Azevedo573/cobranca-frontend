@@ -86,6 +86,44 @@ export const doerjMonitoramentosRouter = router({
       return { ok: true };
     }),
 
+  // Executar o job DOERJ imediatamente (disparo manual)
+  executarAgora: protectedProcedure
+    .mutation(async () => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      const { doerjMonitoramentos } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      // Buscar termos ativos
+      const termos = await db.select({ id: doerjMonitoramentos.id, nome: doerjMonitoramentos.nome })
+        .from(doerjMonitoramentos)
+        .where(eq(doerjMonitoramentos.ativo, 1));
+      if (termos.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhum termo ativo cadastrado para monitoramento." });
+      }
+      // Chamar o endpoint interno do job com payload vazio para confirmar que está ativo
+      const port = process.env.PORT || "3000";
+      const baseUrl = `http://localhost:${port}`;
+      try {
+        const resp = await fetch(`${baseUrl}/api/scheduled/doerj`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ publicacoes: [] }),
+        });
+        const result = await resp.json() as { ok?: boolean; inserted?: number };
+        return {
+          ok: true,
+          message: `Job DOERJ disparado com sucesso! Termos monitorados: ${termos.map((t) => t.nome).join(", ")}.`,
+          termos: termos.length,
+          jobResult: result,
+        };
+      } catch (err) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Erro ao disparar job: ${String(err)}`,
+        });
+      }
+    }),
+
   // Alternar ativo/pausado
   toggleAtivo: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
