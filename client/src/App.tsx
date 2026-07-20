@@ -55,6 +55,7 @@ import SindicoPipeline from "./pages/SindicoPipeline";
 import SindicoAcordos from "./pages/SindicoAcordos";
 import ExecutivoDashboard from "./pages/admin/ExecutivoDashboard";
 import Auditoria from "./pages/admin/Auditoria";
+import Agendamentos from "./pages/admin/Agendamentos";
 import ModelosDocumento from "./pages/ModelosDocumento";
 import ModeloEditor from "./pages/ModeloEditor";
 import PreencherModeloJuridico from "./pages/PreencherModeloJuridico";
@@ -216,6 +217,10 @@ function Router() {
         {() => <ProtectedRoute component={ExecutivoDashboard} allowedRoles={["admin"]} />}
       </Route>
 
+      {/* Agendamentos */}
+      <Route path="/admin/agendamentos">
+        {() => <ProtectedRoute component={Agendamentos} allowedRoles={["admin"]} />}
+      </Route>
       {/* Auditoria do Sistema */}
       <Route path="/admin/auditoria">
         {() => <ProtectedRoute component={Auditoria} allowedRoles={["admin"]} />}

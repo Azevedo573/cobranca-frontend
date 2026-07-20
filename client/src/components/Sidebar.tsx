@@ -102,6 +102,7 @@ const menuGroups: MenuGroup[] = [
       { label: "Configuração de E-mail", href: "/admin/email-config", icon: Mail, roles: ["admin"] },
       { label: "Grupos WhatsApp", href: "/whatsapp/grupos", icon: Users, roles: ["admin"] },
       { label: "Auditoria do Sistema", href: "/admin/auditoria", icon: Shield, roles: ["admin"] },
+      { label: "Agendamentos", href: "/admin/agendamentos", icon: Timer, roles: ["admin"] },
     ],
   },
 

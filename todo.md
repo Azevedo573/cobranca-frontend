@@ -2627,3 +2627,6 @@
 - [x] Corrigir normalizarData para não sofrer deslocamento de fuso ao converter serial Excel
 - [x] Corrigir converterData para usar UTC e evitar deslocamento de dia
 - [x] Verificar onde dataVencimento é salvo no banco para garantir consistência
+
+- [x] Página Agendamentos em Configurações: mostrar status/histórico do job DOERJ com botão Run Now
+- [x] Adicionar item "Agendamentos" no menu Configurações da Sidebar

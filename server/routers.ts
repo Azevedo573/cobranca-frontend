@@ -15,6 +15,8 @@ import { processosRouter, prazosRouter } from "./routers/processos";
 import { mniRouter } from "./routers/mni";
 import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
 import { tarefasDemandaRouter } from "./routers/tarefas-demanda";
+import { listHeartbeatJobs } from "./_core/heartbeat";
+import { parse as parseCookieHeader } from "cookie";
 export const appRouter = router({
 
   system: systemRouter,
@@ -7814,6 +7816,20 @@ export const appRouter = router({
     }),
   }),
 
+  // ─── Agendamentos — Status dos jobs Heartbeat ─────────────────────────────────
+  agendamentos: router({
+    listar: protectedProcedure
+      .query(async ({ ctx }) => {
+        const cookies = parseCookieHeader(ctx.req.headers.cookie || "");
+        const sessionCookie = cookies[COOKIE_NAME] ?? "";
+        try {
+          const result = await listHeartbeatJobs(sessionCookie);
+          return { jobs: result.jobs, total: result.total };
+        } catch {
+          return { jobs: [], total: 0 };
+        }
+      }),
+  }),
   // ─── DOERJ — Monitoramento do Diário Oficial do Estado do RJ ─────────────────
   doerj: router({
     // Listar publicações encontradas
