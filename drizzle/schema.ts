@@ -1569,7 +1569,7 @@ export const doerjPublicacoes = mysqlTable("doerj_publicacoes", {
   url: varchar("url", { length: 500 }),
   termoBusca: varchar("termo_busca", { length: 100 }).default("Higor"),
   lida: int("lida").default(0),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type DoerjPublicacao = typeof doerjPublicacoes.$inferSelect;
 export type InsertDoerjPublicacao = typeof doerjPublicacoes.$inferInsert;
