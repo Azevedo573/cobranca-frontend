@@ -1573,3 +1573,17 @@ export const doerjPublicacoes = mysqlTable("doerj_publicacoes", {
 });
 export type DoerjPublicacao = typeof doerjPublicacoes.$inferSelect;
 export type InsertDoerjPublicacao = typeof doerjPublicacoes.$inferInsert;
+
+// ─── Termos de Monitoramento DOERJ ────────────────────────────────────────────
+// Cadastro de nomes/termos que serão pesquisados automaticamente no DOERJ
+export const doerjMonitoramentos = mysqlTable("doerj_monitoramentos", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  oab: varchar("oab", { length: 50 }),
+  descricao: varchar("descricao", { length: 500 }),
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type DoerjMonitoramento = typeof doerjMonitoramentos.$inferSelect;
+export type InsertDoerjMonitoramento = typeof doerjMonitoramentos.$inferInsert;

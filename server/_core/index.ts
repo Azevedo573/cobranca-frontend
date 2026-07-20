@@ -11,7 +11,7 @@ import { startReguaJob } from "../job-regua";
 import { cancelamentoAutoHandler } from "../job-cancelamento-auto";
 import { alertasInadimplenciaHandler } from "../job-alertas-inadimplencia";
 import { alertasPrazosHandler } from "../job-alertas-prazos";
-import { doerjHandler } from "../job-doerj";
+import { doerjHandler, doerjTermosHandler } from "../job-doerj";
 import { iniciarJobFilaWhatsApp } from "../job-whatsapp-fila";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -48,6 +48,7 @@ async function startServer() {
   // Job de alertas automáticos de prazos jurídicos (Heartbeat cron — diário 08:00 UTC)
   app.post("/api/scheduled/alertas-prazos", alertasPrazosHandler);
   // Job de monitoramento do DOERJ — recebe publicações do AGENT cron
+  app.get("/api/scheduled/doerj/termos", doerjTermosHandler);
   app.post("/api/scheduled/doerj", doerjHandler);
   // Webhook Z-API — recebe mensagens WhatsApp
   const { webhookWhatsappHandler } = await import("../webhook-whatsapp");

@@ -2630,3 +2630,11 @@
 
 - [x] Página Agendamentos em Configurações: mostrar status/histórico do job DOERJ com botão Run Now
 - [x] Adicionar item "Agendamentos" no menu Configurações da Sidebar
+
+## Cadastro de Monitoramentos DOERJ
+- [x] Banco: criar tabela doerj_monitoramentos (id, nome, oab, descricao, ativo, createdAt)
+- [x] Banco: inserir primeiro registro "HIGOR GOMES DA SILVA" / OAB RJ-169346
+- [x] Backend: sub-router doerjMonitoramentos (listar, criar, atualizar, excluir, toggleAtivo)
+- [x] Backend: endpoint GET /api/scheduled/doerj/termos para retornar termos ativos ao AGENT
+- [x] Frontend: reescrever MonitoramentosPublicacoes.tsx usando novo router doerjMonitoramentos
+- [x] Frontend: card estático do DOERJ AGENT cron na página Agendamentos com link para gerenciar termos

@@ -2,8 +2,9 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity } from "lucide-react";
+import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity, Newspaper, Bot } from "lucide-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 function formatarData(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -38,6 +39,76 @@ function parseCron(cron: string): string {
   }
 
   return `Cron: ${cron}`;
+}
+
+// Card estático para o job DOERJ (AGENT cron do Manus — não é Heartbeat)
+function CardDoerjAgentCron() {
+  const [, navigate] = useLocation();
+  const { data: monitoramentos = [] } = trpc.doerjMonitoramentos.listar.useQuery();
+  const ativos = monitoramentos.filter((m) => m.ativo === 1).length;
+
+  return (
+    <Card className="border border-border">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Bot className="w-5 h-5 text-primary shrink-0" />
+            <CardTitle className="text-base font-semibold">Monitoramento DOERJ</CardTitle>
+          </div>
+          <Badge className="bg-green-600/20 text-green-400 border-green-600/30">
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Ativo
+          </Badge>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+          Pesquisa diariamente o Diário Oficial do Estado do RJ pelos nomes cadastrados em Monitoramentos.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Frequência</p>
+            <p className="text-foreground font-medium flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-primary" />
+              Diariamente às 08:00 (Brasília)
+            </p>
+          </div>
+          <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Tipo</p>
+            <p className="text-foreground font-medium flex items-center gap-1.5">
+              <Bot className="w-3.5 h-3.5 text-primary" />
+              AGENT Cron (Manus)
+            </p>
+          </div>
+          <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Termos monitorados</p>
+            <p className="text-foreground font-medium flex items-center gap-1.5">
+              <Newspaper className="w-3.5 h-3.5 text-primary" />
+              {ativos} termo(s) ativo(s)
+            </p>
+          </div>
+          <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Endpoint</p>
+            <p className="text-foreground font-mono text-xs break-all">
+              POST /api/scheduled/doerj
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-1">
+          <p className="text-xs text-muted-foreground">
+            Termos cadastrados: {monitoramentos.map((m) => m.nome).join(", ") || "Nenhum"}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/admin/juridico/publicacoes/monitoramentos")}
+          >
+            <Newspaper className="w-3.5 h-3.5 mr-1.5" />
+            Gerenciar Termos
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Agendamentos() {
@@ -159,6 +230,9 @@ export default function Agendamentos() {
           </CardContent>
         </Card>
       ))}
+
+      {/* Card do DOERJ AGENT cron */}
+      <CardDoerjAgentCron />
 
       {/* Nota informativa */}
       <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">

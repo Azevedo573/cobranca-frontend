@@ -7,7 +7,7 @@
  */
 import { Request, Response } from "express";
 import { getDb } from "./db";
-import { doerjPublicacoes } from "../drizzle/schema";
+import { doerjPublicacoes, doerjMonitoramentos } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 export interface DoerjPublicacaoInput {
@@ -18,6 +18,25 @@ export interface DoerjPublicacaoInput {
   trecho?: string;
   url?: string;
   termoBusca?: string;
+}
+
+/**
+ * GET /api/scheduled/doerj/termos
+ * Retorna a lista de termos ativos para o AGENT cron usar na pesquisa.
+ */
+export async function doerjTermosHandler(req: Request, res: Response) {
+  try {
+    const db = await getDb();
+    if (!db) return res.status(500).json({ error: "Database not available" });
+    const termos = await db
+      .select({ id: doerjMonitoramentos.id, nome: doerjMonitoramentos.nome, oab: doerjMonitoramentos.oab })
+      .from(doerjMonitoramentos)
+      .where(eq(doerjMonitoramentos.ativo, 1));
+    return res.json({ termos, total: termos.length });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error });
+  }
 }
 
 export async function doerjHandler(req: Request, res: Response) {
@@ -73,7 +92,7 @@ export async function doerjHandler(req: Request, res: Response) {
         tipo: pub.tipo ?? null,
         trecho: pub.trecho ?? null,
         url: pub.url ?? null,
-        termoBusca: pub.termoBusca ?? "Higor",
+        termoBusca: pub.termoBusca ?? "HIGOR GOMES DA SILVA",
         lida: 0,
       });
 

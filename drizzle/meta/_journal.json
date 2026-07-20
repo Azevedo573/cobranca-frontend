@@ -568,6 +568,13 @@
       "when": 1784061569026,
       "tag": "0081_windy_crusher_hogan",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "5",
+      "when": 1784559258244,
+      "tag": "0082_old_wasp",
+      "breakpoints": true
     }
   ]
 }
