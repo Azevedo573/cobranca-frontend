@@ -13,7 +13,8 @@ import { useLocation } from "wouter";
 import {
   Bell, BookOpen, Clock, CheckCircle2, Archive, Eye, EyeOff,
   Plus, Filter, ChevronRight, AlertTriangle, FileText, Gavel,
-  Calendar, Building2, Scale, Users
+  Calendar, Building2, Scale, Users, Newspaper, ExternalLink,
+  CheckCheck, RefreshCw
 } from "lucide-react";
 
 // ─── Config de Tipos e Status ─────────────────────────────────────────────────
@@ -50,7 +51,6 @@ function truncate(text: string, max = 160) {
 function ModalCriarPublicacao({ open, onClose }: { open: boolean; onClose: () => void }) {
   const utils = trpc.useUtils();
   const { data: monitoramentos = [] } = trpc.publicacoes.monitoramentos.listar.useQuery();
-
   const [form, setForm] = useState({
     monitoramentoId: "",
     tribunal: "",
@@ -62,7 +62,6 @@ function ModalCriarPublicacao({ open, onClose }: { open: boolean; onClose: () =>
     numeroCNJ: "",
     responsavelNome: "",
   });
-
   const createMutation = trpc.publicacoes.criarManual.useMutation({
     onSuccess: () => {
       toast.success("Publicação registrada!");
@@ -73,7 +72,6 @@ function ModalCriarPublicacao({ open, onClose }: { open: boolean; onClose: () =>
     },
     onError: (e) => toast.error(e.message),
   });
-
   const handleSubmit = () => {
     if (!form.textoCompleto.trim()) return toast.error("Informe o texto da publicação");
     createMutation.mutate({
@@ -81,48 +79,34 @@ function ModalCriarPublicacao({ open, onClose }: { open: boolean; onClose: () =>
       tribunal: form.tribunal || undefined,
       comarca: form.comarca || undefined,
       vara: form.vara || undefined,
-      dataPublicacao: form.dataPublicacao || undefined,
+      dataPublicacao: form.dataPublicacao ? form.dataPublicacao : undefined,
       tipo: form.tipo as any,
       textoCompleto: form.textoCompleto,
       numeroCNJ: form.numeroCNJ || undefined,
       responsavelNome: form.responsavelNome || undefined,
     });
   };
-
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5 text-primary" />
-            Registrar Publicação Manual
-          </DialogTitle>
+          <DialogTitle>Registrar Publicação Manual</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4 py-2">
-          {/* Monitoramento */}
-          <div className="col-span-2">
-            <Label>Advogado Monitorado</Label>
-            <Select value={form.monitoramentoId} onValueChange={v => setForm(f => ({ ...f, monitoramentoId: v }))}>
-              <SelectTrigger className="overflow-hidden">
-                <span className="truncate block max-w-full">
-                  <SelectValue placeholder="Selecione o advogado monitorado (opcional)" />
-                </span>
-              </SelectTrigger>
+          <div>
+            <Label>Monitoramento (Advogado)</Label>
+            <Select value={form.monitoramentoId} onValueChange={(v) => setForm(f => ({ ...f, monitoramentoId: v }))}>
+              <SelectTrigger><SelectValue placeholder="Selecionar (opcional)" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sem vínculo a monitoramento</SelectItem>
                 {(monitoramentos as any[]).map((m: any) => (
-                  <SelectItem key={m.id} value={String(m.id)}>
-                    {m.advogadoNome}{m.oab ? ` — ${m.oab}` : ""}
-                  </SelectItem>
+                  <SelectItem key={m.id} value={String(m.id)}>{m.advogadoNome} {m.oab ? `· ${m.oab}` : ""}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
-          {/* Tipo */}
           <div>
             <Label>Tipo *</Label>
-            <Select value={form.tipo} onValueChange={v => setForm(f => ({ ...f, tipo: v }))}>
+            <Select value={form.tipo} onValueChange={(v) => setForm(f => ({ ...f, tipo: v }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(TIPO_CONFIG).map(([k, v]) => (
@@ -131,44 +115,30 @@ function ModalCriarPublicacao({ open, onClose }: { open: boolean; onClose: () =>
               </SelectContent>
             </Select>
           </div>
-
-          {/* Data */}
-          <div>
-            <Label>Data da Publicação</Label>
-            <Input type="date" value={form.dataPublicacao} onChange={e => setForm(f => ({ ...f, dataPublicacao: e.target.value }))} />
-          </div>
-
-          {/* Tribunal */}
           <div>
             <Label>Tribunal</Label>
-            <Input placeholder="Ex: TJRJ, TJSP, STJ" value={form.tribunal} onChange={e => setForm(f => ({ ...f, tribunal: e.target.value }))} />
+            <Input placeholder="Ex: TJRJ" value={form.tribunal} onChange={e => setForm(f => ({ ...f, tribunal: e.target.value }))} />
           </div>
-
-          {/* Comarca */}
+          <div>
+            <Label>Data de Publicação</Label>
+            <Input type="date" value={form.dataPublicacao} onChange={e => setForm(f => ({ ...f, dataPublicacao: e.target.value }))} />
+          </div>
           <div>
             <Label>Comarca</Label>
             <Input placeholder="Ex: Rio de Janeiro" value={form.comarca} onChange={e => setForm(f => ({ ...f, comarca: e.target.value }))} />
           </div>
-
-          {/* Vara */}
-          <div className="col-span-2">
+          <div>
             <Label>Vara</Label>
             <Input placeholder="Ex: 3ª Vara Cível" value={form.vara} onChange={e => setForm(f => ({ ...f, vara: e.target.value }))} />
           </div>
-
-          {/* Número CNJ */}
           <div>
             <Label>Número CNJ do Processo</Label>
             <Input placeholder="0000000-00.0000.0.00.0000" value={form.numeroCNJ} onChange={e => setForm(f => ({ ...f, numeroCNJ: e.target.value }))} />
           </div>
-
-          {/* Responsável */}
           <div>
             <Label>Advogado Responsável</Label>
             <Input placeholder="Nome do responsável" value={form.responsavelNome} onChange={e => setForm(f => ({ ...f, responsavelNome: e.target.value }))} />
           </div>
-
-          {/* Texto */}
           <div className="col-span-2">
             <Label>Texto da Publicação *</Label>
             <Textarea
@@ -190,7 +160,7 @@ function ModalCriarPublicacao({ open, onClose }: { open: boolean; onClose: () =>
   );
 }
 
-// ─── Card de Publicação ───────────────────────────────────────────────────────
+// ─── Card de Publicação Manual ────────────────────────────────────────────────
 
 function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
   const tipo = TIPO_CONFIG[pub.tipo] ?? TIPO_CONFIG.outro;
@@ -206,7 +176,6 @@ function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            {/* Badges de tipo e status */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {pub.lida === 0 && (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
@@ -220,8 +189,6 @@ function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
                 {status.icon}{status.label}
               </Badge>
             </div>
-
-            {/* Advogado */}
             {pub.advogadoNome && (
               <div className="flex items-center gap-1.5 text-sm font-medium mb-1">
                 <Users className="h-3.5 w-3.5 text-muted-foreground" />
@@ -229,29 +196,21 @@ function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
                 {pub.oab && <span className="text-muted-foreground font-normal">· {pub.oab}</span>}
               </div>
             )}
-
-            {/* Tribunal / Vara */}
             {(pub.tribunal || pub.vara) && (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                 <Building2 className="h-3.5 w-3.5" />
                 {[pub.tribunal, pub.comarca, pub.vara].filter(Boolean).join(" · ")}
               </div>
             )}
-
-            {/* CNJ */}
             {pub.numeroCNJ && (
               <div className="text-xs text-muted-foreground mb-1">
                 Processo: <span className="font-mono">{pub.numeroCNJ}</span>
               </div>
             )}
-
-            {/* Texto */}
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
               {truncate(pub.textoCompleto)}
             </p>
           </div>
-
-          {/* Data e seta */}
           <div className="flex flex-col items-end gap-1 shrink-0">
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {formatDate(pub.dataPublicacao || pub.createdAt)}
@@ -264,22 +223,200 @@ function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
   );
 }
 
+// ─── Card de Publicação DOERJ ─────────────────────────────────────────────────
+
+function CardDoerjPublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (id: number) => void }) {
+  return (
+    <Card className={`border-l-4 transition-all ${pub.lida === 0 ? "border-l-green-500" : "border-l-transparent"}`}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            {/* Badges */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              {pub.lida === 0 && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
+                  <EyeOff className="h-3 w-3" /> Não lida
+                </span>
+              )}
+              {pub.jornal && (
+                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300">
+                  <Newspaper className="h-3 w-3 mr-1" />
+                  {pub.jornal}
+                </Badge>
+              )}
+              {pub.tipo && (
+                <Badge variant="secondary" className="text-xs">
+                  {pub.tipo}
+                </Badge>
+              )}
+              {pub.termoBusca && (
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  Termo: {pub.termoBusca}
+                </Badge>
+              )}
+            </div>
+
+            {/* Trecho */}
+            <p className="text-sm text-foreground line-clamp-3 mt-1">
+              {pub.trecho ? truncate(pub.trecho, 300) : "Sem trecho disponível"}
+            </p>
+
+            {/* Link */}
+            {pub.url && (
+              <a
+                href={pub.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="h-3 w-3" />
+                Ver no DOERJ
+              </a>
+            )}
+          </div>
+
+          {/* Data e ações */}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {pub.dataPublicacao || "—"}
+            </span>
+            {pub.lida === 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => onMarcarLida(pub.id)}
+              >
+                <CheckCheck className="h-3.5 w-3.5 mr-1" />
+                Marcar lida
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Aba DOERJ ────────────────────────────────────────────────────────────────
+
+function AbaDoerj() {
+  const [filtroLida, setFiltroLida] = useState<string>("todas");
+  const utils = trpc.useUtils();
+
+  const { data: resultado, isLoading, refetch } = trpc.doerj.listar.useQuery({
+    lida: filtroLida === "nao_lidas" ? false : filtroLida === "lidas" ? true : undefined,
+    limit: 100,
+  });
+
+  const publicacoes = resultado?.publicacoes ?? [];
+  const total = resultado?.total ?? 0;
+
+  const marcarLidaMutation = trpc.doerj.marcarLida.useMutation({
+    onSuccess: () => {
+      utils.doerj.listar.invalidate();
+      utils.doerj.contadorNaoLidas.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const marcarTodasMutation = trpc.doerj.marcarTodasLidas.useMutation({
+    onSuccess: () => {
+      toast.success("Todas as publicações marcadas como lidas!");
+      utils.doerj.listar.invalidate();
+      utils.doerj.contadorNaoLidas.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const naoLidas = publicacoes.filter((p) => p.lida === 0).length;
+
+  return (
+    <div className="space-y-4">
+      {/* Barra de filtros */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Filtrar:</span>
+        </div>
+        <Select value={filtroLida} onValueChange={setFiltroLida}>
+          <SelectTrigger className="w-36 h-8 text-sm">
+            <SelectValue placeholder="Leitura" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas</SelectItem>
+            <SelectItem value="nao_lidas">Não lidas</SelectItem>
+            <SelectItem value="lidas">Lidas</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground ml-auto">
+          {total} publicação(ões)
+          {naoLidas > 0 && (
+            <span className="ml-2 text-green-600 font-medium">· {naoLidas} não lida(s)</span>
+          )}
+        </span>
+        {naoLidas > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => marcarTodasMutation.mutate()}
+            disabled={marcarTodasMutation.isPending}
+          >
+            <CheckCheck className="h-3.5 w-3.5 mr-1.5" />
+            Marcar todas como lidas
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={() => refetch()}>
+          <RefreshCw className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Lista */}
+      {isLoading ? (
+        <div className="text-center py-12 text-muted-foreground">Carregando publicações do DOERJ...</div>
+      ) : publicacoes.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-12 text-center">
+            <Newspaper className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+            <p className="text-muted-foreground font-medium">Nenhuma publicação encontrada</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              O job diário pesquisa automaticamente os termos cadastrados no DOERJ.
+              As publicações encontradas aparecerão aqui.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {publicacoes.map((pub) => (
+            <CardDoerjPublicacao
+              key={pub.id}
+              pub={pub}
+              onMarcarLida={(id) => marcarLidaMutation.mutate({ id })}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Página Principal ─────────────────────────────────────────────────────────
 
 export default function DashboardPublicacoes() {
   const [, navigate] = useLocation();
   const [modalCriar, setModalCriar] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState<"manuais" | "doerj">("doerj");
   const [filtroStatus, setFiltroStatus] = useState<string>("todas");
   const [filtroLida, setFiltroLida] = useState<string>("todas");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const { data: dashboard } = trpc.publicacoes.dashboard.useQuery();
+  const { data: contadorDoerj } = trpc.doerj.contadorNaoLidas.useQuery();
   const { data: publicacoes = [], isLoading, refetch } = trpc.publicacoes.listar.useQuery({
     status: filtroStatus !== "todas" ? filtroStatus : undefined,
     lida: filtroLida === "nao_lidas" ? 0 : filtroLida === "lidas" ? 1 : undefined,
     limit: 100,
   });
-
   const utils = trpc.useUtils();
   const marcarLidaMutation = trpc.publicacoes.marcarLida.useMutation({
     onSuccess: () => {
@@ -295,19 +432,12 @@ export default function DashboardPublicacoes() {
     },
     onError: (e) => toast.error(e.message),
   });
-
   const handleCardClick = (pub: any) => {
     if (pub.lida === 0) marcarLidaMutation.mutate({ id: pub.id });
-    setSelectedId(pub.id);
     navigate(`/admin/juridico/publicacoes/kanban`);
   };
 
-  const indicadores = [
-    { label: "Publicações Hoje",    value: dashboard?.hoje ?? 0,                  icon: <Bell className="h-5 w-5" />,         color: "text-blue-600",   bg: "bg-blue-50 dark:bg-blue-900/20" },
-    { label: "Não Lidas",           value: dashboard?.naoLidas ?? 0,              icon: <EyeOff className="h-5 w-5" />,        color: "text-red-600",    bg: "bg-red-50 dark:bg-red-900/20" },
-    { label: "Novas / Pendentes",   value: (dashboard?.novas ?? 0) + (dashboard?.analisando ?? 0) + (dashboard?.aguardandoProvidencia ?? 0), icon: <AlertTriangle className="h-5 w-5" />, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20" },
-    { label: "Arquivadas",          value: dashboard?.arquivadas ?? 0,            icon: <Archive className="h-5 w-5" />,       color: "text-slate-500",  bg: "bg-slate-50 dark:bg-slate-800" },
-  ];
+  const naoLidasDoerj = contadorDoerj?.total ?? 0;
 
   return (
     <div className="p-6 space-y-6">
@@ -340,112 +470,188 @@ export default function DashboardPublicacoes() {
 
       {/* Indicadores */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {indicadores.map((ind) => (
-          <Card key={ind.label} className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">{ind.label}</p>
-                  <p className={`text-2xl font-bold ${ind.color}`}>{ind.value}</p>
-                </div>
-                <div className={`p-2.5 rounded-lg ${ind.bg} ${ind.color}`}>
-                  {ind.icon}
-                </div>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Publicações Hoje</p>
+                <p className="text-2xl font-bold text-blue-600">{dashboard?.hoje ?? 0}</p>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Publicações por Advogado */}
-      {dashboard?.porAdvogado && dashboard.porAdvogado.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4 text-primary" />
-              Publicações por Advogado
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {(dashboard.porAdvogado as any[]).map((a: any, i: number) => (
-                <div key={i} className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-                  <span className="text-sm font-medium">{a.advogadoNome}</span>
-                  {a.oab && <span className="text-xs text-muted-foreground">{a.oab}</span>}
-                  <Badge variant="secondary" className="text-xs">{a.total} pub.</Badge>
-                  {a.naoLidas > 0 && (
-                    <Badge className="text-xs bg-red-500 text-white">{a.naoLidas} não lidas</Badge>
-                  )}
-                </div>
-              ))}
+              <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600">
+                <Bell className="h-5 w-5" />
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Filtros + Listagem */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Filtrar:</span>
-          </div>
-          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-            <SelectTrigger className="w-44 h-8 text-sm">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todos os status</SelectItem>
-              {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-                <SelectItem key={k} value={k}>{v.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filtroLida} onValueChange={setFiltroLida}>
-            <SelectTrigger className="w-36 h-8 text-sm">
-              <SelectValue placeholder="Leitura" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas</SelectItem>
-              <SelectItem value="nao_lidas">Não lidas</SelectItem>
-              <SelectItem value="lidas">Lidas</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground ml-auto">
-            {(publicacoes as any[]).length} publicação(ões)
-          </span>
-        </div>
-
-        {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">Carregando publicações...</div>
-        ) : (publicacoes as any[]).length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="p-12 text-center">
-              <Bell className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-muted-foreground font-medium">Nenhuma publicação encontrada</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Cadastre monitoramentos para captura automática ou registre publicações manualmente.
-              </p>
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <Button variant="outline" size="sm" onClick={() => navigate("/admin/juridico/publicacoes/monitoramentos")}>
-                  <Users className="h-4 w-4 mr-1" />
-                  Cadastrar Monitoramento
-                </Button>
-                <Button size="sm" onClick={() => setModalCriar(true)}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Registrar Manual
-                </Button>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Não Lidas (manuais)</p>
+                <p className="text-2xl font-bold text-red-600">{dashboard?.naoLidas ?? 0}</p>
               </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {(publicacoes as any[]).map((pub: any) => (
-              <CardPublicacao key={pub.id} pub={pub} onClick={() => handleCardClick(pub)} />
-            ))}
-          </div>
-        )}
+              <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600">
+                <EyeOff className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm cursor-pointer hover:shadow-md transition-all" onClick={() => setAbaAtiva("doerj")}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">DOERJ Não Lidas</p>
+                <p className="text-2xl font-bold text-green-600">{naoLidasDoerj}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600">
+                <Newspaper className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Arquivadas</p>
+                <p className="text-2xl font-bold text-slate-500">{dashboard?.arquivadas ?? 0}</p>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-500">
+                <Archive className="h-5 w-5" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Abas */}
+      <div className="border-b border-border">
+        <div className="flex gap-0">
+          <button
+            onClick={() => setAbaAtiva("doerj")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              abaAtiva === "doerj"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Newspaper className="h-4 w-4" />
+            Diário Oficial RJ
+            {naoLidasDoerj > 0 && (
+              <Badge className="text-xs bg-green-500 text-white h-5 px-1.5">{naoLidasDoerj}</Badge>
+            )}
+          </button>
+          <button
+            onClick={() => setAbaAtiva("manuais")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              abaAtiva === "manuais"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            Publicações Manuais
+            {(dashboard?.naoLidas ?? 0) > 0 && (
+              <Badge className="text-xs bg-red-500 text-white h-5 px-1.5">{dashboard?.naoLidas}</Badge>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Conteúdo da aba */}
+      {abaAtiva === "doerj" ? (
+        <AbaDoerj />
+      ) : (
+        <div className="space-y-3">
+          {/* Publicações por Advogado */}
+          {dashboard?.porAdvogado && (dashboard.porAdvogado as any[]).length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary" />
+                  Publicações por Advogado
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {(dashboard.porAdvogado as any[]).map((a: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
+                      <span className="text-sm font-medium">{a.advogadoNome}</span>
+                      {a.oab && <span className="text-xs text-muted-foreground">{a.oab}</span>}
+                      <Badge variant="secondary" className="text-xs">{a.total} pub.</Badge>
+                      {a.naoLidas > 0 && (
+                        <Badge className="text-xs bg-red-500 text-white">{a.naoLidas} não lidas</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Filtros + Listagem */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Filtrar:</span>
+            </div>
+            <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+              <SelectTrigger className="w-44 h-8 text-sm">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todos os status</SelectItem>
+                {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filtroLida} onValueChange={setFiltroLida}>
+              <SelectTrigger className="w-36 h-8 text-sm">
+                <SelectValue placeholder="Leitura" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="nao_lidas">Não lidas</SelectItem>
+                <SelectItem value="lidas">Lidas</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground ml-auto">
+              {(publicacoes as any[]).length} publicação(ões)
+            </span>
+          </div>
+
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">Carregando publicações...</div>
+          ) : (publicacoes as any[]).length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="p-12 text-center">
+                <Bell className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <p className="text-muted-foreground font-medium">Nenhuma publicação encontrada</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Cadastre monitoramentos para captura automática ou registre publicações manualmente.
+                </p>
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Button variant="outline" size="sm" onClick={() => navigate("/admin/juridico/publicacoes/monitoramentos")}>
+                    <Users className="h-4 w-4 mr-1" />
+                    Cadastrar Monitoramento
+                  </Button>
+                  <Button size="sm" onClick={() => setModalCriar(true)}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Registrar Manual
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {(publicacoes as any[]).map((pub: any) => (
+                <CardPublicacao key={pub.id} pub={pub} onClick={() => handleCardClick(pub)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <ModalCriarPublicacao open={modalCriar} onClose={() => setModalCriar(false)} />
     </div>
