@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Download, RefreshCw, FileText, TrendingUp, HandshakeIcon, Receipt, BarChart3, Printer, FileDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, Download, RefreshCw, FileText, TrendingUp, HandshakeIcon, Receipt, BarChart3, Printer, FileDown, Filter, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 
 const fmtBRL = (v: number) =>
@@ -36,19 +37,82 @@ const STATUS_COLORS: Record<string, string> = {
   ativo: "bg-green-100 text-green-800",
 };
 
+const TIPOS_COBRANCA_RELAT = [
+  { value: "condominio", label: "Cota Condominial" },
+  { value: "salao_jogos", label: "Salão de Festa" },
+  { value: "churrasqueira", label: "Churrasqueira" },
+  { value: "cota_extra", label: "Cota Extra" },
+  { value: "multa", label: "Multa" },
+  { value: "outros", label: "Outros" },
+];
+
+const TIPO_LABELS_INAD: Record<string, string> = {
+  condominio: "Cota Condominial", salao_jogos: "Salão de Festa",
+  churrasqueira: "Churrasqueira", cota_extra: "Cota Extra",
+  multa: "Multa", outros: "Outros",
+};
+
 export default function Relatorios() {
   const [tipoAtivo, setTipoAtivo] = useState("inadimplencia");
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
-  const [condominioId, setCondominioId] = useState<string>("");
   const [exportando, setExportando] = useState(false);
 
-  const exportarPDF = useCallback(() => {
-    window.print();
-  }, []);
+  // ─── Estado filtros inadimplência (ricos) ───────────────────────────────────
+  const [inadCondominioId, setInadCondominioId] = useState<string>("");
+  const [inadDevedorId, setInadDevedorId] = useState<string>("");
+  const [inadDataInicio, setInadDataInicio] = useState("");
+  const [inadDataFim, setInadDataFim] = useState("");
+  const [inadAtualizadoAte, setInadAtualizadoAte] = useState(new Date().toISOString().slice(0, 10));
+  const [inadTiposCobranca, setInadTiposCobranca] = useState<string[]>(["todos"]);
+  const [inadCategoria, setInadCategoria] = useState<"todos" | "padrao" | "ajuizada">("todos");
+  const [inadHonorariosPerc, setInadHonorariosPerc] = useState<string>("");
+  const [inadCustasJudiciais, setInadCustasJudiciais] = useState<string>("");
+  const [inadOutrasDespesas, setInadOutrasDespesas] = useState<string>("");
+  const [inadFiltrosAbertos, setInadFiltrosAbertos] = useState(true);
+  const [inadQueryInput, setInadQueryInput] = useState<any>(null);
+  const [inadBuscou, setInadBuscou] = useState(false);
+
+  const inadCondominioIdNum = inadCondominioId && inadCondominioId !== "todos" ? parseInt(inadCondominioId) : undefined;
+
+  const { data: inadListaDevedores = [] } = trpc.devedores.list.useQuery(
+    { condominioId: inadCondominioIdNum! },
+    { enabled: !!inadCondominioIdNum }
+  );
+
+  const toggleInadTipo = (tipo: string) => {
+    if (tipo === "todos") { setInadTiposCobranca(["todos"]); return; }
+    setInadTiposCobranca(prev => {
+      const semTodos = prev.filter(t => t !== "todos");
+      if (semTodos.includes(tipo)) {
+        const novo = semTodos.filter(t => t !== tipo);
+        return novo.length === 0 ? ["todos"] : novo;
+      }
+      return [...semTodos, tipo];
+    });
+  };
+
+  const handleGerarInadimplencia = () => {
+    const input: any = {
+      atualizadoAte: inadAtualizadoAte || undefined,
+      categoria: inadCategoria !== "todos" ? inadCategoria : undefined,
+    };
+    if (inadCondominioIdNum) input.condominioId = inadCondominioIdNum;
+    if (inadDevedorId && inadDevedorId !== "todos") input.devedorId = parseInt(inadDevedorId);
+    if (inadDataInicio) input.dataInicio = inadDataInicio;
+    if (inadDataFim) input.dataFim = inadDataFim;
+    if (!inadTiposCobranca.includes("todos") && inadTiposCobranca.length > 0) input.tiposCobranca = inadTiposCobranca;
+    if (inadHonorariosPerc !== "") input.honorariosPerc = parseFloat(inadHonorariosPerc);
+    if (inadCustasJudiciais !== "") input.custasJudiciais = Math.round(parseFloat(inadCustasJudiciais) * 100);
+    if (inadOutrasDespesas !== "") input.outrasDespesas = Math.round(parseFloat(inadOutrasDespesas) * 100);
+    setInadQueryInput(input);
+    setInadBuscou(true);
+  };
 
   const { data: listaCondominios = [] } = trpc.condominios.list.useQuery(undefined as any);
 
+  // filtro genérico para outras abas
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+  const [condominioId, setCondominioId] = useState<string>("");
   const filtro = {
     dataInicio: dataInicio || undefined,
     dataFim: dataFim || undefined,
@@ -57,7 +121,18 @@ export default function Relatorios() {
 
   // ─── Queries ────────────────────────────────────────────────────────────────
   const { data: dadosInad, isLoading: loadingInad, refetch: refetchInad } =
-    trpc.relatorios.inadimplencia.useQuery(filtro, { enabled: tipoAtivo === "inadimplencia" });
+    trpc.relatorios.inadimplencia.useQuery(inadQueryInput, { enabled: !!inadQueryInput && tipoAtivo === "inadimplencia" });
+
+  const inadRowsAgrupadas = useMemo(() => {
+    if (!dadosInad?.rows) return [];
+    const mapa = new Map<number, { devedor: string; unidade: string; bloco: string; condominio: string; linhas: typeof dadosInad.rows; subtotal: number }>();
+    for (const r of dadosInad.rows) {
+      const existing = mapa.get(r.devedorId);
+      if (existing) { existing.linhas.push(r); existing.subtotal += r.totalFinal; }
+      else { mapa.set(r.devedorId, { devedor: r.nomeDevedor ?? "", unidade: r.unidade ?? "", bloco: r.bloco ?? "", condominio: r.nomeCondominio ?? "", linhas: [r], subtotal: r.totalFinal }); }
+    }
+    return Array.from(mapa.values()).sort((a, b) => a.devedor.localeCompare(b.devedor));
+  }, [dadosInad]);
 
   // Aba Acordos usa o shape detalhado (cobranças originais + parcelas)
   const filtroAcordosTemValor = tipoAtivo === "acordos" && Object.values(filtro).some((v) => v !== undefined && v !== null);
@@ -260,6 +335,101 @@ export default function Relatorios() {
     sistema: "bg-gray-100 text-gray-700",
   };
 
+  // ─── Exportação PDF Inadimplência (jsPDF) ───────────────────────────────────────
+  const exportarPDFInad = useCallback(async () => {
+    if (!dadosInad?.rows.length) { toast.error("Nenhum dado para exportar"); return; }
+    setExportando(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      doc.setFontSize(14); doc.setFont("helvetica", "bold");
+      doc.text("RELATÓRIO DE INADIMPLÊNCIA", 148, 15, { align: "center" });
+      doc.setFontSize(9); doc.setFont("helvetica", "normal");
+      const cond = (listaCondominios as any[]).find((c: any) => c.id === inadCondominioIdNum);
+      const linhaFiltros = [
+        cond ? `Condomínio: ${cond.name}` : "Condomínio: Todos",
+        `Atualizado até: ${fmtDate(inadAtualizadoAte)}`,
+        inadDataInicio || inadDataFim ? `Período: ${inadDataInicio ? fmtDate(inadDataInicio) : "—"} a ${inadDataFim ? fmtDate(inadDataFim) : "—"}` : "",
+        `Categoria: ${inadCategoria === "todos" ? "Todos" : inadCategoria === "ajuizada" ? "Ajuizados" : "Padrão"}`,
+      ].filter(Boolean).join("   |   ");
+      doc.text(linhaFiltros, 148, 22, { align: "center" });
+      doc.setFontSize(8); doc.text(`Emitido em: ${new Date().toLocaleString("pt-BR")}`, 14, 28);
+      autoTable(doc, {
+        startY: 32,
+        head: [["Devedor", "Unidade", "Condomínio", "Tipo", "Vencimento", "Meses", "Valor Orig.", "Juros", "Multa", "Correção", "Honorários", "Custas", "Outras", "Total"]],
+        body: dadosInad.rows.map(r => [
+          r.nomeDevedor ?? "", `${r.bloco ? r.bloco + "/" : ""}${r.unidade ?? ""}`, r.nomeCondominio ?? "",
+          TIPO_LABELS_INAD[r.tipoCobranca ?? ""] ?? "", fmtDate(r.dataVencimento), r.mesesAtraso,
+          fmtBRL(r.valorOriginal ?? 0), fmtBRL(r.juros), fmtBRL(r.multa), fmtBRL(r.correcao),
+          fmtBRL(r.honorarios), fmtBRL(r.custas + r.custasGlobais), fmtBRL(r.outrasDespesas), fmtBRL(r.totalFinal),
+        ]),
+        foot: [["TOTAL GERAL", "", "", "", "", "",
+          fmtBRL(dadosInad.totais.totalValorOriginal), fmtBRL(dadosInad.totais.totalJuros),
+          fmtBRL(dadosInad.totais.totalMulta), fmtBRL(dadosInad.totais.totalCorrecao),
+          fmtBRL(dadosInad.totais.totalHonorarios), fmtBRL(dadosInad.totais.totalCustas),
+          fmtBRL(dadosInad.totais.totalOutras), fmtBRL(dadosInad.totais.totalAtualizado),
+        ]],
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold" },
+        footStyles: { fillColor: [255, 243, 205], textColor: [0, 0, 0], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { cellWidth: 30 }, 1: { cellWidth: 15 }, 2: { cellWidth: 28 }, 3: { cellWidth: 22 },
+          4: { cellWidth: 18 }, 5: { cellWidth: 10 }, 6: { cellWidth: 20, halign: "right" },
+          7: { cellWidth: 18, halign: "right" }, 8: { cellWidth: 18, halign: "right" },
+          9: { cellWidth: 18, halign: "right" }, 10: { cellWidth: 20, halign: "right" },
+          11: { cellWidth: 18, halign: "right" }, 12: { cellWidth: 18, halign: "right" },
+          13: { cellWidth: 22, halign: "right" },
+        },
+        margin: { left: 10, right: 10 }, showFoot: "lastPage",
+      });
+      doc.save(`relatorio-inadimplencia-${inadAtualizadoAte || new Date().toISOString().slice(0, 10)}.pdf`);
+      toast.success("PDF exportado com sucesso!");
+    } catch (e) { console.error(e); toast.error("Erro ao exportar PDF"); }
+    finally { setExportando(false); }
+  }, [dadosInad, inadAtualizadoAte, inadCondominioIdNum, listaCondominios, inadCategoria, inadDataInicio, inadDataFim]);
+
+  const exportarExcelInad = useCallback(async () => {
+    if (!dadosInad?.rows.length) { toast.error("Nenhum dado para exportar"); return; }
+    setExportando(true);
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "Sistema de Cobranças"; wb.created = new Date();
+      const ws = wb.addWorksheet("Inadimplência");
+      const headers = ["Devedor", "CPF/CNPJ", "Unidade", "Bloco", "Condomínio", "Tipo", "Descrição", "Vencimento", "Meses Atraso", "Valor Original (R$)", "Juros (R$)", "Multa (R$)", "Correção (R$)", "Honorários (R$)", "Custas (R$)", "Outras Despesas (R$)", "Total Atualizado (R$)", "Status", "Categoria"];
+      const headerRow = ws.addRow(headers);
+      headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+      headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      for (const r of dadosInad.rows) {
+        ws.addRow([r.nomeDevedor ?? "", r.cpfCnpj ?? "", r.unidade ?? "", r.bloco ?? "", r.nomeCondominio ?? "",
+          TIPO_LABELS_INAD[r.tipoCobranca ?? ""] ?? r.tipoCobranca ?? "", r.descricao ?? "",
+          fmtDate(r.dataVencimento), r.mesesAtraso,
+          (r.valorOriginal ?? 0) / 100, r.juros / 100, r.multa / 100, r.correcao / 100,
+          r.honorarios / 100, (r.custas + r.custasGlobais) / 100, r.outrasDespesas / 100, r.totalFinal / 100,
+          STATUS_LABELS[r.status] ?? r.status, r.categoria === "ajuizada" ? "Ajuizada" : "Padrão"]);
+      }
+      const totalRow = ws.addRow(["TOTAL GERAL", "", "", "", "", "", "", "", "",
+        dadosInad.totais.totalValorOriginal / 100, dadosInad.totais.totalJuros / 100,
+        dadosInad.totais.totalMulta / 100, dadosInad.totais.totalCorrecao / 100,
+        dadosInad.totais.totalHonorarios / 100, dadosInad.totais.totalCustas / 100,
+        dadosInad.totais.totalOutras / 100, dadosInad.totais.totalAtualizado / 100, "", ""]);
+      totalRow.font = { bold: true };
+      totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3CD" } };
+      ws.columns.forEach(col => { col.width = 18; });
+      [10, 11, 12, 13, 14, 15, 16, 17].forEach(i => { ws.getColumn(i).numFmt = '"R$"#,##0.00'; });
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `relatorio-inadimplencia-${inadAtualizadoAte || new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click(); URL.revokeObjectURL(url);
+      toast.success("Planilha exportada com sucesso!");
+    } catch (e) { toast.error("Erro ao exportar planilha"); }
+    finally { setExportando(false); }
+  }, [dadosInad, inadAtualizadoAte]);
+
   const handleRefresh = () => {
     if (tipoAtivo === "inadimplencia") refetchInad();
     else if (tipoAtivo === "acordos") refetchAcordos();
@@ -322,8 +492,13 @@ export default function Relatorios() {
                 : <FileDown className="h-4 w-4 mr-2" />}
               {gerarPDFAcordosMutation.isPending ? "Gerando PDF..." : "Exportar PDF"}
             </Button>
+          ) : tipoAtivo === "inadimplencia" ? (
+            <Button variant="outline" size="sm" onClick={exportarPDFInad} disabled={exportando || !dadosInad?.rows.length}>
+              {exportando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
+              Exportar PDF
+            </Button>
           ) : (
-            <Button variant="outline" size="sm" onClick={exportarPDF}>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
               Exportar PDF
             </Button>
@@ -340,35 +515,37 @@ export default function Relatorios() {
         <p className="text-sm text-muted-foreground">Gerado em {new Date().toLocaleDateString("pt-BR")}</p>
       </div>
 
-      {/* Filtros */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Data Início</Label>
-              <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="h-9" />
+      {/* Filtros genéricos para abas Acordos/Extrato/Recuperação */}
+      {tipoAtivo !== "inadimplencia" && (
+        <Card>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs">Data Início</Label>
+                <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Data Fim</Label>
+                <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Condomínio</Label>
+                <Select value={condominioId} onValueChange={setCondominioId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Todos os condomínios" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos os condomínios</SelectItem>
+                    {(listaCondominios as any[]).map((c: any) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Data Fim</Label>
-              <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="h-9" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Condomínio</Label>
-              <Select value={condominioId} onValueChange={setCondominioId}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Todos os condomínios" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos os condomínios</SelectItem>
-                  {(listaCondominios as any[]).map((c: any) => (
-                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Abas de relatórios */}
       <Tabs value={tipoAtivo} onValueChange={setTipoAtivo}>
@@ -390,73 +567,260 @@ export default function Relatorios() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Inadimplência ── */}
+        {/* ── Inadimplência (filtros ricos) ── */}
         <TabsContent value="inadimplencia" className="space-y-4 mt-4">
+          {/* Painel de filtros */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">Filtros do Relatório de Inadimplência</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setInadFiltrosAbertos(v => !v)} className="h-7 px-2">
+                  <Filter className="h-3.5 w-3.5 mr-1" />
+                  {inadFiltrosAbertos ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </Button>
+              </div>
+            </CardHeader>
+            {inadFiltrosAbertos && (
+              <CardContent className="space-y-4">
+                {/* Linha 1: Condomínio + Unidade + Categoria */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">1. Condomínio</Label>
+                    <Select value={inadCondominioId} onValueChange={v => { setInadCondominioId(v); setInadDevedorId(""); }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Todos os condomínios..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os condomínios</SelectItem>
+                        {(listaCondominios as any[]).map((c: any) => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">2. Unidade</Label>
+                    <Select value={inadDevedorId} onValueChange={setInadDevedorId} disabled={!inadCondominioIdNum}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder={inadCondominioIdNum ? "Todas as unidades" : "Selecione um condomínio"} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas as unidades</SelectItem>
+                        {(inadListaDevedores as any[]).map((d: any) => (
+                          <SelectItem key={d.id} value={String(d.id)}>
+                            {d.bloco ? `${d.bloco}/` : ""}{d.unitNumber} — {d.name ?? "Sem nome"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">6. Categoria</Label>
+                    <Select value={inadCategoria} onValueChange={v => setInadCategoria(v as any)}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos (Padrão + Ajuizados)</SelectItem>
+                        <SelectItem value="padrao">Somente Padrão</SelectItem>
+                        <SelectItem value="ajuizada">Somente Ajuizados</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {/* Linha 2: Período + Atualização */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">3. Período — Início do vencimento</Label>
+                    <Input type="date" value={inadDataInicio} onChange={e => setInadDataInicio(e.target.value)} className="h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">3. Período — Fim do vencimento</Label>
+                    <Input type="date" value={inadDataFim} onChange={e => setInadDataFim(e.target.value)} className="h-9" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-medium">4. Atualizado até *</Label>
+                    <Input type="date" value={inadAtualizadoAte} onChange={e => setInadAtualizadoAte(e.target.value)} className="h-9" />
+                    <p className="text-[10px] text-muted-foreground">Data base para cálculo de juros, multa e correção</p>
+                  </div>
+                </div>
+                {/* Linha 3: Tipos de cobrança */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">5. Tipos de Cobrança</Label>
+                  <div className="flex flex-wrap gap-3">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-sm">
+                      <Checkbox checked={inadTiposCobranca.includes("todos")} onCheckedChange={() => toggleInadTipo("todos")} />
+                      Todos
+                    </label>
+                    {TIPOS_COBRANCA_RELAT.map(t => (
+                      <label key={t.value} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                        <Checkbox checked={inadTiposCobranca.includes(t.value)} onCheckedChange={() => toggleInadTipo(t.value)} />
+                        {t.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <Separator />
+                {/* Linha 4: Acréscimos */}
+                <div>
+                  <Label className="text-xs font-medium mb-2 block">7. Acréscimos adicionais</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Honorários (%)</Label>
+                      <div className="relative">
+                        <Input type="number" min={0} max={100} step={0.1} value={inadHonorariosPerc} onChange={e => setInadHonorariosPerc(e.target.value)} placeholder="Usa taxa do condomínio" className="h-9 pr-8" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Se vazio, usa a taxa configurada no condomínio</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Custas Judiciais (R$)</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                        <Input type="number" min={0} step={0.01} value={inadCustasJudiciais} onChange={e => setInadCustasJudiciais(e.target.value)} placeholder="0,00" className="h-9 pl-8" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Valor global distribuído entre as cobranças</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Outras Despesas (R$)</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+                        <Input type="number" min={0} step={0.01} value={inadOutrasDespesas} onChange={e => setInadOutrasDespesas(e.target.value)} placeholder="0,00" className="h-9 pl-8" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button variant="outline" size="sm" onClick={exportarExcelInad} disabled={exportando || !dadosInad?.rows.length}>
+                    {exportando ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-1" />}
+                    Excel
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exportarPDFInad} disabled={exportando || !dadosInad?.rows.length}>
+                    {exportando ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
+                    PDF
+                  </Button>
+                  <Button onClick={handleGerarInadimplencia} disabled={loadingInad} className="min-w-[140px]">
+                    {loadingInad ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Filter className="h-4 w-4 mr-2" />}
+                    Gerar Relatório
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Cards de totalizadores */}
           {dadosInad && (
-            <div className="grid grid-cols-3 gap-4">
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Devedores Únicos</p>
-                <p className="text-2xl font-bold text-red-600">{dadosInad.totais.totalDevedores}</p>
-              </CardContent></Card>
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Total em Aberto</p>
-                <p className="text-2xl font-bold text-red-600">{fmtBRL(dadosInad.totais.totalValorOriginal ?? dadosInad.totais.totalAtualizado)}</p>
-              </CardContent></Card>
-              <Card><CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">Cobranças Pendentes</p>
-                <p className="text-2xl font-bold">{dadosInad.totais.totalCobrado}</p>
-              </CardContent></Card>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+              {[
+                { label: "Devedores", value: dadosInad.totais.totalDevedores.toString(), color: "text-foreground" },
+                { label: "Cobranças", value: dadosInad.totais.totalCobrado.toString(), color: "text-foreground" },
+                { label: "Valor Original", value: fmtBRL(dadosInad.totais.totalValorOriginal), color: "text-red-600" },
+                { label: "Juros", value: fmtBRL(dadosInad.totais.totalJuros), color: "text-orange-600" },
+                { label: "Multa", value: fmtBRL(dadosInad.totais.totalMulta), color: "text-orange-600" },
+                { label: "Correção", value: fmtBRL(dadosInad.totais.totalCorrecao), color: "text-orange-600" },
+                { label: "Honorários", value: fmtBRL(dadosInad.totais.totalHonorarios), color: "text-blue-600" },
+                { label: "Total Atualizado", value: fmtBRL(dadosInad.totais.totalAtualizado), color: "text-red-700 font-bold" },
+              ].map(card => (
+                <Card key={card.label} className="text-center">
+                  <CardContent className="pt-3 pb-3 px-2">
+                    <p className="text-[10px] text-muted-foreground leading-tight">{card.label}</p>
+                    <p className={`text-sm font-semibold mt-0.5 ${card.color}`}>{card.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Cobranças em Aberto</CardTitle>
-              <CardDescription className="text-xs">{dadosInad?.rows.length ?? 0} registros</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loadingInad ? (
-                <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-              ) : (
-                <div className="overflow-auto max-h-[480px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Devedor</TableHead>
-                        <TableHead>CPF/CNPJ</TableHead>
-                        <TableHead>Unidade</TableHead>
-                        <TableHead>Condomínio</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Vencimento</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dadosInad?.rows.map((r) => (
-                        <TableRow key={r.cobrancaId}>
-                          <TableCell className="font-medium text-xs">{r.nomeDevedor}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{r.cpfCnpj ?? "—"}</TableCell>
-                          <TableCell className="text-xs">{r.bloco ? `${r.bloco}/` : ""}{r.unidade ?? "—"}</TableCell>
-                          <TableCell className="text-xs">{r.nomeCondominio}</TableCell>
-                          <TableCell className="text-xs max-w-[160px] truncate">{r.descricao ?? "—"}</TableCell>
-                          <TableCell className="text-xs">{fmtDate(r.dataVencimento)}</TableCell>
-                          <TableCell className="text-right text-xs font-semibold text-red-600">{fmtBRL(r.valorOriginal ?? 0)}</TableCell>
-                          <TableCell>
-                            <Badge className={`text-[10px] ${STATUS_COLORS[r.status] ?? ""}`}>
-                              {STATUS_LABELS[r.status] ?? r.status}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {!dadosInad?.rows.length && (
-                        <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum registro encontrado</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+
+          {/* Tabela de resultados agrupada por devedor */}
+          {(inadBuscou || dadosInad) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm">Cobranças em Aberto</CardTitle>
+                    <CardDescription className="text-xs">{dadosInad?.rows.length ?? 0} registros · agrupados por devedor</CardDescription>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className="p-0">
+                {loadingInad ? (
+                  <div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                ) : !dadosInad?.rows.length ? (
+                  <div className="text-center text-muted-foreground py-16">
+                    <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">Nenhuma cobrança encontrada com os filtros selecionados</p>
+                  </div>
+                ) : (
+                  <div className="overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-xs">Devedor / Unidade</TableHead>
+                          <TableHead className="text-xs">Condomínio</TableHead>
+                          <TableHead className="text-xs">Tipo</TableHead>
+                          <TableHead className="text-xs">Vencimento</TableHead>
+                          <TableHead className="text-xs text-center">Meses</TableHead>
+                          <TableHead className="text-xs text-right">Valor Orig.</TableHead>
+                          <TableHead className="text-xs text-right">Juros</TableHead>
+                          <TableHead className="text-xs text-right">Multa</TableHead>
+                          <TableHead className="text-xs text-right">Correção</TableHead>
+                          <TableHead className="text-xs text-right">Honorários</TableHead>
+                          <TableHead className="text-xs text-right">Custas</TableHead>
+                          <TableHead className="text-xs text-right">Outras</TableHead>
+                          <TableHead className="text-xs text-right font-bold">Total</TableHead>
+                          <TableHead className="text-xs">Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {inadRowsAgrupadas.map((grupo) => (
+                          <>
+                            <TableRow key={`header-${grupo.devedor}`} className="bg-muted/30 border-t-2">
+                              <TableCell colSpan={12} className="py-1.5 font-semibold text-xs">
+                                <span className="text-primary">{grupo.devedor}</span>
+                                <span className="text-muted-foreground ml-2 font-normal">
+                                  {grupo.bloco ? `Bloco ${grupo.bloco} / ` : ""}Unidade {grupo.unidade}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right text-xs font-bold text-red-700 py-1.5">{fmtBRL(grupo.subtotal)}</TableCell>
+                              <TableCell className="py-1.5" />
+                            </TableRow>
+                            {grupo.linhas.map((r) => (
+                              <TableRow key={r.cobrancaId} className="hover:bg-muted/20">
+                                <TableCell className="text-xs pl-6 text-muted-foreground">{r.descricao ?? TIPO_LABELS_INAD[r.tipoCobranca ?? ""] ?? "—"}</TableCell>
+                                <TableCell className="text-xs">{r.nomeCondominio}</TableCell>
+                                <TableCell className="text-xs"><span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{TIPO_LABELS_INAD[r.tipoCobranca ?? ""] ?? r.tipoCobranca}</span></TableCell>
+                                <TableCell className="text-xs">{fmtDate(r.dataVencimento)}</TableCell>
+                                <TableCell className="text-xs text-center">
+                                  <span className={`font-medium ${r.mesesAtraso > 12 ? "text-red-600" : r.mesesAtraso > 6 ? "text-orange-600" : "text-foreground"}`}>{r.mesesAtraso}</span>
+                                </TableCell>
+                                <TableCell className="text-xs text-right">{fmtBRL(r.valorOriginal ?? 0)}</TableCell>
+                                <TableCell className="text-xs text-right text-orange-600">{fmtBRL(r.juros)}</TableCell>
+                                <TableCell className="text-xs text-right text-orange-600">{fmtBRL(r.multa)}</TableCell>
+                                <TableCell className="text-xs text-right text-orange-600">{fmtBRL(r.correcao)}</TableCell>
+                                <TableCell className="text-xs text-right text-blue-600">{fmtBRL(r.honorarios)}</TableCell>
+                                <TableCell className="text-xs text-right">{fmtBRL(r.custas + r.custasGlobais)}</TableCell>
+                                <TableCell className="text-xs text-right">{fmtBRL(r.outrasDespesas)}</TableCell>
+                                <TableCell className="text-xs text-right font-semibold text-red-700">{fmtBRL(r.totalFinal)}</TableCell>
+                                <TableCell>
+                                  <Badge className={`text-[10px] ${STATUS_COLORS[r.status] ?? "bg-gray-100 text-gray-700"}`}>{STATUS_LABELS[r.status] ?? r.status}</Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </>
+                        ))}
+                        <TableRow className="bg-yellow-50 border-t-2 font-bold">
+                          <TableCell colSpan={5} className="text-xs font-bold">TOTAL GERAL</TableCell>
+                          <TableCell className="text-xs text-right font-bold">{fmtBRL(dadosInad.totais.totalValorOriginal)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold text-orange-600">{fmtBRL(dadosInad.totais.totalJuros)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold text-orange-600">{fmtBRL(dadosInad.totais.totalMulta)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold text-orange-600">{fmtBRL(dadosInad.totais.totalCorrecao)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold text-blue-600">{fmtBRL(dadosInad.totais.totalHonorarios)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold">{fmtBRL(dadosInad.totais.totalCustas)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold">{fmtBRL(dadosInad.totais.totalOutras)}</TableCell>
+                          <TableCell className="text-xs text-right font-bold text-red-700">{fmtBRL(dadosInad.totais.totalAtualizado)}</TableCell>
+                          <TableCell />
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ── Acordos (detalhado) ── */}
