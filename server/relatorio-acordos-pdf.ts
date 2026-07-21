@@ -484,34 +484,6 @@ export async function gerarRelatorioAcordosPDF(input: RelatorioAcordosPDFInput):
     y += 12;
 
     doc
-      .fontSize(9)
-      .font("Helvetica-Bold")
-      .fillColor(COLOR_TEXT)
-      .text("Jetro Administradora de Condomínios", MARGIN, y, { width: CONTENT_W, align: "center" });
-    y += 14;
-
-    doc
-      .fontSize(8)
-      .font("Helvetica")
-      .fillColor(COLOR_MUTED)
-      .text("Avenida Ayrton Senna, 5500 - Bloco 3 - Salas 241 a 246", MARGIN, y, { width: CONTENT_W, align: "center" });
-    y += 12;
-
-    doc
-      .fontSize(8)
-      .font("Helvetica")
-      .fillColor(COLOR_MUTED)
-      .text("Tel.: (21) 3596-6640  •  (21) 99866-6640  •  (11) 91521-3538", MARGIN, y, { width: CONTENT_W, align: "center" });
-    y += 12;
-
-    doc
-      .fontSize(8)
-      .font("Helvetica")
-      .fillColor(COLOR_MUTED)
-      .text("www.jetroadministradora.com.br", MARGIN, y, { width: CONTENT_W, align: "center" });
-    y += 14;
-
-    doc
       .fontSize(7)
       .font("Helvetica")
       .fillColor(COLOR_MUTED)
