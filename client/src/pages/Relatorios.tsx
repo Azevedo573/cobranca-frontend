@@ -215,6 +215,36 @@ export default function Relatorios() {
   const { data: dadosRecup, isLoading: loadingRecup, refetch: refetchRecup } =
     trpc.relatorios.recuperacao.useQuery(filtro, { enabled: tipoAtivo === "recuperacao" });
 
+  const gerarPDFExtratoMutation = trpc.relatorios.gerarPDFExtrato.useMutation({
+    onSuccess: (result) => {
+      const link = document.createElement("a");
+      link.href = result.url;
+      link.setAttribute("download", `relatorio-extrato-${new Date().toISOString().slice(0, 10)}.pdf`);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("PDF gerado com sucesso!");
+    },
+    onError: (err) => toast.error(`Erro ao gerar PDF: ${err.message}`),
+  });
+
+  const gerarPDFRecuperacaoMutation = trpc.relatorios.gerarPDFRecuperacao.useMutation({
+    onSuccess: (result) => {
+      const link = document.createElement("a");
+      link.href = result.url;
+      link.setAttribute("download", `relatorio-recuperacao-${new Date().toISOString().slice(0, 10)}.pdf`);
+      link.setAttribute("target", "_blank");
+      link.setAttribute("rel", "noopener noreferrer");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("PDF gerado com sucesso!");
+    },
+    onError: (err) => toast.error(`Erro ao gerar PDF: ${err.message}`),
+  });
+
   // ─── Exportação Excel ────────────────────────────────────────────────────────
   const exportarExcel = useCallback(async () => {
     setExportando(true);
@@ -1054,8 +1084,23 @@ export default function Relatorios() {
           )}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Extrato de Cobranças</CardTitle>
-              <CardDescription className="text-xs">{dadosExtrato?.rows.length ?? 0} registros</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm">Extrato de Cobranças</CardTitle>
+                  <CardDescription className="text-xs">{dadosExtrato?.rows.length ?? 0} registros</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={!dadosExtrato?.rows.length || gerarPDFExtratoMutation.isPending}
+                    onClick={() => gerarPDFExtratoMutation.mutate({
+                      condominioId: filtro.condominioId,
+                      dataInicio: filtro.dataInicio,
+                      dataFim: filtro.dataFim,
+                    })}>
+                    {gerarPDFExtratoMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
+                    PDF
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {loadingExtrato ? (
@@ -1123,8 +1168,23 @@ export default function Relatorios() {
           )}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Cobranças Recuperadas (Pagas)</CardTitle>
-              <CardDescription className="text-xs">{dadosRecup?.rows.length ?? 0} registros</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm">Cobranças Recuperadas (Pagas)</CardTitle>
+                  <CardDescription className="text-xs">{dadosRecup?.rows.length ?? 0} registros</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={!dadosRecup?.rows.length || gerarPDFRecuperacaoMutation.isPending}
+                    onClick={() => gerarPDFRecuperacaoMutation.mutate({
+                      condominioId: filtro.condominioId,
+                      dataInicio: filtro.dataInicio,
+                      dataFim: filtro.dataFim,
+                    })}>
+                    {gerarPDFRecuperacaoMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}
+                    PDF
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               {loadingRecup ? (

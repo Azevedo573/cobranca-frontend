@@ -2304,6 +2304,88 @@ export const appRouter = router({
       return { url };
     }),
 
+    gerarPDFExtrato: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+    })).mutation(async ({ input }) => {
+      const { getRelatorioExtrato } = await import("./db-relatorios-extra");
+      const { gerarRelatorioExtratoPDF } = await import("./relatorio-extrato-pdf");
+      const { storagePut } = await import("./storage");
+      const { getDb } = await import("./db");
+      const { condominios } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const data = await getRelatorioExtrato(input);
+
+      let nomeCondominio = "Todos os condomínios";
+      if (input.condominioId) {
+        const db = await getDb();
+        if (db) {
+          const [cond] = await db.select({ name: condominios.name }).from(condominios).where(eq(condominios.id, input.condominioId)).limit(1);
+          if (cond) nomeCondominio = cond.name;
+        }
+      }
+
+      const periodoLabel = (() => {
+        const ini = input.dataInicio ? new Date(input.dataInicio).toLocaleDateString("pt-BR") : "—";
+        const fim = input.dataFim ? new Date(input.dataFim).toLocaleDateString("pt-BR") : "—";
+        return input.dataInicio || input.dataFim ? `${ini} a ${fim}` : "Todo o período";
+      })();
+
+      const pdfBuffer = await gerarRelatorioExtratoPDF({
+        nomeCondominio,
+        periodoLabel,
+        rows: data.rows as any,
+        totais: data.totais,
+      });
+
+      const fileKey = `relatorios/extrato-${Date.now()}.pdf`;
+      const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+      return { url };
+    }),
+
+    gerarPDFRecuperacao: protectedProcedure.input(z.object({
+      dataInicio: z.string().optional(),
+      dataFim: z.string().optional(),
+      condominioId: z.number().int().positive().optional(),
+    })).mutation(async ({ input }) => {
+      const { getRelatorioRecuperacao } = await import("./db-relatorios-extra");
+      const { gerarRelatorioRecuperacaoPDF } = await import("./relatorio-recuperacao-pdf");
+      const { storagePut } = await import("./storage");
+      const { getDb } = await import("./db");
+      const { condominios } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const data = await getRelatorioRecuperacao(input);
+
+      let nomeCondominio = "Todos os condomínios";
+      if (input.condominioId) {
+        const db = await getDb();
+        if (db) {
+          const [cond] = await db.select({ name: condominios.name }).from(condominios).where(eq(condominios.id, input.condominioId)).limit(1);
+          if (cond) nomeCondominio = cond.name;
+        }
+      }
+
+      const periodoLabel = (() => {
+        const ini = input.dataInicio ? new Date(input.dataInicio).toLocaleDateString("pt-BR") : "—";
+        const fim = input.dataFim ? new Date(input.dataFim).toLocaleDateString("pt-BR") : "—";
+        return input.dataInicio || input.dataFim ? `${ini} a ${fim}` : "Todo o período";
+      })();
+
+      const pdfBuffer = await gerarRelatorioRecuperacaoPDF({
+        nomeCondominio,
+        periodoLabel,
+        rows: data.rows as any,
+        totais: data.totais,
+      });
+
+      const fileKey = `relatorios/recuperacao-${Date.now()}.pdf`;
+      const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");
+      return { url };
+    }),
+
     // ─── Relatório de Cobrança (Produtividade detalhada) ─────────────────────
     listarUnidades: protectedProcedure.input(z.object({
       condominioId: z.number().int().positive().optional(),
