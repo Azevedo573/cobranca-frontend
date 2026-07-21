@@ -510,25 +510,24 @@ export default function Relatorios() {
         <p className="text-sm text-muted-foreground">Gerado em {new Date().toLocaleDateString("pt-BR")}</p>
       </div>
 
-      {/* Filtros genéricos para abas Acordos/Extrato/Recuperação */}
-      {tipoAtivo !== "inadimplencia" && (
+      {/* Painel de filtros unificado — visível em todas as abas exceto Inadimplência (que tem o próprio painel) */}
+      {tipoAtivo !== "inadimplencia" && tipoAtivo !== "produtividade" && (
         <Card>
-          <CardContent className="pt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs">Data Início</Label>
-                <Input type="date" value={inadDataInicio} onChange={(e) => setInadDataInicio(e.target.value)} className="h-9" />
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-semibold">Filtros do Relatório</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Os filtros abaixo são compartilhados com a aba Inadimplência</p>
               </div>
+              <Filter className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-1">
-                <Label className="text-xs">Data Fim</Label>
-                <Input type="date" value={inadDataFim} onChange={(e) => setInadDataFim(e.target.value)} className="h-9" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Condomínio</Label>
+                <Label className="text-xs font-medium">Condomínio</Label>
                 <Select value={inadCondominioId || "todos"} onValueChange={v => { setInadCondominioId(v); setInadDevedorId(""); }}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos os condomínios" />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Todos os condomínios" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos os condomínios</SelectItem>
                     {(listaCondominios as any[]).map((c: any) => (
@@ -537,7 +536,53 @@ export default function Relatorios() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Unidade</Label>
+                <Select value={inadDevedorId || "todos"} onValueChange={setInadDevedorId} disabled={!inadCondominioIdNum}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder={inadCondominioIdNum ? "Todas as unidades" : "Selecione um condomínio"} /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas as unidades</SelectItem>
+                    {(inadListaDevedores as any[]).map((d: any) => (
+                      <SelectItem key={d.id} value={String(d.id)}>
+                        {d.bloco ? `${d.bloco}/` : ""}{d.unitNumber} — {d.name ?? "Sem nome"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Data Início</Label>
+                <Input type="date" value={inadDataInicio} onChange={(e) => setInadDataInicio(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Data Fim</Label>
+                <Input type="date" value={inadDataFim} onChange={(e) => setInadDataFim(e.target.value)} className="h-9" />
+              </div>
             </div>
+            {(inadCondominioId || inadDataInicio || inadDataFim) && (
+              <div className="flex items-center gap-2 pt-1">
+                <div className="flex flex-wrap gap-2 flex-1">
+                  {inadCondominioId && inadCondominioId !== "todos" && (
+                    <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                      Condomínio: {(listaCondominios as any[]).find((c: any) => String(c.id) === inadCondominioId)?.name ?? inadCondominioId}
+                    </span>
+                  )}
+                  {inadDataInicio && (
+                    <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                      De: {fmtDate(inadDataInicio)}
+                    </span>
+                  )}
+                  {inadDataFim && (
+                    <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                      Até: {fmtDate(inadDataFim)}
+                    </span>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7" onClick={() => { setInadCondominioId(""); setInadDataInicio(""); setInadDataFim(""); setInadDevedorId(""); }}>
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
