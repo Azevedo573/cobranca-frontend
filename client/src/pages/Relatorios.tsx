@@ -109,14 +109,11 @@ export default function Relatorios() {
 
   const { data: listaCondominios = [] } = trpc.condominios.list.useQuery(undefined as any);
 
-  // filtro genérico para outras abas
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
-  const [condominioId, setCondominioId] = useState<string>("");
+  // filtro unificado: Acordos, Extrato e Recuperação usam os mesmos filtros da inadimplência
   const filtro = {
-    dataInicio: dataInicio || undefined,
-    dataFim: dataFim || undefined,
-    condominioId: condominioId && condominioId !== "todos" ? parseInt(condominioId) : undefined,
+    dataInicio: inadDataInicio || undefined,
+    dataFim: inadDataFim || undefined,
+    condominioId: inadCondominioIdNum,
   };
 
   // ─── Queries ────────────────────────────────────────────────────────────────
@@ -135,9 +132,8 @@ export default function Relatorios() {
   }, [dadosInad]);
 
   // Aba Acordos usa o shape detalhado (cobranças originais + parcelas)
-  const filtroAcordosTemValor = tipoAtivo === "acordos" && Object.values(filtro).some((v) => v !== undefined && v !== null);
   const { data: dadosAcordos, isLoading: loadingAcordos, refetch: refetchAcordos } =
-    trpc.relatorios.acordosDetalhado.useQuery(filtro, { enabled: filtroAcordosTemValor });
+    trpc.relatorios.acordosDetalhado.useQuery(filtro, { enabled: tipoAtivo === "acordos" });
 
   const gerarPDFAcordosMutation = trpc.relatorios.gerarPDFAcordos.useMutation({
     onSuccess: (result) => {
@@ -482,7 +478,6 @@ export default function Relatorios() {
               variant="outline"
               size="sm"
               onClick={() => {
-                if (!filtroAcordosTemValor) { toast.error("Selecione pelo menos um filtro para exportar o PDF."); return; }
                 gerarPDFAcordosMutation.mutate(filtro);
               }}
               disabled={!dadosAcordos || gerarPDFAcordosMutation.isPending}
@@ -522,15 +517,15 @@ export default function Relatorios() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <Label className="text-xs">Data Início</Label>
-                <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="h-9" />
+                <Input type="date" value={inadDataInicio} onChange={(e) => setInadDataInicio(e.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Data Fim</Label>
-                <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="h-9" />
+                <Input type="date" value={inadDataFim} onChange={(e) => setInadDataFim(e.target.value)} className="h-9" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Condomínio</Label>
-                <Select value={condominioId} onValueChange={setCondominioId}>
+                <Select value={inadCondominioId || "todos"} onValueChange={v => { setInadCondominioId(v); setInadDevedorId(""); }}>
                   <SelectTrigger className="h-9">
                     <SelectValue placeholder="Todos os condomínios" />
                   </SelectTrigger>
@@ -831,15 +826,7 @@ export default function Relatorios() {
             </div>
           )}
 
-          {!loadingAcordos && !filtroAcordosTemValor && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <HandshakeIcon className="h-12 w-12 text-muted-foreground/40 mb-4" />
-              <p className="text-muted-foreground font-medium">Selecione pelo menos um filtro para visualizar os acordos</p>
-              <p className="text-xs text-muted-foreground mt-1">Use os campos de data ou condomínio acima</p>
-            </div>
-          )}
-
-          {!loadingAcordos && filtroAcordosTemValor && dadosAcordos && dadosAcordos.acordos.length === 0 && (
+          {!loadingAcordos && dadosAcordos && dadosAcordos.acordos.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <FileText className="h-12 w-12 text-muted-foreground/40 mb-4" />
               <p className="text-muted-foreground font-medium">Nenhum acordo encontrado no período</p>

@@ -2638,3 +2638,4 @@
 - [x] Backend: endpoint GET /api/scheduled/doerj/termos para retornar termos ativos ao AGENT
 - [x] Frontend: reescrever MonitoramentosPublicacoes.tsx usando novo router doerjMonitoramentos
 - [x] Frontend: card estático do DOERJ AGENT cron na página Agendamentos com link para gerenciar termos
+- [x] Filtros unificados em /relatorios: condomínio, unidade, período, categoria aplicados em Acordos, Extrato e Recuperação
