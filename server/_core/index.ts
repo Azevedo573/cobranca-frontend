@@ -12,6 +12,7 @@ import { cancelamentoAutoHandler } from "../job-cancelamento-auto";
 import { alertasInadimplenciaHandler } from "../job-alertas-inadimplencia";
 import { alertasPrazosHandler } from "../job-alertas-prazos";
 import { doerjHandler, doerjTermosHandler } from "../job-doerj";
+import { registrarJobPJe } from "../job-pje";
 import { iniciarJobFilaWhatsApp } from "../job-whatsapp-fila";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -50,6 +51,7 @@ async function startServer() {
   // Job de monitoramento do DOERJ — recebe publicações do AGENT cron
   app.get("/api/scheduled/doerj/termos", doerjTermosHandler);
   app.post("/api/scheduled/doerj", doerjHandler);
+  registrarJobPJe(app);
   // Webhook Z-API — recebe mensagens WhatsApp
   const { webhookWhatsappHandler } = await import("../webhook-whatsapp");
   app.post("/api/webhook/whatsapp/:instanciaId", webhookWhatsappHandler);

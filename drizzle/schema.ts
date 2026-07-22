@@ -1587,3 +1587,28 @@ export const doerjMonitoramentos = mysqlTable("doerj_monitoramentos", {
 });
 export type DoerjMonitoramento = typeof doerjMonitoramentos.$inferSelect;
 export type InsertDoerjMonitoramento = typeof doerjMonitoramentos.$inferInsert;
+
+// ─── Publicações PJe (API comunicaapi.pje.jus.br) ────────────────────────────
+// Publicações judiciais buscadas automaticamente via API PJe
+export const pjePublicacoes = mysqlTable("pje_publicacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  pjeId: int("pje_id").notNull().unique(), // id da publicação na API PJe (bigint no banco, int no JS)
+  dataDisponibilizacao: varchar("data_disponibilizacao", { length: 10 }).notNull(), // YYYY-MM-DD
+  siglaTribunal: varchar("sigla_tribunal", { length: 20 }).notNull(),
+  tipoComunicacao: varchar("tipo_comunicacao", { length: 100 }),
+  nomeOrgao: varchar("nome_orgao", { length: 255 }),
+  numeroProcesso: varchar("numero_processo", { length: 50 }),
+  numeroProcessoMascara: varchar("numero_processo_mascara", { length: 60 }),
+  tipoDocumento: varchar("tipo_documento", { length: 100 }),
+  nomeClasse: varchar("nome_classe", { length: 100 }),
+  texto: text("texto"),
+  link: text("link"),
+  meio: varchar("meio", { length: 5 }),
+  meioCompleto: varchar("meio_completo", { length: 100 }),
+  destinatariosJson: text("destinatarios_json"), // JSON com partes e advogados
+  monitoramentoId: int("monitoramento_id"), // FK para doerj_monitoramentos
+  lida: int("lida").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type PjePublicacao = typeof pjePublicacoes.$inferSelect;
+export type InsertPjePublicacao = typeof pjePublicacoes.$inferInsert;

@@ -225,53 +225,86 @@ function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
 
 // ─── Card de Publicação DOERJ ─────────────────────────────────────────────────
 
-function CardDoerjPublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (id: number) => void }) {
+function CardPjePublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (id: number) => void }) {
+  const destinatarios = pub.destinatariosJson?.destinatarios ?? [];
+  const advogados = pub.destinatariosJson?.advogados ?? [];
   return (
-    <Card className={`border-l-4 transition-all ${pub.lida === 0 ? "border-l-green-500" : "border-l-transparent"}`}>
+    <Card className={`border-l-4 transition-all ${pub.lida === 0 ? "border-l-blue-500" : "border-l-transparent opacity-75"}`}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             {/* Badges */}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {pub.lida === 0 && (
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
                   <EyeOff className="h-3 w-3" /> Não lida
                 </span>
               )}
-              {pub.jornal && (
-                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300">
-                  <Newspaper className="h-3 w-3 mr-1" />
-                  {pub.jornal}
+              {pub.tipoComunicacao && (
+                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300">
+                  <Bell className="h-3 w-3 mr-1" />
+                  {pub.tipoComunicacao}
                 </Badge>
               )}
-              {pub.tipo && (
+              {pub.tipoDocumento && (
                 <Badge variant="secondary" className="text-xs">
-                  {pub.tipo}
+                  {pub.tipoDocumento}
                 </Badge>
               )}
-              {pub.termoBusca && (
+              {pub.siglaTribunal && (
                 <Badge variant="outline" className="text-xs text-muted-foreground">
-                  Termo: {pub.termoBusca}
+                  {pub.siglaTribunal}
                 </Badge>
               )}
             </div>
 
-            {/* Trecho */}
+            {/* Número do processo */}
+            {pub.numeroProcessoMascara && (
+              <p className="text-xs font-mono font-medium text-foreground mb-1">
+                <Scale className="h-3 w-3 inline mr-1 text-muted-foreground" />
+                {pub.numeroProcessoMascara}
+              </p>
+            )}
+
+            {/* Órgão */}
+            {pub.nomeOrgao && (
+              <p className="text-xs text-muted-foreground mb-1">
+                <Building2 className="h-3 w-3 inline mr-1" />
+                {pub.nomeOrgao}
+              </p>
+            )}
+
+            {/* Texto */}
             <p className="text-sm text-foreground line-clamp-3 mt-1">
-              {pub.trecho ? truncate(pub.trecho, 300) : "Sem trecho disponível"}
+              {pub.texto ? truncate(pub.texto, 300) : "Sem texto disponível"}
             </p>
 
+            {/* Partes */}
+            {destinatarios.length > 0 && (
+              <div className="flex items-center gap-1 mt-2 flex-wrap">
+                <Users className="h-3 w-3 text-muted-foreground shrink-0" />
+                {destinatarios.slice(0, 3).map((d: any, i: number) => (
+                  <span key={i} className="text-xs text-muted-foreground">
+                    {d.nome}{i < Math.min(destinatarios.length, 3) - 1 ? "," : ""}
+                  </span>
+                ))}
+                {destinatarios.length > 3 && (
+                  <span className="text-xs text-muted-foreground">+{destinatarios.length - 3}</span>
+                )}
+              </div>
+            )}
+
             {/* Link */}
-            {pub.url && (
+            {pub.link && (
               <a
-                href={pub.url}
+                href={pub.link}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
                 onClick={(e) => e.stopPropagation()}
               >
                 <ExternalLink className="h-3 w-3" />
-                Ver no DOERJ
+                Ver no PJe
               </a>
             )}
           </div>
@@ -279,7 +312,7 @@ function CardDoerjPublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (i
           {/* Data e ações */}
           <div className="flex flex-col items-end gap-2 shrink-0">
             <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {pub.dataPublicacao || "—"}
+              {pub.dataDisponibilizacao || "—"}
             </span>
             {pub.lida === 0 && (
               <Button
@@ -299,48 +332,51 @@ function CardDoerjPublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (i
   );
 }
 
-// ─── Aba DOERJ ────────────────────────────────────────────────────────────────
+// ─── Aba PJe (Diário Oficial RJ) ─────────────────────────────────────────────
 
 function AbaDoerj() {
-  const [filtroLida, setFiltroLida] = useState<string>("todas");
+  const [filtroLida, setFiltroLida] = useState<"todas" | "nao_lidas" | "lidas">("todas");
   const utils = trpc.useUtils();
 
-  const { data: resultado, isLoading, refetch } = trpc.doerj.listar.useQuery({
-    lida: filtroLida === "nao_lidas" ? false : filtroLida === "lidas" ? true : undefined,
-    limit: 100,
+  const { data: resultado, isLoading, refetch } = trpc.pjePublicacoes.listar.useQuery({
+    lida: filtroLida,
+    limite: 100,
+    offset: 0,
   });
 
   const publicacoes = resultado?.publicacoes ?? [];
-  const total = resultado?.total ?? 0;
+  const totalNaoLidas = resultado?.totalNaoLidas ?? 0;
 
-  const marcarLidaMutation = trpc.doerj.marcarLida.useMutation({
-    onSuccess: () => {
-      utils.doerj.listar.invalidate();
-      utils.doerj.contadorNaoLidas.invalidate();
+  const buscarAgoraMutation = trpc.pjePublicacoes.buscarAgora.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.message}`);
+      utils.pjePublicacoes.listar.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
 
-  const marcarTodasMutation = trpc.doerj.marcarTodasLidas.useMutation({
+  const marcarLidaMutation = trpc.pjePublicacoes.marcarLida.useMutation({
+    onSuccess: () => utils.pjePublicacoes.listar.invalidate(),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const marcarTodasMutation = trpc.pjePublicacoes.marcarTodasLidas.useMutation({
     onSuccess: () => {
       toast.success("Todas as publicações marcadas como lidas!");
-      utils.doerj.listar.invalidate();
-      utils.doerj.contadorNaoLidas.invalidate();
+      utils.pjePublicacoes.listar.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });
-
-  const naoLidas = publicacoes.filter((p) => p.lida === 0).length;
 
   return (
     <div className="space-y-4">
-      {/* Barra de filtros */}
+      {/* Barra de ações */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm text-muted-foreground">Filtrar:</span>
         </div>
-        <Select value={filtroLida} onValueChange={setFiltroLida}>
+        <Select value={filtroLida} onValueChange={(v) => setFiltroLida(v as any)}>
           <SelectTrigger className="w-36 h-8 text-sm">
             <SelectValue placeholder="Leitura" />
           </SelectTrigger>
@@ -351,12 +387,12 @@ function AbaDoerj() {
           </SelectContent>
         </Select>
         <span className="text-xs text-muted-foreground ml-auto">
-          {total} publicação(ões)
-          {naoLidas > 0 && (
-            <span className="ml-2 text-green-600 font-medium">· {naoLidas} não lida(s)</span>
+          {publicacoes.length} publicação(ões)
+          {totalNaoLidas > 0 && (
+            <span className="ml-2 text-blue-600 font-medium">· {totalNaoLidas} não lida(s)</span>
           )}
         </span>
-        {naoLidas > 0 && (
+        {totalNaoLidas > 0 && (
           <Button
             variant="outline"
             size="sm"
@@ -367,6 +403,15 @@ function AbaDoerj() {
             Marcar todas como lidas
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => buscarAgoraMutation.mutate({})}
+          disabled={buscarAgoraMutation.isPending}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${buscarAgoraMutation.isPending ? "animate-spin" : ""}`} />
+          {buscarAgoraMutation.isPending ? "Buscando..." : "Buscar Agora"}
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => refetch()}>
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
@@ -374,22 +419,22 @@ function AbaDoerj() {
 
       {/* Lista */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Carregando publicações do DOERJ...</div>
+        <div className="text-center py-12 text-muted-foreground">Carregando publicações do PJe...</div>
       ) : publicacoes.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-12 text-center">
             <Newspaper className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
             <p className="text-muted-foreground font-medium">Nenhuma publicação encontrada</p>
             <p className="text-sm text-muted-foreground mt-1">
-              O job diário pesquisa automaticamente os termos cadastrados no DOERJ.
-              As publicações encontradas aparecerão aqui.
+              Clique em <strong>Buscar Agora</strong> para pesquisar publicações na API PJe,
+              ou aguarde o job diário às 08h.
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
           {publicacoes.map((pub) => (
-            <CardDoerjPublicacao
+            <CardPjePublicacao
               key={pub.id}
               pub={pub}
               onMarcarLida={(id) => marcarLidaMutation.mutate({ id })}
