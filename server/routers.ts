@@ -929,6 +929,11 @@ export const appRouter = router({
           total: Math.round((c.breakdown.valorTotal || 0) * 100),
         }));
 
+        // Valor do boleto = soma dos totais atualizados de todos os itens (inclui juros, multa, correção, honorários)
+        // Deve ser igual ao valor enviado na remessa CNAB
+        const valorTotalComposicao = itensCobranca.reduce((sum, item) => sum + item.total, 0);
+        const valorBoleto = valorTotalComposicao > 0 ? valorTotalComposicao : cobranca.amount;
+
         const dataVencimento = cobranca.dueDate ? new Date(cobranca.dueDate) : new Date();
         const dataEmissao = new Date();
 
@@ -976,7 +981,7 @@ export const appRouter = router({
           nossoNumero: cobranca.nossoNumero,
           dataVencimento,
           dataEmissao,
-          valor: cobranca.amount,
+          valor: valorBoleto,
           especieDocumento: config.especieDocumento,
           aceite: config.aceite,
           nomeSacado,
