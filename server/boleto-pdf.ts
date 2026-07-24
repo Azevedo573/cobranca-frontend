@@ -100,16 +100,19 @@ function modulo11CodigoBarras(numero: string): string {
 }
 
 function fatorVencimento(data: Date): string {
-  const BASE1 = new Date("1997-10-07T00:00:00.000Z");
-  const BASE2 = new Date("2025-02-22T00:00:00.000Z");
+  // Usar UTC puro para evitar problemas de fuso horário
+  // Normalizar a data para meia-noite UTC
+  const dataUTC = Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate());
+  const BASE1_UTC = Date.UTC(1997, 9, 7);  // 07/10/1997 UTC
+  const BASE2_UTC = Date.UTC(2025, 1, 22); // 22/02/2025 UTC
   const LIMITE_BASE1 = 9999;
   const FATOR_INICIO_BASE2 = 1000;
 
-  const diff1 = Math.floor((data.getTime() - BASE1.getTime()) / (1000 * 60 * 60 * 24));
+  const diff1 = Math.floor((dataUTC - BASE1_UTC) / (1000 * 60 * 60 * 24));
   if (diff1 <= 0) return "0000";
   if (diff1 <= LIMITE_BASE1) return String(diff1).padStart(4, "0");
 
-  const diff2 = Math.floor((data.getTime() - BASE2.getTime()) / (1000 * 60 * 60 * 24));
+  const diff2 = Math.floor((dataUTC - BASE2_UTC) / (1000 * 60 * 60 * 24));
   const fator2 = FATOR_INICIO_BASE2 + diff2;
   if (fator2 > 9999) return "0000";
   return String(fator2).padStart(4, "0");
@@ -126,7 +129,8 @@ export function calcularCodigoBarras(d: DadosBoleto): string {
   const valor = formatarValorCentavos(d.valor);
 
   const carteira = d.carteira.padStart(1, "0");
-  const nossoNum = d.nossoNumero.padStart(10, "0");
+  // slice(-10) garante que nossoNumero longo (ex: 19 chars) seja truncado para os últimos 10 dígitos
+  const nossoNum = d.nossoNumero.replace(/\D/g, "").slice(-10).padStart(10, "0");
   const agencia = d.agencia.replace(/\D/g, "").padStart(4, "0");
   const conta = d.conta.replace(/\D/g, "").padStart(6, "0");
   const campoLivre = `${carteira}${nossoNum}${agencia}${conta}0000`;
