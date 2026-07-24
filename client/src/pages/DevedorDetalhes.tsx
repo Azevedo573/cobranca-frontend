@@ -25,6 +25,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
+import { formatarDataVencimento } from "@/lib/dateUtils";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
 import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas";
@@ -1127,7 +1128,7 @@ function CobrancasTabela({
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell>{cob.dueDate ? format(new Date(new Date(cob.dueDate).getTime() + new Date(cob.dueDate).getTimezoneOffset() * 60000), "dd/MM/yyyy") : "-"}</TableCell>
+                            <TableCell>{formatarDataVencimento(cob.dueDate)}</TableCell>
                             <TableCell>{formatarMoeda(breakdown.valorOriginal)}</TableCell>
                             <TableCell>{formatarMoeda(breakdown.juros)}</TableCell>
                             <TableCell>{formatarMoeda(breakdown.multa)}</TableCell>
@@ -1439,7 +1440,7 @@ function BoletosPorDevedor({ devedorId, condominioId }: { devedorId: number; con
                       </span>
                       {b.cobranca.dueDate && (
                         <span className="text-xs text-muted-foreground">
-                          · Venc. {format(new Date(b.cobranca.dueDate), "dd/MM/yyyy")}
+                          · Venc. {formatarDataVencimento(b.cobranca.dueDate)}
                         </span>
                       )}
                       <span className={`text-xs font-medium ${statusCobrancaColor(b.cobranca.status)}`}>

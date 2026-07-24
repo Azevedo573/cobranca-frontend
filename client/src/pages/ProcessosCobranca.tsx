@@ -25,6 +25,7 @@ import { Pagination, paginateItems } from "@/components/Pagination";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
+import { formatarDataVencimento } from "@/lib/dateUtils";
 import { calcularValorDevido, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import {
   AlertDialog,
@@ -326,7 +327,7 @@ export default function ProcessosCobranca() {
                         <TableCell>{cob.description || "-"}</TableCell>
                         <TableCell>{cob.monthReference || "-"}</TableCell>
                         <TableCell>
-                          {cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}
+                          {formatarDataVencimento(cob.dueDate)}
                         </TableCell>
                         <TableCell className="font-semibold">
                           R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

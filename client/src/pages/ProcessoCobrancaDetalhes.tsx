@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { ArrowLeft, FileText, Calendar, DollarSign, User, Home, Upload, Paperclip, Trash2, ExternalLink, Copy } from "lucide-react";
 import { Link, useRoute } from "wouter";
 import { format } from "date-fns";
+import { formatarDataVencimento } from "@/lib/dateUtils";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { calcularValorDevido, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
@@ -148,7 +149,7 @@ export default function CobrancaDetalhes() {
                     <p className="text-sm text-muted-foreground">Data de Vencimento</p>
                     <p className="font-medium flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {cobranca.dueDate ? format(new Date(cobranca.dueDate), "dd/MM/yyyy") : "-"}
+                      {formatarDataVencimento(cobranca.dueDate)}
                     </p>
                   </div>
                   <div>

@@ -342,17 +342,30 @@ export async function importarCobrancasPlanilha(
       }
       
       // Processar data de vencimento (pode vir como número serial do Excel ou string)
+      // IMPORTANTE: usar Date.UTC() para evitar deslocamento de fuso horário.
+      // new Date(year, month, day) cria data no fuso local do servidor, mas o cliente
+      // pode estar em fuso diferente (ex: UTC-3), causando exibição de um dia a menos.
       let dueDate: Date;
       if (typeof row["Vencimento"] === "number") {
-        // Converter número serial do Excel para data
-        const excelEpoch = new Date(1899, 11, 30);
-        dueDate = new Date(excelEpoch.getTime() + row["Vencimento"] * 86400000);
+        // Converter número serial do Excel para data usando UTC puro
+        // Excel conta dias desde 01/01/1900, com bug intencional (trata 1900 como bissexto)
+        const serial = row["Vencimento"];
+        const diasDesde1900 = serial > 60 ? serial - 2 : serial - 1;
+        const msBase = Date.UTC(1900, 0, 1); // 01/01/1900 UTC
+        const ms = msBase + diasDesde1900 * 86400000;
+        const d = new Date(ms);
+        dueDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
       } else {
         // Tentar parsear string (formato DD/MM/YYYY ou YYYY-MM-DD)
-        const dateStr = String(row["Vencimento"]);
-        if (dateStr.includes("/")) {
-          const [day, month, year] = dateStr.split("/");
-          dueDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        const dateStr = String(row["Vencimento"]).trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+          // Formato DD/MM/YYYY
+          const [day, month, year] = dateStr.split("/").map(Number);
+          dueDate = new Date(Date.UTC(year, month - 1, day));
+        } else if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+          // Formato ISO YYYY-MM-DD
+          const [year, month, day] = dateStr.slice(0, 10).split("-").map(Number);
+          dueDate = new Date(Date.UTC(year, month - 1, day));
         } else {
           dueDate = new Date(dateStr);
         }

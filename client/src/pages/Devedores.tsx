@@ -26,6 +26,7 @@ import { BadgePrioridade } from "@/components/BadgePrioridade";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
+import { formatarDataVencimento } from "@/lib/dateUtils";
 import { calcularValorDevido, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -477,7 +478,7 @@ export default function Devedores() {
                             <TableCell className="font-medium">{getDevedorName(cob.devedorId)}</TableCell>
                             <TableCell>{cob.description || "-"}</TableCell>
                             <TableCell>{cob.monthReference || "-"}</TableCell>
-                            <TableCell>{cob.dueDate ? format(new Date(cob.dueDate), "dd/MM/yyyy") : "-"}</TableCell>
+                            <TableCell>{formatarDataVencimento(cob.dueDate)}</TableCell>
                             <TableCell className="font-semibold">
                               R$ {(cob.amount / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </TableCell>

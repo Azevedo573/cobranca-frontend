@@ -30,6 +30,7 @@ import EnviarEmailModal from "@/components/EnviarEmailModal";
 import { CustasJudiciais } from "@/components/CustasJudiciais";
 import { calcularPlanoAcordo, formatarMoedaAcordo } from "@/../../shared/calculos-acordo";
 import { format } from "date-fns";
+import { formatarDataVencimento } from "@/lib/dateUtils";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -139,7 +140,9 @@ export function RealizarAcordoModal({
     return cobrancasDisponiveis.map((c) => {
       const b = c.breakdown;
       const valorOriginal = b ? b.valorOriginal : c.amount / 100;
-      const dias = c.dueDate ? Math.max(0, Math.floor((dataAlvo.getTime() - new Date(c.dueDate).getTime()) / (1000 * 60 * 60 * 24))) : 0;
+      // Compensar fuso horário para cálculo correto de dias: datas UTC meia-noite no browser UTC-3 aparecem como dia anterior
+      const dueDateUTC = c.dueDate ? (() => { const d = new Date(c.dueDate); return new Date(d.getTime() + d.getTimezoneOffset() * 60000); })() : null;
+      const dias = dueDateUTC ? Math.max(0, Math.floor((dataAlvo.getTime() - dueDateUTC.getTime()) / (1000 * 60 * 60 * 24))) : 0;
       const meses = dias / 30;
 
       // Custas judiciais (do breakdown calculado pelo backend)
@@ -171,7 +174,7 @@ export function RealizarAcordoModal({
         tipoNeg: "-",
         indiceCM: "IPCA",
         tipoTitulo: tipoLabel[c.tipoCobranca] || c.tipoCobranca,
-        vencimento: c.dueDate ? format(new Date(c.dueDate), "dd/MM/yyyy") : "-",
+        vencimento: formatarDataVencimento(c.dueDate),
         dias,
         valorOriginal,
         corMonetaria,

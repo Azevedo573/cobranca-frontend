@@ -2639,3 +2639,11 @@
 - [x] Frontend: reescrever MonitoramentosPublicacoes.tsx usando novo router doerjMonitoramentos
 - [x] Frontend: card estático do DOERJ AGENT cron na página Agendamentos com link para gerenciar termos
 - [x] Filtros unificados em /relatorios: condomínio, unidade, período, categoria aplicados em Acordos, Extrato e Recuperação
+
+## Bug Corrigido - Data de Vencimento Alterada no Acordo de Títulos
+- [x] Investigar bug de data de vencimento sendo alterada ao criar Acordo de Títulos
+- [x] Corrigir importação de planilha (db-cobrancas.ts): usar Date.UTC() em vez de new Date(year, month, day) para evitar deslocamento de fuso horário
+- [x] Criar helper formatarDataVencimento() em client/src/lib/dateUtils.ts com compensação de fuso
+- [x] Aplicar formatarDataVencimento() no RealizarAcordoModal.tsx (exibição e cálculo de dias)
+- [x] Aplicar formatarDataVencimento() no DevedorDetalhes.tsx (tabela de cobranças)
+- [x] Aplicar formatarDataVencimento() no Devedores.tsx, ProcessosCobranca.tsx, ProcessoCobrancaDetalhes.tsx
