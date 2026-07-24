@@ -159,7 +159,8 @@ export function RealizarAcordoModal({
       const subTotal = baseCorrigida + multa + juros + custasJudiciais;
 
       // Honorários (% sobre subTotal + valor fixo)
-      const honorario = (parseFloat(honorarioPct) / 100) * subTotal + parseFloat(honorarioRS || "0");
+      const parseDecimal = (v: string) => parseFloat((v || "0").replace(/,/g, "."));
+      const honorario = (parseDecimal(honorarioPct) / 100) * subTotal + parseDecimal(honorarioRS);
 
       // Desconto NÃO é aplicado por título — é calculado sobre o total geral
       const total = subTotal + honorario;
@@ -201,8 +202,9 @@ export function RealizarAcordoModal({
 
   // Desconto global — aplicado sobre o total dos títulos selecionados + honorários
   const descontoGlobal = useMemo(() => {
-    const pct = parseFloat(descontoPct || "0");
-    const rs = parseFloat(descontoRS || "0");
+    const parseDecimal = (v: string) => parseFloat((v || "0").replace(/,/g, "."));
+    const pct = parseDecimal(descontoPct);
+    const rs = parseDecimal(descontoRS);
     return (pct / 100) * totais.total + rs;
   }, [descontoPct, descontoRS, totais.total]);
 
@@ -477,7 +479,13 @@ export function RealizarAcordoModal({
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-muted-foreground">R$</span>
-                      <Input value={honorarioRS} onChange={(e) => setHonorarioRS(e.target.value)} className="w-20 h-8 text-sm" />
+                      <Input
+                        value={honorarioRS}
+                        onChange={(e) => setHonorarioRS(e.target.value.replace(/[^0-9.,]/g, ""))}
+                        placeholder="0,00"
+                        inputMode="decimal"
+                        className="w-20 h-8 text-sm"
+                      />
                     </div>
                   </div>
                 </div>
@@ -493,7 +501,13 @@ export function RealizarAcordoModal({
                     </div>
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-muted-foreground">R$</span>
-                      <Input value={descontoRS} onChange={(e) => setDescontoRS(e.target.value)} className="w-20 h-8 text-sm" />
+                      <Input
+                        value={descontoRS}
+                        onChange={(e) => setDescontoRS(e.target.value.replace(/[^0-9.,]/g, ""))}
+                        placeholder="0,00"
+                        inputMode="decimal"
+                        className="w-20 h-8 text-sm"
+                      />
                     </div>
                   </div>
                 </div>
