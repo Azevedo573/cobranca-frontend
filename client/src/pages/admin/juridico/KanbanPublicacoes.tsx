@@ -15,7 +15,9 @@ import {
   Bell, Eye, Clock, CheckCircle2, Archive, ArrowLeft, Plus,
   ChevronRight, Building2, Users, FileText, Gavel, Calendar,
   Scale, BookOpen, EyeOff, MoveRight, ExternalLink, Search, X, ChevronLeft,
+  PlusCircle,
 } from "lucide-react";
+import { ModalCriarDemanda } from "./CentralDemandas";
 
 // ─── Config de Colunas do Kanban ──────────────────────────────────────────────
 
@@ -90,6 +92,7 @@ function ModalDetalhePublicacao({ id, onClose }: { id: number; onClose: () => vo
   const [obs, setObs] = useState("");
   const [editCNJ, setEditCNJ] = useState(false);
   const [cnj, setCnj] = useState("");
+  const [showNovaDemanda, setShowNovaDemanda] = useState(false);
 
   const updateMutation = trpc.publicacoes.update.useMutation({
     onSuccess: () => {
@@ -128,6 +131,7 @@ function ModalDetalhePublicacao({ id, onClose }: { id: number; onClose: () => vo
   const proximoStatus = COLUNAS[COLUNAS.findIndex(c => c.id === pub.status) + 1];
 
   return (
+    <>
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -291,11 +295,50 @@ function ModalDetalhePublicacao({ id, onClose }: { id: number; onClose: () => vo
           </div>
         </div>
 
+        {/* Seção de Tratamentos */}
+        <div className="border-t pt-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tratamentos</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setShowNovaDemanda(true)}
+            >
+              <PlusCircle className="h-3.5 w-3.5" />
+              Criar Demanda Jurídica
+            </Button>
+          </div>
+        </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Modal de Nova Demanda pré-preenchido com dados da publicação */}
+    {pub && (
+      <ModalCriarDemanda
+        open={showNovaDemanda}
+        onClose={() => setShowNovaDemanda(false)}
+        initialValues={{
+          assunto: `${pub.tipo ? pub.tipo.charAt(0).toUpperCase() + pub.tipo.slice(1) : "Publicação"} - ${pub.numeroCNJ || pub.advogadoNome || "Processo"}`,
+          descricao: [
+            pub.tribunal ? `Tribunal: ${pub.tribunal}` : null,
+            pub.vara ? `Vara: ${pub.vara}` : null,
+            pub.comarca ? `Comarca: ${pub.comarca}` : null,
+            pub.numeroCNJ ? `Processo: ${pub.numeroCNJ}` : null,
+            pub.dataPublicacao ? `Data da publicação: ${new Date(pub.dataPublicacao).toLocaleDateString("pt-BR")}` : null,
+            "",
+            pub.textoCompleto ? `Conteúdo:\n${pub.textoCompleto}` : null,
+          ].filter(Boolean).join("\n"),
+          tipo: "acompanhamento",
+          canal: "processo_interno",
+        }}
+      />
+    )}
+    </>
   );
 }
 

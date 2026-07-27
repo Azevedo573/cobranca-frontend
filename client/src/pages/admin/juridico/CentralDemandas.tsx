@@ -67,10 +67,18 @@ function isAtrasada(prazo: string | Date | null | undefined) {
 
 // ─── Modal de Criação ─────────────────────────────────────────────────────────
 
-function ModalCriarDemanda({ open, onClose, colunaInicial }: {
+export interface ModalCriarDemandaInitialValues {
+  assunto?: string;
+  descricao?: string;
+  tipo?: string;
+  canal?: string;
+}
+
+export function ModalCriarDemanda({ open, onClose, colunaInicial, initialValues }: {
   open: boolean;
   onClose: () => void;
   colunaInicial?: number;
+  initialValues?: ModalCriarDemandaInitialValues;
 }) {
   const utils = trpc.useUtils();
   const { data: colunas = [] } = trpc.juridicoDemandas.getColunas.useQuery();
@@ -78,12 +86,12 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
   const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
 
   const [form, setForm] = useState({
-    assunto: "",
-    descricao: "",
+    assunto: initialValues?.assunto ?? "",
+    descricao: initialValues?.descricao ?? "",
     solicitante: "",
     solicitanteTipo: "Síndico",
-    canal: "manual" as const,
-    tipo: "outro" as const,
+    canal: (initialValues?.canal ?? "manual") as any,
+    tipo: (initialValues?.tipo ?? "outro") as any,
     prioridade: "media" as const,
     prazo: "",
     responsavelId: "" as string,
@@ -93,8 +101,17 @@ function ModalCriarDemanda({ open, onClose, colunaInicial }: {
   });
 
   useEffect(() => {
-    if (open && colunaInicial) setForm(f => ({ ...f, colunaId: String(colunaInicial) }));
-  }, [open, colunaInicial]);
+    if (open) {
+      setForm(f => ({
+        ...f,
+        colunaId: colunaInicial ? String(colunaInicial) : f.colunaId,
+        assunto: initialValues?.assunto ?? f.assunto,
+        descricao: initialValues?.descricao ?? f.descricao,
+        canal: (initialValues?.canal ?? f.canal) as any,
+        tipo: (initialValues?.tipo ?? f.tipo) as any,
+      }));
+    }
+  }, [open, colunaInicial, initialValues?.assunto, initialValues?.descricao, initialValues?.canal, initialValues?.tipo]);
 
   const criar = trpc.juridicoDemandas.create.useMutation({
     onSuccess: () => {

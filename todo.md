@@ -2647,3 +2647,7 @@
 - [x] Aplicar formatarDataVencimento() no RealizarAcordoModal.tsx (exibição e cálculo de dias)
 - [x] Aplicar formatarDataVencimento() no DevedorDetalhes.tsx (tabela de cobranças)
 - [x] Aplicar formatarDataVencimento() no Devedores.tsx, ProcessosCobranca.tsx, ProcessoCobrancaDetalhes.tsx
+
+## Botão "Adicionar Tarefa" na Publicação → Nova Demanda Jurídica
+- [ ] Adicionar botão "Adicionar tarefa" no modal de detalhes da publicação (KanbanPublicacoes.tsx)
+- [ ] Ao clicar, abrir formulário Nova Demanda Jurídica pré-preenchido com dados da publicação (assunto, descrição, canal de origem = Diário Oficial)
