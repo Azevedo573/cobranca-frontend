@@ -30,8 +30,29 @@ export const pjePublicacoesRouter = router({
       if (input.lida === "lidas") condicoes.push(eq(pjePublicacoes.lida, 1));
 
       const rows = await db
-        .select()
+        .select({
+          id: pjePublicacoes.id,
+          pjeId: pjePublicacoes.pjeId,
+          dataDisponibilizacao: pjePublicacoes.dataDisponibilizacao,
+          siglaTribunal: pjePublicacoes.siglaTribunal,
+          tipoComunicacao: pjePublicacoes.tipoComunicacao,
+          nomeOrgao: pjePublicacoes.nomeOrgao,
+          numeroProcesso: pjePublicacoes.numeroProcesso,
+          numeroProcessoMascara: pjePublicacoes.numeroProcessoMascara,
+          tipoDocumento: pjePublicacoes.tipoDocumento,
+          nomeClasse: pjePublicacoes.nomeClasse,
+          texto: pjePublicacoes.texto,
+          link: pjePublicacoes.link,
+          meio: pjePublicacoes.meio,
+          meioCompleto: pjePublicacoes.meioCompleto,
+          destinatariosJson: pjePublicacoes.destinatariosJson,
+          monitoramentoId: pjePublicacoes.monitoramentoId,
+          lida: pjePublicacoes.lida,
+          createdAt: pjePublicacoes.createdAt,
+          nomePesquisado: doerjMonitoramentos.nome,
+        })
         .from(pjePublicacoes)
+        .leftJoin(doerjMonitoramentos, eq(pjePublicacoes.monitoramentoId, doerjMonitoramentos.id))
         .where(condicoes.length > 0 ? and(...condicoes) : undefined)
         .orderBy(desc(pjePublicacoes.dataDisponibilizacao), desc(pjePublicacoes.id))
         .limit(input.limite)

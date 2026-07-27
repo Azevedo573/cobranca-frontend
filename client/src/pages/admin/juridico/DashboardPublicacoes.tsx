@@ -223,112 +223,101 @@ function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
   );
 }
 
-// ─── Card de Publicação DOERJ ─────────────────────────────────────────────────
+// ─── Linha de Publicação PJe (tabela) ────────────────────────────────────────
 
-function CardPjePublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (id: number) => void }) {
-  const destinatarios = pub.destinatariosJson?.destinatarios ?? [];
-  const advogados = pub.destinatariosJson?.advogados ?? [];
+function LinhaPjePublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (id: number) => void }) {
   return (
-    <Card className={`border-l-4 transition-all ${pub.lida === 0 ? "border-l-blue-500" : "border-l-transparent opacity-75"}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            {/* Badges */}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {pub.lida === 0 && (
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
-                  <EyeOff className="h-3 w-3" /> Não lida
-                </span>
-              )}
-              {pub.tipoComunicacao && (
-                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300">
-                  <Bell className="h-3 w-3 mr-1" />
-                  {pub.tipoComunicacao}
-                </Badge>
-              )}
-              {pub.tipoDocumento && (
-                <Badge variant="secondary" className="text-xs">
-                  {pub.tipoDocumento}
-                </Badge>
-              )}
-              {pub.siglaTribunal && (
-                <Badge variant="outline" className="text-xs text-muted-foreground">
-                  {pub.siglaTribunal}
-                </Badge>
-              )}
-            </div>
-
-            {/* Número do processo */}
-            {pub.numeroProcessoMascara && (
-              <p className="text-xs font-mono font-medium text-foreground mb-1">
-                <Scale className="h-3 w-3 inline mr-1 text-muted-foreground" />
-                {pub.numeroProcessoMascara}
-              </p>
-            )}
-
-            {/* Órgão */}
-            {pub.nomeOrgao && (
-              <p className="text-xs text-muted-foreground mb-1">
-                <Building2 className="h-3 w-3 inline mr-1" />
-                {pub.nomeOrgao}
-              </p>
-            )}
-
-            {/* Texto */}
-            <p className="text-sm text-foreground line-clamp-3 mt-1">
-              {pub.texto ? truncate(pub.texto, 300) : "Sem texto disponível"}
-            </p>
-
-            {/* Partes */}
-            {destinatarios.length > 0 && (
-              <div className="flex items-center gap-1 mt-2 flex-wrap">
-                <Users className="h-3 w-3 text-muted-foreground shrink-0" />
-                {destinatarios.slice(0, 3).map((d: any, i: number) => (
-                  <span key={i} className="text-xs text-muted-foreground">
-                    {d.nome}{i < Math.min(destinatarios.length, 3) - 1 ? "," : ""}
-                  </span>
-                ))}
-                {destinatarios.length > 3 && (
-                  <span className="text-xs text-muted-foreground">+{destinatarios.length - 3}</span>
-                )}
-              </div>
-            )}
-
-            {/* Link */}
-            {pub.link && (
-              <a
-                href={pub.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ExternalLink className="h-3 w-3" />
-                Ver no PJe
-              </a>
-            )}
-          </div>
-
-          {/* Data e ações */}
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {pub.dataDisponibilizacao || "—"}
-            </span>
-            {pub.lida === 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => onMarcarLida(pub.id)}
-              >
-                <CheckCheck className="h-3.5 w-3.5 mr-1" />
-                Marcar lida
-              </Button>
-            )}
-          </div>
+    <tr
+      className={`border-b border-border transition-colors hover:bg-muted/40 ${
+        pub.lida === 0 ? "bg-blue-50/40 dark:bg-blue-900/10" : ""
+      }`}
+    >
+      {/* Divulgado em */}
+      <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+        <div className="flex items-center gap-1">
+          {pub.lida === 0 && <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />}
+          {pub.dataDisponibilizacao
+            ? new Date(pub.dataDisponibilizacao + "T12:00:00").toLocaleDateString("pt-BR")
+            : "—"}
         </div>
-      </CardContent>
-    </Card>
+      </td>
+
+      {/* Tipo */}
+      <td className="px-3 py-2.5">
+        <div className="flex flex-col gap-0.5">
+          {pub.tipoComunicacao && (
+            <span className="text-xs font-medium text-foreground">{pub.tipoComunicacao}</span>
+          )}
+          {pub.tipoDocumento && (
+            <span className="text-xs text-muted-foreground">{pub.tipoDocumento}</span>
+          )}
+          {!pub.tipoComunicacao && !pub.tipoDocumento && (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+      </td>
+
+      {/* Processo */}
+      <td className="px-3 py-2.5">
+        {pub.numeroProcessoMascara ? (
+          <span className="text-xs font-mono text-foreground">{pub.numeroProcessoMascara}</span>
+        ) : pub.numeroProcesso ? (
+          <span className="text-xs font-mono text-foreground">{pub.numeroProcesso}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </td>
+
+      {/* Diário */}
+      <td className="px-3 py-2.5">
+        <div className="flex flex-col gap-0.5">
+          {pub.siglaTribunal && (
+            <span className="text-xs font-medium text-foreground">{pub.siglaTribunal}</span>
+          )}
+          {pub.nomeOrgao && (
+            <span className="text-xs text-muted-foreground truncate max-w-[160px]" title={pub.nomeOrgao}>
+              {pub.nomeOrgao}
+            </span>
+          )}
+          {!pub.siglaTribunal && !pub.nomeOrgao && (
+            <span className="text-xs text-muted-foreground">—</span>
+          )}
+        </div>
+      </td>
+
+      {/* Nome pesquisado */}
+      <td className="px-3 py-2.5">
+        {pub.nomePesquisado ? (
+          <span className="text-xs text-foreground">{pub.nomePesquisado}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </td>
+
+      {/* Status */}
+      <td className="px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          {pub.lida === 0 ? (
+            <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 h-5 px-1.5">
+              Não lida
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs text-muted-foreground h-5 px-1.5">
+              Lida
+            </Badge>
+          )}
+          {pub.lida === 0 && (
+            <button
+              className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+              onClick={(e) => { e.stopPropagation(); onMarcarLida(pub.id); }}
+            >
+              <CheckCheck className="h-3 w-3 inline mr-0.5" />
+              Marcar lida
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -432,14 +421,28 @@ function AbaDoerj() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {publicacoes.map((pub) => (
-            <CardPjePublicacao
-              key={pub.id}
-              pub={pub}
-              onMarcarLida={(id) => marcarLidaMutation.mutate({ id })}
-            />
-          ))}
+        <div className="rounded-md border border-border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/50">
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap">Divulgado em</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Tipo</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Processo</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Diário</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Nome pesquisado</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {publicacoes.map((pub) => (
+                <LinhaPjePublicacao
+                  key={pub.id}
+                  pub={pub}
+                  onMarcarLida={(id: number) => marcarLidaMutation.mutate({ id })}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
