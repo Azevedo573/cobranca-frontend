@@ -2651,3 +2651,12 @@
 ## Botão "Adicionar Tarefa" na Publicação → Nova Demanda Jurídica
 - [ ] Adicionar botão "Adicionar tarefa" no modal de detalhes da publicação (KanbanPublicacoes.tsx)
 - [ ] Ao clicar, abrir formulário Nova Demanda Jurídica pré-preenchido com dados da publicação (assunto, descrição, canal de origem = Diário Oficial)
+
+## Módulo Jurídico - Publicações PJe
+- [x] Procedure getById no router pje-publicacoes.ts
+- [x] Página PublicacaoDetalhes.tsx com layout em duas colunas
+- [x] Rota /admin/juridico/publicacoes/:id registrada no App.tsx
+- [x] Clique na linha da tabela PJe navega para página de detalhes
+- [x] Dropdown Tratamentos com: Adicionar prazo, Adicionar audiência, Adicionar tarefa (abre ModalCriarDemanda), Adicionar evento, Adicionar histórico manual
+- [x] Coluna direita mostra processo vinculado pelo número do processo
+- [x] Botão Voltar retorna para /admin/juridico/publicacoes

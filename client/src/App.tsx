@@ -95,6 +95,7 @@ import DashboardJuridicoCondominio from "./pages/admin/juridico/DashboardJuridic
 import DashboardPublicacoes from "./pages/admin/juridico/DashboardPublicacoes";
 import MonitoramentosPublicacoes from "./pages/admin/juridico/MonitoramentosPublicacoes";
 import KanbanPublicacoes from "./pages/admin/juridico/KanbanPublicacoes";
+import PublicacaoDetalhes from "./pages/admin/juridico/PublicacaoDetalhes";
 import AlertasInadimplencia from "./pages/AlertasInadimplencia";
 import PermissionRoute from "./components/PermissionRoute";
 
@@ -410,6 +411,9 @@ function Router() {
       </Route>
       <Route path="/admin/juridico/publicacoes/monitoramentos">
         {() => <PermissionRoute component={MonitoramentosPublicacoes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_publicacoes" />}
+      </Route>
+      <Route path="/admin/juridico/publicacoes/:id">
+        {() => <PermissionRoute component={PublicacaoDetalhes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_publicacoes" />}
       </Route>
       <Route path="/admin/juridico/publicacoes/kanban">
         {() => <PermissionRoute component={KanbanPublicacoes} allowedRoles={["admin", "advogado", "colaborador"]} requiredModulo="juridico_publicacoes" />}

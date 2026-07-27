@@ -225,12 +225,13 @@ function CardPublicacao({ pub, onClick }: { pub: any; onClick: () => void }) {
 
 // ─── Linha de Publicação PJe (tabela) ────────────────────────────────────────
 
-function LinhaPjePublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (id: number) => void }) {
+function LinhaPjePublicacao({ pub, onMarcarLida, onClick }: { pub: any; onMarcarLida: (id: number) => void; onClick?: () => void }) {
   return (
     <tr
-      className={`border-b border-border transition-colors hover:bg-muted/40 ${
+      className={`border-b border-border transition-colors hover:bg-muted/40 cursor-pointer ${
         pub.lida === 0 ? "bg-blue-50/40 dark:bg-blue-900/10" : ""
       }`}
+      onClick={onClick}
     >
       {/* Divulgado em */}
       <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -326,6 +327,7 @@ function LinhaPjePublicacao({ pub, onMarcarLida }: { pub: any; onMarcarLida: (id
 function AbaDoerj() {
   const [filtroLida, setFiltroLida] = useState<"todas" | "nao_lidas" | "lidas">("todas");
   const utils = trpc.useUtils();
+  const [, navigatePje] = useLocation();
 
   const { data: resultado, isLoading, refetch } = trpc.pjePublicacoes.listar.useQuery({
     lida: filtroLida,
@@ -439,6 +441,10 @@ function AbaDoerj() {
                   key={pub.id}
                   pub={pub}
                   onMarcarLida={(id: number) => marcarLidaMutation.mutate({ id })}
+                  onClick={() => {
+                    if (pub.lida === 0) marcarLidaMutation.mutate({ id: pub.id });
+                    navigatePje(`/admin/juridico/publicacoes/${pub.id}`);
+                  }}
                 />
               ))}
             </tbody>
@@ -482,7 +488,7 @@ export default function DashboardPublicacoes() {
   });
   const handleCardClick = (pub: any) => {
     if (pub.lida === 0) marcarLidaMutation.mutate({ id: pub.id });
-    navigate(`/admin/juridico/publicacoes/kanban`);
+    navigate(`/admin/juridico/publicacoes/${pub.id}`);
   };
 
   const naoLidasDoerj = contadorDoerj?.total ?? 0;

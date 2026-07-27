@@ -7,9 +7,57 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { pjePublicacoes, doerjMonitoramentos } from "../../drizzle/schema";
 import { eq, desc, and, isNull, or } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { buscarTodasPublicacoesPJe } from "../pje-api";
 
 export const pjePublicacoesRouter = router({
+  /**
+   * Buscar publicação PJe por ID
+   */
+  getById: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB error" });
+
+      const rows = await db
+        .select({
+          id: pjePublicacoes.id,
+          pjeId: pjePublicacoes.pjeId,
+          dataDisponibilizacao: pjePublicacoes.dataDisponibilizacao,
+          siglaTribunal: pjePublicacoes.siglaTribunal,
+          tipoComunicacao: pjePublicacoes.tipoComunicacao,
+          nomeOrgao: pjePublicacoes.nomeOrgao,
+          numeroProcesso: pjePublicacoes.numeroProcesso,
+          numeroProcessoMascara: pjePublicacoes.numeroProcessoMascara,
+          tipoDocumento: pjePublicacoes.tipoDocumento,
+          nomeClasse: pjePublicacoes.nomeClasse,
+          texto: pjePublicacoes.texto,
+          link: pjePublicacoes.link,
+          meio: pjePublicacoes.meio,
+          meioCompleto: pjePublicacoes.meioCompleto,
+          destinatariosJson: pjePublicacoes.destinatariosJson,
+          monitoramentoId: pjePublicacoes.monitoramentoId,
+          lida: pjePublicacoes.lida,
+          createdAt: pjePublicacoes.createdAt,
+          nomePesquisado: doerjMonitoramentos.nome,
+        })
+        .from(pjePublicacoes)
+        .leftJoin(doerjMonitoramentos, eq(pjePublicacoes.monitoramentoId, doerjMonitoramentos.id))
+        .where(eq(pjePublicacoes.id, input.id))
+        .limit(1);
+
+      if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Publicação não encontrada" });
+
+      const pub = rows[0];
+      return {
+        ...pub,
+        destinatariosJson: pub.destinatariosJson
+          ? (() => { try { return JSON.parse(pub.destinatariosJson!); } catch { return null; } })()
+          : null,
+      };
+    }),
+
   /**
    * Listar publicações PJe com filtros
    */
