@@ -17,6 +17,7 @@ import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
 import { tarefasDemandaRouter } from "./routers/tarefas-demanda";
 import { doerjMonitoramentosRouter } from "./routers/doerj-monitoramentos";
 import { pjePublicacoesRouter } from "./routers/pje-publicacoes";
+import { tjrjRouter } from "./routers/tjrj";
 import { listHeartbeatJobs } from "./_core/heartbeat";
 import { parse as parseCookieHeader } from "cookie";
 export const appRouter = router({
@@ -7921,6 +7922,7 @@ export const appRouter = router({
   }),
   doerjMonitoramentos: doerjMonitoramentosRouter,
   pjePublicacoes: pjePublicacoesRouter,
+  tjrj: tjrjRouter,
   // ─── DOERJ — Monitoramento do Diário Oficial do Estado do RJ ─────────────────
   doerj: router({
     // Listar publicações encontradas

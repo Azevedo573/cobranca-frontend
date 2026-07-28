@@ -2660,3 +2660,10 @@
 - [x] Dropdown Tratamentos com: Adicionar prazo, Adicionar audiência, Adicionar tarefa (abre ModalCriarDemanda), Adicionar evento, Adicionar histórico manual
 - [x] Coluna direita mostra processo vinculado pelo número do processo
 - [x] Botão Voltar retorna para /admin/juridico/publicacoes
+
+## Integração TJRJ - Consulta de Movimentações
+- [x] Router server/routers/tjrj.ts com procedure consultarMovimentos (2 etapas: por-numeracao-unica → por-numero/movimentos)
+- [x] Componente ConsultaTJRJ.tsx com timeline de movimentações
+- [x] Integrar ConsultaTJRJ na página ProcessoDetalhes
+- [x] Integrar ConsultaTJRJ na página PublicacaoDetalhes (coluna direita)
+- [x] Registrar tjrjRouter no routers.ts

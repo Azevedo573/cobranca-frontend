@@ -39,6 +39,7 @@ import {
   History,
 } from "lucide-react";
 import { ModalCriarDemanda } from "./CentralDemandas";
+import { ConsultaTJRJ } from "@/components/ConsultaTJRJ";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -543,6 +544,20 @@ export default function PublicacaoDetalhes() {
                   numeroProcesso={pub.numeroProcessoMascara || pub.numeroProcesso}
                 />
               </div>
+
+              {/* Consulta TJRJ */}
+              {(pub.numeroProcessoMascara || pub.numeroProcesso) && (
+                <div>
+                  <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                    <Scale className="h-4 w-4" />
+                    Movimentações no TJRJ
+                  </h2>
+                  <ConsultaTJRJ
+                    numeroCNJ={pub.numeroProcessoMascara || pub.numeroProcesso}
+                    titulo="Consultar TJRJ"
+                  />
+                </div>
+              )}
 
               {/* Metadados */}
               <Card>

@@ -40,6 +40,7 @@ import {
   Activity,
   Timer,
 } from "lucide-react";
+import { ConsultaTJRJ } from "@/components/ConsultaTJRJ";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -901,6 +902,10 @@ export default function ProcessoDetalhes() {
             <FileText className="w-4 h-4 mr-1.5" />
             Informações
           </TabsTrigger>
+          <TabsTrigger value="tjrj">
+            <Scale className="w-4 h-4 mr-1.5" />
+            TJRJ
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── Timeline (layout estilo Astrea) ─────────────────────────────────── */}
@@ -1201,6 +1206,14 @@ export default function ProcessoDetalhes() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* ─── TJRJ — Consulta de Movimentações ────────────────────────────── */}
+        <TabsContent value="tjrj">
+          <ConsultaTJRJ
+            numeroCNJ={processo.numeroCNJ}
+            titulo="Movimentações no TJRJ"
+          />
         </TabsContent>
       </Tabs>
 
