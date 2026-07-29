@@ -2667,3 +2667,12 @@
 - [x] Integrar ConsultaTJRJ na página ProcessoDetalhes
 - [x] Integrar ConsultaTJRJ na página PublicacaoDetalhes (coluna direita)
 - [x] Registrar tjrjRouter no routers.ts
+
+## TJRJ - Correções e Integração com Processos
+- [x] Diagnosticar estrutura real da resposta TJRJ e corrigir mapeamento de movimentações
+- [x] Adicionar procedure debug no router tjrj.ts para inspecionar resposta bruta
+- [x] Corrigir ConsultaTJRJ para exibir descrição, data e detalhes das movimentações
+- [ ] Criar procedure tjrj.importarProcesso: recebe dados do TJRJ + condominioId e cria processo no sistema
+- [x] Criar componente ImportarProcessoTJRJ com busca, identificação automática de condomínio e confirmação
+- [x] Integrar botão "Importar para o Sistema" na tela /admin/juridico/processos
+- [x] Identificação automática de condomínio por nome do autor nas partes do processo

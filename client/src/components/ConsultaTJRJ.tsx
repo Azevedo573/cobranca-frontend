@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,6 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  CheckCircle2,
   Clock,
   FileText,
   Gavel,
@@ -20,70 +19,114 @@ import {
   Hash,
   ExternalLink,
   Info,
+  User,
+  Briefcase,
 } from "lucide-react";
+
+// ─── Tipos baseados na estrutura real da API TJRJ ─────────────────────────────
+
+export interface TJRJMovimento {
+  codTipAnd?: number;
+  ordem?: number;
+  dtAlt?: string;
+  descrMov?: string;          // ← descrição principal
+  dtMovimento?: string;       // ← data principal
+  descricao?: string;         // ← texto completo do ato
+  descResumida?: string;
+  descrTipAto?: string;
+  descrAto?: string;
+  descrTipMov?: string;
+  nomeJuiz?: string;
+  indPublicado?: string;
+  movimentosExibicao?: Array<{
+    tipoMovimento?: string;
+    detalhesMovimento?: Array<{ codigo: string; descricao: string }>;
+    resumoOuIntegra?: {
+      descTipoAto?: string;
+      descResumida?: string;
+      descCompleta?: string;
+    } | null;
+    codDocAtoAssinadoDig?: string | null;
+  }>;
+  publicado?: { dtExp?: string; dtPub?: string; dtPubPrev?: string };
+  // campos de distribuição (último item)
+  descDistribuicao?: string;
+  serventia?: string;
+  dt?: string;
+}
+
+export interface TJRJProcesso {
+  idProc?: string;
+  codProc?: string;           // número interno (ex: 2022.001.032157-2)
+  codCnj?: string;            // número CNJ
+  dataDis?: string;           // data de distribuição
+  txtAcao?: string;           // ação / classe
+  txtAssunto?: string;        // assunto
+  descVara?: string;
+  descServ?: string;
+  nome?: string;              // comarca
+  descRito?: string;
+  sitProc?: string;
+  advogados?: Array<{ nomeAdv: string; numOab: string }>;
+  movimentosProc?: TJRJMovimento[];
+  personagensProcesso?: Array<{ nome: string; descPers: string; codTipPers?: string }>;
+  personagens?: Array<{ nome: string; descPers: string; tipoPolo?: string }>;
+  segundaInstProc?: Array<{ codProc: string; codCnj: string; url: string }>;
+  descrComp?: string;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(d: string | null | undefined) {
-  if (!d) return "—";
-  // Tenta extrair data de strings como "01/07/2026" ou ISO
-  const match = d.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (match) return `${match[1]}/${match[2]}/${match[3]}`;
-  try {
-    return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch {
-    return d;
-  }
-}
-
 function getMovimentoIcon(descricao: string) {
-  const d = descricao?.toLowerCase() ?? "";
-  if (d.includes("sentença") || d.includes("sentenca")) return <Gavel className="h-3.5 w-3.5" />;
+  const d = (descricao ?? "").toLowerCase();
+  if (d.includes("sentença") || d.includes("sentenca") || d.includes("julgamento")) return <Gavel className="h-3.5 w-3.5" />;
   if (d.includes("audiência") || d.includes("audiencia")) return <Users className="h-3.5 w-3.5" />;
   if (d.includes("decisão") || d.includes("decisao") || d.includes("despacho")) return <Scale className="h-3.5 w-3.5" />;
-  if (d.includes("distribuição") || d.includes("distribuicao")) return <Building2 className="h-3.5 w-3.5" />;
-  if (d.includes("petição") || d.includes("peticao") || d.includes("recurso")) return <FileText className="h-3.5 w-3.5" />;
-  if (d.includes("arquiv")) return <CheckCircle2 className="h-3.5 w-3.5" />;
+  if (d.includes("distribuição") || d.includes("distribuicao") || d.includes("distribuic")) return <Building2 className="h-3.5 w-3.5" />;
+  if (d.includes("petição") || d.includes("peticao") || d.includes("recurso") || d.includes("juntada")) return <FileText className="h-3.5 w-3.5" />;
+  if (d.includes("conclusão") || d.includes("conclusao")) return <Briefcase className="h-3.5 w-3.5" />;
+  if (d.includes("remessa")) return <ExternalLink className="h-3.5 w-3.5" />;
   return <Clock className="h-3.5 w-3.5" />;
 }
 
 function getMovimentoColor(descricao: string) {
-  const d = descricao?.toLowerCase() ?? "";
-  if (d.includes("sentença") || d.includes("sentenca")) return "bg-purple-500";
+  const d = (descricao ?? "").toLowerCase();
+  if (d.includes("sentença") || d.includes("sentenca") || d.includes("julgamento")) return "bg-purple-500";
   if (d.includes("audiência") || d.includes("audiencia")) return "bg-green-500";
-  if (d.includes("decisão") || d.includes("decisao")) return "bg-blue-500";
+  if (d.includes("decisão") || d.includes("decisao")) return "bg-blue-600";
   if (d.includes("despacho")) return "bg-amber-500";
   if (d.includes("distribuição") || d.includes("distribuicao")) return "bg-teal-500";
-  if (d.includes("arquiv")) return "bg-slate-400";
-  if (d.includes("recurso")) return "bg-orange-500";
+  if (d.includes("conclusão") || d.includes("conclusao")) return "bg-indigo-500";
+  if (d.includes("remessa")) return "bg-orange-500";
+  if (d.includes("recurso") || d.includes("apelação") || d.includes("apelacao")) return "bg-rose-500";
+  if (d.includes("juntada")) return "bg-slate-400";
   return "bg-primary/60";
 }
 
-// ─── Subcomponente: Dados Básicos do Processo ─────────────────────────────────
+// ─── Subcomponente: Partes do Processo ───────────────────────────────────────
 
-function DadosBasicosTJRJ({ dados }: { dados: any }) {
-  const campos = [
-    { label: "Número Interno TJRJ", value: dados.numProcesso, mono: true },
-    { label: "Número CNJ", value: dados.codCnj || dados.codigoProcessoCNJ },
-    { label: "Classe", value: dados.descrTipProcesso || dados.classe },
-    { label: "Assunto", value: dados.assunto },
-    { label: "Vara / Órgão", value: dados.descrOrgaoJulgador || dados.vara },
-    { label: "Comarca", value: dados.descrComarca || dados.comarca },
-    { label: "Situação", value: dados.descrSituacao || dados.situacao },
-    { label: "Valor da Causa", value: dados.valorCausa ? `R$ ${Number(dados.valorCausa).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null },
-    { label: "Data de Distribuição", value: formatDate(dados.dataDistribuicao || dados.dtDistribuicao) },
-  ].filter(c => c.value);
+function PartesProcesso({ processo }: { processo: TJRJProcesso }) {
+  const personagens = processo.personagensProcesso ?? [];
+  if (!personagens.length) return null;
 
-  if (!campos.length) return null;
+  const grupos: Record<string, string[]> = {};
+  for (const p of personagens) {
+    const tipo = p.descPers ?? "Outros";
+    if (!grupos[tipo]) grupos[tipo] = [];
+    grupos[tipo].push(p.nome);
+  }
 
   return (
-    <div className="grid grid-cols-2 gap-2 mb-4">
-      {campos.map((c, i) => (
-        <div key={i} className={c.mono ? "col-span-2" : ""}>
-          <p className="text-xs text-muted-foreground mb-0.5">{c.label}</p>
-          <p className={`text-sm ${c.mono ? "font-mono font-semibold text-primary" : "text-foreground"}`}>
-            {c.value}
-          </p>
+    <div className="space-y-2">
+      {Object.entries(grupos).map(([tipo, nomes]) => (
+        <div key={tipo}>
+          <p className="text-xs text-muted-foreground mb-1 font-medium">{tipo}</p>
+          {nomes.map((nome, i) => (
+            <div key={i} className="flex items-center gap-1.5 text-sm text-foreground">
+              <User className="h-3 w-3 text-muted-foreground shrink-0" />
+              <span>{nome}</span>
+            </div>
+          ))}
         </div>
       ))}
     </div>
@@ -92,14 +135,33 @@ function DadosBasicosTJRJ({ dados }: { dados: any }) {
 
 // ─── Subcomponente: Item de Movimentação ─────────────────────────────────────
 
-function MovimentoItem({ mov, isLast }: { mov: any; isLast: boolean }) {
+function MovimentoItem({ mov, isLast }: { mov: TJRJMovimento; isLast: boolean }) {
   const [expanded, setExpanded] = useState(false);
 
-  const descricao = mov.descrMovimento || mov.descricao || mov.tipoMovimento || "Movimentação";
-  const data = formatDate(mov.dtMovimento || mov.dataMovimento || mov.data);
-  const complemento = mov.complemento || mov.descrComplemento || mov.observacao;
-  const documentos = mov.documentos ?? [];
-  const hasDetails = complemento || documentos.length > 0;
+  // Descrição: preferir descrMov, fallback para movimentosExibicao[0].tipoMovimento ou descDistribuicao
+  const descricao =
+    mov.descrMov ||
+    mov.movimentosExibicao?.[0]?.tipoMovimento ||
+    mov.descDistribuicao ||
+    "Movimentação";
+
+  // Data: preferir dtMovimento, fallback para dt ou dtAlt
+  const data = mov.dtMovimento || mov.dt || mov.dtAlt || "—";
+
+  // Texto completo do ato
+  const textoCompleto = mov.descricao?.trim() || "";
+  const textoResumido = mov.descResumida?.trim() || "";
+
+  // Detalhes dos movimentosExibicao
+  const subMovimentos = mov.movimentosExibicao ?? [];
+
+  // Juiz
+  const juiz = mov.nomeJuiz;
+
+  // Tipo do ato (sentença, despacho, etc.)
+  const tipoAto = mov.descrTipAto || mov.descrTipMov;
+
+  const hasDetails = textoCompleto || textoResumido || subMovimentos.length > 0 || juiz;
 
   const dotColor = getMovimentoColor(descricao);
 
@@ -110,20 +172,22 @@ function MovimentoItem({ mov, isLast }: { mov: any; isLast: boolean }) {
         <div className={`w-7 h-7 rounded-full ${dotColor} flex items-center justify-center text-white shrink-0 mt-0.5`}>
           {getMovimentoIcon(descricao)}
         </div>
-        {!isLast && <div className="w-px flex-1 bg-border mt-1" />}
+        {!isLast && <div className="w-px flex-1 bg-border mt-1 min-h-[16px]" />}
       </div>
 
       {/* Conteúdo */}
-      <div className={`pb-4 flex-1 min-w-0 ${isLast ? "" : ""}`}>
+      <div className="pb-4 flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground leading-snug">{descricao}</p>
-            {data !== "—" && (
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {data}
-              </p>
+            {tipoAto && tipoAto !== descricao && (
+              <p className="text-xs text-muted-foreground">{tipoAto}</p>
             )}
+            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {data}
+              {juiz && <span className="ml-2">· {juiz}</span>}
+            </p>
           </div>
           {hasDetails && (
             <Button
@@ -139,26 +203,40 @@ function MovimentoItem({ mov, isLast }: { mov: any; isLast: boolean }) {
 
         {expanded && (
           <div className="mt-2 space-y-2">
-            {complemento && (
-              <div className="bg-muted/50 rounded p-2 text-xs leading-relaxed text-foreground">
-                {complemento}
+            {/* Texto resumido (se diferente do completo) */}
+            {textoResumido && !textoCompleto && (
+              <div className="bg-muted/50 rounded p-2 text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                {textoResumido}
               </div>
             )}
-            {documentos.length > 0 && (
-              <div className="space-y-1">
-                {documentos.map((doc: any, i: number) => (
-                  <div key={i} className="flex items-center gap-1.5 text-xs">
-                    <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <span className="text-muted-foreground">{doc.descricao || doc.nome || `Documento ${i + 1}`}</span>
-                    {doc.url && (
-                      <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
+
+            {/* Texto completo */}
+            {textoCompleto && textoCompleto !== " " && (
+              <div className="bg-muted/50 rounded p-2 text-xs leading-relaxed text-foreground whitespace-pre-wrap max-h-48 overflow-y-auto">
+                {textoCompleto}
+              </div>
+            )}
+
+            {/* Sub-movimentos (detalhes estruturados) */}
+            {subMovimentos.map((sub, i) => (
+              <div key={i} className="border-l-2 border-border pl-2 space-y-1">
+                {sub.tipoMovimento && sub.tipoMovimento !== descricao && (
+                  <p className="text-xs font-medium text-muted-foreground">{sub.tipoMovimento}</p>
+                )}
+                {sub.detalhesMovimento?.map((d, j) => (
+                  <div key={j} className="flex gap-1 text-xs">
+                    <span className="text-muted-foreground shrink-0">{d.codigo}</span>
+                    <span className="text-foreground">{d.descricao}</span>
                   </div>
                 ))}
+                {/* Resumo/Íntegra */}
+                {sub.resumoOuIntegra?.descResumida && (
+                  <div className="bg-muted/30 rounded p-1.5 text-xs text-foreground mt-1 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                    {sub.resumoOuIntegra.descResumida}
+                  </div>
+                )}
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -169,26 +247,37 @@ function MovimentoItem({ mov, isLast }: { mov: any; isLast: boolean }) {
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
 interface ConsultaTJRJProps {
-  /** Número CNJ do processo (ex: 0038028-63.2022.8.19.0001) */
   numeroCNJ: string | null | undefined;
-  /** Se true, inicia a consulta automaticamente ao montar */
   autoConsultar?: boolean;
-  /** Título exibido no card */
   titulo?: string;
+  /** Callback chamado quando os dados são carregados — útil para importação */
+  onDadosCarregados?: (processo: TJRJProcesso) => void;
 }
 
-export function ConsultaTJRJ({ numeroCNJ, autoConsultar = false, titulo = "Consulta TJRJ" }: ConsultaTJRJProps) {
+export function ConsultaTJRJ({
+  numeroCNJ,
+  autoConsultar = false,
+  titulo = "Consulta TJRJ",
+  onDadosCarregados,
+}: ConsultaTJRJProps) {
   const [ativo, setAtivo] = useState(autoConsultar);
   const [mostrarTodos, setMostrarTodos] = useState(false);
+  const [mostrarPartes, setMostrarPartes] = useState(false);
 
   const { data, isLoading, error, refetch } = trpc.tjrj.consultarMovimentos.useQuery(
     { numeroCNJ: numeroCNJ ?? "" },
     {
       enabled: ativo && !!numeroCNJ && numeroCNJ.length > 5,
       retry: false,
-      staleTime: 5 * 60 * 1000, // 5 min cache
+      staleTime: 5 * 60 * 1000,
     }
   );
+
+  useEffect(() => {
+    if (data?.movimentos && onDadosCarregados) {
+      onDadosCarregados(data.movimentos as TJRJProcesso);
+    }
+  }, [data]);
 
   if (!numeroCNJ) {
     return (
@@ -216,12 +305,11 @@ export function ConsultaTJRJ({ numeroCNJ, autoConsultar = false, titulo = "Consu
             </div>
             <Button
               size="sm"
-              variant="outline"
               className="shrink-0 gap-1.5"
               onClick={() => setAtivo(true)}
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Consultar
+              Consultar TJRJ
             </Button>
           </div>
         </CardContent>
@@ -270,28 +358,17 @@ export function ConsultaTJRJ({ numeroCNJ, autoConsultar = false, titulo = "Consu
     );
   }
 
-  // ── Sucesso ──────────────────────────────────────────────────────────────
   if (!data) return null;
 
-  const { resolucao, numProcessoInterno, movimentos } = data;
+  // ── Extrair dados da resposta ─────────────────────────────────────────────
+  // A resposta da etapa 2 é o objeto completo do processo
+  const proc = data.movimentos as TJRJProcesso;
+  const movimentos: TJRJMovimento[] = proc?.movimentosProc ?? [];
+  const numInterno = data.numProcessoInterno;
 
-  // Extrair lista de movimentos do objeto retornado
-  let listaMovimentos: any[] = [];
-  if (Array.isArray(movimentos)) {
-    listaMovimentos = movimentos;
-  } else if (movimentos?.movimentos && Array.isArray(movimentos.movimentos)) {
-    listaMovimentos = movimentos.movimentos;
-  } else if (movimentos?.listaMovimentos && Array.isArray(movimentos.listaMovimentos)) {
-    listaMovimentos = movimentos.listaMovimentos;
-  } else if (typeof movimentos === "object" && movimentos !== null) {
-    // Tentar encontrar qualquer array dentro do objeto
-    const arrays = Object.values(movimentos).filter(Array.isArray) as any[][];
-    if (arrays.length > 0) listaMovimentos = arrays[0];
-  }
-
-  const LIMITE_INICIAL = 10;
-  const movimentosExibidos = mostrarTodos ? listaMovimentos : listaMovimentos.slice(0, LIMITE_INICIAL);
-  const temMais = listaMovimentos.length > LIMITE_INICIAL;
+  const LIMITE_INICIAL = 15;
+  const movimentosExibidos = mostrarTodos ? movimentos : movimentos.slice(0, LIMITE_INICIAL);
+  const temMais = movimentos.length > LIMITE_INICIAL;
 
   return (
     <Card>
@@ -302,9 +379,11 @@ export function ConsultaTJRJ({ numeroCNJ, autoConsultar = false, titulo = "Consu
             {titulo}
           </CardTitle>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="text-xs font-mono">
-              {numProcessoInterno}
-            </Badge>
+            {proc?.sitProc === "A" && (
+              <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                Ativo
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -318,23 +397,59 @@ export function ConsultaTJRJ({ numeroCNJ, autoConsultar = false, titulo = "Consu
         </div>
       </CardHeader>
 
-      <CardContent className="px-4 pb-4">
-        {/* Dados básicos do processo */}
-        <DadosBasicosTJRJ dados={resolucao} />
+      <CardContent className="px-4 pb-4 space-y-4">
+        {/* ── Dados básicos do processo ─────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {[
+            { label: "Número Interno", value: numInterno, mono: true },
+            { label: "Número CNJ", value: proc?.codCnj, mono: true },
+            { label: "Ação / Classe", value: proc?.txtAcao },
+            { label: "Assunto", value: proc?.txtAssunto },
+            { label: "Vara", value: proc?.descVara || proc?.descServ },
+            { label: "Comarca", value: proc?.nome },
+            { label: "Rito", value: proc?.descRito },
+            { label: "Distribuição", value: proc?.dataDis },
+          ].filter(c => c.value).map((c, i) => (
+            <div key={i} className={c.mono ? "col-span-2" : ""}>
+              <p className="text-xs text-muted-foreground">{c.label}</p>
+              <p className={`text-sm ${c.mono ? "font-mono font-semibold text-primary" : "text-foreground"}`}>
+                {c.value}
+              </p>
+            </div>
+          ))}
+        </div>
 
-        {/* Separador */}
-        {listaMovimentos.length > 0 && (
-          <div className="border-t border-border pt-3 mb-3">
+        {/* ── Partes ────────────────────────────────────────────────────── */}
+        {(proc?.personagensProcesso?.length ?? 0) > 0 && (
+          <div>
+            <button
+              className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-full"
+              onClick={() => setMostrarPartes(v => !v)}
+            >
+              <Users className="h-3.5 w-3.5" />
+              Partes ({proc?.personagensProcesso?.length})
+              {mostrarPartes ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+            </button>
+            {mostrarPartes && (
+              <div className="mt-2">
+                <PartesProcesso processo={proc} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Movimentações ─────────────────────────────────────────────── */}
+        {movimentos.length > 0 ? (
+          <div className="border-t border-border pt-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 mb-3">
               <Clock className="h-3.5 w-3.5" />
-              Movimentações ({listaMovimentos.length})
+              Movimentações ({movimentos.length})
             </p>
 
-            {/* Timeline */}
             <div>
-              {movimentosExibidos.map((mov: any, i: number) => (
+              {movimentosExibidos.map((mov, i) => (
                 <MovimentoItem
-                  key={i}
+                  key={mov.ordem ?? i}
                   mov={mov}
                   isLast={i === movimentosExibidos.length - 1 && (!temMais || mostrarTodos)}
                 />
@@ -351,15 +466,13 @@ export function ConsultaTJRJ({ numeroCNJ, autoConsultar = false, titulo = "Consu
                 {mostrarTodos ? (
                   <><ChevronUp className="h-3.5 w-3.5" /> Mostrar menos</>
                 ) : (
-                  <><ChevronDown className="h-3.5 w-3.5" /> Ver mais {listaMovimentos.length - LIMITE_INICIAL} movimentações</>
+                  <><ChevronDown className="h-3.5 w-3.5" /> Ver mais {movimentos.length - LIMITE_INICIAL} movimentações</>
                 )}
               </Button>
             )}
           </div>
-        )}
-
-        {listaMovimentos.length === 0 && (
-          <div className="text-center py-4">
+        ) : (
+          <div className="text-center py-4 border-t border-border pt-4">
             <Info className="h-6 w-6 text-muted-foreground/40 mx-auto mb-2" />
             <p className="text-xs text-muted-foreground">Nenhuma movimentação encontrada</p>
           </div>

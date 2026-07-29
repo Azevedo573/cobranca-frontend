@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -37,6 +37,9 @@ import {
   XCircle,
   Download,
   Loader2,
+  Gavel,
+  AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -106,9 +109,19 @@ interface ModalCriarProcessoProps {
 }
 
 function ModalCriarProcesso({ open, onClose, onSuccess, condominioNomeInicial, demandaIdInicial }: ModalCriarProcessoProps) {
-  const [modo, setModo] = useState<"manual" | "datajud">("datajud");
+  const [modo, setModo] = useState<"manual" | "datajud" | "tjrj">("tjrj");
   const [buscandoDatajud, setBuscandoDatajud] = useState(false);
   const [dadosDatajud, setDadosDatajud] = useState<any>(null);
+
+  // ── Estado TJRJ ──────────────────────────────────────────────────────────
+  const [cnjtjrj, setCnjtjrj] = useState("");
+  const [buscandoTJRJ, setBuscandoTJRJ] = useState(false);
+  const [dadosTJRJ, setDadosTJRJ] = useState<any>(null);
+  const [erroTJRJ, setErroTJRJ] = useState("");
+  const [condominioSelecionado, setCondominioSelecionado] = useState<{id: number; nome: string} | null>(null);
+
+  const { data: condominios } = trpc.condominios.list.useQuery();
+
 
   const [form, setForm] = useState({
     numeroCNJ: "",
@@ -130,6 +143,65 @@ function ModalCriarProcesso({ open, onClose, onSuccess, condominioNomeInicial, d
   const { data: tribunais } = trpc.processos.listarTribunais.useQuery();
   const buscarDatajud = trpc.processos.buscarDataJud.useMutation();
   const criarProcesso = trpc.processos.create.useMutation();
+
+
+  // ── Handler TJRJ ─────────────────────────────────────────────────────────
+  const handleBuscarTJRJ = async () => {
+    if (!cnjtjrj.trim()) { toast.error("Informe o número CNJ"); return; }
+    setBuscandoTJRJ(true);
+    setErroTJRJ("");
+    setDadosTJRJ(null);
+    setCondominioSelecionado(null);
+    try {
+      // Usar fetch direto para a procedure query (não mutation)
+      const res = await fetch(`/api/trpc/tjrj.consultarMovimentos?input=${encodeURIComponent(JSON.stringify({ json: { numeroCNJ: cnjtjrj.trim() } }))}`, {
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (json?.error || json?.result?.data?.json === null) {
+        throw new Error(json?.error?.message ?? "Processo não encontrado");
+      }
+      const dados = json?.result?.data?.json;
+      if (!dados) throw new Error("Resposta inválida do servidor");
+      setDadosTJRJ(dados);
+
+      // Tentar identificar o condomínio automaticamente
+      const proc = dados.movimentos;
+      const partes: Array<{nome: string; descPers: string}> = proc?.personagensProcesso ?? [];
+      const autores = partes.filter((p: any) => p.descPers?.toLowerCase().includes("autor"));
+      if (autores.length > 0 && condominios) {
+        const nomeAutor = autores[0].nome.toLowerCase().replace(/condomínio|condominio/gi, "").trim();
+        const match = condominios.find((c: any) => {
+          const nc = (c.name ?? "").toLowerCase();
+          return nc.includes(nomeAutor.slice(0, 10)) || nomeAutor.includes(nc.slice(0, 10));
+        });
+        if (match) {
+          setCondominioSelecionado({ id: match.id, nome: match.name });
+          toast.success(`Condomínio identificado: ${match.name}`);
+        }
+      }
+
+      // Pré-preencher o formulário
+      setForm(prev => ({
+        ...prev,
+        numeroCNJ: cnjtjrj.trim(),
+        tribunal: "TJRJ",
+        tribunalAlias: "tjrj",
+        comarca: proc?.nome ?? prev.comarca,
+        vara: proc?.descVara ?? proc?.descServ ?? prev.vara,
+        classe: proc?.txtAcao ?? prev.classe,
+        assunto: proc?.txtAssunto ?? prev.assunto,
+        condominioNome: autores[0]?.nome ?? prev.condominioNome,
+      }));
+
+      toast.success("Processo encontrado no TJRJ!", { description: `${proc?.txtAcao ?? ""} — ${proc?.txtAssunto ?? ""}` });
+    } catch (err: any) {
+      setErroTJRJ(err.message ?? "Erro ao consultar TJRJ");
+      toast.error("Erro ao consultar TJRJ", { description: err.message });
+    } finally {
+      setBuscandoTJRJ(false);
+    }
+  };
 
   const handleBuscarDatajud = async () => {
     if (!form.numeroCNJ.trim()) { toast.error("Informe o número CNJ"); return; }
@@ -198,6 +270,10 @@ function ModalCriarProcesso({ open, onClose, onSuccess, condominioNomeInicial, d
       status: "ativo", condominioNome: "", advogadoNome: "", valorCausa: "", observacoes: "",
     });
     setDadosDatajud(null);
+    setDadosTJRJ(null);
+    setCnjtjrj("");
+    setErroTJRJ("");
+    setCondominioSelecionado(null);
     setModo("datajud");
   };
 
@@ -212,7 +288,18 @@ function ModalCriarProcesso({ open, onClose, onSuccess, condominioNomeInicial, d
         </DialogHeader>
 
         {/* Modo de entrada */}
-        <div className="flex gap-2 p-1 bg-muted rounded-lg">
+        <div className="flex gap-1 p-1 bg-muted rounded-lg">
+          <button
+            onClick={() => setModo("tjrj")}
+            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+              modo === "tjrj"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Gavel className="w-4 h-4 inline mr-1.5" />
+            Importar do TJRJ
+          </button>
           <button
             onClick={() => setModo("datajud")}
             className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
@@ -222,7 +309,7 @@ function ModalCriarProcesso({ open, onClose, onSuccess, condominioNomeInicial, d
             }`}
           >
             <Download className="w-4 h-4 inline mr-1.5" />
-            Importar do DataJud
+            DataJud
           </button>
           <button
             onClick={() => setModo("manual")}
@@ -233,9 +320,130 @@ function ModalCriarProcesso({ open, onClose, onSuccess, condominioNomeInicial, d
             }`}
           >
             <Plus className="w-4 h-4 inline mr-1.5" />
-            Cadastro Manual
+            Manual
           </button>
         </div>
+
+        {/* ── Aba TJRJ ─────────────────────────────────────────────────────── */}
+        {modo === "tjrj" && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Número CNJ do Processo</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="0000000-00.0000.8.19.0000"
+                  value={cnjtjrj}
+                  onChange={(e) => setCnjtjrj(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleBuscarTJRJ()}
+                  className="flex-1 font-mono"
+                />
+                <Button onClick={handleBuscarTJRJ} disabled={buscandoTJRJ} className="shrink-0">
+                  {buscandoTJRJ ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  {buscandoTJRJ ? "Buscando..." : "Buscar"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Consulta diretamente o TJRJ e pré-preenche todos os dados</p>
+            </div>
+
+            {erroTJRJ && (
+              <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-sm text-destructive">{erroTJRJ}</p>
+              </div>
+            )}
+
+            {dadosTJRJ && (() => {
+              const proc = dadosTJRJ.movimentos;
+              const partes: Array<{nome: string; descPers: string}> = proc?.personagensProcesso ?? [];
+              const movs = proc?.movimentosProc ?? [];
+              return (
+                <div className="space-y-3">
+                  {/* Dados do processo */}
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-2 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Processo encontrado no TJRJ
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-muted-foreground">Número interno:</span> <span className="font-mono font-semibold">{dadosTJRJ.numProcessoInterno}</span></div>
+                      {proc?.txtAcao && <div><span className="text-muted-foreground">Ação:</span> <span>{proc.txtAcao}</span></div>}
+                      {proc?.txtAssunto && <div className="col-span-2"><span className="text-muted-foreground">Assunto:</span> <span>{proc.txtAssunto}</span></div>}
+                      {proc?.descVara && <div><span className="text-muted-foreground">Vara:</span> <span>{proc.descVara}</span></div>}
+                      {proc?.nome && <div><span className="text-muted-foreground">Comarca:</span> <span>{proc.nome}</span></div>}
+                      {movs.length > 0 && <div><span className="text-muted-foreground">Movimentações:</span> <span className="font-semibold">{movs.length}</span></div>}
+                    </div>
+                  </div>
+
+                  {/* Partes */}
+                  {partes.length > 0 && (
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Partes do Processo</p>
+                      <div className="space-y-1">
+                        {partes.slice(0, 6).map((p, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <Badge variant="outline" className="text-xs py-0 h-4 shrink-0">{p.descPers}</Badge>
+                            <span className="text-foreground truncate">{p.nome}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Identificação de condomínio */}
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5" />
+                      Vincular ao Condomínio
+                    </Label>
+                    {condominioSelecionado ? (
+                      <div className="flex items-center gap-2 p-2 bg-primary/10 border border-primary/20 rounded-lg">
+                        <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-sm font-medium flex-1">{condominioSelecionado.nome}</span>
+                        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setCondominioSelecionado(null)}>Trocar</Button>
+                      </div>
+                    ) : (
+                      <Select
+                        value=""
+                        onValueChange={(v) => {
+                          const c = condominios?.find((c: any) => String(c.id) === v);
+                          if (c) {
+                            setCondominioSelecionado({ id: c.id, nome: c.name });
+                            setForm(prev => ({ ...prev, condominioNome: c.name }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecionar condomínio..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {condominios?.map((c: any) => (
+                            <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  {/* Botão de continuar para o formulário */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      className="flex-1 gap-1.5"
+                      onClick={() => {
+                        if (condominioSelecionado) {
+                          setForm(prev => ({ ...prev, condominioNome: condominioSelecionado.nome }));
+                        }
+                        setModo("manual");
+                      }}
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                      Revisar e Salvar
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         <div className="space-y-4">
           {/* Número CNJ */}

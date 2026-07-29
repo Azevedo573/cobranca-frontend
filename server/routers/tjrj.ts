@@ -139,6 +139,49 @@ export const tjrjRouter = router({
     }),
 
   /**
+   * Debug: retorna a resposta bruta da etapa 2 para inspecionar a estrutura real.
+   */
+  debugMovimentos: protectedProcedure
+    .input(z.object({
+      numeroCNJ: z.string().min(5),
+      tipoProcesso: z.string().default("1"),
+    }))
+    .query(async ({ input }) => {
+      const raw1 = await tjrjPost("processos/por-numeracao-unica", {
+        tipoProcesso: input.tipoProcesso,
+        codigoProcesso: input.numeroCNJ.trim(),
+      });
+      const lista = Array.isArray(raw1) ? raw1 : [raw1];
+      if (!lista.length || !lista[0]?.numProcesso) {
+        return { etapa1: raw1, etapa2: null, chaves_etapa2: [] };
+      }
+      const numProcesso = lista[0].numProcesso as string;
+      const tipoResolvido = String(lista[0].tipoProcesso ?? input.tipoProcesso);
+      const raw2 = await tjrjPost("processos/por-numero/movimentos", {
+        tipoProcesso: tipoResolvido,
+        codigoProcesso: numProcesso,
+        indProcVolumoso: "N",
+        ultimaOrdemExibida: null,
+      });
+      // Inspecionar chaves do objeto retornado
+      const chaves_etapa2 = typeof raw2 === "object" && raw2 !== null ? Object.keys(raw2) : [];
+      // Pegar primeiro item de cada array para ver a estrutura
+      const amostras: Record<string, any> = {};
+      for (const k of chaves_etapa2) {
+        if (Array.isArray(raw2[k]) && raw2[k].length > 0) {
+          amostras[k] = raw2[k][0]; // primeiro item
+        }
+      }
+      return {
+        etapa1_primeiro: lista[0],
+        numProcessoInterno: numProcesso,
+        etapa2_chaves: chaves_etapa2,
+        etapa2_amostras: amostras,
+        etapa2_raw_preview: JSON.stringify(raw2).slice(0, 3000),
+      };
+    }),
+
+  /**
    * Busca apenas os dados básicos do processo (sem movimentos) — mais rápido.
    */
   dadosBasicos: protectedProcedure
