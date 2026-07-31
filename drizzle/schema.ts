@@ -1304,8 +1304,10 @@ export const movimentacoesProcesso = mysqlTable("movimentacoesProcesso", {
     "distribuicao", "citacao", "contestacao", "audiencia", "sentenca",
     "recurso", "despacho", "decisao", "peticao", "transito_julgado", "execucao", "outro",
   ]).default("outro").notNull(),
-  origem: mysqlEnum("origemMovimentacao", ["manual", "datajud"]).default("manual").notNull(),
+  origem: mysqlEnum("origemMovimentacao", ["manual", "datajud", "tjrj"]).default("manual").notNull(),
   codigoDatajud: int("codigoDatajud"),
+  // Identificador único do TJRJ para evitar duplicatas na sincronização
+  tjrjOrdem: int("tjrjOrdem"),
   // Complementos do DataJud (inteiro teor, publicação, etc.) — JSON array
   complementosJson: text("complementosJson"), // JSON serializado [{nome, valor}]
   // Dados de publicação

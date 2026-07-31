@@ -39,6 +39,7 @@ import {
   Users,
   Activity,
   Timer,
+  Gavel,
 } from "lucide-react";
 import { ConsultaTJRJ } from "@/components/ConsultaTJRJ";
 
@@ -85,7 +86,7 @@ function formatarCNJ(numero: string): string {
   return numero;
 }
 
-// ─── Componente: Timeline estilo Astrea ──────────────────────────────────────
+// ─── Componente: Timeline estilo Astrea (com suporte a origem TJRJ) ─────────
 
 type MovimentacaoRich = {
   id: number;
@@ -158,6 +159,9 @@ function TimelineAstrea({
                     <h3 className="text-base font-semibold text-foreground">{selecionada.descricao}</h3>
                     {selecionada.origem === "datajud" && (
                       <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">DataJud</Badge>
+                    )}
+                    {selecionada.origem === "tjrj" && (
+                      <Badge className="text-xs bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20">TJRJ</Badge>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -264,6 +268,12 @@ function TimelineAstrea({
                   <p className="text-xs">DataJud não retornou complementos para este andamento</p>
                 </div>
               )}
+              {complementos.length === 0 && selecionada.origem === "tjrj" && (
+                <div className="text-center py-4 text-muted-foreground">
+                  <Gavel className="w-5 h-5 mx-auto mb-1" />
+                  <p className="text-xs">Movimentação importada do TJRJ</p>
+                </div>
+              )}
               {complementos.length === 0 && selecionada.origem === "manual" && (
                 <div className="text-center py-4 text-muted-foreground">
                   <FileText className="w-5 h-5 mx-auto mb-1" />
@@ -315,6 +325,9 @@ function TimelineAstrea({
                     </span>
                     {mov.origem === "datajud" && (
                       <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="DataJud" />
+                    )}
+                    {mov.origem === "tjrj" && (
+                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" title="TJRJ" />
                     )}
                   </div>
                   <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{mov.descricao}</p>
@@ -690,6 +703,7 @@ export default function ProcessoDetalhes() {
   );
 
   const sincronizarDatajud = trpc.processos.sincronizarDataJud.useMutation();
+  const sincronizarTJRJ = trpc.tjrj.sincronizarMovimentos.useMutation();
   const deleteMov = trpc.processos.deleteMovimentacao.useMutation();
   const removeParte = trpc.processos.removeParte.useMutation();
   const concluirPrazo = trpc.prazos.concluir.useMutation();
@@ -719,6 +733,26 @@ export default function ProcessoDetalhes() {
       }
     } catch (err: any) {
       toast.error("Erro ao sincronizar", { description: err.message });
+    }
+  };
+
+  const handleSincronizarTJRJ = async () => {
+    if (!processo?.numeroCNJ) { toast.error("Número CNJ não disponível"); return; }
+    try {
+      const r = await sincronizarTJRJ.mutateAsync({
+        processoId,
+        numeroCNJ: processo.numeroCNJ,
+      });
+      refetch();
+      if (r.inseridas > 0) {
+        toast.success(`TJRJ sincronizado! ${r.inseridas} nova(s) movimentação(ões) salva(s)`, {
+          description: `Total no TJRJ: ${r.total} movimentações`,
+        });
+      } else {
+        toast.success("TJRJ sincronizado! Nenhuma novidade encontrada.");
+      }
+    } catch (err: any) {
+      toast.error("Erro ao sincronizar TJRJ", { description: err.message });
     }
   };
 
@@ -790,9 +824,24 @@ export default function ProcessoDetalhes() {
               {sincronizarDatajud.isPending
                 ? <Loader2 className="w-4 h-4 animate-spin" />
                 : <Download className="w-4 h-4" />}
-              <span className="ml-1.5 text-xs">Sincronizar DataJud</span>
+              <span className="ml-1.5 text-xs">DataJud</span>
             </Button>
           )}
+          {processo.tribunal?.toUpperCase().includes("TJRJ") || processo.tribunal?.toUpperCase().includes("RJ") ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSincronizarTJRJ}
+              disabled={sincronizarTJRJ.isPending}
+              title="Sincronizar movimentações do TJRJ e salvar no banco"
+              className="border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10"
+            >
+              {sincronizarTJRJ.isPending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Gavel className="w-4 h-4" />}
+              <span className="ml-1.5 text-xs">Sincronizar TJRJ</span>
+            </Button>
+          ) : null}
           <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>

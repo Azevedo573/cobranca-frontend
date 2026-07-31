@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { getDb } from "../db";
+import { movimentacoesProcesso, processosJudiciais } from "../../drizzle/schema";
+import { eq, and } from "drizzle-orm";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -178,6 +181,130 @@ export const tjrjRouter = router({
         etapa2_chaves: chaves_etapa2,
         etapa2_amostras: amostras,
         etapa2_raw_preview: JSON.stringify(raw2).slice(0, 3000),
+      };
+    }),
+
+  /**
+   * Sincroniza as movimentações do TJRJ no banco de dados do processo.
+   * Busca as movimentações via API TJRJ e salva no banco, evitando duplicatas.
+   * Retorna o número de movimentações novas inseridas.
+   */
+  sincronizarMovimentos: protectedProcedure
+    .input(z.object({
+      processoId: z.number().int().positive(),
+      numeroCNJ: z.string().min(5, "Informe o número do processo"),
+      tipoProcesso: z.string().default("1"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+
+      // ── Etapa 1: resolver numeração ──────────────────────────────────────
+      const raw1 = await tjrjPost("processos/por-numeracao-unica", {
+        tipoProcesso: input.tipoProcesso,
+        codigoProcesso: input.numeroCNJ.trim(),
+      });
+      const lista = Array.isArray(raw1) ? raw1 : [raw1];
+      if (!lista.length || !lista[0]?.numProcesso) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Processo não encontrado no TJRJ" });
+      }
+      const numProcessoInterno = lista[0].numProcesso as string;
+      const tipoResolvido = String(lista[0].tipoProcesso ?? input.tipoProcesso);
+
+      // ── Etapa 2: buscar movimentos ───────────────────────────────────────
+      const raw2 = await tjrjPost("processos/por-numero/movimentos", {
+        tipoProcesso: tipoResolvido,
+        codigoProcesso: numProcessoInterno,
+        indProcVolumoso: "N",
+        ultimaOrdemExibida: null,
+      });
+
+      const movimentosTJRJ: any[] = raw2?.movimentosProc ?? [];
+      if (!movimentosTJRJ.length) {
+        return { inseridas: 0, total: 0, numProcessoInterno };
+      }
+
+      // ── Buscar movimentações TJRJ já salvas para este processo ─────────
+      const existentes = await db.select({ tjrjOrdem: movimentacoesProcesso.tjrjOrdem })
+        .from(movimentacoesProcesso)
+        .where(and(
+          eq(movimentacoesProcesso.processoId, input.processoId),
+          eq(movimentacoesProcesso.origem, "tjrj"),
+        ));
+      const ordensExistentes = new Set(existentes.map(e => e.tjrjOrdem).filter(Boolean));
+
+      // ── Mapear tipo TJRJ para enum interno ───────────────────────────────
+      function mapearTipo(descr: string): "distribuicao" | "citacao" | "contestacao" | "audiencia" | "sentenca" | "recurso" | "despacho" | "decisao" | "peticao" | "transito_julgado" | "execucao" | "outro" {
+        const d = (descr ?? "").toLowerCase();
+        if (d.includes("distribui")) return "distribuicao";
+        if (d.includes("citação") || d.includes("citacao")) return "citacao";
+        if (d.includes("contesta")) return "contestacao";
+        if (d.includes("audiência") || d.includes("audiencia")) return "audiencia";
+        if (d.includes("sentença") || d.includes("sentenca")) return "sentenca";
+        if (d.includes("recurso") || d.includes("apelação") || d.includes("apelacao")) return "recurso";
+        if (d.includes("despacho")) return "despacho";
+        if (d.includes("decisão") || d.includes("decisao")) return "decisao";
+        if (d.includes("petição") || d.includes("peticao")) return "peticao";
+        if (d.includes("trânsito") || d.includes("transito")) return "transito_julgado";
+        if (d.includes("execução") || d.includes("execucao") || d.includes("cumprimento")) return "execucao";
+        return "outro";
+      }
+
+      // ── Inserir movimentações novas ─────────────────────────────────────
+      let inseridas = 0;
+      for (let i = 0; i < movimentosTJRJ.length; i++) {
+        const mov = movimentosTJRJ[i];
+        const ordem = mov.ordemExibicao ?? i;
+        if (ordensExistentes.has(ordem)) continue; // já existe
+
+        // Montar descrição: nome do movimento + complementos
+        const descricao = mov.descrMov ?? "Movimentação";
+        const complementos = mov.movimentosExibicao?.map((c: any) =>
+          [c.tipoMovimento, c.descricao].filter(Boolean).join(": ")
+        ).filter(Boolean).join(" | ") ?? "";
+        const descricaoCompleta = complementos ? `${descricao}\n\n${complementos}` : descricao;
+
+        // Parsear data: formato "DD/MM/AAAA"
+        let dataMovimento: Date;
+        try {
+          const [d, m, a] = (mov.dtMovimento ?? "").split("/");
+          dataMovimento = new Date(Number(a), Number(m) - 1, Number(d));
+          if (isNaN(dataMovimento.getTime())) dataMovimento = new Date();
+        } catch {
+          dataMovimento = new Date();
+        }
+
+        await db.insert(movimentacoesProcesso).values({
+          processoId: input.processoId,
+          data: dataMovimento,
+          descricao: descricaoCompleta,
+          tipo: mapearTipo(descricao),
+          origem: "tjrj",
+          tjrjOrdem: ordem,
+          usuarioId: ctx.user?.id ?? undefined,
+          usuarioNome: "TJRJ (sincronização automática)",
+        });
+        inseridas++;
+      }
+
+      // ── Atualizar dataUltimaMovimentacao no processo ──────────────────────
+      if (inseridas > 0) {
+        const ultimaMov = movimentosTJRJ[0]; // já vem ordenado do mais recente
+        try {
+          const [d, m, a] = (ultimaMov.dtMovimento ?? "").split("/");
+          const dataUltima = new Date(Number(a), Number(m) - 1, Number(d));
+          if (!isNaN(dataUltima.getTime())) {
+            await db.update(processosJudiciais)
+              .set({ dataUltimaMovimentacao: dataUltima })
+              .where(eq(processosJudiciais.id, input.processoId));
+          }
+        } catch { /* ignora erro de data */ }
+      }
+
+      return {
+        inseridas,
+        total: movimentosTJRJ.length,
+        numProcessoInterno,
       };
     }),
 

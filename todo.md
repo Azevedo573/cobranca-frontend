@@ -2676,3 +2676,12 @@
 - [x] Criar componente ImportarProcessoTJRJ com busca, identificação automática de condomínio e confirmação
 - [x] Integrar botão "Importar para o Sistema" na tela /admin/juridico/processos
 - [x] Identificação automática de condomínio por nome do autor nas partes do processo
+
+## TJRJ - Movimentações na Timeline do Processo
+- [x] Verificar schema movimentacoesProcesso e adicionar campo origem ('tjrj' | 'manual' | 'sistema')
+- [x] Adicionar campo tjrjOrdem (int) para identificar movimentações TJRJ e evitar duplicatas
+- [x] Rodar pnpm db:push para aplicar migração
+- [x] Criar procedure tjrj.sincronizarMovimentos: busca TJRJ e salva/atualiza movimentações no banco
+- [x] Integrar botão "Sincronizar TJRJ" na aba Timeline do ProcessoDetalhes
+- [x] Exibir badge de origem (TJRJ / Manual) em cada movimentação da timeline
+- [x] Mostrar data da última sincronização TJRJ no processo
