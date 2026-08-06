@@ -41,7 +41,6 @@ import {
   Timer,
   Gavel,
 } from "lucide-react";
-import { ConsultaTJRJ } from "@/components/ConsultaTJRJ";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -341,6 +340,201 @@ function TimelineAstrea({
   );
 }
 
+
+
+// ─── Modal: Editar Processo ───────────────────────────────────────────────────
+
+type ProcessoEditForm = {
+  numeroCNJ: string; tribunal: string; tribunalAlias: string; comarca: string;
+  vara: string; classe: string; assunto: string; tipo: string; faseProcessual: string;
+  status: string; dataAjuizamento: string; condominioNome: string; advogadoNome: string;
+  valorCausa: string; valorCondenacao: string; observacoes: string;
+};
+
+function ModalEditarProcesso({ processoId, processo, open, onClose, onSuccess }: {
+  processoId: number;
+  processo: any;
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [formEdit, setFormEdit] = useState<ProcessoEditForm>({
+    numeroCNJ: "", tribunal: "", tribunalAlias: "", comarca: "",
+    vara: "", classe: "", assunto: "", tipo: "civel", faseProcessual: "distribuicao",
+    status: "ativo", dataAjuizamento: "", condominioNome: "", advogadoNome: "",
+    valorCausa: "", valorCondenacao: "", observacoes: "",
+  });
+  const [editInitialized, setEditInitialized] = useState(false);
+
+  // Preencher o form quando o modal abrir
+  if (open && processo && !editInitialized) {
+    setEditInitialized(true);
+    setFormEdit({
+      numeroCNJ: processo.numeroCNJ ?? "",
+      tribunal: processo.tribunal ?? "",
+      tribunalAlias: processo.tribunalAlias ?? "",
+      comarca: processo.comarca ?? "",
+      vara: processo.vara ?? "",
+      classe: processo.classe ?? "",
+      assunto: processo.assunto ?? "",
+      tipo: processo.tipo ?? "civel",
+      faseProcessual: processo.faseProcessual ?? "distribuicao",
+      status: processo.status ?? "ativo",
+      dataAjuizamento: processo.dataAjuizamento ? new Date(processo.dataAjuizamento).toISOString().split("T")[0] : "",
+      condominioNome: processo.condominioNome ?? "",
+      advogadoNome: processo.advogadoNome ?? "",
+      valorCausa: processo.valorCausa ? String(processo.valorCausa / 100) : "",
+      valorCondenacao: processo.valorCondenacao ? String(processo.valorCondenacao / 100) : "",
+      observacoes: processo.observacoes ?? "",
+    });
+  }
+
+  const updateProcesso = trpc.processos.update.useMutation();
+
+  const handleSalvarEdit = async () => {
+    if (!formEdit.numeroCNJ.trim() || !formEdit.tribunal.trim()) {
+      toast.error("Número CNJ e Tribunal são obrigatórios");
+      return;
+    }
+    try {
+      await updateProcesso.mutateAsync({
+        id: processoId,
+        numeroCNJ: formEdit.numeroCNJ.trim(),
+        tribunal: formEdit.tribunal.trim(),
+        tribunalAlias: formEdit.tribunalAlias.trim() || undefined,
+        comarca: formEdit.comarca.trim() || undefined,
+        vara: formEdit.vara.trim() || undefined,
+        classe: formEdit.classe.trim() || undefined,
+        assunto: formEdit.assunto.trim() || undefined,
+        tipo: formEdit.tipo as any,
+        faseProcessual: formEdit.faseProcessual as any,
+        status: formEdit.status as any,
+        dataAjuizamento: formEdit.dataAjuizamento ? new Date(formEdit.dataAjuizamento) : undefined,
+        condominioNome: formEdit.condominioNome.trim() || undefined,
+        advogadoNome: formEdit.advogadoNome.trim() || undefined,
+        valorCausa: formEdit.valorCausa ? Math.round(parseFloat(formEdit.valorCausa) * 100) : undefined,
+        valorCondenacao: formEdit.valorCondenacao ? Math.round(parseFloat(formEdit.valorCondenacao) * 100) : undefined,
+        observacoes: formEdit.observacoes.trim() || undefined,
+      });
+      toast.success("Processo atualizado!");
+      onSuccess();
+      onClose();
+      setEditInitialized(false);
+    } catch (err: any) {
+      toast.error("Erro ao atualizar", { description: err.message });
+    }
+  };
+
+  const fe = (field: keyof ProcessoEditForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setFormEdit(p => ({ ...p, [field]: e.target.value }));
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); setEditInitialized(false); } }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Editar Processo</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Número CNJ *</Label>
+              <Input value={formEdit.numeroCNJ} onChange={fe("numeroCNJ")} placeholder="0000000-00.0000.0.00.0000" className="font-mono" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tribunal *</Label>
+              <Input value={formEdit.tribunal} onChange={fe("tribunal")} placeholder="TJRJ, TJSP..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Alias do Tribunal</Label>
+              <Input value={formEdit.tribunalAlias} onChange={fe("tribunalAlias")} placeholder="Ex: TJRJ" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Comarca</Label>
+              <Input value={formEdit.comarca} onChange={fe("comarca")} placeholder="Ex: Rio de Janeiro" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Vara / Juízo</Label>
+              <Input value={formEdit.vara} onChange={fe("vara")} placeholder="Ex: 5ª Vara Cível" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Classe</Label>
+              <Input value={formEdit.classe} onChange={fe("classe")} placeholder="Ex: Execução de Título Extrajudicial" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Assunto</Label>
+              <Input value={formEdit.assunto} onChange={fe("assunto")} placeholder="Ex: Despesas Condominiais" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Tipo</Label>
+              <Select value={formEdit.tipo} onValueChange={(v) => setFormEdit(p => ({ ...p, tipo: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TIPO_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Fase Processual</Label>
+              <Select value={formEdit.faseProcessual} onValueChange={(v) => setFormEdit(p => ({ ...p, faseProcessual: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FASE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Status</Label>
+              <Select value={formEdit.status} onValueChange={(v) => setFormEdit(p => ({ ...p, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="suspenso">Suspenso</SelectItem>
+                  <SelectItem value="arquivado">Arquivado</SelectItem>
+                  <SelectItem value="encerrado">Encerrado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Data de Ajuizamento</Label>
+              <Input type="date" value={formEdit.dataAjuizamento} onChange={fe("dataAjuizamento")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Condomínio</Label>
+              <Input value={formEdit.condominioNome} onChange={fe("condominioNome")} placeholder="Nome do condomínio" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Advogado Responsável</Label>
+              <Input value={formEdit.advogadoNome} onChange={fe("advogadoNome")} placeholder="Nome do advogado" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Valor da Causa (R$)</Label>
+                <Input type="number" step="0.01" value={formEdit.valorCausa} onChange={fe("valorCausa")} placeholder="0,00" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Valor da Condenação (R$)</Label>
+                <Input type="number" step="0.01" value={formEdit.valorCondenacao} onChange={fe("valorCondenacao")} placeholder="0,00" />
+              </div>
+            </div>
+          </div>
+          <div className="md:col-span-2 space-y-1.5">
+            <Label>Observações</Label>
+            <Textarea value={formEdit.observacoes} onChange={fe("observacoes")} placeholder="Observações gerais sobre o processo..." rows={3} className="resize-none" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => { onClose(); setEditInitialized(false); }}>Cancelar</Button>
+          <Button onClick={handleSalvarEdit} disabled={updateProcesso.isPending}>
+            {updateProcesso.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+            Salvar Alterações
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ─── Modal: Adicionar Movimentação ────────────────────────────────────────────
 
@@ -689,6 +883,7 @@ export default function ProcessoDetalhes() {
   const [modalParte, setModalParte] = useState(false);
   const [modalPrazo, setModalPrazo] = useState(false);
   const [modalFin, setModalFin] = useState(false);
+  const [modalEditar, setModalEditar] = useState(false);
   // Banner de sugestão de prazo após sincronização DataJud
   const [sugestaoPrazo, setSugestaoPrazo] = useState<{ novasMovs: number; movNome?: string } | null>(null);
 
@@ -805,6 +1000,17 @@ export default function ProcessoDetalhes() {
                   DataJud ✓
                 </Badge>
               )}
+              {(() => {
+                const ultimaTJRJ = (processo.movimentacoes ?? []).filter((m: any) => m.origem === "tjrj").sort((a: any, b: any) => new Date(b.createdAt ?? b.data).getTime() - new Date(a.createdAt ?? a.data).getTime())[0];
+                return ultimaTJRJ ? (
+                  <Badge
+                    className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 cursor-default"
+                    title={`Última sincronização TJRJ: ${new Date(ultimaTJRJ.createdAt ?? ultimaTJRJ.data).toLocaleString("pt-BR")}`}
+                  >
+                    TJRJ ✓
+                  </Badge>
+                ) : null;
+              })()}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               {processo.tribunal} {processo.comarca ? `— ${processo.comarca}` : ""}
@@ -842,6 +1048,10 @@ export default function ProcessoDetalhes() {
               <span className="ml-1.5 text-xs">Sincronizar TJRJ</span>
             </Button>
           ) : null}
+          <Button variant="outline" size="sm" onClick={() => setModalEditar(true)} title="Editar dados do processo">
+            <FileText className="w-4 h-4" />
+            <span className="ml-1.5 text-xs">Editar</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => refetch()}>
             <RefreshCw className="w-4 h-4" />
           </Button>
@@ -950,10 +1160,6 @@ export default function ProcessoDetalhes() {
           <TabsTrigger value="info">
             <FileText className="w-4 h-4 mr-1.5" />
             Informações
-          </TabsTrigger>
-          <TabsTrigger value="tjrj">
-            <Scale className="w-4 h-4 mr-1.5" />
-            TJRJ
           </TabsTrigger>
         </TabsList>
 
@@ -1257,16 +1463,10 @@ export default function ProcessoDetalhes() {
           </div>
         </TabsContent>
 
-        {/* ─── TJRJ — Consulta de Movimentações ────────────────────────────── */}
-        <TabsContent value="tjrj">
-          <ConsultaTJRJ
-            numeroCNJ={processo.numeroCNJ}
-            titulo="Movimentações no TJRJ"
-          />
-        </TabsContent>
       </Tabs>
 
       {/* Modais */}
+      <ModalEditarProcesso processoId={processoId} processo={processo} open={modalEditar} onClose={() => setModalEditar(false)} onSuccess={refetch} />
       <ModalMovimentacao processoId={processoId} open={modalMov} onClose={() => setModalMov(false)} onSuccess={refetch} />
       <ModalParte processoId={processoId} open={modalParte} onClose={() => setModalParte(false)} onSuccess={refetch} />
       <ModalPrazo processoId={processoId} open={modalPrazo} onClose={() => setModalPrazo(false)} onSuccess={refetchPrazos} />

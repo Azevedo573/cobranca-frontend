@@ -2685,3 +2685,9 @@
 - [x] Integrar botão "Sincronizar TJRJ" na aba Timeline do ProcessoDetalhes
 - [x] Exibir badge de origem (TJRJ / Manual) em cada movimentação da timeline
 - [x] Mostrar data da última sincronização TJRJ no processo
+
+## Fase 1 - Melhoria Módulo Jurídico
+- [x] 1.1 Remover aba TJRJ redundante do ProcessoDetalhes
+- [x] 1.1 Exibir data/hora da última sincronização TJRJ no header do processo
+- [x] 1.2 Modal de edição de processo (tribunal, comarca, vara, fase, status, advogado, valores)
+- [x] 1.3 Filtro por condomínio na lista de processos (ProcessosJudiciais)

@@ -608,6 +608,7 @@ export default function ProcessosJudiciais() {
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtroCondominioId, setFiltroCondominioId] = useState<number | undefined>(undefined);
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
   // Abre o modal automaticamente se vier de uma demanda (?nova=1)
@@ -615,13 +616,18 @@ export default function ProcessosJudiciais() {
   const demandaIdParam = searchParams.get("demandaId") ? Number(searchParams.get("demandaId")) : undefined;
   const condominioNomeParam = searchParams.get("condominioNome") ?? undefined;
 
+  const { data: condominiosLista } = trpc.condominios.list.useQuery();
+
   const { data: processos, isLoading, refetch } = trpc.processos.listar.useQuery({
     status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
     tipo: filtroTipo !== "todos" ? (filtroTipo as any) : undefined,
     busca: busca.trim() || undefined,
+    condominioId: filtroCondominioId,
   });
 
-  const { data: resumo } = trpc.processos.resumo.useQuery();
+  const { data: resumo } = trpc.processos.resumo.useQuery(
+    filtroCondominioId ? { condominioId: filtroCondominioId } : undefined
+  );
 
   const processosFiltrados = useMemo(() => processos ?? [], [processos]);
 
@@ -718,6 +724,20 @@ export default function ProcessosJudiciais() {
             <SelectItem value="todos">Todos os tipos</SelectItem>
             {Object.entries(TIPO_LABELS).map(([v, l]) => (
               <SelectItem key={v} value={v}>{l}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filtroCondominioId ? String(filtroCondominioId) : "todos"}
+          onValueChange={(v) => setFiltroCondominioId(v === "todos" ? undefined : Number(v))}
+        >
+          <SelectTrigger className="w-52">
+            <SelectValue placeholder="Todos os condomínios" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os condomínios</SelectItem>
+            {(condominiosLista ?? []).map((c: any) => (
+              <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
             ))}
           </SelectContent>
         </Select>
