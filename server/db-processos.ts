@@ -24,6 +24,7 @@ export interface FiltrosProcesso {
   faseProcessual?: string;
   advogadoId?: number;
   busca?: string;
+  demandaId?: number;
 }
 
 export async function getProcessos(filtros: FiltrosProcesso = {}): Promise<ProcessoJudicial[]> {
@@ -46,6 +47,9 @@ export async function getProcessos(filtros: FiltrosProcesso = {}): Promise<Proce
   }
   if (filtros.advogadoId) {
     conditions.push(eq(processosJudiciais.advogadoId, filtros.advogadoId));
+  }
+  if (filtros.demandaId) {
+    conditions.push(eq(processosJudiciais.demandaId, filtros.demandaId));
   }
   if (filtros.busca) {
     const termo = `%${filtros.busca}%`;

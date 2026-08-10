@@ -81,6 +81,7 @@ export const processosRouter = router({
       faseProcessual: z.string().optional(),
       advogadoId: z.number().int().positive().optional(),
       busca: z.string().optional(),
+      demandaId: z.number().int().positive().optional(),
     }).optional())
     .query(async ({ input }) => {
       return getProcessos(input ?? {});

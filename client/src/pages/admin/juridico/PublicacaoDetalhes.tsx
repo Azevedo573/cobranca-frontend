@@ -40,6 +40,23 @@ import {
 } from "lucide-react";
 import { ModalCriarDemanda } from "./CentralDemandas";
 import { ConsultaTJRJ } from "@/components/ConsultaTJRJ";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,8 +102,22 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 // ─── Coluna Direita: Processo Vinculado ───────────────────────────────────────
 
-function ProcessoVinculado({ numeroProcesso }: { numeroProcesso: string | null | undefined }) {
+function ProcessoVinculado({
+  numeroProcesso,
+  pubTexto,
+  pubTipo,
+  pubData,
+}: {
+  numeroProcesso: string | null | undefined;
+  pubTexto?: string | null;
+  pubTipo?: string | null;
+  pubData?: string | Date | null;
+}) {
   const busca = numeroProcesso?.replace(/\D/g, "").slice(0, 20) ?? "";
+  const [modalMov, setModalMov] = useState(false);
+  const [formMov, setFormMov] = useState({ descricao: "", tipo: "outro", data: "" });
+  const addMovimentacao = trpc.processos.addMovimentacao.useMutation();
+  const utils = trpc.useUtils();
 
   const { data: processos = [], isLoading } = trpc.processos.listar.useQuery(
     { busca: numeroProcesso ?? "" },
@@ -142,9 +173,29 @@ function ProcessoVinculado({ numeroProcesso }: { numeroProcesso: string | null |
     );
   }
 
+  const handleRegistrarMov = async () => {
+    if (!formMov.descricao.trim() || !formMov.data) {
+      toast.error("Preencha a descrição e a data");
+      return;
+    }
+    try {
+      await addMovimentacao.mutateAsync({
+        processoId: processo.id,
+        data: new Date(formMov.data),
+        descricao: formMov.descricao,
+        tipo: formMov.tipo as any,
+      });
+      toast.success("Movimentação registrada no processo!");
+      setModalMov(false);
+      setFormMov({ descricao: "", tipo: "outro", data: "" });
+    } catch (err: any) {
+      toast.error("Erro ao registrar movimentação", { description: err.message });
+    }
+  };
+
   const statusCfg = PROCESSO_STATUS_CONFIG[processo.status] ?? PROCESSO_STATUS_CONFIG.ativo;
 
-  return (
+  return (<>
     <Card className="border-primary/20">
       <CardHeader className="pb-3 pt-4 px-4">
         <div className="flex items-center justify-between gap-2">
@@ -158,6 +209,31 @@ function ProcessoVinculado({ numeroProcesso }: { numeroProcesso: string | null |
               Abrir
             </Button>
           </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+            onClick={() => {
+              const dataStr = pubData
+                ? (typeof pubData === "string" ? pubData.split("T")[0] : new Date(pubData).toISOString().split("T")[0])
+                : new Date().toISOString().split("T")[0];
+              const tipoMov = pubTipo?.toLowerCase().includes("sentença") ? "sentenca"
+                : pubTipo?.toLowerCase().includes("audiência") || pubTipo?.toLowerCase().includes("audiencia") ? "audiencia"
+                : pubTipo?.toLowerCase().includes("decisão") || pubTipo?.toLowerCase().includes("decisao") ? "decisao"
+                : pubTipo?.toLowerCase().includes("despacho") ? "despacho"
+                : pubTipo?.toLowerCase().includes("intimação") || pubTipo?.toLowerCase().includes("intimacao") ? "outro"
+                : "outro";
+              setFormMov({
+                descricao: pubTexto ? `${pubTipo ? `[${pubTipo}] ` : ""}${pubTexto.slice(0, 1000)}` : `Publicação PJe${pubTipo ? ` - ${pubTipo}` : ""}`,
+                tipo: tipoMov,
+                data: dataStr,
+              });
+              setModalMov(true);
+            }}
+          >
+            <PlusCircle className="h-3 w-3" />
+            Registrar
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="px-4 pb-4 space-y-3">
@@ -210,6 +286,52 @@ function ProcessoVinculado({ numeroProcesso }: { numeroProcesso: string | null |
         )}
       </CardContent>
     </Card>
+
+    {/* Modal de registro de movimentação */}
+    <Dialog open={modalMov} onOpenChange={(v) => !v && setModalMov(false)}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Registrar como Movimentação</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Data *</Label>
+            <Input type="date" value={formMov.data} onChange={(e) => setFormMov(p => ({ ...p, data: e.target.value }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Tipo</Label>
+            <Select value={formMov.tipo} onValueChange={(v) => setFormMov(p => ({ ...p, tipo: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[
+                  ["distribuicao","Distribuição"],["citacao","Citação"],["contestacao","Contestação"],
+                  ["audiencia","Audiência"],["sentenca","Sentença"],["recurso","Recurso"],
+                  ["despacho","Despacho"],["decisao","Decisão"],["peticao","Petição"],
+                  ["transito_julgado","Trânsito em Julgado"],["execucao","Execução"],["outro","Outro"],
+                ].map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Descrição *</Label>
+            <Textarea
+              value={formMov.descricao}
+              onChange={(e) => setFormMov(p => ({ ...p, descricao: e.target.value }))}
+              rows={5}
+              className="resize-none text-xs"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setModalMov(false)}>Cancelar</Button>
+          <Button onClick={handleRegistrarMov} disabled={addMovimentacao.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            {addMovimentacao.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <PlusCircle className="w-4 h-4 mr-1" />}
+            Registrar Movimentação
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
   );
 }
 
@@ -542,6 +664,9 @@ export default function PublicacaoDetalhes() {
                 </h2>
                 <ProcessoVinculado
                   numeroProcesso={pub.numeroProcessoMascara || pub.numeroProcesso}
+                  pubTexto={pub.texto}
+                  pubTipo={pub.tipoComunicacao}
+                  pubData={pub.dataDisponibilizacao}
                 />
               </div>
 

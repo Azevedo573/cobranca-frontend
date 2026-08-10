@@ -19,6 +19,7 @@ import {
   Scale, ExternalLink, Banknote, HandCoins, ListTodo, Plus, ChevronDown, ChevronRight,
   CheckCircle2, Circle, Loader2
 } from "lucide-react";
+import { Gavel } from "lucide-react";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,13 @@ export default function DemandaDetalhes() {
   const { data: colunas = [] } = trpc.juridicoDemandas.getColunas.useQuery();
   const { data: advogados = [] } = trpc.juridicoDemandas.getAdvogados.useQuery();
   const { data: contadores } = trpc.juridicoDemandas.tarefas.contadores.useQuery({ demandaId });
+
+  // Buscar processo judicial vinculado a esta demanda
+  const { data: processosVinculados = [] } = trpc.processos.listar.useQuery(
+    { demandaId },
+    { enabled: demandaId > 0 }
+  );
+  const processoVinculado = (processosVinculados as any[])[0] ?? null;
 
   // Operadores = todos os usuários ativos (advogados + admins)
   const operadores = advogados as any[];
@@ -321,6 +329,92 @@ export default function DemandaDetalhes() {
               </CardContent>
             </Card>
           )}
+
+          {/* Processo Judicial Vinculado */}
+          {processoVinculado ? (
+            <Card className="border-blue-200 dark:border-blue-800">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                    <Gavel className="h-4 w-4" />
+                    Processo Judicial Vinculado
+                  </CardTitle>
+                  <Link href={`/admin/juridico/processos/${processoVinculado.id}`}>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-blue-600 dark:text-blue-400">
+                      <ExternalLink className="h-3 w-3" />
+                      Abrir
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 p-3 space-y-2">
+                  <p className="font-mono text-sm font-semibold text-blue-700 dark:text-blue-300">
+                    {processoVinculado.numeroCNJ}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                    {processoVinculado.tribunal && (
+                      <>
+                        <span className="text-muted-foreground text-xs">Tribunal</span>
+                        <span className="font-medium text-xs">{processoVinculado.tribunal}</span>
+                      </>
+                    )}
+                    {processoVinculado.comarca && (
+                      <>
+                        <span className="text-muted-foreground text-xs">Comarca</span>
+                        <span className="font-medium text-xs">{processoVinculado.comarca}</span>
+                      </>
+                    )}
+                    {processoVinculado.vara && (
+                      <>
+                        <span className="text-muted-foreground text-xs">Vara</span>
+                        <span className="font-medium text-xs">{processoVinculado.vara}</span>
+                      </>
+                    )}
+                    {processoVinculado.status && (
+                      <>
+                        <span className="text-muted-foreground text-xs">Status</span>
+                        <span className="font-medium text-xs capitalize">{processoVinculado.status}</span>
+                      </>
+                    )}
+                    {processoVinculado.faseProcessual && (
+                      <>
+                        <span className="text-muted-foreground text-xs">Fase</span>
+                        <span className="font-medium text-xs capitalize">{processoVinculado.faseProcessual.replace(/_/g, " ")}</span>
+                      </>
+                    )}
+                    {processoVinculado.advogadoNome && (
+                      <>
+                        <span className="text-muted-foreground text-xs">Advogado</span>
+                        <span className="font-medium text-xs">{processoVinculado.advogadoNome}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (d.tipo === "cobranca_judicial" || d.tipo === "processo" || d.tipo === "execucao" || d.tipo === "acompanhamento") ? (
+            <Card className="border-dashed border-blue-200 dark:border-blue-800">
+              <CardContent className="p-4 text-center">
+                <Gavel className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">Nenhum processo judicial vinculado ainda</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-xs text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    params.set("demandaId", String(demandaId));
+                    if (d.nomeDevedor) params.set("condominioNome", d.nomeDevedor);
+                    navigate(`/admin/juridico/processos?nova=1&${params.toString()}`);
+                  }}
+                >
+                  <Scale className="h-3.5 w-3.5 mr-1.5" />
+                  Criar Processo
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Abas: Histórico & Tarefas */}
           <Card>

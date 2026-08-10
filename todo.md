@@ -2691,3 +2691,10 @@
 - [x] 1.1 Exibir data/hora da última sincronização TJRJ no header do processo
 - [x] 1.2 Modal de edição de processo (tribunal, comarca, vara, fase, status, advogado, valores)
 - [x] 1.3 Filtro por condomínio na lista de processos (ProcessosJudiciais)
+
+## Fase 2 - Integração de Fluxos
+- [x] 2.1 Botão "Registrar como Movimentação" na PublicacaoDetalhes quando processo vinculado encontrado
+- [x] 2.2 Card do processo judicial vinculado na DemandaDetalhes (buscar por demandaId)
+- [x] 2.2 Filtro demandaId adicionado em getProcessos e router processos.listar
+- [x] 2.3 Badges de urgência (atrasado/hoje/7dias) na aba Prazos do ProcessoDetalhes
+- [x] 2.3 Contador de prazos urgentes no badge da aba Prazos

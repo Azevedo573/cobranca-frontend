@@ -1149,9 +1149,23 @@ export default function ProcessoDetalhes() {
             <Users className="w-4 h-4 mr-1.5" />
             Partes ({processo.partes?.length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="prazos">
-            <Timer className="w-4 h-4 mr-1.5" />
-            Prazos ({prazos?.length ?? 0})
+            <TabsTrigger value="prazos">
+              <Timer className="w-4 h-4 mr-1.5" />
+              {(() => {
+                const urgentes = (prazos ?? []).filter((p: any) =>
+                  p.status === "pendente" && (p.urgencia === "atrasado" || p.urgencia === "hoje" || p.urgencia === "7dias")
+                ).length;
+                return (
+                  <span className="flex items-center gap-1.5">
+                    Prazos ({prazos?.length ?? 0})
+                    {urgentes > 0 && (
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                        {urgentes}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
           </TabsTrigger>
           <TabsTrigger value="financeiro">
             <DollarSign className="w-4 h-4 mr-1.5" />
@@ -1278,6 +1292,8 @@ export default function ProcessoDetalhes() {
                   <Card key={prazo.id} className={`border ${
                     prazo.urgencia === "atrasado" ? "border-red-500/30 bg-red-500/5" :
                     prazo.urgencia === "hoje" ? "border-orange-500/30 bg-orange-500/5" :
+                    prazo.urgencia === "7dias" ? "border-amber-500/20 bg-amber-500/5" :
+                    prazo.urgencia === "15dias" ? "border-yellow-500/20 bg-yellow-500/5" :
                     ""
                   } group`}>
                     <CardContent className="p-4">
