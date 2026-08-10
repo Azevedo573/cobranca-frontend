@@ -259,10 +259,9 @@ export const tjrjRouter = router({
 
         // Montar descrição: nome do movimento + complementos
         const descricao = mov.descrMov ?? "Movimentação";
-        const complementos = mov.movimentosExibicao?.map((c: any) =>
-          [c.tipoMovimento, c.descricao].filter(Boolean).join(": ")
-        ).filter(Boolean).join(" | ") ?? "";
-        const descricaoCompleta = complementos ? `${descricao}\n\n${complementos}` : descricao;
+        // Usar o texto completo da movimentação como descrição principal
+        const textoCompleto = mov.descricao?.trim() || "";
+        const descricaoCompleta = textoCompleto ? `${descricao}\n\n${textoCompleto}` : descricao;
 
         // Parsear data: formato "DD/MM/AAAA"
         let dataMovimento: Date;
@@ -281,6 +280,8 @@ export const tjrjRouter = router({
           tipo: mapearTipo(descricao),
           origem: "tjrj",
           tjrjOrdem: ordem,
+          // Salvar o JSON completo da movimentação para exibição detalhada
+          complementosJson: JSON.stringify(mov),
           usuarioId: ctx.user?.id ?? undefined,
           usuarioNome: "TJRJ (sincronização automática)",
         });
@@ -419,8 +420,8 @@ export const tjrjRouter = router({
             const ordem = mov.ordemMovimento ?? mov.ordem ?? null;
             if (ordem !== null && ordensExistentes.has(ordem)) continue;
             const descricao = mov.descrMov ?? mov.descricao ?? "Movimentação TJRJ";
-            const complemento = mov.movimentosExibicao?.[0]?.descricao ?? null;
-            const descricaoCompleta = complemento ? `${descricao}\n\n${complemento}` : descricao;
+            const textoCompleto = (typeof mov.descricao === "string" ? mov.descricao.trim() : "");
+            const descricaoCompleta = textoCompleto ? `${descricao}\n\n${textoCompleto}` : descricao;
             let dataMovimento: Date;
             try {
               const dtStr = mov.dtMovimento ?? mov.data;
@@ -434,6 +435,7 @@ export const tjrjRouter = router({
             await db.insert(movimentacoesProcesso).values({
               processoId: processo.id, data: dataMovimento, descricao: descricaoCompleta,
               tipo: mapTipoLote(descricao), origem: "tjrj", tjrjOrdem: ordem ?? null,
+              complementosJson: JSON.stringify(mov),
               usuarioId: ctx.user.id, usuarioNome: ctx.user.name ?? ctx.user.email,
             });
             inseridas++;

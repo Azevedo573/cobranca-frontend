@@ -41,6 +41,7 @@ import {
   Timer,
   Gavel,
 } from "lucide-react";
+import { ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,196 @@ type ParteRich = {
 function parseComplementos(json?: string | null): Array<{ nome: string; valor: string }> {
   if (!json) return [];
   try { return JSON.parse(json); } catch { return []; }
+}
+
+// Parseia o JSON bruto do TJRJ para exibição detalhada
+function parseTJRJMovimento(json?: string | null): any | null {
+  if (!json) return null;
+  try { return JSON.parse(json); } catch { return null; }
+}
+
+// Componente para exibir os detalhes completos de uma movimentação TJRJ
+function DetalhesTJRJ({ json }: { json: string | null | undefined }) {
+  const [expandirTexto, setExpandirTexto] = useState(false);
+  const mov = parseTJRJMovimento(json);
+  if (!mov) return (
+    <div className="text-center py-4 text-muted-foreground">
+      <Gavel className="w-5 h-5 mx-auto mb-1" />
+      <p className="text-xs">Movimentação importada do TJRJ — sincronize novamente para obter detalhes completos</p>
+    </div>
+  );
+
+  const urlGed = "https://www3.tjrj.jus.br/gedcacheweb/default.aspx?GEDID=";
+
+  return (
+    <div className="space-y-3">
+      {/* Metadados principais */}
+      <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 space-y-1.5">
+        {mov.nomeJuiz && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Juiz:</span>
+            <span className="text-xs font-medium text-foreground">{mov.nomeJuiz}</span>
+          </div>
+        )}
+        {mov.descrTipAto && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Tipo do Ato:</span>
+            <span className="text-xs font-medium text-foreground">{mov.descrTipAto}</span>
+          </div>
+        )}
+        {mov.descrAto && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Ato:</span>
+            <span className="text-xs text-foreground">{mov.descrAto}</span>
+          </div>
+        )}
+        {mov.descrTipMov && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Tipo Mov.:</span>
+            <span className="text-xs text-foreground">{mov.descrTipMov}</span>
+          </div>
+        )}
+        {mov.dtConclusao && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Conclusão:</span>
+            <span className="text-xs text-foreground">{mov.dtConclusao}</span>
+          </div>
+        )}
+        {mov.dtDevolucao && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Devolução:</span>
+            <span className="text-xs text-foreground">{mov.dtDevolucao}</span>
+          </div>
+        )}
+        {mov.dtJuntada && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Juntada:</span>
+            <span className="text-xs text-foreground">{mov.dtJuntada}</span>
+          </div>
+        )}
+        {mov.nomeDestinatario && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Destinatário:</span>
+            <span className="text-xs text-foreground">{mov.nomeDestinatario}</span>
+          </div>
+        )}
+        {mov.prazo && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Prazo:</span>
+            <span className="text-xs text-foreground font-medium text-amber-600 dark:text-amber-400">{mov.prazo} dia(s)</span>
+          </div>
+        )}
+        {mov.indPublicado && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Publicado:</span>
+            <span className={`text-xs font-medium ${mov.indPublicado === "sim" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+              {mov.indPublicado === "sim" ? "✓ Sim" : "Não"}
+            </span>
+          </div>
+        )}
+        {mov.publicado?.dtExp && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Expediente:</span>
+            <span className="text-xs text-foreground">{mov.publicado.dtExp}</span>
+          </div>
+        )}
+        {mov.publicado?.dtPubPrev && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Pub. Prevista:</span>
+            <span className="text-xs text-foreground">{mov.publicado.dtPubPrev}</span>
+          </div>
+        )}
+        {mov.ordem && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-32 shrink-0">Ordem:</span>
+            <span className="text-xs font-mono text-muted-foreground">#{mov.ordem}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Detalhes dos sub-movimentos (movimentosExibicao) */}
+      {Array.isArray(mov.movimentosExibicao) && mov.movimentosExibicao.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Detalhes do Ato</p>
+          <div className="space-y-2">
+            {mov.movimentosExibicao.map((sub: any, idx: number) => (
+              <div key={idx} className="bg-muted/50 rounded-lg p-3 border space-y-1.5">
+                {sub.tipoMovimento && (
+                  <p className="text-xs font-semibold text-foreground">{sub.tipoMovimento}</p>
+                )}
+                {Array.isArray(sub.detalhesMovimento) && sub.detalhesMovimento.map((d: any, di: number) => (
+                  <div key={di} className="flex gap-2">
+                    <span className="text-xs text-muted-foreground shrink-0 min-w-[100px]">{d.codigo}</span>
+                    <span className="text-xs text-foreground whitespace-pre-wrap">{d.descricao}</span>
+                  </div>
+                ))}
+                {/* Texto completo do ato (resumoOuIntegra) */}
+                {sub.resumoOuIntegra?.descCompleta && (
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground mb-1 font-medium">
+                      {sub.resumoOuIntegra.descTipoAto ?? "Texto do Ato"}
+                    </p>
+                    <div className="bg-background rounded border p-2.5">
+                      <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                        {expandirTexto
+                          ? sub.resumoOuIntegra.descCompleta
+                          : sub.resumoOuIntegra.descCompleta.slice(0, 600) + (sub.resumoOuIntegra.descCompleta.length > 600 ? "..." : "")}
+                      </p>
+                      {sub.resumoOuIntegra.descCompleta.length > 600 && (
+                        <button
+                          onClick={() => setExpandirTexto(!expandirTexto)}
+                          className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                        >
+                          {expandirTexto ? <><ChevronUp className="w-3 h-3" /> Mostrar menos</> : <><ChevronDown className="w-3 h-3" /> Ver texto completo</>}
+                        </button>
+                      )}
+                    </div>
+                    {/* Link para o documento no GED */}
+                    {sub.codDocAtoAssinadoDig && (
+                      <a
+                        href={`${urlGed}${sub.codDocAtoAssinadoDig}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Abrir documento no TJRJ
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Texto da movimentação (campo descricao do TJRJ) quando não há resumoOuIntegra */}
+      {mov.descricao && mov.descricao.trim() && mov.descricao.trim() !== " " && (
+        !mov.movimentosExibicao?.some((s: any) => s.resumoOuIntegra?.descCompleta)
+      ) && (
+        <div>
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Texto da Movimentação</p>
+          <div className="bg-muted/50 rounded-lg p-3 border">
+            <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{mov.descricao}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Link para documento eletrônico (pseudoDocEletronico) */}
+      {mov.pseudoDocEletronico && (
+        <a
+          href={`${urlGed}${mov.pseudoDocEletronico}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline border border-primary/20 rounded px-2 py-1.5 bg-primary/5"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Abrir documento no portal TJRJ
+        </a>
+      )}
+    </div>
+  );
 }
 
 function parseAdvogados(json?: string | null): Array<{ nome: string; oab?: string | null }> {
@@ -268,10 +459,7 @@ function TimelineAstrea({
                 </div>
               )}
               {complementos.length === 0 && selecionada.origem === "tjrj" && (
-                <div className="text-center py-4 text-muted-foreground">
-                  <Gavel className="w-5 h-5 mx-auto mb-1" />
-                  <p className="text-xs">Movimentação importada do TJRJ</p>
-                </div>
+                <DetalhesTJRJ json={selecionada.complementosJson} />
               )}
               {complementos.length === 0 && selecionada.origem === "manual" && (
                 <div className="text-center py-4 text-muted-foreground">
