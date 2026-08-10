@@ -327,4 +327,144 @@ export const tjrjRouter = router({
       }
       return lista[0];
     }),
+
+  /**
+   * Sincroniza as movimentações do TJRJ para TODOS os processos ativos do TJRJ.
+   * Processa em sequência com delay entre requisições para não sobrecarregar a API.
+   */
+  sincronizarTodos: protectedProcedure
+    .input(z.object({
+      delayMs: z.number().int().min(500).max(5000).default(1500),
+    }).optional())
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
+
+      const delay = input?.delayMs ?? 1500;
+
+      // Buscar todos os processos ativos
+      const todosProcessos = await db.select({
+        id: processosJudiciais.id,
+        numeroCNJ: processosJudiciais.numeroCNJ,
+        tribunal: processosJudiciais.tribunal,
+        condominioNome: processosJudiciais.condominioNome,
+      }).from(processosJudiciais).where(eq(processosJudiciais.status, "ativo"));
+
+      // Filtrar apenas processos do TJRJ
+      const processosTJRJ = todosProcessos.filter(p =>
+        p.tribunal?.toUpperCase().includes("TJRJ") ||
+        p.tribunal?.toUpperCase().includes("RJ")
+      );
+
+      if (!processosTJRJ.length) {
+        return { total: 0, sincronizados: 0, erros: 0, novasMovimentacoes: 0, resultados: [] };
+      }
+
+      const resultados: Array<{
+        processoId: number; numeroCNJ: string; condominioNome: string | null;
+        status: "ok" | "erro" | "sem_novidades"; inseridas: number; erro?: string;
+      }> = [];
+      let sincronizados = 0, erros = 0;
+
+      function mapTipoLote(descr: string): "distribuicao" | "citacao" | "contestacao" | "audiencia" | "sentenca" | "recurso" | "despacho" | "decisao" | "peticao" | "transito_julgado" | "execucao" | "outro" {
+        const d = (descr ?? "").toLowerCase();
+        if (d.includes("distribui")) return "distribuicao";
+        if (d.includes("citação") || d.includes("citacao")) return "citacao";
+        if (d.includes("contesta")) return "contestacao";
+        if (d.includes("audiência") || d.includes("audiencia")) return "audiencia";
+        if (d.includes("sentença") || d.includes("sentenca")) return "sentenca";
+        if (d.includes("recurso") || d.includes("apelação") || d.includes("apelacao")) return "recurso";
+        if (d.includes("despacho")) return "despacho";
+        if (d.includes("decisão") || d.includes("decisao")) return "decisao";
+        if (d.includes("petição") || d.includes("peticao")) return "peticao";
+        if (d.includes("trânsito") || d.includes("transito")) return "transito_julgado";
+        if (d.includes("execução") || d.includes("execucao") || d.includes("cumprimento")) return "execucao";
+        return "outro";
+      }
+
+      for (const processo of processosTJRJ) {
+        try {
+          const raw1 = await tjrjPost("processos/por-numeracao-unica", { tipoProcesso: "1", codigoProcesso: processo.numeroCNJ.trim() });
+          const lista = Array.isArray(raw1) ? raw1 : [raw1];
+          if (!lista.length || !lista[0]?.numProcesso) {
+            resultados.push({ processoId: processo.id, numeroCNJ: processo.numeroCNJ, condominioNome: processo.condominioNome ?? null, status: "erro", inseridas: 0, erro: "Não encontrado no TJRJ" });
+            erros++;
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+
+          const numProcessoInterno = lista[0].numProcesso as string;
+          const tipoResolvido = String(lista[0].tipoProcesso ?? "1");
+
+          const raw2 = await tjrjPost("processos/por-numero/movimentos", {
+            tipoProcesso: tipoResolvido, codigoProcesso: numProcessoInterno,
+            indProcVolumoso: "N", ultimaOrdemExibida: null,
+          });
+
+          const movimentosTJRJ: any[] = raw2?.movimentosProc ?? [];
+          if (!movimentosTJRJ.length) {
+            resultados.push({ processoId: processo.id, numeroCNJ: processo.numeroCNJ, condominioNome: processo.condominioNome ?? null, status: "sem_novidades", inseridas: 0 });
+            sincronizados++;
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+
+          const existentes = await db.select({ tjrjOrdem: movimentacoesProcesso.tjrjOrdem })
+            .from(movimentacoesProcesso)
+            .where(and(eq(movimentacoesProcesso.processoId, processo.id), eq(movimentacoesProcesso.origem, "tjrj")));
+          const ordensExistentes = new Set(existentes.map(e => e.tjrjOrdem).filter(Boolean));
+
+          let inseridas = 0;
+          for (const mov of movimentosTJRJ) {
+            const ordem = mov.ordemMovimento ?? mov.ordem ?? null;
+            if (ordem !== null && ordensExistentes.has(ordem)) continue;
+            const descricao = mov.descrMov ?? mov.descricao ?? "Movimentação TJRJ";
+            const complemento = mov.movimentosExibicao?.[0]?.descricao ?? null;
+            const descricaoCompleta = complemento ? `${descricao}\n\n${complemento}` : descricao;
+            let dataMovimento: Date;
+            try {
+              const dtStr = mov.dtMovimento ?? mov.data;
+              if (dtStr) {
+                const parts = dtStr.split("/");
+                dataMovimento = parts.length === 3
+                  ? new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]))
+                  : new Date(dtStr);
+              } else { dataMovimento = new Date(); }
+            } catch { dataMovimento = new Date(); }
+            await db.insert(movimentacoesProcesso).values({
+              processoId: processo.id, data: dataMovimento, descricao: descricaoCompleta,
+              tipo: mapTipoLote(descricao), origem: "tjrj", tjrjOrdem: ordem ?? null,
+              usuarioId: ctx.user.id, usuarioNome: ctx.user.name ?? ctx.user.email,
+            });
+            inseridas++;
+          }
+
+          if (inseridas > 0 && movimentosTJRJ[0]?.dtMovimento) {
+            try {
+              const parts = movimentosTJRJ[0].dtMovimento.split("/");
+              if (parts.length === 3) {
+                const dataUltima = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+                if (!isNaN(dataUltima.getTime())) {
+                  await db.update(processosJudiciais).set({ dataUltimaMovimentacao: dataUltima }).where(eq(processosJudiciais.id, processo.id));
+                }
+              }
+            } catch { /* ignora */ }
+          }
+
+          resultados.push({ processoId: processo.id, numeroCNJ: processo.numeroCNJ, condominioNome: processo.condominioNome ?? null, status: "ok", inseridas });
+          sincronizados++;
+        } catch (err: any) {
+          resultados.push({ processoId: processo.id, numeroCNJ: processo.numeroCNJ, condominioNome: processo.condominioNome ?? null, status: "erro", inseridas: 0, erro: err?.message ?? "Erro desconhecido" });
+          erros++;
+        }
+        await new Promise(r => setTimeout(r, delay));
+      }
+
+      return {
+        total: processosTJRJ.length, sincronizados, erros,
+        novasMovimentacoes: resultados.reduce((acc, r) => acc + r.inseridas, 0),
+        resultados,
+      };
+    }),
+
 });

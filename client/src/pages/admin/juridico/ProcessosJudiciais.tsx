@@ -41,6 +41,7 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
+import { RotateCcw, CheckCheck, AlertTriangle } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -609,6 +610,10 @@ export default function ProcessosJudiciais() {
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [filtroCondominioId, setFiltroCondominioId] = useState<number | undefined>(undefined);
+  const [modalSincTodos, setModalSincTodos] = useState(false);
+  const [resultadoSinc, setResultadoSinc] = useState<any>(null);
+  const sincronizarTodos = trpc.tjrj.sincronizarTodos.useMutation();
+  const [buscaParte, setBuscaParte] = useState("");
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
   // Abre o modal automaticamente se vier de uma demanda (?nova=1)
@@ -623,6 +628,7 @@ export default function ProcessosJudiciais() {
     tipo: filtroTipo !== "todos" ? (filtroTipo as any) : undefined,
     busca: busca.trim() || undefined,
     condominioId: filtroCondominioId,
+    buscaParte: buscaParte.trim() || undefined,
   });
 
   const { data: resumo } = trpc.processos.resumo.useQuery(
@@ -631,7 +637,7 @@ export default function ProcessosJudiciais() {
 
   const processosFiltrados = useMemo(() => processos ?? [], [processos]);
 
-  return (
+  return (<>
     <div className="min-h-screen bg-background text-foreground p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -645,10 +651,35 @@ export default function ProcessosJudiciais() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-          {podeCriar && (
+            <Button variant="ghost" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10"
+              onClick={async () => {
+                setResultadoSinc(null);
+                setModalSincTodos(true);
+                try {
+                  const r = await sincronizarTodos.mutateAsync({ delayMs: 1500 });
+                  setResultadoSinc(r);
+                  refetch();
+                  toast.success(`Sincronização concluída! ${r.novasMovimentacoes} nova(s) movimentação(ões)`);
+                } catch (err: any) {
+                  toast.error("Erro na sincronização", { description: err.message });
+                  setModalSincTodos(false);
+                }
+              }}
+              disabled={sincronizarTodos.isPending}
+              title="Sincronizar movimentações TJRJ para todos os processos ativos"
+            >
+              {sincronizarTodos.isPending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <RotateCcw className="w-4 h-4" />}
+              <span className="ml-1.5 text-xs hidden sm:inline">Sincronizar Todos</span>
+            </Button>
+            {podeCriar && (
             <Button onClick={() => setModalAberto(true)}>
               <Plus className="w-4 h-4 mr-1.5" />
               Novo Processo
@@ -702,6 +733,16 @@ export default function ProcessosJudiciais() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             className="pl-9"
+          />
+        </div>
+        <div className="relative min-w-[200px]">
+          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por devedor ou CPF/CNPJ..."
+            value={buscaParte}
+            onChange={(e) => setBuscaParte(e.target.value)}
+            className="pl-9"
+            title="Busca nas partes do processo (autor, réu, advogados)"
           />
         </div>
         <Select value={filtroStatus} onValueChange={setFiltroStatus}>
@@ -846,5 +887,79 @@ export default function ProcessosJudiciais() {
         demandaIdInicial={demandaIdParam}
       />
     </div>
+
+    {/* Modal de progresso da sincronização TJRJ em lote */}
+    <Dialog open={modalSincTodos} onOpenChange={(v) => { if (!v && !sincronizarTodos.isPending) setModalSincTodos(false); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <RotateCcw className="w-5 h-5 text-blue-600" />
+            Sincronização TJRJ em Lote
+          </DialogTitle>
+        </DialogHeader>
+
+        {sincronizarTodos.isPending ? (
+          <div className="py-8 text-center space-y-3">
+            <Loader2 className="w-10 h-10 animate-spin text-blue-600 mx-auto" />
+            <p className="text-sm font-medium">Sincronizando processos do TJRJ...</p>
+            <p className="text-xs text-muted-foreground">
+              Cada processo é consultado com intervalo de 1,5s para não sobrecarregar a API.
+              Aguarde — pode levar alguns minutos dependendo da quantidade de processos.
+            </p>
+          </div>
+        ) : resultadoSinc ? (
+          <div className="space-y-4">
+            {/* Resumo */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg bg-muted/50 p-3 text-center">
+                <p className="text-2xl font-bold text-foreground">{resultadoSinc.total}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Processos TJRJ</p>
+              </div>
+              <div className="rounded-lg bg-emerald-500/10 p-3 text-center">
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{resultadoSinc.novasMovimentacoes}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Novas movimentações</p>
+              </div>
+              <div className="rounded-lg bg-red-500/10 p-3 text-center">
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{resultadoSinc.erros}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Erros</p>
+              </div>
+            </div>
+
+            {/* Lista de resultados */}
+            <div className="max-h-60 overflow-y-auto space-y-1.5 rounded-lg border p-2">
+              {(resultadoSinc.resultados as any[]).map((r: any) => (
+                <div key={r.processoId} className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-muted/50">
+                  {r.status === "ok" ? (
+                    <CheckCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  ) : r.status === "sem_novidades" ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                  )}
+                  <span className="font-mono text-primary truncate flex-1">{r.numeroCNJ}</span>
+                  {r.condominioNome && <span className="text-muted-foreground truncate max-w-[120px]">{r.condominioNome}</span>}
+                  {r.status === "ok" && r.inseridas > 0 && (
+                    <Badge className="text-[10px] bg-emerald-500/15 text-emerald-600 border-emerald-500/30 shrink-0">+{r.inseridas}</Badge>
+                  )}
+                  {r.status === "erro" && (
+                    <span className="text-red-500 truncate max-w-[100px]" title={r.erro}>{r.erro}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <Button
+            onClick={() => setModalSincTodos(false)}
+            disabled={sincronizarTodos.isPending}
+          >
+            {resultadoSinc ? "Fechar" : "Cancelar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
   );
 }

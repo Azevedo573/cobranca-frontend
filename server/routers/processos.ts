@@ -82,6 +82,7 @@ export const processosRouter = router({
       advogadoId: z.number().int().positive().optional(),
       busca: z.string().optional(),
       demandaId: z.number().int().positive().optional(),
+      buscaParte: z.string().optional(),
     }).optional())
     .query(async ({ input }) => {
       return getProcessos(input ?? {});

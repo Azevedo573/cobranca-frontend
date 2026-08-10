@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { eq, and, desc, asc, like, or } from "drizzle-orm";
+import { eq, and, desc, asc, like, or, inArray } from "drizzle-orm";
 import {
   processosJudiciais,
   partesProcesso,
@@ -25,6 +25,7 @@ export interface FiltrosProcesso {
   advogadoId?: number;
   busca?: string;
   demandaId?: number;
+  buscaParte?: string;
 }
 
 export async function getProcessos(filtros: FiltrosProcesso = {}): Promise<ProcessoJudicial[]> {
@@ -50,6 +51,25 @@ export async function getProcessos(filtros: FiltrosProcesso = {}): Promise<Proce
   }
   if (filtros.demandaId) {
     conditions.push(eq(processosJudiciais.demandaId, filtros.demandaId));
+  }
+  if (filtros.buscaParte) {
+    const db2 = await getDb();
+    if (db2) {
+      const termo = `%${filtros.buscaParte}%`;
+      const processosComParte = await db2.select({ processoId: partesProcesso.processoId })
+        .from(partesProcesso)
+        .where(or(
+          like(partesProcesso.nome, termo),
+          like(partesProcesso.cpfCnpj, termo),
+        ));
+      const ids = Array.from(new Set(processosComParte.map(p => p.processoId).filter(Boolean))) as number[];
+      if (ids.length > 0) {
+        conditions.push(inArray(processosJudiciais.id, ids));
+      } else {
+        // Nenhuma parte encontrada — retornar vazio
+        return [];
+      }
+    }
   }
   if (filtros.busca) {
     const termo = `%${filtros.busca}%`;
@@ -128,6 +148,23 @@ export async function getResumoProcessos(condominioId?: number) {
 
   return { total: todos.length, ativos, suspensos, encerrados, porTipo, porFase };
 }
+
+export async function getMovimentacoesRecentes(condominioId: number, limite = 20): Promise<Array<MovimentacaoProcesso & { numeroCNJ: string; condominioNome: string | null }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const procs = await db.select({ id: processosJudiciais.id, numeroCNJ: processosJudiciais.numeroCNJ, condominioNome: processosJudiciais.condominioNome })
+    .from(processosJudiciais)
+    .where(eq(processosJudiciais.condominioId, condominioId));
+  if (!procs.length) return [];
+  const procIds = procs.map(p => p.id);
+  const procMap = new Map(procs.map(p => [p.id, { numeroCNJ: p.numeroCNJ, condominioNome: p.condominioNome ?? null }]));
+  const movs = await db.select().from(movimentacoesProcesso)
+    .where(inArray(movimentacoesProcesso.processoId, procIds))
+    .orderBy(desc(movimentacoesProcesso.data))
+    .limit(limite);
+  return movs.map(m => ({ ...m, ...(procMap.get(m.processoId) ?? { numeroCNJ: "", condominioNome: null }) }));
+}
+
 
 // ─── Partes ───────────────────────────────────────────────────────────────────
 

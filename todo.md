@@ -2698,3 +2698,10 @@
 - [x] 2.2 Filtro demandaId adicionado em getProcessos e router processos.listar
 - [x] 2.3 Badges de urgência (atrasado/hoje/7dias) na aba Prazos do ProcessoDetalhes
 - [x] 2.3 Contador de prazos urgentes no badge da aba Prazos
+
+## Fase 3 - Produtividade Avançada
+- [ ] 3.1 Procedure tjrj.sincronizarTodos no backend com rate limiting
+- [ ] 3.1 Botão "Sincronizar Todos" na tela ProcessosJudiciais com progresso em tempo real
+- [ ] 3.2 Busca de processos por nome/CPF do devedor via JOIN com partesProcesso
+- [ ] 3.2 Campo de busca por parte na tela ProcessosJudiciais
+- [ ] 3.3 Timeline unificada de movimentações recentes no DashboardJuridicoCondominio

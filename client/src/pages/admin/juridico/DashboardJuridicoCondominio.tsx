@@ -18,6 +18,8 @@ import {
   ArrowRight,
   CalendarClock,
 } from "lucide-react";
+import { Activity, Link as LinkIcon } from "lucide-react";
+import { Link } from "wouter";
 
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -56,6 +58,11 @@ export default function DashboardJuridicoCondominio() {
 
   const { data: condominioInfo } = trpc.condominios.getById.useQuery(
     { id: condominioId },
+    { enabled: !!condominioId && !isNaN(condominioId) }
+  );
+
+  const { data: movimentacoesRecentes = [] } = trpc.juridicoCondominios.movimentacoesRecentes.useQuery(
+    { condominioId, limite: 15 },
     { enabled: !!condominioId && !isNaN(condominioId) }
   );
 
@@ -350,6 +357,75 @@ export default function DashboardJuridicoCondominio() {
               <span className="text-sm font-semibold">{resumo.demandas.total}</span>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Timeline Unificada de Movimentações */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Movimentações Recentes
+            </span>
+            <Link href={`/admin/juridico/processos?condominioId=${condominioId}`}>
+              <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-primary">
+                Ver processos <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {movimentacoesRecentes.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              <Activity className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Nenhuma movimentação registrada</p>
+            </div>
+          ) : (
+            <div className="space-y-0">
+              {(movimentacoesRecentes as any[]).map((mov: any, idx: number) => {
+                const isLast = idx === movimentacoesRecentes.length - 1;
+                const origemColor = mov.origem === "tjrj"
+                  ? "bg-blue-500"
+                  : mov.origem === "datajud"
+                  ? "bg-emerald-500"
+                  : "bg-muted-foreground/40";
+                return (
+                  <div key={mov.id} className="flex gap-3 group">
+                    {/* Linha vertical */}
+                    <div className="flex flex-col items-center">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${origemColor}`} />
+                      {!isLast && <div className="w-px flex-1 bg-border mt-1" />}
+                    </div>
+                    {/* Conteúdo */}
+                    <div className={`pb-4 flex-1 min-w-0 ${isLast ? "" : ""}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground truncate">{mov.descricao?.split("\n")[0]}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <Link href={`/admin/juridico/processos/${mov.processoId}`}>
+                              <span className="text-[10px] font-mono text-primary hover:underline cursor-pointer flex items-center gap-0.5">
+                                <LinkIcon className="h-2.5 w-2.5" />
+                                {mov.numeroCNJ}
+                              </span>
+                            </Link>
+                            {mov.origem && mov.origem !== "manual" && (
+                              <Badge className={`text-[10px] px-1 py-0 h-4 ${mov.origem === "tjrj" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20" : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"}`}>
+                                {mov.origem.toUpperCase()}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
+                          {new Date(mov.data).toLocaleDateString("pt-BR")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
