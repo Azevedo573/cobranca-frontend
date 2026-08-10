@@ -5,7 +5,7 @@
  * dinâmico por permissão RBAC (para colaboradores e advogados).
  *
  * Lógica:
- * - Se o usuário não estiver logado → redireciona para /login
+ * - Se o usuário não estiver logado → redireciona para /login-admin
  * - Se allowedRoles for definido e o role não estiver na lista → redireciona para /
  * - Se requiredModulo for definido E o usuário for colaborador/advogado:
  *     → verifica can(requiredModulo, "visualizar") via usePermissions
@@ -49,7 +49,7 @@ export default function PermissionRoute({
   }
 
   // Não autenticado
-  if (!user) return <Redirect to="/login" />;
+  if (!user) return <Redirect to="/login-admin" />;
 
   // Verifica role permitido
   if (allowedRoles && !allowedRoles.includes(user.role)) {

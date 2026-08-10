@@ -114,7 +114,7 @@ function ProtectedRoute({ component: Component, allowedRoles }: { component: Rea
   }
 
   if (!user) {
-    return <Redirect to="/login" />;
+    return <Redirect to="/login-admin" />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
@@ -150,13 +150,13 @@ function Router() {
       {/* Rota raiz redireciona baseado no role */}
       <Route path="/">
         {() => {
-          if (!user) return <Redirect to="/login" />;
+          if (!user) return <Redirect to="/login-admin" />;
           if (user.role === "admin") return <Redirect to="/admin/dashboard" />;
           if (user.role === "sindico") return <Redirect to="/sindico/dashboard" />;
           if (user.role === "cobrador") return <Redirect to="/cobrador/dashboard" />;
           if (user.role === "colaborador") return <Redirect to="/colaborador/dashboard" />;
           if (user.role === "advogado") return <Redirect to="/advogado/dashboard" />;
-          return <Redirect to="/login" />;
+          return <Redirect to="/login-admin" />;
         }}
       </Route>
 
