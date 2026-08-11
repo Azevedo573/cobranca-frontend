@@ -261,12 +261,27 @@ export const tjrjRouter = router({
       let atualizadas = 0;
       for (let i = 0; i < movimentosTJRJ.length; i++) {
         const mov = movimentosTJRJ[i];
-        const ordem = mov.ordemExibicao ?? i;
+        // O TJRJ retorna o campo "ordem" (ex: 64, 63, 62...) — não "ordemExibicao"
+        const ordem = mov.ordem ?? mov.ordemExibicao ?? i;
 
-        // Se já existe mas não tem complementosJson, atualizar com o JSON completo
+        // Se já existe mas não tem complementosJson, atualizar com o JSON completo + descricao correta
         if (ordemParaAtualizar.has(ordem)) {
+          const descrMov = mov.descrMov ?? "Movimentação";
+          const textoMov = mov.descricao?.trim() || "";
+          const descricaoAtualizada = textoMov ? `${descrMov}\n\n${textoMov}` : descrMov;
+          let dataMov: Date;
+          try {
+            const [dd, mm, aa] = (mov.dtMovimento ?? "").split("/");
+            dataMov = new Date(Number(aa), Number(mm) - 1, Number(dd));
+            if (isNaN(dataMov.getTime())) dataMov = new Date();
+          } catch { dataMov = new Date(); }
           await db.update(movimentacoesProcesso)
-            .set({ complementosJson: JSON.stringify(mov) })
+            .set({
+              complementosJson: JSON.stringify(mov),
+              descricao: descricaoAtualizada,
+              tipo: mapearTipo(descrMov),
+              data: dataMov,
+            })
             .where(eq(movimentacoesProcesso.id, ordemParaAtualizar.get(ordem)!));
           atualizadas++;
           continue;
