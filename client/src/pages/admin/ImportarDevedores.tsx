@@ -177,6 +177,10 @@ export default function ImportarDevedores() {
         `Importação concluída! ${resultado.devedoresCriados} devedor(es) criado(s), ${resultado.cobrancasCriadas} cobrança(s) criada(s)`
       );
 
+      if (resultado.cobrancasIgnoradas > 0) {
+        toast.warning(`${resultado.cobrancasIgnoradas} cobrança(s) equivalente(s) foram ignoradas para evitar duplicidade.`);
+      }
+
       if (resultado.erros.length > 0) {
         console.error("Erros durante importação:", resultado.erros);
         toast.warning(`${resultado.erros.length} erro(s) durante importação. Verifique o console.`);

@@ -626,6 +626,10 @@ export const appRouter = router({
       const { getDevedorById } = await import("./db-devedores");
       return await getDevedorById(input.id);
     }),
+    visao360: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
+      const { getVisao360Devedor } = await import("./db-devedores");
+      return await getVisao360Devedor(input.id);
+    }),
     create: requirePermission("devedores", "criar").input(z.object({
       condominioId: z.number(),
       name: z.string(),
@@ -2557,7 +2561,9 @@ export const appRouter = router({
         devedoresCriados: 0,
         devedoresAtualizados: 0,
         cobrancasCriadas: 0,
+        cobrancasIgnoradas: 0,
         erros: [] as string[],
+        avisos: [] as string[],
       };
       
       const { getDevedorByCpfCnpj, getDevedorById, getDevedorByBlocoUnidade } = await import("./db-devedores");
@@ -2632,18 +2638,33 @@ export const appRouter = router({
               ? tipoMap[dado.tipoCobranca.toLowerCase().trim()] || "outros"
               : "condominio"; // padrão: cota condominial
             
-            await createCobranca({
+            const { encontrarCobrancaEquivalenteImportacao } = await import("./db-cobrancas");
+            const valorEmCentavos = Math.round(dado.valorOriginal * 100);
+            const existente = await encontrarCobrancaEquivalenteImportacao({
               condominioId: input.condominioId,
               devedorId: devedor.id,
               tipoCobranca: tipoNormalizado as any,
-              description: dado.descricaoCobranca,
-              monthReference: dado.mesReferencia,
               dueDate: dataVencimento,
-              amount: Math.round(dado.valorOriginal * 100), // Converter para centavos
-              status: "pendente",
+              amount: valorEmCentavos,
             });
+
+            if (existente) {
+              resultados.cobrancasIgnoradas++;
+              resultados.avisos.push(`Cobrança ignorada para unidade ${dado.bloco ? `${dado.bloco} ` : ""}${dado.unidade}: já existe título equivalente #${existente.id}`);
+            } else {
+              await createCobranca({
+                condominioId: input.condominioId,
+                devedorId: devedor.id,
+                tipoCobranca: tipoNormalizado as any,
+                description: dado.descricaoCobranca,
+                monthReference: dado.mesReferencia,
+                dueDate: dataVencimento,
+                amount: valorEmCentavos,
+                status: "pendente",
+              });
+              resultados.cobrancasCriadas++;
+            }
           }
-          resultados.cobrancasCriadas++;
 
           // Se status da unidade for ajuizado, criar demanda de cobrança judicial
           if (dado.statusUnidade === "ajuizado" && devedor) {

@@ -1,5 +1,5 @@
-import { eq, and } from "drizzle-orm";
-import { devedores, InsertDevedor, cobrancas, condominios, demandas, processosJudiciais } from "../drizzle/schema";
+import { eq, and, desc, inArray } from "drizzle-orm";
+import { devedores, InsertDevedor, cobrancas, condominios, demandas, processosJudiciais, tentativasCobranca, acordos } from "../drizzle/schema";
 import { getDb } from "./db";
 import { calcularValorDevido } from "../shared/calculos";
 
@@ -116,6 +116,56 @@ export async function getDevedorById(id: number) {
   }
 
   return { ...devedor, condominioNome, statusUnidade, processoJudicial };
+}
+
+/** Visão consolidada, somente-leitura, para apoiar a gestão do caso do devedor. */
+export async function getVisao360Devedor(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [devedor] = await db.select().from(devedores).where(eq(devedores.id, id)).limit(1);
+  if (!devedor) return null;
+
+  const [titulos, tentativas, acordosDoDevedor, demandasDoDevedor] = await Promise.all([
+    db.select().from(cobrancas).where(eq(cobrancas.devedorId, id)),
+    db.select({ id: tentativasCobranca.id, attemptDate: tentativasCobranca.attemptDate, result: tentativasCobranca.result, contactType: tentativasCobranca.contactType })
+      .from(tentativasCobranca)
+      .where(eq(tentativasCobranca.devedorId, id))
+      .orderBy(desc(tentativasCobranca.attemptDate))
+      .limit(5),
+    db.select({ id: acordos.id, status: acordos.status, totalAmount: acordos.totalAmount, createdAt: acordos.createdAt })
+      .from(acordos)
+      .where(eq(acordos.devedorId, id))
+      .orderBy(desc(acordos.createdAt)),
+    db.select({ id: demandas.id, numero: demandas.numero, assunto: demandas.assunto, tipo: demandas.tipo, status: demandas.status, prioridade: demandas.prioridade, prazo: demandas.prazo })
+      .from(demandas)
+      .where(eq(demandas.devedorId, id))
+      .orderBy(desc(demandas.createdAt)),
+  ]);
+
+  const demandaIds = demandasDoDevedor.map((demanda) => demanda.id);
+  const processos = demandaIds.length
+    ? await db.select({ id: processosJudiciais.id, demandaId: processosJudiciais.demandaId, numeroCNJ: processosJudiciais.numeroCNJ, status: processosJudiciais.status, tribunal: processosJudiciais.tribunal, dataUltimaMovimentacao: processosJudiciais.dataUltimaMovimentacao })
+      .from(processosJudiciais)
+      .where(inArray(processosJudiciais.demandaId, demandaIds))
+      .orderBy(desc(processosJudiciais.dataUltimaMovimentacao))
+    : [];
+
+  const titulosEmAberto = titulos.filter((titulo) => titulo.status !== "pago");
+  return {
+    resumo: {
+      totalTitulos: titulos.length,
+      titulosEmAberto: titulosEmAberto.length,
+      valorNominalEmAberto: titulosEmAberto.reduce((total, titulo) => total + titulo.amount, 0),
+      acordosAtivos: acordosDoDevedor.filter((acordo) => acordo.status === "ativo" || acordo.status === "inadimplente").length,
+      demandasAbertas: demandasDoDevedor.filter((demanda) => demanda.status === "aberta" || demanda.status === "em_andamento").length,
+      processosAtivos: processos.filter((processo) => processo.status === "ativo" || processo.status === "suspenso").length,
+    },
+    tentativas,
+    acordos: acordosDoDevedor,
+    demandas: demandasDoDevedor,
+    processos,
+  };
 }
 
 export async function createDevedor(data: InsertDevedor) {

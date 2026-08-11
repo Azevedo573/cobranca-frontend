@@ -2713,3 +2713,10 @@
 - [x] Criar painel administrativo de Saúde Operacional com status e últimas execuções
 - [x] Criar checklist versionado de deploy, migrations, PM2, backup e recuperação da VPS
 - [x] Adicionar testes automatizados para o histórico de execuções e regras de autorização relevantes
+
+## Onda 1 - Qualidade de Dados e Visão Inicial do Devedor
+- [x] Auditar validações e critérios de duplicidade da importação de devedores e cobranças
+- [x] Adicionar validações não destrutivas e relatório de possíveis duplicidades na prévia de importação
+- [x] Consolidar query do devedor com títulos, acordos, contatos, demandas e processos relacionados
+- [x] Exibir cards jurídicos e financeiros consolidados na página de detalhes do devedor
+- [x] Adicionar testes para a regra de identificação de possível duplicidade e para os totais consolidados

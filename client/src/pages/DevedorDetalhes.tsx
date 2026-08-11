@@ -119,6 +119,10 @@ export default function DevedorDetalhes() {
     { id: devedorId! },
     { enabled: !!devedorId }
   );
+  const { data: visao360 } = trpc.devedores.visao360.useQuery(
+    { id: devedorId! },
+    { enabled: !!devedorId }
+  );
 
   const { data: instanciasWA = [] } = trpc.whatsapp.listarInstancias.useQuery();
   const { data: atendimentosDevedor = [] } = trpc.atendimento.listarAtendimentosDevedor.useQuery(
@@ -494,6 +498,39 @@ export default function DevedorDetalhes() {
           <div className="lg:col-span-2 space-y-4">
             {metricas && (
               <DashboardDevedorMetricas {...metricas} />
+            )}
+            {visao360 && (
+              <Card className="border-blue-200/70 dark:border-blue-900/60">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Scale className="h-4 w-4 text-blue-600" />
+                    Visão consolidada do caso
+                  </CardTitle>
+                  <CardDescription>Vínculos financeiros, operacionais e jurídicos já registrados para este devedor.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Títulos em aberto</p>
+                    <p className="mt-1 text-lg font-semibold">{visao360.resumo.titulosEmAberto}</p>
+                    <p className="text-xs text-muted-foreground">{formatarMoeda(visao360.resumo.valorNominalEmAberto / 100)}</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-3">
+                    <p className="text-xs text-muted-foreground">Acordos ativos</p>
+                    <p className="mt-1 text-lg font-semibold">{visao360.resumo.acordosAtivos}</p>
+                    <p className="text-xs text-muted-foreground">{visao360.acordos.length} no histórico</p>
+                  </div>
+                  <div className="rounded-lg bg-amber-500/10 p-3">
+                    <p className="text-xs text-muted-foreground">Demandas abertas</p>
+                    <p className="mt-1 text-lg font-semibold text-amber-700 dark:text-amber-400">{visao360.resumo.demandasAbertas}</p>
+                    <p className="text-xs text-muted-foreground">{visao360.demandas.length} vinculada(s)</p>
+                  </div>
+                  <div className="rounded-lg bg-blue-500/10 p-3">
+                    <p className="text-xs text-muted-foreground">Processos ativos</p>
+                    <p className="mt-1 text-lg font-semibold text-blue-700 dark:text-blue-400">{visao360.resumo.processosAtivos}</p>
+                    <p className="text-xs text-muted-foreground">{visao360.processos[0]?.numeroCNJ ?? "Nenhum vinculado"}</p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>

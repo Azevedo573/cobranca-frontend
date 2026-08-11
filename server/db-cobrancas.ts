@@ -97,6 +97,30 @@ export async function createCobranca(data: InsertCobranca) {
   return result;
 }
 
+/** Busca título equivalente para impedir reimportação acidental da mesma cobrança. */
+export async function encontrarCobrancaEquivalenteImportacao(input: {
+  condominioId: number;
+  devedorId: number;
+  dueDate: Date;
+  amount: number;
+  tipoCobranca: NonNullable<InsertCobranca["tipoCobranca"]>;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const [existente] = await db.select()
+    .from(cobrancas)
+    .where(and(
+      eq(cobrancas.condominioId, input.condominioId),
+      eq(cobrancas.devedorId, input.devedorId),
+      eq(cobrancas.dueDate, input.dueDate),
+      eq(cobrancas.amount, input.amount),
+      eq(cobrancas.tipoCobranca, input.tipoCobranca),
+    ))
+    .limit(1);
+  return existente ?? null;
+}
+
 export async function updateCobranca(id: number, data: Partial<InsertCobranca>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
