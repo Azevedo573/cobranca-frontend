@@ -2746,3 +2746,9 @@
 - [x] Preparar unidade de serviço e timers da VPS para os jobs determinísticos
 - [x] Documentar variáveis, permissões, logs, monitoramento e recuperação exclusivamente na VPS
 - [x] Garantir por configuração que desenvolvimento não inicie jobs de produção
+
+## Onda 3 - Histórico Unificado de Atendimento
+- [x] Mapear tentativas, promessas, tickets e conversas vinculáveis ao devedor
+- [x] Criar consulta unificada e somente-leitura de eventos de atendimento por devedor
+- [x] Exibir timeline de atendimento na Visão 360º do Devedor com origem e links de contexto
+- [x] Adicionar testes para ordenação e normalização dos eventos consolidados
