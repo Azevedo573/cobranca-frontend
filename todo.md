@@ -2752,3 +2752,9 @@
 - [x] Criar consulta unificada e somente-leitura de eventos de atendimento por devedor
 - [x] Exibir timeline de atendimento na Visão 360º do Devedor com origem e links de contexto
 - [x] Adicionar testes para ordenação e normalização dos eventos consolidados
+
+## Onda 4 - Referências Oficiais de Documento TJRJ
+- [x] Mapear campos de documento e links oficiais disponíveis no payload TJRJ salvo
+- [x] Normalizar metadados documentais sem baixar ou armazenar arquivo externo
+- [x] Exibir referências oficiais no detalhe de movimentação da timeline jurídica
+- [x] Testar a validação de URL oficial e a deduplicação de referências

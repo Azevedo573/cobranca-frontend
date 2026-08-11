@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { normalizarReferenciasDocumentaisTJRJ } from "@/lib/tjrjDocumentos";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,8 +133,7 @@ function DetalhesTJRJ({ json }: { json: string | null | undefined }) {
       <p className="text-xs">Movimentação importada do TJRJ — sincronize novamente para obter detalhes completos</p>
     </div>
   );
-
-  const urlGed = "https://www3.tjrj.jus.br/gedcacheweb/default.aspx?GEDID=";
+  const referenciasDocumentais = normalizarReferenciasDocumentaisTJRJ(mov);
 
   return (
     <div className="space-y-3">
@@ -258,18 +258,6 @@ function DetalhesTJRJ({ json }: { json: string | null | undefined }) {
                         </button>
                       )}
                     </div>
-                    {/* Link para o documento no GED */}
-                    {sub.codDocAtoAssinadoDig && (
-                      <a
-                        href={`${urlGed}${sub.codDocAtoAssinadoDig}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Abrir documento no TJRJ
-                      </a>
-                    )}
                   </div>
                 )}
               </div>
@@ -290,17 +278,18 @@ function DetalhesTJRJ({ json }: { json: string | null | undefined }) {
         </div>
       )}
 
-      {/* Link para documento eletrônico (pseudoDocEletronico) */}
-      {mov.pseudoDocEletronico && (
-        <a
-          href={`${urlGed}${mov.pseudoDocEletronico}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline border border-primary/20 rounded px-2 py-1.5 bg-primary/5"
-        >
-          <ExternalLink className="w-3 h-3" />
-          Abrir documento no portal TJRJ
-        </a>
+      {referenciasDocumentais.length > 0 && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+          <div className="mb-2 flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /><p className="text-xs font-semibold">Documentos e referências oficiais</p></div>
+          <div className="space-y-2">
+            {referenciasDocumentais.map((referencia) => (
+              <a key={referencia.id} href={referencia.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded border border-primary/15 bg-background px-2.5 py-2 text-xs text-primary hover:bg-muted/50">
+                <span className="min-w-0 truncate">{referencia.rotulo}</span><ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              </a>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">Os links direcionam ao portal oficial do TJRJ; nenhum arquivo é baixado ou armazenado pelo Luminus.</p>
+        </div>
       )}
     </div>
   );
