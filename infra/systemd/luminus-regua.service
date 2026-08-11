@@ -1,0 +1,15 @@
+[Unit]
+Description=Luminus - Execução da Régua de Cobrança
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cobranca
+WorkingDirectory=/var/www/cobranca
+EnvironmentFile=/var/www/cobranca/.env
+ExecStart=/usr/bin/env pnpm exec tsx scripts/executar-regua.mjs
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true

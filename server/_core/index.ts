@@ -7,13 +7,11 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { startReguaJob } from "../job-regua";
 import { cancelamentoAutoHandler } from "../job-cancelamento-auto";
 import { alertasInadimplenciaHandler } from "../job-alertas-inadimplencia";
 import { alertasPrazosHandler } from "../job-alertas-prazos";
 import { doerjHandler, doerjTermosHandler } from "../job-doerj";
 import { registrarJobPJe } from "../job-pje";
-import { iniciarJobFilaWhatsApp } from "../job-whatsapp-fila";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -83,10 +81,7 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
-    // Iniciar job de execução automática da Régua de Cobrança
-    startReguaJob();
-    // Iniciar job de processamento da fila WhatsApp (cadência anti-ban)
-    iniciarJobFilaWhatsApp(60);
+    console.log("[Jobs] Execuções automáticas desabilitadas no processo web. Use os timers da VPS.");
   });
 }
 

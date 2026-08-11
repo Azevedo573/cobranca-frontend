@@ -2732,3 +2732,17 @@
 - [x] Criar reparo idempotente que atualize movimentações legadas a partir da resposta atual do TJRJ, sem exclusão
 - [x] Registrar auditoria do reparo e informar resultado na sincronização do processo
 - [x] Validar que título, ordem, data e JSON bruto representam o mesmo evento na timeline
+
+## Diagnóstico de Automação - Régua de Cobrança
+- [ ] Registrar ocorrência, impacto e hipótese da falha observada na rotina de régua
+- [ ] Registrar resultado e erro estruturado por régua, sem interromper outras execuções
+- [ ] Exibir a última falha e sua mensagem segura na Saúde Operacional
+- [ ] Cobrir falha isolada e continuidade de processamento com testes automatizados
+- [ ] Substituir o agendamento em memória da régua por endpoint idempotente acionado externamente
+- [ ] Documentar a implantação do agendamento na VPS e o plano de reversão
+
+## Diretriz Operacional - Execução Exclusiva na VPS
+- [x] Mapear jobs e integrações que não devem executar no ambiente de desenvolvimento
+- [x] Preparar unidade de serviço e timers da VPS para os jobs determinísticos
+- [x] Documentar variáveis, permissões, logs, monitoramento e recuperação exclusivamente na VPS
+- [x] Garantir por configuração que desenvolvimento não inicie jobs de produção
