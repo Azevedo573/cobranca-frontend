@@ -2734,12 +2734,12 @@
 - [x] Validar que título, ordem, data e JSON bruto representam o mesmo evento na timeline
 
 ## Diagnóstico de Automação - Régua de Cobrança
-- [ ] Registrar ocorrência, impacto e hipótese da falha observada na rotina de régua
-- [ ] Registrar resultado e erro estruturado por régua, sem interromper outras execuções
-- [ ] Exibir a última falha e sua mensagem segura na Saúde Operacional
-- [ ] Cobrir falha isolada e continuidade de processamento com testes automatizados
-- [ ] Substituir o agendamento em memória da régua por endpoint idempotente acionado externamente
-- [ ] Documentar a implantação do agendamento na VPS e o plano de reversão
+- [x] Registrar ocorrência, impacto e hipótese da falha observada na rotina de régua
+- [x] Registrar resultado e erro estruturado por régua, sem interromper outras execuções
+- [x] Exibir a última falha e sua mensagem segura na Saúde Operacional
+- [x] Cobrir falha isolada e continuidade de processamento com testes automatizados
+- [x] Substituir o agendamento em memória da régua por endpoint idempotente acionado externamente
+- [x] Documentar a implantação do agendamento na VPS e o plano de reversão
 
 ## Diretriz Operacional - Execução Exclusiva na VPS
 - [x] Mapear jobs e integrações que não devem executar no ambiente de desenvolvimento

@@ -12,9 +12,15 @@ import { getDb } from "./db";
 import { reguasCobranca } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { executarRegua } from "./db-reguas";
+import { finalizarExecucaoOperacional, iniciarExecucaoOperacional } from "./operacional";
 
 let jobInterval: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
+
+export function normalizarErroRegua(erro: unknown): string {
+  const texto = erro instanceof Error ? erro.message : String(erro);
+  return texto.replace(/\s+/g, " ").trim().slice(0, 1_000);
+}
 
 /**
  * Executa todas as réguas ativas de todos os condomínios.
@@ -33,15 +39,22 @@ export async function executarTodasReguas(): Promise<{
 
   isRunning = true;
   const erros: string[] = [];
+  const detalhesReguas: Array<{ reguaId: number; nome: string; disparos: number; ignorados: number; erros: string[] }> = [];
   let totalDisparos = 0;
   let totalIgnorados = 0;
   let totalReguas = 0;
+  const execucao = await iniciarExecucaoOperacional({
+    chave: "regua-cobranca.executar-todas",
+    nome: "Execução da Régua de Cobrança",
+    origem: "agendada",
+  });
 
   try {
     const db = await getDb();
     if (!db) {
       console.warn("[ReguaJob] Banco de dados não disponível.");
-      return { totalReguas: 0, totalDisparos: 0, totalIgnorados: 0, erros: ["Banco de dados não disponível"] };
+      erros.push("Banco de dados não disponível");
+      return { totalReguas: 0, totalDisparos: 0, totalIgnorados: 0, erros };
     }
 
     // Buscar todas as réguas ativas
@@ -58,25 +71,45 @@ export async function executarTodasReguas(): Promise<{
         const resultado = await executarRegua(regua.id, regua.condominioId);
         totalDisparos += resultado.disparosRealizados;
         totalIgnorados += resultado.disparosIgnorados;
+        const errosRegua = resultado.erros.map(normalizarErroRegua);
+        detalhesReguas.push({
+          reguaId: regua.id,
+          nome: regua.nome,
+          disparos: resultado.disparosRealizados,
+          ignorados: resultado.disparosIgnorados,
+          erros: errosRegua,
+        });
         if (resultado.erros.length > 0) {
-          erros.push(...resultado.erros.map(e => `[Régua ${regua.id}] ${e}`));
+          erros.push(...errosRegua.map(e => `[Régua ${regua.id}] ${e}`));
         }
         if (resultado.disparosRealizados > 0) {
           console.log(`[ReguaJob] Régua "${regua.nome}" (id=${regua.id}): ${resultado.disparosRealizados} disparo(s).`);
         }
       } catch (err) {
-        const msg = `Erro ao executar régua ${regua.id} (${regua.nome}): ${String(err)}`;
+        const erroNormalizado = normalizarErroRegua(err);
+        const msg = `Erro ao executar régua ${regua.id} (${regua.nome}): ${erroNormalizado}`;
         erros.push(msg);
+        detalhesReguas.push({ reguaId: regua.id, nome: regua.nome, disparos: 0, ignorados: 0, erros: [erroNormalizado] });
         console.error(`[ReguaJob] ${msg}`);
       }
     }
 
     console.log(`[ReguaJob] Concluído: ${totalDisparos} disparo(s), ${totalIgnorados} ignorado(s), ${erros.length} erro(s).`);
   } catch (err) {
-    const msg = `Erro geral no job de régua: ${String(err)}`;
+    const msg = `Erro geral no job de régua: ${normalizarErroRegua(err)}`;
     erros.push(msg);
     console.error(`[ReguaJob] ${msg}`);
   } finally {
+    await finalizarExecucaoOperacional({
+      ...execucao,
+      status: erros.length > 0 ? "alerta" : "sucesso",
+      registrosProcessados: totalReguas,
+      registrosCriados: totalDisparos,
+      registrosIgnorados: totalIgnorados,
+      erros: erros.length,
+      resultado: { totalReguas, totalDisparos, totalIgnorados, detalhesReguas },
+      mensagemErro: erros.length > 0 ? erros.join(" | ") : undefined,
+    });
     isRunning = false;
   }
 
