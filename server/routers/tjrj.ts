@@ -225,13 +225,19 @@ export const tjrjRouter = router({
       }
 
       // ── Buscar movimentações TJRJ já salvas para este processo ─────────
-      const existentes = await db.select({ tjrjOrdem: movimentacoesProcesso.tjrjOrdem })
+      const existentes = await db.select({ id: movimentacoesProcesso.id, tjrjOrdem: movimentacoesProcesso.tjrjOrdem, complementosJson: movimentacoesProcesso.complementosJson })
         .from(movimentacoesProcesso)
         .where(and(
           eq(movimentacoesProcesso.processoId, input.processoId),
           eq(movimentacoesProcesso.origem, "tjrj"),
         ));
       const ordensExistentes = new Set(existentes.map(e => e.tjrjOrdem).filter(Boolean));
+      // Mapa de ordem → id para movimentações que precisam de update (sem complementosJson)
+      const ordemParaAtualizar = new Map<number, number>(
+        existentes
+          .filter(e => e.tjrjOrdem !== null && !e.complementosJson)
+          .map(e => [e.tjrjOrdem as number, e.id])
+      );
 
       // ── Mapear tipo TJRJ para enum interno ───────────────────────────────
       function mapearTipo(descr: string): "distribuicao" | "citacao" | "contestacao" | "audiencia" | "sentenca" | "recurso" | "despacho" | "decisao" | "peticao" | "transito_julgado" | "execucao" | "outro" {
@@ -252,10 +258,21 @@ export const tjrjRouter = router({
 
       // ── Inserir movimentações novas ─────────────────────────────────────
       let inseridas = 0;
+      let atualizadas = 0;
       for (let i = 0; i < movimentosTJRJ.length; i++) {
         const mov = movimentosTJRJ[i];
         const ordem = mov.ordemExibicao ?? i;
-        if (ordensExistentes.has(ordem)) continue; // já existe
+
+        // Se já existe mas não tem complementosJson, atualizar com o JSON completo
+        if (ordemParaAtualizar.has(ordem)) {
+          await db.update(movimentacoesProcesso)
+            .set({ complementosJson: JSON.stringify(mov) })
+            .where(eq(movimentacoesProcesso.id, ordemParaAtualizar.get(ordem)!));
+          atualizadas++;
+          continue;
+        }
+
+        if (ordensExistentes.has(ordem)) continue; // já existe com JSON completo
 
         // Montar descrição: nome do movimento + complementos
         const descricao = mov.descrMov ?? "Movimentação";
@@ -306,6 +323,7 @@ export const tjrjRouter = router({
         inseridas,
         total: movimentosTJRJ.length,
         numProcessoInterno,
+        atualizadas,
       };
     }),
 
