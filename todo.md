@@ -2705,3 +2705,11 @@
 - [ ] 3.2 Busca de processos por nome/CPF do devedor via JOIN com partesProcesso
 - [ ] 3.2 Campo de busca por parte na tela ProcessosJudiciais
 - [ ] 3.3 Timeline unificada de movimentações recentes no DashboardJuridicoCondominio
+
+## Onda 0 - Fundação Operacional
+- [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
+- [x] Criar tabela e procedures de histórico de execuções de integração/job
+- [x] Registrar execução, sucesso e falha da sincronização TJRJ no histórico operacional
+- [x] Criar painel administrativo de Saúde Operacional com status e últimas execuções
+- [x] Criar checklist versionado de deploy, migrations, PM2, backup e recuperação da VPS
+- [x] Adicionar testes automatizados para o histórico de execuções e regras de autorização relevantes

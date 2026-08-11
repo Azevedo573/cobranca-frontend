@@ -1,0 +1,22 @@
+CREATE TABLE `execucoesOperacionais` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`chave` varchar(100) NOT NULL,
+	`nome` varchar(255) NOT NULL,
+	`origemExecucao` enum('manual','agendada','sistema','webhook') NOT NULL DEFAULT 'sistema',
+	`statusExecucao` enum('em_andamento','sucesso','alerta','falha') NOT NULL DEFAULT 'em_andamento',
+	`iniciadoEm` timestamp NOT NULL DEFAULT (now()),
+	`finalizadoEm` timestamp,
+	`duracaoMs` int,
+	`registrosProcessados` int NOT NULL DEFAULT 0,
+	`registrosCriados` int NOT NULL DEFAULT 0,
+	`registrosAtualizados` int NOT NULL DEFAULT 0,
+	`registrosIgnorados` int NOT NULL DEFAULT 0,
+	`erros` int NOT NULL DEFAULT 0,
+	`escopoJson` text,
+	`resultadoJson` text,
+	`mensagemErro` text,
+	`iniciadoPorId` int,
+	`iniciadoPorNome` varchar(255),
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `execucoesOperacionais_id` PRIMARY KEY(`id`)
+);

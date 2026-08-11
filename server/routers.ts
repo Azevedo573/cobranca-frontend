@@ -18,6 +18,7 @@ import { tarefasDemandaRouter } from "./routers/tarefas-demanda";
 import { doerjMonitoramentosRouter } from "./routers/doerj-monitoramentos";
 import { pjePublicacoesRouter } from "./routers/pje-publicacoes";
 import { tjrjRouter } from "./routers/tjrj";
+import { operacionalRouter } from "./routers/operacional";
 import { listHeartbeatJobs } from "./_core/heartbeat";
 import { parse as parseCookieHeader } from "cookie";
 export const appRouter = router({
@@ -30,6 +31,7 @@ export const appRouter = router({
   prazos: prazosRouter,
   mni: mniRouter,
   juridicoCondominios: juridicoCondominiosRouter,
+  operacional: operacionalRouter,
   auth: router({
     me: publicProcedure.query(opts => {
       if (!opts.ctx.user) return null;

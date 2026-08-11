@@ -605,6 +605,33 @@ export const auditLogs = mysqlTable("auditLogs", {
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
+// ─── Saúde Operacional ─────────────────────────────────────────────────────────
+// Histórico imutável de execuções de jobs e integrações. Mantém o resultado
+// operacional sem expor segredos, payloads completos ou dados sensíveis.
+export const execucoesOperacionais = mysqlTable("execucoesOperacionais", {
+  id: int("id").autoincrement().primaryKey(),
+  chave: varchar("chave", { length: 100 }).notNull(),
+  nome: varchar("nome", { length: 255 }).notNull(),
+  origem: mysqlEnum("origemExecucao", ["manual", "agendada", "sistema", "webhook"]).notNull().default("sistema"),
+  status: mysqlEnum("statusExecucao", ["em_andamento", "sucesso", "alerta", "falha"]).notNull().default("em_andamento"),
+  iniciadoEm: timestamp("iniciadoEm").defaultNow().notNull(),
+  finalizadoEm: timestamp("finalizadoEm"),
+  duracaoMs: int("duracaoMs"),
+  registrosProcessados: int("registrosProcessados").notNull().default(0),
+  registrosCriados: int("registrosCriados").notNull().default(0),
+  registrosAtualizados: int("registrosAtualizados").notNull().default(0),
+  registrosIgnorados: int("registrosIgnorados").notNull().default(0),
+  erros: int("erros").notNull().default(0),
+  escopoJson: text("escopoJson"),
+  resultadoJson: text("resultadoJson"),
+  mensagemErro: text("mensagemErro"),
+  iniciadoPorId: int("iniciadoPorId"),
+  iniciadoPorNome: varchar("iniciadoPorNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ExecucaoOperacional = typeof execucoesOperacionais.$inferSelect;
+export type InsertExecucaoOperacional = typeof execucoesOperacionais.$inferInsert;
+
 // ─── Modelos de Documentos ───────────────────────────────────────────────────
 export const modelosDocumento = mysqlTable("modelosDocumento", {
   id: int("id").autoincrement().primaryKey(),

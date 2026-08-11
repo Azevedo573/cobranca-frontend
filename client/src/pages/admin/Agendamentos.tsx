@@ -2,12 +2,12 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity, Newspaper, Bot, Play, Info } from "lucide-react";
+import { RefreshCw, Clock, CheckCircle2, XCircle, Calendar, Activity, Newspaper, Bot, Play, Info, AlertTriangle, CircleAlert, Timer } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 
-function formatarData(iso: string | null | undefined): string {
+function formatarData(iso: Date | string | null | undefined): string {
   if (!iso) return "—";
   try {
     return new Date(iso).toLocaleString("pt-BR", {
@@ -18,9 +18,23 @@ function formatarData(iso: string | null | undefined): string {
       minute: "2-digit",
     });
   } catch {
-    return iso;
+    return typeof iso === "string" ? iso : iso.toISOString();
   }
 }
+
+function formatarDuracao(ms: number | null | undefined): string {
+  if (ms == null) return "—";
+  if (ms < 1_000) return `${ms} ms`;
+  if (ms < 60_000) return `${(ms / 1_000).toFixed(1)} s`;
+  return `${Math.floor(ms / 60_000)} min ${Math.round((ms % 60_000) / 1_000)} s`;
+}
+
+const EXECUCAO_STATUS = {
+  sucesso: { label: "Saudável", className: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400", icon: CheckCircle2 },
+  alerta: { label: "Alerta", className: "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-400", icon: AlertTriangle },
+  falha: { label: "Falha", className: "bg-destructive/10 text-destructive border-destructive/30", icon: XCircle },
+  em_andamento: { label: "Em andamento", className: "bg-blue-500/15 text-blue-700 border-blue-500/30 dark:text-blue-400", icon: Timer },
+} as const;
 
 function parseCron(cron: string): string {
   // Formato: sec min hour dom mon dow (6 campos)
@@ -149,6 +163,8 @@ export default function Agendamentos() {
   void refetchKey; // usado para forçar re-render
 
   const { data, isLoading, refetch, isFetching } = trpc.agendamentos.listar.useQuery();
+  const { data: saude, isLoading: saudeCarregando, refetch: atualizarSaude, isFetching: saudeAtualizando } = trpc.operacional.resumo.useQuery();
+  const { data: execucoes = [], refetch: atualizarExecucoes } = trpc.operacional.ultimasExecucoes.useQuery({ limite: 12 });
 
   const jobs = data?.jobs ?? [];
 
@@ -168,13 +184,86 @@ export default function Agendamentos() {
           onClick={() => {
             setRefetchKey(k => k + 1);
             refetch();
+            atualizarSaude();
+            atualizarExecucoes();
           }}
-          disabled={isFetching}
+          disabled={isFetching || saudeAtualizando}
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-4 h-4 mr-2 ${isFetching || saudeAtualizando ? "animate-spin" : ""}`} />
           Atualizar
         </Button>
       </div>
+
+      {/* Saúde operacional: execuções persistidas de integrações e jobs */}
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/[0.04] to-transparent">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                <CardTitle className="text-base font-semibold">Saúde Operacional</CardTitle>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">Últimas execuções registradas de integrações e tarefas automáticas.</p>
+            </div>
+            {saude?.comFalha ? (
+              <Badge className="bg-destructive/10 text-destructive border-destructive/30">
+                <CircleAlert className="w-3 h-3 mr-1" /> {saude.comFalha} falha(s) requer(em) atenção
+              </Badge>
+            ) : (
+              <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-400">
+                <CheckCircle2 className="w-3 h-3 mr-1" /> Sem falhas registradas
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {[
+              { label: "Monitorados", value: saude?.totalMonitorados ?? 0, color: "text-foreground" },
+              { label: "Saudáveis", value: saude?.saudaveis ?? 0, color: "text-emerald-600 dark:text-emerald-400" },
+              { label: "Alertas", value: saude?.comAlerta ?? 0, color: "text-amber-600 dark:text-amber-400" },
+              { label: "Falhas", value: saude?.comFalha ?? 0, color: "text-destructive" },
+              { label: "Em andamento", value: saude?.emAndamento ?? 0, color: "text-blue-600 dark:text-blue-400" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-lg border bg-background/80 p-3">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                <p className={`mt-1 text-xl font-semibold ${item.color}`}>{saudeCarregando ? "—" : item.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {execucoes.length > 0 ? (
+            <div className="rounded-lg border overflow-hidden">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b bg-muted/40 px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <span>Integração / execução</span>
+                <span>Resultado</span>
+              </div>
+              {execucoes.map((execucao) => {
+                const status = EXECUCAO_STATUS[execucao.status as keyof typeof EXECUCAO_STATUS] ?? EXECUCAO_STATUS.alerta;
+                const Icone = status.icon;
+                return (
+                  <div key={execucao.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b last:border-b-0 px-3 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{execucao.nome}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {formatarData(execucao.iniciadoEm)} · {formatarDuracao(execucao.duracaoMs)} · {execucao.registrosProcessados} registro(s)
+                      </p>
+                      {execucao.mensagemErro && <p className="mt-1 text-xs text-destructive line-clamp-2">{execucao.mensagemErro}</p>}
+                    </div>
+                    <Badge variant="outline" className={`h-fit whitespace-nowrap ${status.className}`}>
+                      <Icone className="w-3 h-3 mr-1" /> {status.label}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-5 text-center text-sm text-muted-foreground">
+              Nenhuma execução operacional registrada ainda. As novas sincronizações aparecerão aqui.
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Loading */}
       {isLoading && (
