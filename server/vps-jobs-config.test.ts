@@ -17,4 +17,10 @@ describe("configuração de jobs exclusivos da VPS", () => {
     expect(unidade).toContain("EnvironmentFile=/var/www/cobranca/.env");
     expect(unidade).toContain("/usr/bin/env pnpm exec tsx scripts/executar-regua.mjs");
   });
+
+  it("fornece instalador da VPS que habilita os timers sem segredos embutidos", () => {
+    const instalador = readFileSync(resolve(raiz, "infra/systemd/instalar-jobs-vps.sh"), "utf8");
+    expect(instalador).toContain("systemctl enable --now luminus-regua.timer luminus-whatsapp-fila.timer");
+    expect(instalador).not.toMatch(/BTG_CLIENT_SECRET|ZAPI|REGUA_JOB_TOKEN/);
+  });
 });

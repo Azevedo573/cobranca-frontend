@@ -13,14 +13,15 @@ As integrações e rotinas automáticas do Luminus devem executar apenas na VPS.
 
 ## Instalação na VPS
 
-Após atualizar o código e concluir o build, copie as unidades, recarregue o `systemd` e habilite os timers:
+Para evitar concorrência com os antigos timers em memória, conclua a atualização, interrompa brevemente o processo web, instale os timers e reinicie o PM2. Não execute a fila WhatsApp manualmente durante esta troca.
 
 ```bash
 cd /var/www/cobranca
-sudo cp infra/systemd/luminus-*.service infra/systemd/luminus-*.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now luminus-regua.timer luminus-whatsapp-fila.timer
-sudo systemctl list-timers 'luminus-*'
+git pull
+pnpm build
+sudo -u cobranca -H pm2 stop cobranca
+sudo bash infra/systemd/instalar-jobs-vps.sh
+sudo -u cobranca -H pm2 restart cobranca --update-env
 ```
 
 O arquivo `/var/www/cobranca/.env` deve pertencer ao usuário `cobranca` e conter as variáveis das integrações. Nenhuma credencial deve ser escrita nas unidades ou enviada ao repositório.
