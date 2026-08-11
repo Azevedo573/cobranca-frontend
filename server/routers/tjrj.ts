@@ -53,6 +53,22 @@ async function tjrjPost(path: string, body: object): Promise<any> {
   return data;
 }
 
+/**
+ * Detecta registros legados cujo JSON armazenado não representa a mesma ordem
+ * devolvida hoje pelo TJRJ. Não considera formatação de texto como divergência.
+ */
+export function movimentoTjrjDiverge(complementosJson: string | null, movimentoAtual: any): boolean {
+  if (!complementosJson) return true;
+  try {
+    const armazenado = JSON.parse(complementosJson);
+    return Number(armazenado?.ordem) !== Number(movimentoAtual?.ordem)
+      || String(armazenado?.descrMov ?? "").trim() !== String(movimentoAtual?.descrMov ?? "").trim()
+      || String(armazenado?.dtMovimento ?? "").trim() !== String(movimentoAtual?.dtMovimento ?? "").trim();
+  } catch {
+    return true;
+  }
+}
+
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export const tjrjRouter = router({
@@ -248,12 +264,10 @@ export const tjrjRouter = router({
           eq(movimentacoesProcesso.processoId, input.processoId),
           eq(movimentacoesProcesso.origem, "tjrj"),
         ));
-      const ordensExistentes = new Set(existentes.map(e => e.tjrjOrdem).filter(Boolean));
-      // Mapa de ordem → id para movimentações que precisam de update (sem complementosJson)
-      const ordemParaAtualizar = new Map<number, number>(
+      const existentesPorOrdem = new Map<number, { id: number; complementosJson: string | null }>(
         existentes
-          .filter(e => e.tjrjOrdem !== null && !e.complementosJson)
-          .map(e => [e.tjrjOrdem as number, e.id])
+          .filter(e => e.tjrjOrdem !== null)
+          .map(e => [e.tjrjOrdem as number, { id: e.id, complementosJson: e.complementosJson }])
       );
 
       // ── Mapear tipo TJRJ para enum interno ───────────────────────────────
@@ -281,8 +295,9 @@ export const tjrjRouter = router({
         // O TJRJ retorna o campo "ordem" (ex: 64, 63, 62...) — não "ordemExibicao"
         const ordem = mov.ordem ?? mov.ordemExibicao ?? i;
 
-        // Se já existe mas não tem complementosJson, atualizar com o JSON completo + descricao correta
-        if (ordemParaAtualizar.has(ordem)) {
+        const existente = existentesPorOrdem.get(ordem);
+        // Atualiza apenas quando o registro local é legado, incompleto ou diverge da mesma ordem do TJRJ.
+        if (existente && movimentoTjrjDiverge(existente.complementosJson, mov)) {
           const descrMov = mov.descrMov ?? "Movimentação";
           const textoMov = mov.descricao?.trim() || "";
           const descricaoAtualizada = textoMov ? `${descrMov}\n\n${textoMov}` : descrMov;
@@ -299,12 +314,12 @@ export const tjrjRouter = router({
               tipo: mapearTipo(descrMov),
               data: dataMov,
             })
-            .where(eq(movimentacoesProcesso.id, ordemParaAtualizar.get(ordem)!));
+            .where(eq(movimentacoesProcesso.id, existente.id));
           atualizadas++;
           continue;
         }
 
-        if (ordensExistentes.has(ordem)) continue; // já existe com JSON completo
+        if (existente) continue; // já existe e está consistente com a resposta atual do TJRJ
 
         // Montar descrição: nome do movimento + complementos
         const descricao = mov.descrMov ?? "Movimentação";

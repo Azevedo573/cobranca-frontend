@@ -2726,3 +2726,9 @@
 - [x] Criar consulta somente-leitura de exceções financeiras pendentes de revisão
 - [x] Exibir resumo e lista de exceções na página administrativa de retorno/conciliação
 - [x] Adicionar testes para classificação de exceções sem mutação de dados financeiros
+
+## Correção de Dados TJRJ - Movimentações Legadas
+- [x] Documentar causa, impacto, testes e plano de reversão da inconsistência ordem/JSON nas movimentações TJRJ
+- [x] Criar reparo idempotente que atualize movimentações legadas a partir da resposta atual do TJRJ, sem exclusão
+- [x] Registrar auditoria do reparo e informar resultado na sincronização do processo
+- [x] Validar que título, ordem, data e JSON bruto representam o mesmo evento na timeline

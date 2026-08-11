@@ -1127,9 +1127,13 @@ export default function ProcessoDetalhes() {
         numeroCNJ: processo.numeroCNJ,
       });
       refetch();
-      if (r.inseridas > 0) {
-        toast.success(`TJRJ sincronizado! ${r.inseridas} nova(s) movimentação(ões) salva(s)`, {
-          description: `Total no TJRJ: ${r.total} movimentações`,
+      if (r.inseridas > 0 || r.atualizadas > 0) {
+        const partes = [
+          r.inseridas > 0 ? `${r.inseridas} nova(s) salva(s)` : null,
+          r.atualizadas > 0 ? `${r.atualizadas} registro(s) legado(s) corrigido(s)` : null,
+        ].filter(Boolean).join(" e ");
+        toast.success(`TJRJ sincronizado: ${partes}`, {
+          description: `Total retornado pelo tribunal: ${r.total} movimentações`,
         });
       } else {
         toast.success("TJRJ sincronizado! Nenhuma novidade encontrada.");
