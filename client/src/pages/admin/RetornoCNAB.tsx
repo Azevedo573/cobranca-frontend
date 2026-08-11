@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Upload, FileText, CheckCircle2, XCircle,
-  Clock, TrendingUp, RefreshCw, ArrowRightLeft, Eye, QrCode,
+  Clock, TrendingUp, RefreshCw, ArrowRightLeft, Eye, QrCode, AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -49,6 +49,10 @@ export default function RetornoCNAB() {
     { retornoId: detalhesRetornoId ?? 0, condominioId: 0 },
     { enabled: !!detalhesRetornoId }
   );
+
+  const { data: excecoes, isLoading: loadingExcecoes } = trpc.cnab.listarExcecoesRetorno.useQuery({
+    limit: 20,
+  });
 
   const processarRetornoMutation = trpc.cnab.processarRetorno.useMutation({
     onSuccess: (data) => {
@@ -146,6 +150,45 @@ export default function RetornoCNAB() {
           </p>
         </div>
       </div>
+
+      <Card className="border-amber-200 dark:border-amber-900/60">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            Exceções de retorno pendentes de revisão
+          </CardTitle>
+          <CardDescription>
+            Itens não encontrados ou com erro no processamento. Esta lista é somente para conferência e não altera baixas ou cobranças.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingExcecoes ? (
+            <p className="text-sm text-muted-foreground">Carregando exceções...</p>
+          ) : !excecoes?.length ? (
+            <div className="rounded-lg bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+              Nenhuma exceção de retorno pendente de revisão.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Gravidade</TableHead><TableHead>Arquivo</TableHead><TableHead>Nosso número</TableHead><TableHead>Devedor</TableHead><TableHead>Ocorrência</TableHead><TableHead className="text-right">Valor</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>{excecoes.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell><Badge className={item.gravidade === "alta" ? "bg-red-100 text-red-700 border-red-200" : "bg-amber-100 text-amber-700 border-amber-200"}>{item.gravidade === "alta" ? "Alta" : "Média"}</Badge></TableCell>
+                    <TableCell className="max-w-[170px] truncate" title={item.nomeArquivo}>{item.nomeArquivo}</TableCell>
+                    <TableCell className="font-mono text-xs">{item.nossoNumero}</TableCell>
+                    <TableCell>{item.devedorNome ?? "Não identificado"}</TableCell>
+                    <TableCell className="max-w-[250px]"><p className="truncate" title={item.descOcorrencia ?? item.observacao ?? item.descMovimento}>{item.descOcorrencia ?? item.observacao ?? item.descMovimento}</p></TableCell>
+                    <TableCell className="text-right font-medium">{formatarMoeda(item.valorPago || item.valorTitulo)}</TableCell>
+                  </TableRow>
+                ))}</TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Upload */}
           <Card>

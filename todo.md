@@ -2720,3 +2720,9 @@
 - [x] Consolidar query do devedor com títulos, acordos, contatos, demandas e processos relacionados
 - [x] Exibir cards jurídicos e financeiros consolidados na página de detalhes do devedor
 - [x] Adicionar testes para a regra de identificação de possível duplicidade e para os totais consolidados
+
+## Onda 2 - Exceções Bancárias e Conciliação
+- [x] Auditar dados e telas existentes de retorno CNAB e conciliação BTG
+- [x] Criar consulta somente-leitura de exceções financeiras pendentes de revisão
+- [x] Exibir resumo e lista de exceções na página administrativa de retorno/conciliação
+- [x] Adicionar testes para classificação de exceções sem mutação de dados financeiros
