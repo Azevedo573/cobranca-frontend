@@ -10,9 +10,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Upload, FileText, CheckCircle2, XCircle,
   Clock, TrendingUp, RefreshCw, ArrowRightLeft, Eye, QrCode, AlertTriangle,
+  ClipboardCheck, MessageSquarePlus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -37,6 +40,9 @@ export default function RetornoCNAB() {
   const [retornoNomeArquivo, setRetornoNomeArquivo] = useState("");
   const [resultadoRetorno, setResultadoRetorno] = useState<ResultadoRetorno | null>(null);
   const [detalhesRetornoId, setDetalhesRetornoId] = useState<number | null>(null);
+  const [excecaoSelecionada, setExcecaoSelecionada] = useState<any | null>(null);
+  const [acaoRevisao, setAcaoRevisao] = useState<"em_revisao" | "ignorada" | "demanda_criada">("em_revisao");
+  const [justificativaRevisao, setJustificativaRevisao] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const utils = trpc.useUtils();
@@ -69,6 +75,61 @@ export default function RetornoCNAB() {
     },
     onError: (err) => toast.error("Erro ao processar retorno: " + err.message),
   });
+
+  const revisarExcecaoMutation = trpc.cnab.revisarExcecaoRetorno.useMutation({
+    onSuccess: () => {
+      utils.cnab.listarExcecoesRetorno.invalidate();
+      toast.success("Decisão de revisão registrada. Nenhuma baixa financeira foi realizada.");
+      setExcecaoSelecionada(null);
+      setJustificativaRevisao("");
+    },
+    onError: (err) => toast.error("Não foi possível registrar a revisão: " + err.message),
+  });
+
+  const criarDemandaMutation = trpc.juridicoDemandas.create.useMutation();
+
+  const abrirRevisao = (item: any) => {
+    setExcecaoSelecionada(item);
+    setAcaoRevisao(item.revisao?.acao ?? "em_revisao");
+    setJustificativaRevisao(item.revisao?.justificativa ?? "");
+  };
+
+  const salvarRevisao = async () => {
+    if (!excecaoSelecionada) return;
+    if (justificativaRevisao.trim().length < 3) {
+      toast.error("Informe uma justificativa com ao menos 3 caracteres.");
+      return;
+    }
+    try {
+      let demandaId: number | undefined;
+      if (acaoRevisao === "demanda_criada") {
+        const demanda = await criarDemandaMutation.mutateAsync({
+          condominioId: excecaoSelecionada.condominioId,
+          canal: "processo_interno",
+          assunto: `Revisar exceção CNAB — ${excecaoSelecionada.nossoNumero}`,
+          descricao: [
+            `Arquivo: ${excecaoSelecionada.nomeArquivo}`,
+            `Nosso número: ${excecaoSelecionada.nossoNumero}`,
+            `Ocorrência: ${excecaoSelecionada.descOcorrencia ?? excecaoSelecionada.descMovimento}`,
+            `Valor: ${formatarMoeda(excecaoSelecionada.valorPago || excecaoSelecionada.valorTitulo)}`,
+            `Justificativa: ${justificativaRevisao.trim()}`,
+            "Observação: demanda criada a partir de exceção CNAB; nenhuma baixa foi efetuada.",
+          ].join("\n"),
+          tipo: "cobranca_judicial",
+          prioridade: excecaoSelecionada.gravidade === "alta" ? "alta" : "media",
+        });
+        demandaId = (demanda as any)?.id;
+      }
+      await revisarExcecaoMutation.mutateAsync({
+        retornoItemId: excecaoSelecionada.id,
+        acao: acaoRevisao,
+        justificativa: justificativaRevisao.trim(),
+        demandaId,
+      });
+    } catch (err: any) {
+      toast.error("Não foi possível concluir a revisão: " + (err?.message ?? "erro inesperado"));
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -172,7 +233,7 @@ export default function RetornoCNAB() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>Gravidade</TableHead><TableHead>Arquivo</TableHead><TableHead>Nosso número</TableHead><TableHead>Devedor</TableHead><TableHead>Ocorrência</TableHead><TableHead className="text-right">Valor</TableHead>
+                  <TableHead>Gravidade</TableHead><TableHead>Arquivo</TableHead><TableHead>Nosso número</TableHead><TableHead>Devedor</TableHead><TableHead>Ocorrência</TableHead><TableHead>Revisão</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-right">Ação</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>{excecoes.map((item) => (
                   <TableRow key={item.id}>
@@ -181,7 +242,9 @@ export default function RetornoCNAB() {
                     <TableCell className="font-mono text-xs">{item.nossoNumero}</TableCell>
                     <TableCell>{item.devedorNome ?? "Não identificado"}</TableCell>
                     <TableCell className="max-w-[250px]"><p className="truncate" title={item.descOcorrencia ?? item.observacao ?? item.descMovimento}>{item.descOcorrencia ?? item.observacao ?? item.descMovimento}</p></TableCell>
+                    <TableCell>{item.revisao ? <div className="space-y-0.5"><Badge variant="outline" className="text-xs">{item.revisao.acao === "em_revisao" ? "Em revisão" : item.revisao.acao === "ignorada" ? "Ignorada" : "Demanda criada"}</Badge><p className="text-[10px] text-muted-foreground">{item.revisao.decididoPorNome ?? "Usuário"}</p></div> : <span className="text-xs text-muted-foreground">Pendente</span>}</TableCell>
                     <TableCell className="text-right font-medium">{formatarMoeda(item.valorPago || item.valorTitulo)}</TableCell>
+                    <TableCell className="text-right"><Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => abrirRevisao(item)}><ClipboardCheck className="h-3.5 w-3.5" />Revisar</Button></TableCell>
                   </TableRow>
                 ))}</TableBody>
               </Table>
@@ -189,6 +252,22 @@ export default function RetornoCNAB() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!excecaoSelecionada} onOpenChange={(open) => !open && setExcecaoSelecionada(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-primary" />Revisar exceção CNAB</DialogTitle>
+            <DialogDescription>Esta tela registra somente uma decisão operacional. Ela não altera cobrança, acordo, saldo ou baixa financeira.</DialogDescription>
+          </DialogHeader>
+          {excecaoSelecionada && <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm space-y-1"><p><strong>Arquivo:</strong> {excecaoSelecionada.nomeArquivo}</p><p><strong>Nosso número:</strong> {excecaoSelecionada.nossoNumero}</p><p><strong>Ocorrência:</strong> {excecaoSelecionada.descOcorrencia ?? excecaoSelecionada.descMovimento}</p><p><strong>Valor informado:</strong> {formatarMoeda(excecaoSelecionada.valorPago || excecaoSelecionada.valorTitulo)}</p></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2"><Button variant={acaoRevisao === "em_revisao" ? "default" : "outline"} size="sm" onClick={() => setAcaoRevisao("em_revisao")}>Em revisão</Button><Button variant={acaoRevisao === "ignorada" ? "default" : "outline"} size="sm" onClick={() => setAcaoRevisao("ignorada")}>Ignorar</Button><Button variant={acaoRevisao === "demanda_criada" ? "default" : "outline"} size="sm" onClick={() => setAcaoRevisao("demanda_criada")}><MessageSquarePlus className="h-3.5 w-3.5 mr-1" />Criar demanda</Button></div>
+            <div className="space-y-1.5"><Label>Justificativa da decisão *</Label><Textarea value={justificativaRevisao} onChange={(e) => setJustificativaRevisao(e.target.value)} rows={4} placeholder="Descreva a conferência realizada e a decisão tomada." /></div>
+            <p className="text-xs text-amber-700 dark:text-amber-300">Não há botão de baixa nesta etapa. A vinculação e baixa de cobrança será uma etapa futura com confirmação reforçada.</p>
+            <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setExcecaoSelecionada(null)}>Cancelar</Button><Button onClick={salvarRevisao} disabled={revisarExcecaoMutation.isPending || criarDemandaMutation.isPending}>{(revisarExcecaoMutation.isPending || criarDemandaMutation.isPending) && <RefreshCw className="h-4 w-4 mr-1 animate-spin" />}Salvar revisão</Button></div>
+          </div>}
+        </DialogContent>
+      </Dialog>
 
       {/* Upload */}
           <Card>

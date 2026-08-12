@@ -3769,7 +3769,7 @@ export const appRouter = router({
       .query(async ({ input, ctx }) => {
         const db = await (await import("./db")).getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-        const { retornoItens, retornosCNAB, cobrancas, devedores } = await import("../drizzle/schema");
+        const { retornoItens, retornosCNAB, cobrancas, devedores, retornoExcecaoRevisoes } = await import("../drizzle/schema");
         const { and, desc, eq, inArray } = await import("drizzle-orm");
         const { classificarExcecaoRetorno } = await import("./db-cnab");
         const adminPodeVerTodos = ["admin", "advogado"].includes(ctx.user.role) && !input.condominioId;
@@ -3803,13 +3803,64 @@ export const appRouter = router({
           .orderBy(desc(retornoItens.createdAt))
           .limit(input.limit);
 
+        const ids = itens.map((item) => item.id);
+        const revisoes = ids.length > 0
+          ? await db.select().from(retornoExcecaoRevisoes)
+            .where(inArray(retornoExcecaoRevisoes.retornoItemId, ids))
+            .orderBy(desc(retornoExcecaoRevisoes.id))
+          : [];
+        const ultimaRevisaoPorItem = new Map<number, typeof revisoes[number]>();
+        for (const revisao of revisoes) {
+          if (!ultimaRevisaoPorItem.has(revisao.retornoItemId)) ultimaRevisaoPorItem.set(revisao.retornoItemId, revisao);
+        }
+
         return itens.map((item) => ({
           ...item,
           gravidade: classificarExcecaoRetorno({
             statusProcessamento: item.statusProcessamento as "nao_encontrado" | "erro",
             valorPago: item.valorPago,
           }),
+          revisao: ultimaRevisaoPorItem.get(item.id) ?? null,
         }));
+      }),
+
+    // Registra decisão de revisão humana. Esta procedure não altera cobrança, acordo ou baixa financeira.
+    revisarExcecaoRetorno: protectedProcedure
+      .input(z.object({
+        retornoItemId: z.number().int().positive(),
+        acao: z.enum(["em_revisao", "ignorada", "demanda_criada"]),
+        justificativa: z.string().trim().min(3).max(2000),
+        demandaId: z.number().int().positive().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.acao === "demanda_criada" && !input.demandaId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Informe a demanda criada para concluir esta revisão" });
+        }
+        const { validarDecisaoManual } = await import("./revisao-excecao-cnab");
+        validarDecisaoManual(input.acao, input.demandaId);
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { retornoItens, retornosCNAB, retornoExcecaoRevisoes } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [item] = await db.select({ id: retornoItens.id, condominioId: retornosCNAB.condominioId })
+          .from(retornoItens)
+          .innerJoin(retornosCNAB, eq(retornoItens.retornoId, retornosCNAB.id))
+          .where(eq(retornoItens.id, input.retornoItemId))
+          .limit(1);
+        if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Exceção não encontrada" });
+        if (!["admin", "advogado"].includes(ctx.user.role) && ctx.user.condominioId !== item.condominioId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para revisar esta exceção" });
+        }
+
+        const [registro] = await db.insert(retornoExcecaoRevisoes).values({
+          retornoItemId: input.retornoItemId,
+          acao: input.acao,
+          justificativa: input.justificativa,
+          demandaId: input.demandaId,
+          decididoPorId: ctx.user.id,
+          decididoPorNome: ctx.user.name ?? ctx.user.email ?? null,
+        });
+        return { id: (registro as any).insertId, baixaAutomatica: false };
       }),
 
     // Lista parcelas de acordo pendentes de remessa (statusRemessa = nao_enviado)

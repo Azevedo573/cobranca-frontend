@@ -549,6 +549,20 @@ export const retornoItens = mysqlTable("retornoItens", {
 export type RetornoItem = typeof retornoItens.$inferSelect;
 export type InsertRetornoItem = typeof retornoItens.$inferInsert;
 
+// Decisões manuais de revisão para exceções de retorno. Não realiza baixa ou conciliação.
+export const retornoExcecaoRevisoes = mysqlTable("retornoExcecaoRevisoes", {
+  id: int("id").autoincrement().primaryKey(),
+  retornoItemId: int("retornoItemId").notNull(),
+  acao: mysqlEnum("acaoRevisaoRetorno", ["em_revisao", "ignorada", "demanda_criada"]).notNull(),
+  justificativa: text("justificativa").notNull(),
+  demandaId: int("demandaId"),
+  decididoPorId: int("decididoPorId").notNull(),
+  decididoPorNome: varchar("decididoPorNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type RetornoExcecaoRevisao = typeof retornoExcecaoRevisoes.$inferSelect;
+export type InsertRetornoExcecaoRevisao = typeof retornoExcecaoRevisoes.$inferInsert;
+
 // ─── Recuperação de Senha ──────────────────────────────────────────────────
 // Tokens temporários para fluxo "Esqueci minha senha"
 // tokenHash = SHA-256 do token enviado por e-mail (nunca armazenar o token bruto)

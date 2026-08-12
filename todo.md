@@ -2733,6 +2733,21 @@
 - [x] Adicionar evento manual a partir da publicação com registro de origem
 - [x] Adicionar histórico manual a partir da publicação com registro de origem
 - [x] Exibir confirmação de cada tratamento e criar testes dos dados pré-preenchidos
+
+## Alertas Jurídicos Consolidados
+- [ ] Consolidar prazos vencidos e próximos do vencimento por prioridade
+- [ ] Consolidar publicações não tratadas
+- [ ] Identificar processos TJRJ sem sincronização recente
+- [ ] Exibir links acionáveis para cada alerta no dashboard jurídico
+- [ ] Cobrir classificação e ordenação dos alertas com testes
+
+## Resolução Manual de Exceções CNAB
+- [x] Criar estado de revisão e trilha de decisão para itens de exceção CNAB
+- [x] Permitir marcar exceção como em revisão ou ignorada com justificativa
+- [x] Permitir criar demanda de análise a partir de exceção CNAB
+- [x] Exibir histórico de decisão, usuário e data na tela de retorno
+- [x] Impedir por contrato qualquer baixa ou conciliação financeira automática
+- [x] Cobrir ações de revisão e bloqueio de baixa com testes
 ## Onda 0 - Fundação Operacional
 - [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
 - [x] Criar tabela e procedures de histórico de execuções de integração/job
