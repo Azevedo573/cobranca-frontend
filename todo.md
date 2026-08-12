@@ -2763,6 +2763,18 @@
 - [x] Substituir exclusão física por isDeleted=1 e isActive=0
 - [x] Permitir restauração administrativa com auditoria e confirmação
 - [x] Cobrir exclusão, filtro e restauração com testes
+
+## Segurança Crítica - Respostas e Sessões Administrativas
+- [ ] Remover passwordHash e demais campos de autenticação de users.getById e listagens
+- [ ] Remover senhas e credenciais de condomínio de respostas administrativas genéricas
+- [ ] Cobrir contratos tRPC contra regressão de exposição de segredo
+- [ ] Revisar atributos da sessão administrativa e documentar rotação imediata do JWT_SECRET
+
+## Segurança Crítica - Administrador Principal
+- [x] Remover isPrimaryAdmin das mutations genéricas de criação e edição
+- [x] Manter promoção somente em definirAdminPrincipal com validação e auditoria
+- [x] Atualizar formulário para não enviar privilégio principal de forma genérica
+- [x] Cobrir bloqueio de elevação indevida com testes
 ## Onda 0 - Fundação Operacional
 - [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
 - [x] Criar tabela e procedures de histórico de execuções de integração/job

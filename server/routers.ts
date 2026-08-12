@@ -2047,7 +2047,7 @@ export const appRouter = router({
       if (!db) return [];
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      return await db.select().from(users).where(input?.includeDeleted ? undefined : eq(users.isDeleted, 0));
+      return await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(input?.includeDeleted ? undefined : eq(users.isDeleted, 0));
     }),
     getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getDb } = await import("./db");
@@ -2055,7 +2055,7 @@ export const appRouter = router({
       if (!db) return null;
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      const result = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
+      const result = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(eq(users.id, input.id)).limit(1);
       return result[0] || null;
     }),
     // Listar usuários de um condomínio específico
@@ -2067,7 +2067,7 @@ export const appRouter = router({
         if (!db) return [];
         const { users } = await import("../drizzle/schema");
         const { eq, and } = await import("drizzle-orm");
-        return await db.select().from(users).where(input.includeDeleted
+        return await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(input.includeDeleted
           ? eq(users.condominioId, input.condominioId)
           : and(eq(users.condominioId, input.condominioId), eq(users.isDeleted, 0)));
       }),
@@ -2105,7 +2105,6 @@ export const appRouter = router({
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]),
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
-      isPrimaryAdmin: z.number().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
@@ -2127,11 +2126,6 @@ export const appRouter = router({
       const hashedPassword = await bcrypt.default.hash(input.password, 10);
       const openId = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-      // Se isPrimaryAdmin, remover flag dos demais do mesmo condomínio
-      if (input.isPrimaryAdmin && input.condominioId) {
-        await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, input.condominioId));
-      }
-
       const insertResult = await db.insert(users).values({
         openId,
         name: input.name,
@@ -2140,7 +2134,7 @@ export const appRouter = router({
         loginMethod: "custom",
         role: input.role,
         condominioId: input.condominioId,
-        isPrimaryAdmin: input.isPrimaryAdmin ?? 0,
+        isPrimaryAdmin: 0,
         isActive: input.isActive ?? 1,
       });
       await logAudit(ctx, { action: "create", entity: "user", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, email: emailNormalizado, role: input.role, isActive: input.isActive ?? 1 }, severity: "info" });
@@ -2154,9 +2148,8 @@ export const appRouter = router({
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]).optional(),
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
-      isPrimaryAdmin: z.number().optional(),
     })).mutation(async ({ input, ctx }) => {
-      const { id, password, isPrimaryAdmin, condominioId, ...data } = input;
+      const { id, password, condominioId, ...data } = input;
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -2171,9 +2164,6 @@ export const appRouter = router({
         const erroSenha = validarSenhaDeUsuario(password);
         if (erroSenha) throw new TRPCError({ code: "BAD_REQUEST", message: erroSenha });
       }
-      if (target.isPrimaryAdmin === 1 && isPrimaryAdmin === 0) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Transfira primeiro o administrador principal para outro usuário" });
-      }
       const removendoAdminOuDesativando = (target.role === "admin" && input.role && input.role !== "admin") || input.isActive === 0;
       if (removendoAdminOuDesativando) {
         const [admins] = await db.select({ total: count() }).from(users).where(and(eq(users.role, "admin"), eq(users.isActive, 1), eq(users.isDeleted, 0)));
@@ -2183,7 +2173,6 @@ export const appRouter = router({
 
       const updateData: any = { ...data };
       if (condominioId !== undefined) updateData.condominioId = condominioId;
-      if (isPrimaryAdmin !== undefined) updateData.isPrimaryAdmin = isPrimaryAdmin;
       if (input.email && input.email.toLowerCase() !== (target.email ?? "").toLowerCase()) {
         const duplicado = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email.toLowerCase())).limit(1);
         if (duplicado.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
@@ -2194,11 +2183,8 @@ export const appRouter = router({
         updateData.passwordHash = await bcrypt.default.hash(password, 10);
       }
 
-      if (isPrimaryAdmin === 1 && condominioId) {
-        await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, condominioId));
-      }
       await db.update(users).set(updateData).where(eq(users.id, id));
-      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, afterData: { name: updateData.name ?? target.name, email: updateData.email ?? target.email, role: updateData.role ?? target.role, isActive: updateData.isActive ?? target.isActive, isPrimaryAdmin: updateData.isPrimaryAdmin ?? target.isPrimaryAdmin }, severity: isPrimaryAdmin === 1 ? "warning" : "info" });
+      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, afterData: { name: updateData.name ?? target.name, email: updateData.email ?? target.email, role: updateData.role ?? target.role, isActive: updateData.isActive ?? target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, severity: "info" });
       return { success: true };
     }),
     delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
