@@ -37,6 +37,7 @@ import {
   Mic,
   ListTodo,
   History,
+  RefreshCw,
 } from "lucide-react";
 import { ModalCriarDemanda } from "./CentralDemandas";
 import { ConsultaTJRJ } from "@/components/ConsultaTJRJ";
@@ -107,19 +108,27 @@ function ProcessoVinculado({
   pubTexto,
   pubTipo,
   pubData,
+  pubTribunal,
+  pubOrgao,
+  pubClasse,
 }: {
   numeroProcesso: string | null | undefined;
   pubTexto?: string | null;
   pubTipo?: string | null;
   pubData?: string | Date | null;
+  pubTribunal?: string | null;
+  pubOrgao?: string | null;
+  pubClasse?: string | null;
 }) {
   const busca = numeroProcesso?.replace(/\D/g, "").slice(0, 20) ?? "";
   const [modalMov, setModalMov] = useState(false);
   const [formMov, setFormMov] = useState({ descricao: "", tipo: "outro", data: "" });
   const addMovimentacao = trpc.processos.addMovimentacao.useMutation();
+  const criarOuLocalizar = trpc.processos.criarOuLocalizarPorCNJ.useMutation();
+  const sincronizarTJRJ = trpc.tjrj.sincronizarMovimentos.useMutation();
   const utils = trpc.useUtils();
 
-  const { data: processos = [], isLoading } = trpc.processos.listar.useQuery(
+  const { data: processos = [], isLoading, refetch } = trpc.processos.listar.useQuery(
     { busca: numeroProcesso ?? "" },
     { enabled: !!numeroProcesso && numeroProcesso.length > 5 }
   );
@@ -129,6 +138,45 @@ function ProcessoVinculado({
     const cnj = p.numeroCNJ?.replace(/\D/g, "") ?? "";
     return cnj === busca || p.numeroCNJ === numeroProcesso;
   }) ?? (processos.length === 1 ? processos[0] : null);
+
+  const handleAdicionarEVerificar = async () => {
+    if (!numeroProcesso) return;
+    const numeroCNJ = numeroProcesso.trim();
+    try {
+      const resultado = await criarOuLocalizar.mutateAsync({
+        numeroCNJ,
+        tribunal: pubTribunal || "TJRJ",
+        tribunalAlias: (pubTribunal || "TJRJ").toLowerCase(),
+        vara: pubOrgao || undefined,
+        classe: pubClasse || undefined,
+        assunto: pubTipo || undefined,
+        dataAjuizamento: pubData
+          ? new Date(typeof pubData === "string" ? `${pubData.slice(0, 10)}T12:00:00` : pubData)
+          : undefined,
+        observacoes: `Processo criado ou vinculado a partir de publicação PJe.${pubTipo ? ` Tipo: ${pubTipo}.` : ""}${pubTexto ? ` Conteúdo: ${pubTexto.slice(0, 1200)}` : ""}`,
+      });
+
+      await utils.processos.listar.invalidate({ busca: numeroProcesso });
+      await refetch();
+
+      try {
+        const sync = await sincronizarTJRJ.mutateAsync({
+          processoId: resultado.processo.id,
+          numeroCNJ,
+          tipoProcesso: "1",
+        });
+        toast.success(resultado.criado ? "Processo cadastrado e verificado no TJRJ" : "Processo localizado e verificado no TJRJ", {
+          description: `${sync.inseridas} movimentação(ões) adicionada(s), ${sync.atualizadas ?? 0} atualizada(s).`,
+        });
+      } catch (erro: any) {
+        toast.warning(resultado.criado ? "Processo cadastrado, mas a verificação TJRJ falhou" : "Processo localizado, mas a verificação TJRJ falhou", {
+          description: erro?.message || "Você pode tentar verificar o TJRJ novamente na página do processo.",
+        });
+      }
+    } catch (erro: any) {
+      toast.error("Não foi possível adicionar o processo", { description: erro?.message });
+    }
+  };
 
   if (!numeroProcesso) {
     return (
@@ -162,12 +210,17 @@ function ProcessoVinculado({
           <p className="text-xs text-muted-foreground mt-1">
             O processo <span className="font-mono">{numeroProcesso}</span> não foi encontrado na base de dados.
           </p>
-          <Link href="/admin/juridico/processos">
-            <Button variant="outline" size="sm" className="mt-3 text-xs">
-              <Scale className="h-3.5 w-3.5 mr-1.5" />
-              Ir para Processos
-            </Button>
-          </Link>
+          <Button
+            size="sm"
+            className="mt-3 text-xs"
+            disabled={criarOuLocalizar.isPending || sincronizarTJRJ.isPending}
+            onClick={handleAdicionarEVerificar}
+          >
+            {criarOuLocalizar.isPending || sincronizarTJRJ.isPending
+              ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              : <PlusCircle className="h-3.5 w-3.5 mr-1.5" />}
+            Adicionar e verificar TJRJ
+          </Button>
         </CardContent>
       </Card>
     );
@@ -209,6 +262,16 @@ function ProcessoVinculado({
               Abrir
             </Button>
           </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            disabled={sincronizarTJRJ.isPending}
+            onClick={handleAdicionarEVerificar}
+          >
+            {sincronizarTJRJ.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Verificar TJRJ
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -667,6 +730,9 @@ export default function PublicacaoDetalhes() {
                   pubTexto={pub.texto}
                   pubTipo={pub.tipoComunicacao}
                   pubData={pub.dataDisponibilizacao}
+                  pubTribunal={pub.siglaTribunal}
+                  pubOrgao={pub.nomeOrgao}
+                  pubClasse={pub.nomeClasse}
                 />
               </div>
 

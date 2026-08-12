@@ -39,6 +39,7 @@ import {
   buscarProcessosPorNomeAdvogadoMultiTribunal,
   TRIBUNAIS_ALIASES,
 } from "../datajud";
+import { encontrarProcessoPorCNJ } from "../processos-cnj";
 
 // ─── Funções auxiliares ─────────────────────────────────────────────────────────
 
@@ -137,6 +138,37 @@ export const processosRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       return createProcesso({ ...input, criadoPorId: ctx.user.id });
+    }),
+
+  // Cria ou localiza por CNJ, evitando duplicidade em integrações como publicações PJe.
+  criarOuLocalizarPorCNJ: protectedProcedure
+    .input(z.object({
+      numeroCNJ: z.string().min(5).max(30),
+      tribunal: z.string().min(1).max(20),
+      tribunalAlias: z.string().optional(),
+      vara: z.string().optional(),
+      classe: z.string().optional(),
+      assunto: z.string().optional(),
+      dataAjuizamento: z.date().optional(),
+      observacoes: z.string().max(5000).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const candidatos = await getProcessos({ busca: input.numeroCNJ });
+      const existente = encontrarProcessoPorCNJ(candidatos, input.numeroCNJ);
+
+      if (existente) return { processo: existente, criado: false };
+
+      const processo = await createProcesso({
+        ...input,
+        tipo: "civel",
+        faseProcessual: "distribuicao",
+        status: "ativo",
+        criadoPorId: ctx.user.id,
+      });
+      if (!processo) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível criar o processo" });
+      }
+      return { processo, criado: true };
     }),
 
   // Atualizar processo

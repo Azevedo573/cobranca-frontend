@@ -2718,6 +2718,14 @@
 - [x] Normalizar a leitura de payload TJRJ atual e legado no painel de detalhes
 - [x] Criar teste de regressão para a movimentação com conteúdo completo
 - [x] Validar a seleção da timeline e orientar ressincronização somente se necessária
+
+## Publicação Jurídica → Processo + TJRJ
+- [x] Criar ou localizar processo judicial pelo CNJ ao acionar o card da publicação
+- [x] Pré-preencher dados disponíveis da publicação na criação do processo
+- [x] Impedir processos duplicados pelo número CNJ
+- [x] Sincronizar movimentações no TJRJ após a criação/localização do processo
+- [x] Atualizar o card da publicação com resultado e link para o processo
+- [x] Cobrir criação idempotente e chamada de sincronização com testes
 ## Onda 0 - Fundação Operacional
 - [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
 - [x] Criar tabela e procedures de histórico de execuções de integração/job
