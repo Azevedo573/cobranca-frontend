@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { TratamentosPublicacao } from "@/components/TratamentosPublicacao";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -517,40 +518,7 @@ export default function PublicacaoDetalhes() {
 
               {/* Lado direito: botões de ação */}
               <div className="flex items-center gap-2 shrink-0">
-                {/* Dropdown Tratamentos */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5">
-                      <PlusCircle className="h-4 w-4" />
-                      Tratamentos
-                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={() => toast.info("Em breve: Adicionar prazo")}>
-                      <Timer className="h-4 w-4 mr-2 text-muted-foreground" />
-                      Adicionar prazo
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => toast.info("Em breve: Adicionar audiência")}>
-                      <Mic className="h-4 w-4 mr-2 text-muted-foreground" />
-                      Adicionar audiência
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setShowNovaDemanda(true)}>
-                      <ListTodo className="h-4 w-4 mr-2 text-muted-foreground" />
-                      Adicionar tarefa
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => toast.info("Em breve: Adicionar evento")}>
-                      <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      Adicionar evento
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => toast.info("Em breve: Adicionar histórico manual")}>
-                      <History className="h-4 w-4 mr-2 text-muted-foreground" />
-                      Adicionar histórico manual
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <TratamentosPublicacao pub={pub} onAdicionarTarefa={() => setShowNovaDemanda(true)} />
               </div>
             </div>
           </div>

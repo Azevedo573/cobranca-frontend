@@ -2726,6 +2726,13 @@
 - [x] Sincronizar movimentações no TJRJ após a criação/localização do processo
 - [x] Atualizar o card da publicação com resultado e link para o processo
 - [x] Cobrir criação idempotente e chamada de sincronização com testes
+
+## Tratamentos de Publicação PJe
+- [x] Adicionar prazo a partir da publicação com dados pré-preenchidos e vínculo ao processo
+- [x] Adicionar audiência a partir da publicação com dados pré-preenchidos e vínculo ao processo
+- [x] Adicionar evento manual a partir da publicação com registro de origem
+- [x] Adicionar histórico manual a partir da publicação com registro de origem
+- [x] Exibir confirmação de cada tratamento e criar testes dos dados pré-preenchidos
 ## Onda 0 - Fundação Operacional
 - [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
 - [x] Criar tabela e procedures de histórico de execuções de integração/job
