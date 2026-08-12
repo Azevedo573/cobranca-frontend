@@ -118,8 +118,6 @@ export default function CondominioForm() {
     email: "",
     managerName: "",
     managerEmail: "",
-    username: "",
-    password: "",
     // Cobrança
     taxaJurosMensal: "1.00",
     taxaMulta: "2.00",
@@ -207,8 +205,6 @@ export default function CondominioForm() {
         managerName: condominio.managerName || "",
         managerEmail: condominio.managerEmail || "",
         tipo: ((condominio as any).tipo || "condominio") as "condominio" | "empresa",
-        username: condominio.username || "",
-        password: "",
         taxaJurosMensal: condominio.taxaJurosMensal || "1.00",
         taxaMulta: condominio.taxaMulta || "2.00",
         taxaHonorarios: condominio.taxaHonorarios || "10.00",

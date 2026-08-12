@@ -3,17 +3,23 @@ import { condominios, InsertCondominio } from "../drizzle/schema";
 import { getDb } from "./db";
 import bcrypt from "bcryptjs";
 
+export function semCredenciais<T extends Record<string, unknown>>(condominio: T) {
+  const { password: _password, username: _username, ...dadosSeguros } = condominio;
+  return dadosSeguros;
+}
+
 export async function getAllCondominios() {
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(condominios);
+  const rows = await db.select().from(condominios);
+  return rows.map((row) => semCredenciais(row));
 }
 
 export async function getCondominioById(id: number) {
   const db = await getDb();
   if (!db) return null;
   const result = await db.select().from(condominios).where(eq(condominios.id, id)).limit(1);
-  return result[0] || null;
+  return result[0] ? semCredenciais(result[0]) : null;
 }
 
 export async function createCondominio(data: InsertCondominio) {

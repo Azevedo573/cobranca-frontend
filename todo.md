@@ -2765,10 +2765,10 @@
 - [x] Cobrir exclusão, filtro e restauração com testes
 
 ## Segurança Crítica - Respostas e Sessões Administrativas
-- [ ] Remover passwordHash e demais campos de autenticação de users.getById e listagens
-- [ ] Remover senhas e credenciais de condomínio de respostas administrativas genéricas
-- [ ] Cobrir contratos tRPC contra regressão de exposição de segredo
-- [ ] Revisar atributos da sessão administrativa e documentar rotação imediata do JWT_SECRET
+- [x] Remover passwordHash e demais campos de autenticação de users.getById e listagens
+- [x] Remover senhas e credenciais de condomínio de respostas administrativas genéricas
+- [x] Cobrir contratos tRPC contra regressão de exposição de segredo
+- [x] Revisar atributos da sessão administrativa e documentar rotação imediata do JWT_SECRET
 
 ## Segurança Crítica - Administrador Principal
 - [x] Remover isPrimaryAdmin das mutations genéricas de criação e edição
