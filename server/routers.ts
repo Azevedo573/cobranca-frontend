@@ -2041,12 +2041,13 @@ export const appRouter = router({
 
   // Usuários (apenas admin)
   users: router({
-    list: adminProcedure.query(async () => {
+    list: adminProcedure.input(z.object({ includeDeleted: z.boolean().default(false) }).optional()).query(async ({ input }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) return [];
       const { users } = await import("../drizzle/schema");
-      return await db.select().from(users);
+      const { eq } = await import("drizzle-orm");
+      return await db.select().from(users).where(input?.includeDeleted ? undefined : eq(users.isDeleted, 0));
     }),
     getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getDb } = await import("./db");
@@ -2059,20 +2060,22 @@ export const appRouter = router({
     }),
     // Listar usuários de um condomínio específico
     listByCondominio: adminProcedure
-      .input(z.object({ condominioId: z.number() }))
+      .input(z.object({ condominioId: z.number(), includeDeleted: z.boolean().default(false) }))
       .query(async ({ input }) => {
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
         const { users } = await import("../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
-        return await db.select().from(users).where(eq(users.condominioId, input.condominioId));
+        const { eq, and } = await import("drizzle-orm");
+        return await db.select().from(users).where(input.includeDeleted
+          ? eq(users.condominioId, input.condominioId)
+          : and(eq(users.condominioId, input.condominioId), eq(users.isDeleted, 0)));
       }),
 
     // Definir administrador principal do condomínio
     definirAdminPrincipal: adminProcedure
       .input(z.object({ userId: z.number(), condominioId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
@@ -2083,19 +2086,22 @@ export const appRouter = router({
         const target = await db.select().from(users)
           .where(and(eq(users.id, input.userId), eq(users.condominioId, input.condominioId)))
           .limit(1);
-        if (!target.length) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado neste condomínio" });
+        if (!target.length || target[0].isActive !== 1 || target[0].isDeleted === 1) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Usuário ativo não encontrado neste condomínio" });
+        }
 
         // Remover isPrimaryAdmin de todos os usuários do condomínio
         await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, input.condominioId));
         // Definir o novo admin principal
         await db.update(users).set({ isPrimaryAdmin: 1 }).where(eq(users.id, input.userId));
+        await logAudit(ctx, { action: "update", entity: "user", entityId: String(input.userId), entityLabel: target[0].name ?? undefined, condominioId: input.condominioId, afterData: { isPrimaryAdmin: 1, motivo: "Administrador principal definido" }, severity: "warning" });
         return { success: true };
       }),
 
     create: adminProcedure.input(z.object({
-      name: z.string(),
-      email: z.string().email(),
-      password: z.string(),
+      name: z.string().trim().min(2).max(255),
+      email: z.string().trim().email().max(320),
+      password: z.string().min(10).max(128),
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]),
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
@@ -2105,10 +2111,15 @@ export const appRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
+      const { validarSenhaDeUsuario } = await import("./user-management-security");
+      const erroSenha = validarSenhaDeUsuario(input.password);
+      if (erroSenha) throw new TRPCError({ code: "BAD_REQUEST", message: erroSenha });
+      const emailNormalizado = input.email.toLowerCase();
+
       // Verificar duplicidade de email
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1);
+      const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, emailNormalizado)).limit(1);
       if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
 
       // Gerar hash da senha
@@ -2124,7 +2135,7 @@ export const appRouter = router({
       const insertResult = await db.insert(users).values({
         openId,
         name: input.name,
-        email: input.email,
+        email: emailNormalizado,
         passwordHash: hashedPassword,
         loginMethod: "custom",
         role: input.role,
@@ -2132,65 +2143,94 @@ export const appRouter = router({
         isPrimaryAdmin: input.isPrimaryAdmin ?? 0,
         isActive: input.isActive ?? 1,
       });
-      await logAudit(ctx, { action: "create", entity: "user", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, email: input.email, role: input.role }, severity: "info" });
+      await logAudit(ctx, { action: "create", entity: "user", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, email: emailNormalizado, role: input.role, isActive: input.isActive ?? 1 }, severity: "info" });
       return insertResult;
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
-      name: z.string().optional(),
-      email: z.string().email().optional(),
-      password: z.string().optional(),
+      name: z.string().trim().min(2).max(255).optional(),
+      email: z.string().trim().email().max(320).optional(),
+      password: z.string().min(10).max(128).optional(),
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]).optional(),
       condominioId: z.number().optional(),
       isActive: z.number().optional(),
       isPrimaryAdmin: z.number().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { id, password, isPrimaryAdmin, condominioId, ...data } = input;
-
-      let updateData: any = { ...data };
-      if (condominioId !== undefined) updateData.condominioId = condominioId;
-      if (isPrimaryAdmin !== undefined) updateData.isPrimaryAdmin = isPrimaryAdmin;
-
-      if (password) {
-        const bcrypt = await import("bcryptjs");
-        const hashedPassword = await bcrypt.default.hash(password, 10);
-        updateData.passwordHash = hashedPassword;
-      }
-
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { users } = await import("../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
+      const { eq, and, count } = await import("drizzle-orm");
+      const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
+      if (target.isDeleted === 1) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Restaure o usuário antes de editá-lo" });
 
-      // Se definindo como admin principal, remover flag dos demais do condomínio
+      const { validarSenhaDeUsuario, motivoBloqueioDesativacao } = await import("./user-management-security");
+      if (password) {
+        const erroSenha = validarSenhaDeUsuario(password);
+        if (erroSenha) throw new TRPCError({ code: "BAD_REQUEST", message: erroSenha });
+      }
+      if (target.isPrimaryAdmin === 1 && isPrimaryAdmin === 0) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Transfira primeiro o administrador principal para outro usuário" });
+      }
+      const removendoAdminOuDesativando = (target.role === "admin" && input.role && input.role !== "admin") || input.isActive === 0;
+      if (removendoAdminOuDesativando) {
+        const [admins] = await db.select({ total: count() }).from(users).where(and(eq(users.role, "admin"), eq(users.isActive, 1), eq(users.isDeleted, 0)));
+        const bloqueio = motivoBloqueioDesativacao({ actorId: ctx.user.id, targetId: target.id, targetIsPrimary: target.isPrimaryAdmin === 1, targetRole: target.role, targetIsActive: target.isActive === 1, totalAdminsAtivos: admins.total ?? 0 });
+        if (bloqueio) throw new TRPCError({ code: "PRECONDITION_FAILED", message: bloqueio });
+      }
+
+      const updateData: any = { ...data };
+      if (condominioId !== undefined) updateData.condominioId = condominioId;
+      if (isPrimaryAdmin !== undefined) updateData.isPrimaryAdmin = isPrimaryAdmin;
+      if (input.email && input.email.toLowerCase() !== (target.email ?? "").toLowerCase()) {
+        const duplicado = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email.toLowerCase())).limit(1);
+        if (duplicado.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
+        updateData.email = input.email.toLowerCase();
+      }
+      if (password) {
+        const bcrypt = await import("bcryptjs");
+        updateData.passwordHash = await bcrypt.default.hash(password, 10);
+      }
+
       if (isPrimaryAdmin === 1 && condominioId) {
         await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, condominioId));
       }
-
       await db.update(users).set(updateData).where(eq(users.id, id));
-      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), afterData: { name: input.name, role: input.role, isActive: input.isActive, isPrimaryAdmin: input.isPrimaryAdmin }, severity: isPrimaryAdmin === 1 ? "warning" : "info" });
+      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, afterData: { name: updateData.name ?? target.name, email: updateData.email ?? target.email, role: updateData.role ?? target.role, isActive: updateData.isActive ?? target.isActive, isPrimaryAdmin: updateData.isPrimaryAdmin ?? target.isPrimaryAdmin }, severity: isPrimaryAdmin === 1 ? "warning" : "info" });
       return { success: true };
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+    delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("./db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const { users } = await import("../drizzle/schema");
+      const { eq, and, count } = await import("drizzle-orm");
+      const [target] = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
+      if (target.isDeleted === 1) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Este usuário já está excluído logicamente" });
+      const [admins] = await db.select({ total: count() }).from(users).where(and(eq(users.role, "admin"), eq(users.isActive, 1), eq(users.isDeleted, 0)));
+      const { motivoBloqueioDesativacao } = await import("./user-management-security");
+      const bloqueio = motivoBloqueioDesativacao({ actorId: ctx.user.id, targetId: target.id, targetIsPrimary: target.isPrimaryAdmin === 1, targetRole: target.role, targetIsActive: target.isActive === 1, totalAdminsAtivos: admins.total ?? 0 });
+      if (bloqueio) throw new TRPCError({ code: "PRECONDITION_FAILED", message: bloqueio });
+
+      await db.update(users).set({ isActive: 0, isDeleted: 1, isPrimaryAdmin: 0 }).where(eq(users.id, input.id));
+      await logAudit(ctx, { action: "delete", entity: "user", entityId: String(input.id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isDeleted: target.isDeleted }, afterData: { isActive: 0, isDeleted: 1, motivo: "Exclusão lógica administrativa" }, severity: "warning" });
+      return { success: true, softDeleted: true };
+    }),
+    restore: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-
-      // Proteger admin principal: não permitir exclusão sem substituição
-      const target = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
-      if (target.length && target[0].isPrimaryAdmin === 1) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Não é possível excluir o administrador principal. Defina outro usuário como administrador principal antes de excluir este.",
-        });
-      }
-
-      await db.delete(users).where(eq(users.id, input.id));
-      await logAudit(ctx, { action: "delete", entity: "user", entityId: String(input.id), severity: "critical" });
-      return { success: true };
+      const [target] = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
+      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
+      if (target.isDeleted !== 1) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Este usuário não está excluído" });
+      await db.update(users).set({ isDeleted: 0, isActive: 0, isPrimaryAdmin: 0 }).where(eq(users.id, input.id));
+      await logAudit(ctx, { action: "update", entity: "user", entityId: String(input.id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { isDeleted: 1, isActive: target.isActive }, afterData: { isDeleted: 0, isActive: 0, motivo: "Usuário restaurado como inativo" }, severity: "warning" });
+      return { success: true, restored: true, isActive: 0 };
     }),
   }),
 

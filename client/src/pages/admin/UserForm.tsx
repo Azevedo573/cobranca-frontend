@@ -90,8 +90,8 @@ export default function UserForm() {
       return;
     }
 
-    if (!isEdit && formData.password.length < 6) {
-      toast.error("Senha deve ter no mínimo 6 caracteres");
+    if (formData.password && (formData.password.length < 10 || !/[a-z]/.test(formData.password) || !/[A-Z]/.test(formData.password) || !/\d/.test(formData.password))) {
+      toast.error("A senha deve ter ao menos 10 caracteres, letra maiúscula, minúscula e número");
       return;
     }
 
@@ -211,7 +211,7 @@ export default function UserForm() {
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={handleChange}
-                    placeholder={isEdit ? "Digite apenas se quiser alterar" : "Mínimo 6 caracteres"}
+                    placeholder={isEdit ? "Digite apenas se quiser alterar" : "Mínimo 10 caracteres, maiúscula, minúscula e número"}
                     required={!isEdit}
                   />
                   <Button

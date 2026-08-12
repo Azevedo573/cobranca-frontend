@@ -16,6 +16,7 @@ export const users = mysqlTable("users", {
   condominioId: int("condominioId"),
   isPrimaryAdmin: int("isPrimaryAdmin").default(0).notNull(), // 1 = administrador principal do condomínio
   isActive: int("isActive").default(1).notNull(),
+  isDeleted: int("isDeleted").default(0).notNull(),
   profileId: int("profileId"), // FK para profiles.id (nullable = sem perfil personalizado)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

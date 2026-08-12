@@ -18,7 +18,7 @@ export async function authenticateAdmin(email: string, password: string) {
   const user = await db
     .select()
     .from(users)
-    .where(and(eq(users.email, email), eq(users.role, "admin")))
+    .where(and(eq(users.email, email.toLowerCase()), eq(users.role, "admin"), eq(users.isDeleted, 0)))
     .limit(1)
     .then((rows) => rows[0]);
 
@@ -30,7 +30,7 @@ export async function authenticateAdmin(email: string, password: string) {
   }
 
   // Verificar se o usuário está ativo
-  if (user.isActive !== 1) {
+  if (user.isActive !== 1 || user.isDeleted === 1) {
     return {
       success: false,
       message: "Usuário inativo",

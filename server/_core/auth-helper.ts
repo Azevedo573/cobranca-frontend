@@ -1,7 +1,7 @@
 import { jwtVerify } from "jose";
 import { ENV } from "./env";
 import type { User } from "../../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { condominios, users } from "../../drizzle/schema";
 import { getDb } from "../db";
 
@@ -10,129 +10,59 @@ export async function verifyCustomToken(token: string | undefined | null): Promi
 
   try {
     const secret = new TextEncoder().encode(ENV.cookieSecret);
-    const { payload } = await jwtVerify(token, secret, {
-      algorithms: ["HS256"],
-    });
+    const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
 
-    // Verificar se é um token de admin
     if (payload.authType === "admin") {
       const { userId } = payload as Record<string, unknown>;
-      
-      if (typeof userId !== "number") {
-        console.warn("[Custom Auth] Invalid admin token: missing userId");
-        return null;
-      }
-
-      // Buscar usuário admin no banco
+      if (typeof userId !== "number") return null;
       const db = await getDb();
       if (!db) return null;
-
-      const userResult = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
+      const [user] = await db.select().from(users)
+        .where(and(eq(users.id, userId), eq(users.isDeleted, 0)))
         .limit(1);
-
-      const user = userResult[0];
-      if (!user || user.isActive !== 1 || user.role !== "admin") {
-        console.warn("[Custom Auth] Admin user not found, inactive, or not admin");
-        return null;
-      }
-
+      if (!user || user.isActive !== 1 || user.role !== "admin") return null;
       return user;
     }
 
-    // Verificar se é um token de colaborador
     if (payload.authType === "colaborador") {
       const { userId } = payload as Record<string, unknown>;
-      
-      if (typeof userId !== "number") {
-        console.warn("[Custom Auth] Invalid colaborador token: missing userId");
-        return null;
-      }
-
-      // Buscar usuário colaborador no banco
+      if (typeof userId !== "number") return null;
       const db = await getDb();
       if (!db) return null;
-
-      const userResult = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userId))
+      const [user] = await db.select().from(users)
+        .where(and(eq(users.id, userId), eq(users.isDeleted, 0)))
         .limit(1);
-
-      const user = userResult[0];
-      if (!user || user.isActive !== 1) {
-        console.warn("[Custom Auth] Colaborador user not found or inactive");
-        return null;
-      }
-
+      if (!user || user.isActive !== 1) return null;
       return user;
     }
 
-    // Verificar se é um token customizado de condomínio
-    if (payload.authType !== "custom") {
-      return null;
-    }
-
+    if (payload.authType !== "custom") return null;
     const { condominioId, username } = payload as Record<string, unknown>;
+    if (typeof condominioId !== "number" || typeof username !== "string") return null;
 
-    if (typeof condominioId !== "number" || typeof username !== "string") {
-      return null;
-    }
-
-    // Buscar condomínio no banco
     const db = await getDb();
     if (!db) return null;
-
-    const condominioResult = await db
-      .select()
-      .from(condominios)
-      .where(eq(condominios.id, condominioId))
-      .limit(1);
-
-    const condominio = condominioResult[0];
+    const [condominio] = await db.select().from(condominios).where(eq(condominios.id, condominioId)).limit(1);
     if (!condominio) return null;
 
-    // Buscar ou criar usuário "virtual" para o condomínio
-    // Usamos o username do condomínio como openId para identificação única
     const openId = `condominio_${condominioId}`;
-    
-    let userResult = await db
-      .select()
-      .from(users)
-      .where(eq(users.openId, openId))
-      .limit(1);
-
-    let user = userResult[0];
-
-    // Se não existe, criar usuário virtual para o condomínio
+    let [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
     if (!user) {
       await db.insert(users).values({
         openId,
         name: condominio.name || "Condomínio",
         email: condominio.email || null,
         loginMethod: "custom",
-        role: "sindico", // Condomínios logam como síndico por padrão
+        role: "sindico",
         condominioId: condominio.id,
         lastSignedIn: new Date(),
       });
-
-      userResult = await db
-        .select()
-        .from(users)
-        .where(eq(users.openId, openId))
-        .limit(1);
-
-      user = userResult[0];
+      [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+    } else if (user.isDeleted === 1 || user.isActive !== 1) {
+      return null;
     } else {
-      // Atualizar último login
-      await db
-        .update(users)
-        .set({ lastSignedIn: new Date() })
-        .where(eq(users.id, user.id));
+      await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
     }
-
     return user || null;
   } catch (error) {
     console.warn("[Custom Auth] Token verification failed:", error);

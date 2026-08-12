@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { users } from "../drizzle/schema";
@@ -32,7 +32,7 @@ export async function authenticateColaborador(
     const result = await db
       .select()
       .from(users)
-      .where(eq(users.email, username))
+      .where(and(eq(users.email, username.toLowerCase()), eq(users.isDeleted, 0)))
       .limit(1);
 
     const user = result[0];
@@ -48,7 +48,7 @@ export async function authenticateColaborador(
     }
 
     // Verificar se usuário está ativo
-    if (user.isActive !== 1) {
+    if (user.isActive !== 1 || user.isDeleted === 1) {
       return { success: false, message: "Usuário inativo. Entre em contato com o administrador." };
     }
 

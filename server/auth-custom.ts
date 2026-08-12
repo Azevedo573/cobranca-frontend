@@ -56,7 +56,7 @@ export async function authenticateCondominio(
     if (userRows.length > 0) {
       const { user: u, condominio } = userRows[0];
 
-      if (!u.isActive) {
+      if (!u.isActive || u.isDeleted === 1) {
         return { success: false, error: "Usuário inativo" };
       }
 

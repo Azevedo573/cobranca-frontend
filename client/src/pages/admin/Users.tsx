@@ -58,9 +58,10 @@ export default function Users() {
   const { data: condominios } = trpc.condominios.list.useQuery();
 
   // Listar todos os usuários ou filtrar por condomínio
-  const { data: allUsers, isLoading } = trpc.users.list.useQuery();
+  const incluirExcluidos = filtroStatus === "excluido";
+  const { data: allUsers, isLoading } = trpc.users.list.useQuery({ includeDeleted: incluirExcluidos });
   const { data: usersByCondominio, isLoading: loadingByCondominio } = trpc.users.listByCondominio.useQuery(
-    { condominioId: filtroCondominioId! },
+    { condominioId: filtroCondominioId!, includeDeleted: incluirExcluidos },
     { enabled: filtroCondominioId !== null }
   );
 
@@ -72,6 +73,7 @@ export default function Users() {
       u.name?.toLowerCase().includes(filtroBusca.toLowerCase()) ||
       u.email?.toLowerCase().includes(filtroBusca.toLowerCase());
     const roleOk = filtroRole === "todos" || u.role === filtroRole;
+    if (u.isDeleted === 1) return filtroStatus === "excluido";
     const statusOk = filtroStatus === "todos" ||
       (filtroStatus === "ativo" && u.isActive === 1) ||
       (filtroStatus === "inativo" && u.isActive !== 1);
@@ -80,13 +82,22 @@ export default function Users() {
 
   const deleteMutation = trpc.users.delete.useMutation({
     onSuccess: () => {
-      toast.success("Usuário excluído com sucesso!");
+      toast.success("Usuário desativado e preservado para auditoria.");
       utils.users.list.invalidate();
       if (filtroCondominioId) utils.users.listByCondominio.invalidate({ condominioId: filtroCondominioId });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao excluir usuário");
+      toast.error(error.message || "Erro ao desativar usuário");
     },
+  });
+
+  const restoreMutation = trpc.users.restore.useMutation({
+    onSuccess: () => {
+      toast.success("Usuário restaurado como inativo. Revise os dados e ative-o quando apropriado.");
+      utils.users.list.invalidate();
+      if (filtroCondominioId) utils.users.listByCondominio.invalidate({ condominioId: filtroCondominioId, includeDeleted: true });
+    },
+    onError: (error) => toast.error(error.message || "Erro ao restaurar usuário"),
   });
 
   const definirAdminMutation = trpc.users.definirAdminPrincipal.useMutation({
@@ -230,6 +241,7 @@ export default function Users() {
                   <SelectItem value="todos">Todos</SelectItem>
                   <SelectItem value="ativo">Ativos</SelectItem>
                   <SelectItem value="inativo">Inativos</SelectItem>
+                  <SelectItem value="excluido">Excluídos logicamente</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -312,14 +324,14 @@ export default function Users() {
                         <TableCell>{getRoleBadge(u.role)}</TableCell>
                         <TableCell>{getCondominioName(u.condominioId)}</TableCell>
                         <TableCell>
-                          <Badge variant={u.isActive ? "default" : "outline"} className={u.isActive ? "bg-green-100 text-green-700 border-green-200" : ""}>
-                            {u.isActive ? "Ativo" : "Inativo"}
+                          <Badge variant={u.isDeleted === 1 ? "destructive" : u.isActive ? "default" : "outline"} className={u.isActive && u.isDeleted !== 1 ? "bg-green-100 text-green-700 border-green-200" : ""}>
+                            {u.isDeleted === 1 ? "Excluído logicamente" : u.isActive ? "Ativo" : "Inativo"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1 flex-wrap">
                             {/* Botão Definir como Admin Principal */}
-                            {u.condominioId && u.isPrimaryAdmin !== 1 && (
+                            {u.isDeleted !== 1 && u.condominioId && u.isPrimaryAdmin !== 1 && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -336,14 +348,18 @@ export default function Users() {
                                 <span className="ml-1 hidden sm:inline">Admin Principal</span>
                               </Button>
                             )}
-                            {/* Editar */}
-                            <Link href={`/admin/usuarios/${u.id}`}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <Pencil className="h-4 w-4" />
+                            {u.isDeleted === 1 ? (
+                              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => restoreMutation.mutate({ id: u.id })} disabled={restoreMutation.isPending}>
+                                Restaurar
                               </Button>
-                            </Link>
-                            {/* Excluir */}
-                            {u.id !== user?.id && (
+                            ) : (
+                              <Link href={`/admin/usuarios/${u.id}`}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            )}
+                            {u.isDeleted !== 1 && u.id !== user?.id && (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button
@@ -351,18 +367,17 @@ export default function Users() {
                                     size="icon"
                                     className="h-8 w-8 text-destructive hover:text-destructive"
                                     disabled={u.isPrimaryAdmin === 1}
-                                    title={u.isPrimaryAdmin === 1 ? "Defina outro admin principal antes de excluir" : "Excluir usuário"}
+                                    title={u.isPrimaryAdmin === 1 ? "Defina outro admin principal antes de desativar" : "Desativar usuário"}
                                   >
                                     {u.isPrimaryAdmin === 1 ? <UserX className="h-4 w-4 opacity-40" /> : <Trash2 className="h-4 w-4" />}
-                                    <span className="sr-only">Excluir</span>
+                                    <span className="sr-only">Desativar</span>
                                   </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                    <AlertDialogTitle>Confirmar desativação</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Tem certeza que deseja excluir o usuário <strong>"{u.name}"</strong>?
-                                      Esta ação não pode ser desfeita.
+                                      Tem certeza que deseja desativar o usuário <strong>"{u.name}"</strong>? O acesso será bloqueado, mas o registro e o histórico serão preservados para auditoria.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -371,7 +386,7 @@ export default function Users() {
                                       onClick={() => deleteMutation.mutate({ id: u.id })}
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
-                                      Excluir
+                                      Desativar
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>

@@ -2748,6 +2748,21 @@
 - [x] Exibir histórico de decisão, usuário e data na tela de retorno
 - [x] Impedir por contrato qualquer baixa ou conciliação financeira automática
 - [x] Cobrir ações de revisão e bloqueio de baixa com testes
+
+## Segurança - Gestão de Usuários
+- [x] Auditar rotas e telas de criação e exclusão de usuários
+- [x] Restringir criação, alteração de perfil e exclusão a administradores autorizados
+- [x] Bloquear autoexclusão e exclusão do último administrador ativo
+- [x] Registrar auditoria de criação, alteração e exclusão de usuário
+- [x] Exigir confirmação explícita e exibir impacto antes da exclusão
+- [x] Cobrir cenários de permissão e proteções de exclusão com testes
+
+## Exclusão Lógica de Usuários
+- [x] Adicionar coluna isDeleted com padrão 0, sem remover registros existentes
+- [x] Filtrar usuários excluídos nas listagens e autenticação operacional
+- [x] Substituir exclusão física por isDeleted=1 e isActive=0
+- [x] Permitir restauração administrativa com auditoria e confirmação
+- [x] Cobrir exclusão, filtro e restauração com testes
 ## Onda 0 - Fundação Operacional
 - [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
 - [x] Criar tabela e procedures de histórico de execuções de integração/job
