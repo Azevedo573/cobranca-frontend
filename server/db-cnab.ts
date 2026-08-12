@@ -27,6 +27,16 @@ import {
   type InsertRetornoCNAB,
 } from "../drizzle/schema";
 
+export type GravidadeExcecaoRetorno = "alta" | "media";
+
+/** Classifica itens que não foram conciliados, sem alterar qualquer baixa financeira. */
+export function classificarExcecaoRetorno(input: {
+  statusProcessamento: "nao_encontrado" | "erro";
+  valorPago: number;
+}): GravidadeExcecaoRetorno {
+  return input.statusProcessamento === "erro" || input.valorPago > 0 ? "alta" : "media";
+}
+
 // ─── Utilitários de formatação CNAB ──────────────────────────────────────────
 
 /** Preenche string com zeros à esquerda */

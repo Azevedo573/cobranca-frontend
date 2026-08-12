@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
 import { movimentacoesProcesso, processosJudiciais } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+import { finalizarExecucaoOperacional, iniciarExecucaoOperacional } from "../operacional";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -50,6 +51,22 @@ async function tjrjPost(path: string, body: object): Promise<any> {
   }
 
   return data;
+}
+
+/**
+ * Detecta registros legados cujo JSON armazenado não representa a mesma ordem
+ * devolvida hoje pelo TJRJ. Não considera formatação de texto como divergência.
+ */
+export function movimentoTjrjDiverge(complementosJson: string | null, movimentoAtual: any): boolean {
+  if (!complementosJson) return true;
+  try {
+    const armazenado = JSON.parse(complementosJson);
+    return Number(armazenado?.ordem) !== Number(movimentoAtual?.ordem)
+      || String(armazenado?.descrMov ?? "").trim() !== String(movimentoAtual?.descrMov ?? "").trim()
+      || String(armazenado?.dtMovimento ?? "").trim() !== String(movimentoAtual?.dtMovimento ?? "").trim();
+  } catch {
+    return true;
+  }
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -196,6 +213,14 @@ export const tjrjRouter = router({
       tipoProcesso: z.string().default("1"),
     }))
     .mutation(async ({ input, ctx }) => {
+      const execucao = await iniciarExecucaoOperacional({
+        chave: "tjrj.sincronizar_movimentos",
+        nome: "Sincronização TJRJ de movimentações",
+        origem: "manual",
+        escopo: { processoId: input.processoId, numeroCNJ: input.numeroCNJ },
+        iniciadoPor: { id: ctx.user?.id, nome: ctx.user?.name ?? ctx.user?.email },
+      });
+      try {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco indisponível" });
 
@@ -221,7 +246,15 @@ export const tjrjRouter = router({
 
       const movimentosTJRJ: any[] = raw2?.movimentosProc ?? [];
       if (!movimentosTJRJ.length) {
-        return { inseridas: 0, total: 0, numProcessoInterno };
+        const resultadoVazio = { inseridas: 0, total: 0, numProcessoInterno, atualizadas: 0 };
+        await finalizarExecucaoOperacional({
+          ...execucao,
+          status: "alerta",
+          registrosProcessados: 0,
+          registrosIgnorados: 0,
+          resultado: { ...resultadoVazio, motivo: "Nenhuma movimentação retornada pelo TJRJ" },
+        });
+        return resultadoVazio;
       }
 
       // ── Buscar movimentações TJRJ já salvas para este processo ─────────
@@ -231,16 +264,14 @@ export const tjrjRouter = router({
           eq(movimentacoesProcesso.processoId, input.processoId),
           eq(movimentacoesProcesso.origem, "tjrj"),
         ));
-      const ordensExistentes = new Set(existentes.map(e => e.tjrjOrdem).filter(Boolean));
-      // Mapa de ordem → id para movimentações que precisam de update (sem complementosJson)
-      const ordemParaAtualizar = new Map<number, number>(
+      const existentesPorOrdem = new Map<number, { id: number; complementosJson: string | null }>(
         existentes
-          .filter(e => e.tjrjOrdem !== null && !e.complementosJson)
-          .map(e => [e.tjrjOrdem as number, e.id])
+          .filter(e => e.tjrjOrdem !== null)
+          .map(e => [e.tjrjOrdem as number, { id: e.id, complementosJson: e.complementosJson }])
       );
 
       // ── Mapear tipo TJRJ para enum interno ───────────────────────────────
-      function mapearTipo(descr: string): "distribuicao" | "citacao" | "contestacao" | "audiencia" | "sentenca" | "recurso" | "despacho" | "decisao" | "peticao" | "transito_julgado" | "execucao" | "outro" {
+      const mapearTipo = (descr: string): "distribuicao" | "citacao" | "contestacao" | "audiencia" | "sentenca" | "recurso" | "despacho" | "decisao" | "peticao" | "transito_julgado" | "execucao" | "outro" => {
         const d = (descr ?? "").toLowerCase();
         if (d.includes("distribui")) return "distribuicao";
         if (d.includes("citação") || d.includes("citacao")) return "citacao";
@@ -254,7 +285,7 @@ export const tjrjRouter = router({
         if (d.includes("trânsito") || d.includes("transito")) return "transito_julgado";
         if (d.includes("execução") || d.includes("execucao") || d.includes("cumprimento")) return "execucao";
         return "outro";
-      }
+      };
 
       // ── Inserir movimentações novas ─────────────────────────────────────
       let inseridas = 0;
@@ -264,8 +295,9 @@ export const tjrjRouter = router({
         // O TJRJ retorna o campo "ordem" (ex: 64, 63, 62...) — não "ordemExibicao"
         const ordem = mov.ordem ?? mov.ordemExibicao ?? i;
 
-        // Se já existe mas não tem complementosJson, atualizar com o JSON completo + descricao correta
-        if (ordemParaAtualizar.has(ordem)) {
+        const existente = existentesPorOrdem.get(ordem);
+        // Atualiza apenas quando o registro local é legado, incompleto ou diverge da mesma ordem do TJRJ.
+        if (existente && movimentoTjrjDiverge(existente.complementosJson, mov)) {
           const descrMov = mov.descrMov ?? "Movimentação";
           const textoMov = mov.descricao?.trim() || "";
           const descricaoAtualizada = textoMov ? `${descrMov}\n\n${textoMov}` : descrMov;
@@ -282,12 +314,12 @@ export const tjrjRouter = router({
               tipo: mapearTipo(descrMov),
               data: dataMov,
             })
-            .where(eq(movimentacoesProcesso.id, ordemParaAtualizar.get(ordem)!));
+            .where(eq(movimentacoesProcesso.id, existente.id));
           atualizadas++;
           continue;
         }
 
-        if (ordensExistentes.has(ordem)) continue; // já existe com JSON completo
+        if (existente) continue; // já existe e está consistente com a resposta atual do TJRJ
 
         // Montar descrição: nome do movimento + complementos
         const descricao = mov.descrMov ?? "Movimentação";
@@ -334,12 +366,33 @@ export const tjrjRouter = router({
         } catch { /* ignora erro de data */ }
       }
 
-      return {
+      const resultado = {
         inseridas,
         total: movimentosTJRJ.length,
         numProcessoInterno,
         atualizadas,
       };
+      await finalizarExecucaoOperacional({
+        ...execucao,
+        status: "sucesso",
+        registrosProcessados: movimentosTJRJ.length,
+        registrosCriados: inseridas,
+        registrosAtualizados: atualizadas,
+        registrosIgnorados: Math.max(0, movimentosTJRJ.length - inseridas - atualizadas),
+        resultado,
+      });
+      return resultado;
+      } catch (erro) {
+        const mensagem = erro instanceof Error ? erro.message : "Erro inesperado na sincronização TJRJ";
+        await finalizarExecucaoOperacional({
+          ...execucao,
+          status: "falha",
+          erros: 1,
+          mensagemErro: mensagem,
+          resultado: { processoId: input.processoId, numeroCNJ: input.numeroCNJ },
+        });
+        throw erro;
+      }
     }),
 
   /**

@@ -80,8 +80,8 @@ async function startServer() {
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
-    console.log("[Jobs] Régua e fila WhatsApp são executadas exclusivamente pelos timers systemd da VPS.");
+    console.log(`Server running on http://localhost:${port}/`);
+    console.log("[Jobs] Execuções automáticas desabilitadas no processo web. Use os timers da VPS.");
   });
 }
 

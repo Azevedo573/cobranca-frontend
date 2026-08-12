@@ -1,10 +1,10 @@
 [Unit]
-Description=Luminus - agendar Régua de Cobrança a cada hora
+Description=Luminus - Agenda a Régua de Cobrança a cada hora
 
 [Timer]
 OnCalendar=hourly
 Persistent=true
-RandomizedDelaySec=120
+RandomizedDelaySec=45
 Unit=luminus-regua.service
 
 [Install]

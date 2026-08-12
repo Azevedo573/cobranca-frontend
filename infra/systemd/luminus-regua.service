@@ -1,7 +1,7 @@
 [Unit]
-Description=Luminus - executar Régua de Cobrança
+Description=Luminus - Execução da Régua de Cobrança
 Wants=network-online.target
-After=network-online.target
+After=network-online.target mariadb.service
 
 [Service]
 Type=oneshot
@@ -9,10 +9,9 @@ User=cobranca
 Group=cobranca
 WorkingDirectory=/var/www/cobranca
 Environment=NODE_ENV=production
-EnvironmentFile=-/var/www/cobranca/.env
-ExecStart=/usr/bin/flock -n /run/luminus-regua.lock /var/www/cobranca/node_modules/.bin/tsx /var/www/cobranca/scripts/executar-regua-vps.ts
+EnvironmentFile=/var/www/cobranca/.env
+ExecStart=/usr/bin/flock -n /run/luminus-regua.lock /usr/bin/env pnpm exec tsx scripts/executar-regua.mjs
 StandardOutput=journal
 StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
+NoNewPrivileges=true
+PrivateTmp=true

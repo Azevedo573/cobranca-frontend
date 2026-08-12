@@ -119,6 +119,10 @@ export default function DevedorDetalhes() {
     { id: devedorId! },
     { enabled: !!devedorId }
   );
+  const { data: visao360 } = trpc.devedores.visao360.useQuery(
+    { id: devedorId! },
+    { enabled: !!devedorId }
+  );
 
   const { data: instanciasWA = [] } = trpc.whatsapp.listarInstancias.useQuery();
   const { data: atendimentosDevedor = [] } = trpc.atendimento.listarAtendimentosDevedor.useQuery(
@@ -494,6 +498,82 @@ export default function DevedorDetalhes() {
           <div className="lg:col-span-2 space-y-4">
             {metricas && (
               <DashboardDevedorMetricas {...metricas} />
+            )}
+            {visao360 && (
+              <div className="space-y-4">
+                <Card className="border-blue-200/70 dark:border-blue-900/60">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Scale className="h-4 w-4 text-blue-600" />
+                      Visão consolidada do caso
+                    </CardTitle>
+                    <CardDescription>Vínculos financeiros, operacionais e jurídicos já registrados para este devedor.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="rounded-lg bg-muted/40 p-3">
+                      <p className="text-xs text-muted-foreground">Títulos em aberto</p>
+                      <p className="mt-1 text-lg font-semibold">{visao360.resumo.titulosEmAberto}</p>
+                      <p className="text-xs text-muted-foreground">{formatarMoeda(visao360.resumo.valorNominalEmAberto / 100)}</p>
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-3">
+                      <p className="text-xs text-muted-foreground">Acordos ativos</p>
+                      <p className="mt-1 text-lg font-semibold">{visao360.resumo.acordosAtivos}</p>
+                      <p className="text-xs text-muted-foreground">{visao360.acordos.length} no histórico</p>
+                    </div>
+                    <div className="rounded-lg bg-amber-500/10 p-3">
+                      <p className="text-xs text-muted-foreground">Demandas abertas</p>
+                      <p className="mt-1 text-lg font-semibold text-amber-700 dark:text-amber-400">{visao360.resumo.demandasAbertas}</p>
+                      <p className="text-xs text-muted-foreground">{visao360.demandas.length} vinculada(s)</p>
+                    </div>
+                    <div className="rounded-lg bg-blue-500/10 p-3">
+                      <p className="text-xs text-muted-foreground">Processos ativos</p>
+                      <p className="mt-1 text-lg font-semibold text-blue-700 dark:text-blue-400">{visao360.resumo.processosAtivos}</p>
+                      <p className="text-xs text-muted-foreground">{visao360.processos[0]?.numeroCNJ ?? "Nenhum vinculado"}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Clock className="h-4 w-4 text-primary" />
+                      Histórico de atendimento
+                    </CardTitle>
+                    <CardDescription>Últimos contatos, promessas de pagamento, conversas e atendimentos já vinculados ao devedor.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {!visao360.eventosAtendimento?.length ? (
+                      <p className="text-sm text-muted-foreground">Nenhum evento de atendimento vinculado a este devedor.</p>
+                    ) : (
+                      <div className="space-y-3 border-l border-border pl-4">
+                        {visao360.eventosAtendimento.map((evento: any) => {
+                          const config = evento.origem === "promessa"
+                            ? { label: "Promessa", icon: Handshake, color: "text-emerald-600 bg-emerald-500/10" }
+                            : evento.origem === "whatsapp"
+                              ? { label: "WhatsApp", icon: MessageCircle, color: "text-green-600 bg-green-500/10" }
+                              : evento.origem === "atendimento"
+                                ? { label: "Atendimento", icon: PhoneCall, color: "text-blue-600 bg-blue-500/10" }
+                                : { label: "Tentativa", icon: PhoneCall, color: "text-amber-600 bg-amber-500/10" };
+                          const Icone = config.icon;
+                          return (
+                            <div key={evento.id} className="relative rounded-lg border border-border/70 bg-card p-3">
+                              <span className={`absolute -left-[1.55rem] top-4 flex h-5 w-5 items-center justify-center rounded-full ${config.color}`}><Icone className="h-3 w-3" /></span>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2"><p className="text-sm font-medium">{evento.titulo}</p><Badge variant="outline" className="text-[10px]">{config.label}</Badge></div>
+                                  {evento.descricao && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{evento.descricao}</p>}
+                                  {evento.contexto && <p className="mt-1 text-[11px] text-muted-foreground">{evento.contexto}</p>}
+                                </div>
+                                <time className="shrink-0 text-[11px] text-muted-foreground">{format(new Date(evento.data), "dd/MM HH:mm")}</time>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
           </div>
         </div>

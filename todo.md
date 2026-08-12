@@ -2712,3 +2712,55 @@
 - [x] Criar serviços, timers e instalador systemd verificáveis para a VPS
 - [x] Remover inicialização em memória da régua e da fila no processo web
 - [x] Validar configuração sem executar jobs e documentar deploy/rollback
+## Onda 0 - Fundação Operacional
+- [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
+- [x] Criar tabela e procedures de histórico de execuções de integração/job
+- [x] Registrar execução, sucesso e falha da sincronização TJRJ no histórico operacional
+- [x] Criar painel administrativo de Saúde Operacional com status e últimas execuções
+- [x] Criar checklist versionado de deploy, migrations, PM2, backup e recuperação da VPS
+- [x] Adicionar testes automatizados para o histórico de execuções e regras de autorização relevantes
+
+## Onda 1 - Qualidade de Dados e Visão Inicial do Devedor
+- [x] Auditar validações e critérios de duplicidade da importação de devedores e cobranças
+- [x] Adicionar validações não destrutivas e relatório de possíveis duplicidades na prévia de importação
+- [x] Consolidar query do devedor com títulos, acordos, contatos, demandas e processos relacionados
+- [x] Exibir cards jurídicos e financeiros consolidados na página de detalhes do devedor
+- [x] Adicionar testes para a regra de identificação de possível duplicidade e para os totais consolidados
+
+## Onda 2 - Exceções Bancárias e Conciliação
+- [x] Auditar dados e telas existentes de retorno CNAB e conciliação BTG
+- [x] Criar consulta somente-leitura de exceções financeiras pendentes de revisão
+- [x] Exibir resumo e lista de exceções na página administrativa de retorno/conciliação
+- [x] Adicionar testes para classificação de exceções sem mutação de dados financeiros
+
+## Correção de Dados TJRJ - Movimentações Legadas
+- [x] Documentar causa, impacto, testes e plano de reversão da inconsistência ordem/JSON nas movimentações TJRJ
+- [x] Criar reparo idempotente que atualize movimentações legadas a partir da resposta atual do TJRJ, sem exclusão
+- [x] Registrar auditoria do reparo e informar resultado na sincronização do processo
+- [x] Validar que título, ordem, data e JSON bruto representam o mesmo evento na timeline
+
+## Diagnóstico de Automação - Régua de Cobrança
+- [x] Registrar ocorrência, impacto e hipótese da falha observada na rotina de régua
+- [x] Registrar resultado e erro estruturado por régua, sem interromper outras execuções
+- [x] Exibir a última falha e sua mensagem segura na Saúde Operacional
+- [x] Cobrir falha isolada e continuidade de processamento com testes automatizados
+- [x] Substituir o agendamento em memória da régua por endpoint idempotente acionado externamente
+- [x] Documentar a implantação do agendamento na VPS e o plano de reversão
+
+## Diretriz Operacional - Execução Exclusiva na VPS
+- [x] Mapear jobs e integrações que não devem executar no ambiente de desenvolvimento
+- [x] Preparar unidade de serviço e timers da VPS para os jobs determinísticos
+- [x] Documentar variáveis, permissões, logs, monitoramento e recuperação exclusivamente na VPS
+- [x] Garantir por configuração que desenvolvimento não inicie jobs de produção
+
+## Onda 3 - Histórico Unificado de Atendimento
+- [x] Mapear tentativas, promessas, tickets e conversas vinculáveis ao devedor
+- [x] Criar consulta unificada e somente-leitura de eventos de atendimento por devedor
+- [x] Exibir timeline de atendimento na Visão 360º do Devedor com origem e links de contexto
+- [x] Adicionar testes para ordenação e normalização dos eventos consolidados
+
+## Onda 4 - Referências Oficiais de Documento TJRJ
+- [x] Mapear campos de documento e links oficiais disponíveis no payload TJRJ salvo
+- [x] Normalizar metadados documentais sem baixar ou armazenar arquivo externo
+- [x] Exibir referências oficiais no detalhe de movimentação da timeline jurídica
+- [x] Testar a validação de URL oficial e a deduplicação de referências

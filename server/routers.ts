@@ -18,6 +18,7 @@ import { tarefasDemandaRouter } from "./routers/tarefas-demanda";
 import { doerjMonitoramentosRouter } from "./routers/doerj-monitoramentos";
 import { pjePublicacoesRouter } from "./routers/pje-publicacoes";
 import { tjrjRouter } from "./routers/tjrj";
+import { operacionalRouter } from "./routers/operacional";
 import { listHeartbeatJobs } from "./_core/heartbeat";
 import { parse as parseCookieHeader } from "cookie";
 export const appRouter = router({
@@ -30,6 +31,7 @@ export const appRouter = router({
   prazos: prazosRouter,
   mni: mniRouter,
   juridicoCondominios: juridicoCondominiosRouter,
+  operacional: operacionalRouter,
   auth: router({
     me: publicProcedure.query(opts => {
       if (!opts.ctx.user) return null;
@@ -623,6 +625,10 @@ export const appRouter = router({
     getById: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getDevedorById } = await import("./db-devedores");
       return await getDevedorById(input.id);
+    }),
+    visao360: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
+      const { getVisao360Devedor } = await import("./db-devedores");
+      return await getVisao360Devedor(input.id);
     }),
     create: requirePermission("devedores", "criar").input(z.object({
       condominioId: z.number(),
@@ -2555,7 +2561,9 @@ export const appRouter = router({
         devedoresCriados: 0,
         devedoresAtualizados: 0,
         cobrancasCriadas: 0,
+        cobrancasIgnoradas: 0,
         erros: [] as string[],
+        avisos: [] as string[],
       };
       
       const { getDevedorByCpfCnpj, getDevedorById, getDevedorByBlocoUnidade } = await import("./db-devedores");
@@ -2630,18 +2638,33 @@ export const appRouter = router({
               ? tipoMap[dado.tipoCobranca.toLowerCase().trim()] || "outros"
               : "condominio"; // padrão: cota condominial
             
-            await createCobranca({
+            const { encontrarCobrancaEquivalenteImportacao } = await import("./db-cobrancas");
+            const valorEmCentavos = Math.round(dado.valorOriginal * 100);
+            const existente = await encontrarCobrancaEquivalenteImportacao({
               condominioId: input.condominioId,
               devedorId: devedor.id,
               tipoCobranca: tipoNormalizado as any,
-              description: dado.descricaoCobranca,
-              monthReference: dado.mesReferencia,
               dueDate: dataVencimento,
-              amount: Math.round(dado.valorOriginal * 100), // Converter para centavos
-              status: "pendente",
+              amount: valorEmCentavos,
             });
+
+            if (existente) {
+              resultados.cobrancasIgnoradas++;
+              resultados.avisos.push(`Cobrança ignorada para unidade ${dado.bloco ? `${dado.bloco} ` : ""}${dado.unidade}: já existe título equivalente #${existente.id}`);
+            } else {
+              await createCobranca({
+                condominioId: input.condominioId,
+                devedorId: devedor.id,
+                tipoCobranca: tipoNormalizado as any,
+                description: dado.descricaoCobranca,
+                monthReference: dado.mesReferencia,
+                dueDate: dataVencimento,
+                amount: valorEmCentavos,
+                status: "pendente",
+              });
+              resultados.cobrancasCriadas++;
+            }
           }
-          resultados.cobrancasCriadas++;
 
           // Se status da unidade for ajuizado, criar demanda de cobrança judicial
           if (dado.statusUnidade === "ajuizado" && devedor) {
@@ -3739,6 +3762,54 @@ export const appRouter = router({
         return db.select().from(retornoItens)
           .where(eq(retornoItens.retornoId, input.retornoId))
           .orderBy(retornoItens.id);
+      }),
+
+    listarExcecoesRetorno: protectedProcedure
+      .input(z.object({ condominioId: z.number().optional(), limit: z.number().min(1).max(100).default(20) }))
+      .query(async ({ input, ctx }) => {
+        const db = await (await import("./db")).getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
+        const { retornoItens, retornosCNAB, cobrancas, devedores } = await import("../drizzle/schema");
+        const { and, desc, eq, inArray } = await import("drizzle-orm");
+        const { classificarExcecaoRetorno } = await import("./db-cnab");
+        const adminPodeVerTodos = ["admin", "advogado"].includes(ctx.user.role) && !input.condominioId;
+        const condominioId = adminPodeVerTodos ? undefined : (["admin", "advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId);
+        if (!adminPodeVerTodos && !condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
+
+        const condicoes = [inArray(retornoItens.statusProcessamento, ["nao_encontrado", "erro"] as const)];
+        if (condominioId) condicoes.push(eq(retornosCNAB.condominioId, condominioId));
+
+        const itens = await db.select({
+          id: retornoItens.id,
+          retornoId: retornoItens.retornoId,
+          nomeArquivo: retornosCNAB.nomeArquivo,
+          condominioId: retornosCNAB.condominioId,
+          nossoNumero: retornoItens.nossoNumero,
+          descMovimento: retornoItens.descMovimento,
+          descOcorrencia: retornoItens.descOcorrencia,
+          statusProcessamento: retornoItens.statusProcessamento,
+          observacao: retornoItens.observacao,
+          valorTitulo: retornoItens.valorTitulo,
+          valorPago: retornoItens.valorPago,
+          dataOcorrencia: retornoItens.dataOcorrencia,
+          devedorNome: devedores.name,
+          cobrancaId: retornoItens.cobrancaId,
+        })
+          .from(retornoItens)
+          .innerJoin(retornosCNAB, eq(retornoItens.retornoId, retornosCNAB.id))
+          .leftJoin(cobrancas, eq(retornoItens.cobrancaId, cobrancas.id))
+          .leftJoin(devedores, eq(cobrancas.devedorId, devedores.id))
+          .where(and(...condicoes))
+          .orderBy(desc(retornoItens.createdAt))
+          .limit(input.limit);
+
+        return itens.map((item) => ({
+          ...item,
+          gravidade: classificarExcecaoRetorno({
+            statusProcessamento: item.statusProcessamento as "nao_encontrado" | "erro",
+            valorPago: item.valorPago,
+          }),
+        }));
       }),
 
     // Lista parcelas de acordo pendentes de remessa (statusRemessa = nao_enviado)

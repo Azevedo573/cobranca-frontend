@@ -150,6 +150,38 @@ export interface ErroValidacao {
   tipo?: "erro" | "aviso"; // erro = bloqueia importação, aviso = campo opcional ausente
 }
 
+function normalizarChave(valor: string | undefined | null): string {
+  return (valor ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
+/** Identifica linhas semelhantes no arquivo e emite aviso não bloqueante. */
+export function identificarPossiveisDuplicidadesPlanilha(dados: DadosImportacao[]): ErroValidacao[] {
+  const avisos: ErroValidacao[] = [];
+  const vistos = new Map<string, number>();
+
+  dados.forEach((dado, indice) => {
+    const identidade = dado.cpfCnpj
+      ? `DOC:${normalizarChave(dado.cpfCnpj)}`
+      : `UNIDADE:${normalizarChave(dado.bloco)}:${normalizarChave(dado.unidade)}`;
+    const referencia = normalizarChave(dado.mesReferencia) || normalizarChave(dado.dataVencimento);
+    const chave = `${identidade}|${referencia}|${normalizarChave(dado.tipoCobranca)}|${Math.round(dado.valorOriginal * 100)}`;
+    const primeiraLinha = vistos.get(chave);
+
+    if (primeiraLinha !== undefined) {
+      avisos.push({
+        linha: indice + 2,
+        campo: "Possível duplicidade",
+        mensagem: `Registro semelhante à linha ${primeiraLinha}: mesmo devedor/unidade, referência, tipo e valor`,
+        tipo: "aviso",
+      });
+      return;
+    }
+    vistos.set(chave, indice + 2);
+  });
+
+  return avisos;
+}
+
 /**
  * Processa arquivo Excel e retorna dados validados
  */
@@ -269,6 +301,7 @@ export function processarPlanilha(buffer: Buffer): {
     }
   });
   
+  avisos.push(...identificarPossiveisDuplicidadesPlanilha(dados));
   return { dados, erros, avisos };
 }
 
