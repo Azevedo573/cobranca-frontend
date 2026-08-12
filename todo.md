@@ -2712,6 +2712,12 @@
 - [x] Criar serviços, timers e instalador systemd verificáveis para a VPS
 - [x] Remover inicialização em memória da régua e da fila no processo web
 - [x] Validar configuração sem executar jobs e documentar deploy/rollback
+
+## Correção - Detalhes de Movimentação TJRJ
+- [x] Diagnosticar por que a timeline exibe apenas o título em movimentações TJRJ selecionadas
+- [x] Normalizar a leitura de payload TJRJ atual e legado no painel de detalhes
+- [x] Criar teste de regressão para a movimentação com conteúdo completo
+- [x] Validar a seleção da timeline e orientar ressincronização somente se necessária
 ## Onda 0 - Fundação Operacional
 - [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
 - [x] Criar tabela e procedures de histórico de execuções de integração/job

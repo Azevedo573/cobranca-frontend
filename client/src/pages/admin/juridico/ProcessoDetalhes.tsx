@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { normalizarReferenciasDocumentaisTJRJ } from "@/lib/tjrjDocumentos";
+import { extrairCamposDetalheTJRJ, parsePayloadTJRJ, tituloMovimentacaoTJRJ } from "@/lib/tjrjDetalhes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,19 +115,16 @@ type ParteRich = {
 
 function parseComplementos(json?: string | null): Array<{ nome: string; valor: string }> {
   if (!json) return [];
-  try { return JSON.parse(json); } catch { return []; }
-}
-
-// Parseia o JSON bruto do TJRJ para exibição detalhada
-function parseTJRJMovimento(json?: string | null): any | null {
-  if (!json) return null;
-  try { return JSON.parse(json); } catch { return null; }
+  try {
+    const complementos = JSON.parse(json);
+    return Array.isArray(complementos) ? complementos : [];
+  } catch { return []; }
 }
 
 // Componente para exibir os detalhes completos de uma movimentação TJRJ
 function DetalhesTJRJ({ json }: { json: string | null | undefined }) {
   const [expandirTexto, setExpandirTexto] = useState(false);
-  const mov = parseTJRJMovimento(json);
+  const mov: any = parsePayloadTJRJ(json);
   if (!mov) return (
     <div className="text-center py-4 text-muted-foreground">
       <Gavel className="w-5 h-5 mx-auto mb-1" />
@@ -134,73 +132,22 @@ function DetalhesTJRJ({ json }: { json: string | null | undefined }) {
     </div>
   );
   const referenciasDocumentais = normalizarReferenciasDocumentaisTJRJ(mov);
+  const camposResumo = extrairCamposDetalheTJRJ(mov);
 
   return (
     <div className="space-y-3">
       {/* Metadados principais */}
-      <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 space-y-1.5">
-        {mov.nomeJuiz && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Juiz:</span>
-            <span className="text-xs font-medium text-foreground">{mov.nomeJuiz}</span>
-          </div>
-        )}
-        {mov.descrTipAto && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Tipo do Ato:</span>
-            <span className="text-xs font-medium text-foreground">{mov.descrTipAto}</span>
-          </div>
-        )}
-        {mov.descrAto && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Ato:</span>
-            <span className="text-xs text-foreground">{mov.descrAto}</span>
-          </div>
-        )}
-        {mov.descrTipMov && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Tipo Mov.:</span>
-            <span className="text-xs text-foreground">{mov.descrTipMov}</span>
-          </div>
-        )}
-        {mov.dtConclusao && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Conclusão:</span>
-            <span className="text-xs text-foreground">{mov.dtConclusao}</span>
-          </div>
-        )}
-        {mov.dtDevolucao && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Devolução:</span>
-            <span className="text-xs text-foreground">{mov.dtDevolucao}</span>
-          </div>
-        )}
-        {mov.dtJuntada && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Juntada:</span>
-            <span className="text-xs text-foreground">{mov.dtJuntada}</span>
-          </div>
-        )}
-        {mov.nomeDestinatario && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Destinatário:</span>
-            <span className="text-xs text-foreground">{mov.nomeDestinatario}</span>
-          </div>
-        )}
-        {mov.prazo && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Prazo:</span>
-            <span className="text-xs text-foreground font-medium text-amber-600 dark:text-amber-400">{mov.prazo} dia(s)</span>
-          </div>
-        )}
-        {mov.indPublicado && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Publicado:</span>
-            <span className={`text-xs font-medium ${mov.indPublicado === "sim" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
-              {mov.indPublicado === "sim" ? "✓ Sim" : "Não"}
-            </span>
-          </div>
-        )}
+      {camposResumo.length > 0 && (
+        <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3 space-y-1.5">
+          {camposResumo.map((campo) => (
+            <div key={campo.chave} className="flex gap-2">
+              <span className="text-xs text-muted-foreground w-32 shrink-0">{campo.rotulo}:</span>
+              <span className="text-xs text-foreground whitespace-pre-wrap">{campo.valor}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="space-y-1.5">
         {mov.publicado?.dtExp && (
           <div className="flex gap-2">
             <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Expediente:</span>
@@ -211,12 +158,6 @@ function DetalhesTJRJ({ json }: { json: string | null | undefined }) {
           <div className="flex gap-2">
             <span className="text-xs text-muted-foreground w-32 shrink-0">Dt. Pub. Prevista:</span>
             <span className="text-xs text-foreground">{mov.publicado.dtPubPrev}</span>
-          </div>
-        )}
-        {mov.ordem && (
-          <div className="flex gap-2">
-            <span className="text-xs text-muted-foreground w-32 shrink-0">Ordem:</span>
-            <span className="text-xs font-mono text-muted-foreground">#{mov.ordem}</span>
           </div>
         )}
       </div>
@@ -335,7 +276,7 @@ function TimelineAstrea({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-lg">{TIPO_MOV_ICON[selecionada.tipo] ?? "🟡"}</span>
-                    <h3 className="text-base font-semibold text-foreground">{selecionada.descricao}</h3>
+                    <h3 className="text-base font-semibold text-foreground">{selecionada.origem === "tjrj" ? tituloMovimentacaoTJRJ(selecionada.complementosJson, selecionada.descricao) : selecionada.descricao}</h3>
                     {selecionada.origem === "datajud" && (
                       <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">DataJud</Badge>
                     )}
@@ -506,7 +447,7 @@ function TimelineAstrea({
                       <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" title="TJRJ" />
                     )}
                   </div>
-                  <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{mov.descricao}</p>
+                  <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{mov.origem === "tjrj" ? tituloMovimentacaoTJRJ(mov.complementosJson, mov.descricao) : mov.descricao}</p>
                 </button>
               );
             })
