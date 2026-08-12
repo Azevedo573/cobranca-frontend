@@ -2705,3 +2705,10 @@
 - [ ] 3.2 Busca de processos por nome/CPF do devedor via JOIN com partesProcesso
 - [ ] 3.2 Campo de busca por parte na tela ProcessosJudiciais
 - [ ] 3.3 Timeline unificada de movimentações recentes no DashboardJuridicoCondominio
+
+## Correção de Configuração - Jobs Exclusivos na VPS
+- [x] Registrar a divergência entre a configuração documentada e a inicialização atual do processo web
+- [x] Criar scripts de execução única para régua e fila WhatsApp
+- [x] Criar serviços, timers e instalador systemd verificáveis para a VPS
+- [x] Remover inicialização em memória da régua e da fila no processo web
+- [x] Validar configuração sem executar jobs e documentar deploy/rollback

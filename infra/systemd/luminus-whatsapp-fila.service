@@ -1,0 +1,18 @@
+[Unit]
+Description=Luminus - processar fila de WhatsApp
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=cobranca
+Group=cobranca
+WorkingDirectory=/var/www/cobranca
+Environment=NODE_ENV=production
+EnvironmentFile=-/var/www/cobranca/.env
+ExecStart=/usr/bin/flock -n /run/luminus-whatsapp-fila.lock /var/www/cobranca/node_modules/.bin/tsx /var/www/cobranca/scripts/processar-whatsapp-fila-vps.ts
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

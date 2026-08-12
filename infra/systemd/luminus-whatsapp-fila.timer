@@ -1,0 +1,11 @@
+[Unit]
+Description=Luminus - agendar processamento da fila WhatsApp a cada minuto
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=60
+Persistent=true
+Unit=luminus-whatsapp-fila.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=Luminus - executar Régua de Cobrança
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=cobranca
+Group=cobranca
+WorkingDirectory=/var/www/cobranca
+Environment=NODE_ENV=production
+EnvironmentFile=-/var/www/cobranca/.env
+ExecStart=/usr/bin/flock -n /run/luminus-regua.lock /var/www/cobranca/node_modules/.bin/tsx /var/www/cobranca/scripts/executar-regua-vps.ts
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
