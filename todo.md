@@ -2775,6 +2775,13 @@
 - [x] Manter promoção somente em definirAdminPrincipal com validação e auditoria
 - [x] Atualizar formulário para não enviar privilégio principal de forma genérica
 - [x] Cobrir bloqueio de elevação indevida com testes
+
+## Segurança Crítica - Rate Limit de Login
+- [x] Definir limites de tentativa, janela temporal e bloqueio por IP e identificador
+- [x] Criar armazenamento persistente de tentativas de login
+- [x] Aplicar limite aos logins administrativo, de condomínio e de colaborador
+- [x] Retornar resposta neutra e registrar auditoria de bloqueio
+- [x] Cobrir sucesso, falha, bloqueio e expiração do limite com testes
 ## Onda 0 - Fundação Operacional
 - [x] Inventariar migrations, integrações agendadas, permissões e pontos de observabilidade existentes
 - [x] Criar tabela e procedures de histórico de execuções de integração/job

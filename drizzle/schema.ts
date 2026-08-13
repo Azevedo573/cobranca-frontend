@@ -579,6 +579,17 @@ export const passwordResetTokens = mysqlTable("passwordResetTokens", {
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
 export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
 
+export const loginRateLimits = mysqlTable("loginRateLimits", {
+  id: int("id").autoincrement().primaryKey(),
+  keyHash: varchar("keyHash", { length: 64 }).notNull().unique(),
+  attempts: int("attempts").notNull().default(0),
+  windowStartedAt: timestamp("windowStartedAt").defaultNow().notNull(),
+  blockedUntil: timestamp("blockedUntil"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LoginRateLimit = typeof loginRateLimits.$inferSelect;
+
 // ─── Módulo de Auditoria ──────────────────────────────────────────────────────
 // Registra TODAS as ações relevantes do sistema para rastreabilidade e compliance.
 // Imutável por design: nunca atualizar ou deletar registros de auditoria.

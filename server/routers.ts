@@ -21,6 +21,7 @@ import { tjrjRouter } from "./routers/tjrj";
 import { operacionalRouter } from "./routers/operacional";
 import { listHeartbeatJobs } from "./_core/heartbeat";
 import { parse as parseCookieHeader } from "cookie";
+import { canAttemptLogin, getRequestIp, recordLoginAttempt } from "./login-rate-limit";
 export const appRouter = router({
 
   system: systemRouter,
@@ -53,8 +54,15 @@ export const appRouter = router({
         password: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const ip = getRequestIp(ctx.req.headers as Record<string, string | string[] | undefined>, ctx.req.socket?.remoteAddress);
+        const rate = await canAttemptLogin("condominio", ip, input.username);
+        if (!rate.allowed) {
+          await auditLoginFailed(ctx, input.username, "Rate limit de login acionado");
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente." });
+        }
         const { authenticateCondominio } = await import("./auth-custom");
         const result = await authenticateCondominio(input.username, input.password);
+        await recordLoginAttempt("condominio", ip, input.username, result.success);
         
         if (result.success && result.token) {
           const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -75,8 +83,15 @@ export const appRouter = router({
         password: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const ip = getRequestIp(ctx.req.headers as Record<string, string | string[] | undefined>, ctx.req.socket?.remoteAddress);
+        const rate = await canAttemptLogin("colaborador", ip, input.username);
+        if (!rate.allowed) {
+          await auditLoginFailed(ctx, input.username, "Rate limit de login acionado");
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente." });
+        }
         const { authenticateColaborador } = await import("./auth-colaborador");
         const result = await authenticateColaborador(input.username, input.password);
+        await recordLoginAttempt("colaborador", ip, input.username, result.success);
         
         if (result.success && result.token) {
           const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -97,8 +112,15 @@ export const appRouter = router({
         password: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const ip = getRequestIp(ctx.req.headers as Record<string, string | string[] | undefined>, ctx.req.socket?.remoteAddress);
+        const rate = await canAttemptLogin("admin", ip, input.email);
+        if (!rate.allowed) {
+          await auditLoginFailed(ctx, input.email, "Rate limit de login acionado");
+          throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente." });
+        }
         const { authenticateAdmin } = await import("./auth-admin");
         const result = await authenticateAdmin(input.email, input.password);
+        await recordLoginAttempt("admin", ip, input.email, result.success);
         
         if (result.success && result.token) {
           const cookieOptions = getSessionCookieOptions(ctx.req);
