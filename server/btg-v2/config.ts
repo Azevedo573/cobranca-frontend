@@ -110,14 +110,16 @@ export async function consultarContasRecebedorasBtg(
 ): Promise<BtgContaRecebedoraNormalizada[]> {
   const config = getBtgV2ServerConfig();
   const accessToken = await obterAccessTokenBtg();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${accessToken}`,
+  };
+  if (config.ambiente === "sandbox") headers["x-response"] = "success";
   const response = await fetchImpl(
     `${config.apiBaseUrl}/${config.companyId}/banking/accounts`,
     {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
+      headers,
     },
   );
 
@@ -133,7 +135,9 @@ export async function consultarContasRecebedorasBtg(
     : payload && typeof payload === "object"
       ? Array.isArray((payload as Record<string, unknown>).accounts)
         ? (payload as Record<string, unknown>).accounts as unknown[]
-        : [payload]
+        : Array.isArray((payload as Record<string, unknown>).data)
+          ? (payload as Record<string, unknown>).data as unknown[]
+          : [payload]
       : [];
 
   const contas = records.map((record) => {

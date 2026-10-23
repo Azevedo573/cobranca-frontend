@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { logAudit } from "../audit";
 import { getBtgOAuthConfig, getStatusOAuthBtg } from "../btg-oauth";
@@ -7,7 +7,9 @@ import { getDb } from "../db";
 import {
   btgContaRecebedoraCondominios,
   btgContasRecebedoras,
+  btgCobrancasEmitidas,
   btgIntegracoes,
+  btgWebhookEntregas,
   condominios,
 } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
@@ -18,6 +20,7 @@ import {
   mascararNumeroConta,
 } from "../btg-v2/config";
 import { emitirBolePixV2 } from "../btg-v2/issuance";
+import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
 
 function toTrpcError(error: unknown): TRPCError {
   if (error instanceof BtgV2ConfigurationError) {
@@ -370,6 +373,149 @@ export const btgV2Router = router({
             jaExistia: resultado.jaExistia,
             status: resultado.status,
           },
+          severity: "warning",
+        });
+        return resultado;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  listarEmissoes: adminProcedure
+    .input(z.object({ condominioId: z.number().int().positive().optional() }).optional())
+    .query(async ({ input }) => {
+      const { db, integracao } = await getIntegracaoAtual();
+      if (!integracao) return [];
+      const base = db.select({
+        emissao: btgCobrancasEmitidas,
+        condominioNome: condominios.name,
+      }).from(btgCobrancasEmitidas)
+        .innerJoin(condominios, eq(condominios.id, btgCobrancasEmitidas.condominioId));
+      const rows = input?.condominioId
+        ? await base.where(and(
+          eq(btgCobrancasEmitidas.btgIntegracaoId, integracao.id),
+          eq(btgCobrancasEmitidas.condominioId, input.condominioId),
+        )).orderBy(desc(btgCobrancasEmitidas.createdAt)).limit(100)
+        : await base.where(eq(btgCobrancasEmitidas.btgIntegracaoId, integracao.id))
+          .orderBy(desc(btgCobrancasEmitidas.createdAt)).limit(100);
+      return rows.map(({ emissao, condominioNome }) => ({
+        id: emissao.id,
+        condominioId: emissao.condominioId,
+        condominioNome,
+        origemTipo: emissao.origemTipo,
+        origemId: emissao.origemId,
+        status: emissao.status,
+        amount: emissao.amount,
+        dueDate: emissao.dueDate,
+        collectionId: emissao.btgCollectionId,
+        bankSlipUrl: emissao.bankSlipUrl,
+        pixCopiaECola: emissao.pixCopiaECola,
+        linhaDigitavel: emissao.linhaDigitavel,
+        nossoNumero: emissao.nossoNumero,
+        emitidaEm: emissao.emitidaEm,
+        erroCodigo: emissao.erroCodigo,
+      }));
+    }),
+
+  listarEntregasWebhook: adminProcedure.query(async () => {
+    const { db, integracao } = await getIntegracaoAtual();
+    if (!integracao) return [];
+    const rows = await db.select({
+      id: btgWebhookEntregas.id,
+      evento: btgWebhookEntregas.evento,
+      collectionId: btgWebhookEntregas.btgCollectionId,
+      assinaturaValida: btgWebhookEntregas.assinaturaValida,
+      statusProcessamento: btgWebhookEntregas.statusProcessamento,
+      erroCodigo: btgWebhookEntregas.erroCodigo,
+      recebidoEm: btgWebhookEntregas.recebidoEm,
+      processadoEm: btgWebhookEntregas.processadoEm,
+    }).from(btgWebhookEntregas)
+      .where(eq(btgWebhookEntregas.btgIntegracaoId, integracao.id))
+      .orderBy(desc(btgWebhookEntregas.recebidoEm))
+      .limit(20);
+    return rows.map((row) => ({ ...row, assinaturaValida: row.assinaturaValida === 1 }));
+  }),
+
+  conciliarEmissao: adminProcedure
+    .input(z.object({ emissaoId: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const config = getBtgV2ServerConfig();
+        if (config.ambiente !== "sandbox") throw new BtgV2ConfigurationError("A conciliação v2 está limitada ao Sandbox nesta fase.");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+        const resultado = await conciliarEmissaoBolePixV2(db, input.emissaoId);
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "boleto",
+          entityId: String(input.emissaoId),
+          metadata: { integracao: "btg-v2", evento: "conciliacao_manual", ...resultado },
+          severity: resultado.pagamentoAplicado ? "warning" : "info",
+        });
+        return resultado;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  conciliarPendentes: adminProcedure
+    .input(z.object({ condominioId: z.number().int().positive().optional() }).optional())
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const config = getBtgV2ServerConfig();
+        if (config.ambiente !== "sandbox") throw new BtgV2ConfigurationError("A conciliação v2 está limitada ao Sandbox nesta fase.");
+        const { db, integracao } = await getIntegracaoAtual();
+        if (!integracao) return { processadas: 0, pagas: 0, erros: [] as string[] };
+        const filters = [
+          eq(btgCobrancasEmitidas.btgIntegracaoId, integracao.id),
+          notInArray(btgCobrancasEmitidas.status, ["paga", "cancelada", "expirada"]),
+        ];
+        if (input?.condominioId) filters.push(eq(btgCobrancasEmitidas.condominioId, input.condominioId));
+        const pendentes = await db.select({ id: btgCobrancasEmitidas.id })
+          .from(btgCobrancasEmitidas)
+          .where(and(...filters))
+          .orderBy(btgCobrancasEmitidas.createdAt)
+          .limit(50);
+        let pagas = 0;
+        const erros: string[] = [];
+        for (const item of pendentes) {
+          try {
+            const resultado = await conciliarEmissaoBolePixV2(db, item.id);
+            if (resultado.pagamentoAplicado) pagas += 1;
+          } catch (error) {
+            erros.push(`Emissão #${item.id}: ${error instanceof Error ? error.message : "falha desconhecida"}`);
+          }
+        }
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "configuracao",
+          entityId: `btg-v2:${integracao.ambiente}`,
+          metadata: { integracao: "btg-v2", evento: "conciliacao_lote", processadas: pendentes.length, pagas, erros: erros.length },
+          severity: erros.length ? "warning" : "info",
+        });
+        return { processadas: pendentes.length, pagas, erros };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  cancelarEmissao: adminProcedure
+    .input(z.object({ emissaoId: z.number().int().positive(), confirmacao: z.literal("CANCELAR") }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const config = getBtgV2ServerConfig();
+        if (config.ambiente !== "sandbox") throw new BtgV2ConfigurationError("O cancelamento v2 está limitado ao Sandbox nesta fase.");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+        const resultado = await cancelarEmissaoBolePixV2(db, input.emissaoId);
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "boleto",
+          entityId: String(input.emissaoId),
+          metadata: { integracao: "btg-v2", evento: "cancelamento_confirmado", ...resultado },
           severity: "warning",
         });
         return resultado;

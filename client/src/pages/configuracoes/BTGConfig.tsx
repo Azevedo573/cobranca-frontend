@@ -57,6 +57,7 @@ export default function BTGConfig() {
   const [formRegras, setFormRegras] = useState({ diasLimitePagamento: "60", instrucoes: "" });
 
   const { data: painel, isLoading, refetch } = trpc.btgV2.painel.useQuery();
+  const { data: entregasWebhook } = trpc.btgV2.listarEntregasWebhook.useQuery();
   const { data: condominios } = trpc.condominios.list.useQuery();
   const { data: vinculoAtual, refetch: refetchVinculo } = trpc.btgV2.vinculoCondominio.useQuery(
     { condominioId: condominioId ?? 0 },
@@ -278,6 +279,10 @@ export default function BTGConfig() {
           <Card className={painel?.emissaoHabilitada ? "border-emerald-300" : "border-amber-300"}>
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Controle de emissão</CardTitle><CardDescription>Liberação explícita, limitada ao Sandbox, para validar o fluxo de BolePix. Produção permanece bloqueada.</CardDescription></CardHeader>
             <CardContent className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium">{painel?.emissaoHabilitada ? "Homologação habilitada" : "Homologação bloqueada"}</p><p className="text-xs text-muted-foreground">Última consulta de contas: {formatarData(painel?.integracao?.ultimaConsultaContasEm)}</p></div>{painel?.emissaoHabilitada ? <Button variant="destructive" onClick={() => desabilitarSandboxMutation.mutate()} disabled={desabilitarSandboxMutation.isPending}><Unplug className="h-4 w-4 mr-2" />Desabilitar</Button> : <Button onClick={() => setDialogHomologacaoOpen(true)} disabled={!painel?.prontoParaHomologacao || !sandbox}>Habilitar homologação</Button>}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Saúde do webhook v2</CardTitle><CardDescription>Últimas 20 entregas registradas por hash. O corpo do evento não é armazenado.</CardDescription></CardHeader>
+            <CardContent>{!entregasWebhook?.length ? <p className="text-sm text-muted-foreground">Ainda não há entregas de webhook para este ambiente.</p> : <div className="divide-y rounded-lg border">{entregasWebhook.map((entrega) => <div key={entrega.id} className="p-3 flex flex-wrap gap-3 items-center justify-between"><div><p className="text-sm font-medium">{entrega.evento}</p><p className="text-xs text-muted-foreground">Collection: {entrega.collectionId || "—"} · recebida em {formatarData(entrega.recebidoEm)}</p>{entrega.erroCodigo && <p className="text-xs text-destructive mt-1">{entrega.erroCodigo}</p>}</div><Badge variant={entrega.statusProcessamento === "processado" ? "secondary" : entrega.statusProcessamento === "ignorado" || entrega.statusProcessamento === "falha" ? "destructive" : "outline"}>{entrega.statusProcessamento}</Badge></div>)}</div>}</CardContent>
           </Card>
         </TabsContent>
       </Tabs>

@@ -38,6 +38,8 @@ BTG_WEBHOOK_SECRET=<segredo HMAC entregue/cadastrado no BTG>
 6. Abra um devedor de teste com CPF/CNPJ, nome e endereço completo. Em uma cobrança pendente, escolha a ação de BolePix. O modal revisa os dados e pede confirmação antes do POST.
 7. Registre o resultado. O novo registro fica em `btgCobrancasEmitidas`; os campos BTG/CNAB históricos de `cobrancas` e `parcelasAcordo` não são alterados por esta emissão v2.
 8. Repita a mesma ação uma vez. O sistema deve devolver o mesmo registro, sem criar um segundo título, pois a emissão usa chave única de origem/revisão e idempotência.
+9. Em **Banco → Conciliação BolePix BTG v2**, execute a consulta manual do título. A baixa só é aplicada se `paidAmount` retornado pelo BTG for idêntico ao valor local em centavos.
+10. Para testar cancelamento, selecione uma emissão não encerrada, digite `CANCELAR` e aguarde a resposta `204` do BTG. O registro de origem continua pendente e não é cancelado automaticamente.
 
 ## Controles já aplicados
 
@@ -49,9 +51,15 @@ A rota de webhook v2 é `POST /api/webhooks/btg/v2/:ambiente`. Ela usa corpo bru
 
 Não configure credenciais de Produção nem altere `BTG_SANDBOX` para `false`. A próxima fase exige conciliação e cancelamento v2, teste controlado e autorização explícita para Produção.
 
+## Próxima etapa técnica já especificada
+
+O cancelamento v2 usará `DELETE /:companyId/banking/collections/:collectionId`; no Sandbox o BTG exige o header `x-response: success` e responde `204` em caso de sucesso. A consulta para conciliação usa `GET /:companyId/banking/collections` com `pageSize` e `pageNumber`, podendo filtrar pelo identificador da cobrança. [5] [6]
+
 ## Referências
 
 [1]: https://developers.empresas.btgpactual.com/docs/starting-doc/Integrando/Ambientes/Sandbox "Ambiente Sandbox BTG Empresas"
 [2]: https://developers.empresas.btgpactual.com/docs/tecspecs/Banking%20-%20Collections-spec "Ficha técnica Collections"
 [3]: https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/criar-cobranca "Criar cobrança Collections"
 [4]: https://developers.empresas.btgpactual.com/docs/tecspecs/Banking%20-%20Accounts-spec "Ficha técnica Conta PJ"
+[5]: https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/cancelar-cobranca "Cancelar cobrança Collections"
+[6]: https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/listar-cobrancas "Listar cobranças Collections"

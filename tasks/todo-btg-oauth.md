@@ -48,9 +48,13 @@
   - Aceite: o registro canônico `btgCobrancasEmitidas` recebe collectionId, status e dados de boleto/Pix sem preencher os campos legados da cobrança/parcela.
   - Verificar: emitir uma única cobrança ou parcela de teste e repetir a ação para confirmar idempotência.
 
-- [ ] Implementar e homologar conciliação/cancelamento v2 com a API BTG antes de liberar Produção.
-  - Aceite: consulta e cancelamento atuam somente sobre `btgCobrancasEmitidas`; pagamento confere valor antes de baixar a origem.
-  - Verificar: testes de contrato, eventos de webhook em ambiente suportado e revisão financeira.
+- [x] Implementar conciliação e cancelamento v2 para o Sandbox.
+  - Aceite: consulta e cancelamento atuam somente sobre `btgCobrancasEmitidas`; pagamento confere valor antes de baixar a origem; cancelamento exige confirmação explícita.
+  - Verificar: testes de contrato HTTP, transições de status e `pnpm check` aprovados.
+
+- [ ] Homologar conciliação, cancelamento e webhook v2 com o BTG antes de liberar Produção.
+  - Aceite: a consulta real retorna o status esperado, cancelamento responde `204` e uma entrega de webhook válida é deduplicada e conciliada no ambiente suportado.
+  - Verificar: emissão Sandbox, eventos/documentação do BTG e revisão financeira.
 
 - [ ] Liberar Produção somente após homologação formal.
   - Aceite: variáveis e callback de Produção configurados separadamente, OAuth reautorizado, conta recebedora confirmada e emissão aprovada pelo responsável.
