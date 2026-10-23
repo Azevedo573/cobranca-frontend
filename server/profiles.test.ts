@@ -40,9 +40,9 @@ vi.mock("drizzle-orm", () => ({
 // ─── Testes ───────────────────────────────────────────────────────────────────
 
 describe("MODULOS e ACOES", () => {
-  it("deve exportar 15 módulos", async () => {
+  it("deve exportar os 23 módulos atualmente disponíveis", async () => {
     const { MODULOS } = await import("./db-profiles");
-    expect(MODULOS).toHaveLength(15);
+    expect(MODULOS).toHaveLength(23);
   });
 
   it("deve exportar 6 ações", async () => {

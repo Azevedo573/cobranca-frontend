@@ -40,6 +40,9 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // OAuth Authorization Code da integração Banking/Collections do BTG
+  const { registerBtgOAuthRoutes } = await import("../routes/btg-oauth");
+  registerBtgOAuthRoutes(app);
   // Job de cancelamento automático de acordos (Heartbeat cron)
   app.post("/api/scheduled/cancelamento-auto", cancelamentoAutoHandler);
   // Job de alertas progressivos de inadimplência de parcelas de acordo (Heartbeat cron)

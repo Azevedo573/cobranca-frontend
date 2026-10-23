@@ -610,6 +610,13 @@
       "when": 1786582361512,
       "tag": "0087_lying_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "5",
+      "when": 1792782256294,
+      "tag": "0088_ancient_pandemic",
+      "breakpoints": true
     }
   ]
 }

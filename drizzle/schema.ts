@@ -1,4 +1,4 @@
-import { boolean, decimal, int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -254,6 +254,47 @@ export const btgConfig = mysqlTable("btgConfig", {
 });
 export type BtgConfig = typeof btgConfig.$inferSelect;
 export type InsertBtgConfig = typeof btgConfig.$inferInsert;
+
+// ─── OAuth BTG Pactual — integração global do escritório ───────────────────────
+// Tokens são persistidos exclusivamente em formato cifrado pelo módulo btg-oauth.
+// As tabelas não substituem nem alteram registros financeiros ou a configuração
+// histórica de emissão; elas existem apenas para o fluxo Authorization Code.
+export const btgOauthEstados = mysqlTable("btgOauthEstados", {
+  id: int("id").autoincrement().primaryKey(),
+  stateHash: varchar("stateHash", { length: 64 }).notNull(),
+  adminUserId: int("adminUserId").notNull(),
+  ambiente: mysqlEnum("ambiente", ["sandbox", "producao"]).notNull(),
+  redirectUri: varchar("redirectUri", { length: 500 }).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  errorCode: varchar("errorCode", { length: 80 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgOauthEstados_stateHash_unique").on(table.stateHash),
+  index("btgOauthEstados_expiresAt_idx").on(table.expiresAt),
+]);
+export type BtgOauthEstado = typeof btgOauthEstados.$inferSelect;
+export type InsertBtgOauthEstado = typeof btgOauthEstados.$inferInsert;
+
+export const btgOauthTokens = mysqlTable("btgOauthTokens", {
+  id: int("id").autoincrement().primaryKey(),
+  ambiente: mysqlEnum("ambiente", ["sandbox", "producao"]).notNull(),
+  accessTokenCifrado: text("accessTokenCifrado").notNull(),
+  refreshTokenCifrado: text("refreshTokenCifrado").notNull(),
+  tokenExpiresAt: timestamp("tokenExpiresAt").notNull(),
+  scopes: varchar("scopes", { length: 1000 }),
+  companyId: varchar("companyId", { length: 50 }).notNull(),
+  status: mysqlEnum("status", ["conectado", "requer_reconexao"]).default("conectado").notNull(),
+  lastErrorCode: varchar("lastErrorCode", { length: 80 }),
+  connectedAt: timestamp("connectedAt").defaultNow().notNull(),
+  refreshedAt: timestamp("refreshedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgOauthTokens_ambiente_unique").on(table.ambiente),
+]);
+export type BtgOauthToken = typeof btgOauthTokens.$inferSelect;
+export type InsertBtgOauthToken = typeof btgOauthTokens.$inferInsert;
 
 // Tabela para armazenar índices de correção monetária do Banco Central
 // Usa nome indicesBCB (com B maiúsculo) para manter compatibilidade com tabela existente

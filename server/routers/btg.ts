@@ -7,8 +7,9 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { adminProcedure, router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { logAudit } from "../audit";
 import {
   btgConfig,
   cobrancas,
@@ -24,9 +25,9 @@ import {
   buscarCobrancaBtg,
   listarCobrancasBtg,
   montarPayloadCobranca,
-  getBtgAccessToken,
   getBtgExtraConfig,
 } from "../btg-service";
+import { getStatusOAuthBtg, iniciarAutorizacaoBtg } from "../btg-oauth";
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -39,11 +40,12 @@ export const btgRouter = router({
    * As credenciais (clientId, clientSecret, companyId) vêm das env vars e nunca
    * são expostas ao frontend — apenas indicamos se estão configuradas.
    */
-  getConfig: protectedProcedure
+  getConfig: adminProcedure
     .query(async () => {
       const extra = await getBtgExtraConfig();
+      const oauth = await getStatusOAuthBtg();
 
-      // Indicar se as env vars estão configuradas (sem expor os valores)
+      // Indicar apenas presença de variáveis, sem expor valores sensíveis.
       const clientIdConfigured = !!process.env.BTG_CLIENT_ID;
       const clientSecretConfigured = !!process.env.BTG_CLIENT_SECRET;
       const companyIdConfigured = !!process.env.BTG_COMPANY_ID;
@@ -53,10 +55,14 @@ export const btgRouter = router({
       const sandboxCompanyId = "30306294000145";
       const effectiveCompanyId = isSandbox ? sandboxCompanyId : process.env.BTG_COMPANY_ID;
 
-      const { isSandbox: _isSandboxFromExtra, ...extraRest } = extra;
+      const {
+        isSandbox: _isSandboxFromExtra,
+        webhookSecret: _webhookSecret,
+        ...extraRest
+      } = extra;
 
       return {
-        credenciaisConfiguradas: clientIdConfigured && clientSecretConfigured && (isSandbox || companyIdConfigured),
+        credenciaisConfiguradas: oauth.configuracaoCompleta,
         clientIdConfigured,
         clientSecretConfigured,
         companyIdConfigured: isSandbox ? true : companyIdConfigured,
@@ -64,6 +70,8 @@ export const btgRouter = router({
           ? `***${effectiveCompanyId.slice(-4)}`
           : null,
         isSandbox,
+        webhookSecretConfigured: Boolean(_webhookSecret),
+        oauth,
         ...extraRest,
       };
     }),
@@ -72,7 +80,7 @@ export const btgRouter = router({
    * Salva configurações extras do BTG (instrucoes, diasVencimento, webhookSecret).
    * Credenciais são gerenciadas via env vars, não por esta tela.
    */
-  saveConfig: protectedProcedure
+  saveConfig: adminProcedure
     .input(z.object({
       webhookSecret: z.string().optional(),
       diasVencimentoPadrao: z.number().min(1).max(365).default(30),
@@ -85,14 +93,17 @@ export const btgRouter = router({
       if (!db) throw new Error("Banco não disponível");
 
       // Verificar se já existe registro global (id=1)
-      const existing = await db.select({ id: btgConfig.id })
+      const existing = await db.select({ id: btgConfig.id, webhookSecret: btgConfig.webhookSecret })
         .from(btgConfig)
         .limit(1);
 
       if (existing.length) {
         await db.update(btgConfig)
           .set({
-            webhookSecret: input.webhookSecret ?? null,
+            // Nunca alterar o segredo existente quando a tela não recebeu um novo valor.
+            webhookSecret: input.webhookSecret === undefined
+              ? existing[0].webhookSecret
+              : input.webhookSecret || null,
             diasVencimentoPadrao: input.diasVencimentoPadrao,
             diasLimitePagamento: input.diasLimitePagamento,
             instrucoes: input.instrucoes ?? null,
@@ -101,12 +112,13 @@ export const btgRouter = router({
           })
           .where(eq(btgConfig.id, existing[0].id));
       } else {
-        // Criar registro global com condominioId=0 (global)
+        // Campos legados não são utilizados pelo OAuth. O marcador evita gravar
+        // Client Secret real no banco enquanto preserva a estrutura histórica.
         await db.insert(btgConfig).values({
           condominioId: 0,
-          clientId: process.env.BTG_CLIENT_ID ?? "",
-          clientSecret: process.env.BTG_CLIENT_SECRET ?? "",
-          companyId: process.env.BTG_COMPANY_ID ?? "",
+          clientId: process.env.BTG_CLIENT_ID ?? "GERENCIADO_POR_ENV",
+          clientSecret: "GERENCIADO_POR_ENV",
+          companyId: process.env.BTG_COMPANY_ID ?? "GERENCIADO_POR_ENV",
           webhookSecret: input.webhookSecret ?? null,
           diasVencimentoPadrao: input.diasVencimentoPadrao,
           diasLimitePagamento: input.diasLimitePagamento,
@@ -119,17 +131,20 @@ export const btgRouter = router({
     }),
 
   /**
-   * Testa a conexão com a API BTG usando as credenciais das env vars.
+   * Inicia o consentimento Authorization Code. O navegador será direcionado ao
+   * BTG e retornará ao callback HTTPS configurado em BTG_REDIRECT_URI.
    */
-  testarConexao: protectedProcedure
-    .mutation(async () => {
-      try {
-        const token = await getBtgAccessToken();
-        return { success: true, message: "Conexão com BTG estabelecida com sucesso!", tokenObtido: !!token };
-      } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        return { success: false, message: `Falha na conexão: ${msg}`, tokenObtido: false };
-      }
+  iniciarAutorizacao: adminProcedure
+    .mutation(async ({ ctx }) => {
+      const result = await iniciarAutorizacaoBtg(ctx.user.id);
+      await logAudit(ctx, {
+        action: "config_change",
+        entity: "configuracao",
+        entityId: "btg-oauth",
+        metadata: { integracao: "btg", evento: "autorizacao_iniciada" },
+        severity: "info",
+      });
+      return result;
     }),
 
   // ── Emissão de Boleto (Cobrança) ─────────────────────────────────────────────

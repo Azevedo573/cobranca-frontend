@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +10,14 @@ import { toast } from "sonner";
 import { Building2, CheckCircle2, XCircle, Loader2, Webhook, Info, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+const mensagensOAuth = {
+  conectado: "Conta BTG conectada com sucesso.",
+  negado: "O consentimento no BTG foi cancelado.",
+  erro: "Não foi possível concluir a autorização BTG.",
+} as const;
+
 export default function BTGConfig() {
   const [formData, setFormData] = useState({
-    webhookSecret: "",
     diasVencimentoPadrao: "30",
     diasLimitePagamento: "60",
     instrucoes: "Pagável em qualquer banco até o vencimento. Após o vencimento, sujeito a multa e juros.",
@@ -22,41 +27,33 @@ export default function BTGConfig() {
   const { data: config, refetch } = trpc.btg.getConfig.useQuery();
 
   useEffect(() => {
-    if (config) {
-      setFormData(prev => ({
-        ...prev,
-        webhookSecret: config.webhookSecret || "",
-        diasVencimentoPadrao: config.diasVencimentoPadrao?.toString() || "30",
-        diasLimitePagamento: config.diasLimitePagamento?.toString() || "60",
-        instrucoes: config.instrucoes || "Pagável em qualquer banco até o vencimento. Após o vencimento, sujeito a multa e juros.",
-        ativo: config.ativo ? "1" : "0",
-      }));
-    }
+    if (!config) return;
+    setFormData({
+      diasVencimentoPadrao: config.diasVencimentoPadrao?.toString() || "30",
+      diasLimitePagamento: config.diasLimitePagamento?.toString() || "60",
+      instrucoes: config.instrucoes || "Pagável em qualquer banco até o vencimento. Após o vencimento, sujeito a multa e juros.",
+      ativo: config.ativo ? "1" : "0",
+    });
   }, [config]);
 
   const saveMutation = trpc.btg.saveConfig.useMutation({
     onSuccess: () => {
-      toast.success("Configuração BTG salva com sucesso!");
+      toast.success("Configuração de emissão BTG salva com sucesso.");
       refetch();
     },
     onError: (err) => toast.error("Erro ao salvar: " + err.message),
   });
 
-  const testarMutation = trpc.btg.testarConexao.useMutation({
-    onSuccess: (res) => {
-      if (res.success) {
-        toast.success(res.message);
-      } else {
-        toast.error(res.message);
-      }
+  const conectarMutation = trpc.btg.iniciarAutorizacao.useMutation({
+    onSuccess: (result) => {
+      window.location.assign(result.authorizationUrl);
     },
-    onError: (err) => toast.error("Erro: " + err.message),
+    onError: (err) => toast.error("Não foi possível iniciar a autorização: " + err.message),
   });
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = (event: React.FormEvent) => {
+    event.preventDefault();
     saveMutation.mutate({
-      webhookSecret: formData.webhookSecret || undefined,
       diasVencimentoPadrao: parseInt(formData.diasVencimentoPadrao) || 30,
       diasLimitePagamento: parseInt(formData.diasLimitePagamento) || 60,
       instrucoes: formData.instrucoes || undefined,
@@ -64,254 +61,196 @@ export default function BTGConfig() {
     });
   };
 
-  const webhookUrl = `${window.location.origin}/api/webhook/btg`;
+  const oauthResult = new URLSearchParams(window.location.search).get("btgOAuth");
+
+  useEffect(() => {
+    if (!oauthResult) return;
+    const message = mensagensOAuth[oauthResult as keyof typeof mensagensOAuth];
+    if (!message) return;
+
+    oauthResult === "conectado" ? toast.success(message) : toast.error(message);
+    window.history.replaceState({}, document.title, "/configuracoes/btg");
+    refetch();
+  }, [oauthResult, refetch]);
+
+  const oauth = config?.oauth;
+  const conectado = oauth?.status === "conectado";
+  const statusLabel = {
+    nao_configurado: "Variáveis de servidor pendentes",
+    nao_conectado: "Aguardando consentimento",
+    conectado: "Conta BTG conectada",
+    requer_reconexao: "Reconexão necessária",
+  }[oauth?.status || "nao_configurado"];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="p-2 rounded-lg bg-blue-500/10">
           <Building2 className="h-6 w-6 text-blue-500" />
         </div>
         <div>
           <h1 className="text-2xl font-bold">Integração BTG Pactual</h1>
           <p className="text-muted-foreground text-sm">
-            Configurações da API BTG Empresas para emissão de boletos híbridos (Boleto + PIX)
+            Consentimento seguro para a conta BTG do escritório e emissão futura de boletos híbridos.
           </p>
         </div>
         {config && (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             {config.isSandbox && (
               <Badge variant="outline" className="border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950">
-                🧪 SANDBOX
+                SANDBOX
               </Badge>
             )}
-            <Badge
-              variant={config.credenciaisConfiguradas ? "default" : "destructive"}
-            >
-              {config.credenciaisConfiguradas ? (
-                <><CheckCircle2 className="h-3 w-3 mr-1" /> Credenciais OK</>
+            <Badge variant={conectado ? "default" : "destructive"}>
+              {conectado ? (
+                <><CheckCircle2 className="h-3 w-3 mr-1" /> {statusLabel}</>
               ) : (
-                <><XCircle className="h-3 w-3 mr-1" /> Credenciais não configuradas</>
+                <><XCircle className="h-3 w-3 mr-1" /> {statusLabel}</>
               )}
             </Badge>
           </div>
         )}
       </div>
 
-      {/* Status das credenciais (env vars) */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <ShieldCheck className="h-4 w-4" />
-            Credenciais BTG (Variáveis de Ambiente)
+            Conexão OAuth com o BTG
           </CardTitle>
           <CardDescription>
-            As credenciais BTG são configuradas como variáveis de ambiente seguras do servidor,
-            não ficam expostas no banco de dados. Para alterá-las, use o painel de Secrets do projeto.
+            O Client Secret, access token e refresh token permanecem somente no servidor. A tela não exibe nem armazena esses valores.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
-              {config?.clientIdConfigured ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-              ) : (
-                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-              )}
-              <div>
-                <p className="text-sm font-medium">BTG_CLIENT_ID</p>
-                <p className="text-xs text-muted-foreground">
-                  {config?.clientIdConfigured ? "Configurado" : "Não configurado"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
-              {config?.clientSecretConfigured ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-              ) : (
-                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-              )}
-              <div>
-                <p className="text-sm font-medium">BTG_CLIENT_SECRET</p>
-                <p className="text-xs text-muted-foreground">
-                  {config?.clientSecretConfigured ? "Configurado" : "Não configurado"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
-              {config?.companyIdConfigured ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-              ) : (
-                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-              )}
-              <div>
-                <p className="text-sm font-medium">BTG_COMPANY_ID</p>
-                <p className="text-xs text-muted-foreground">
-                  {config?.companyIdConfigured
-                    ? `Configurado (${config.companyIdMasked})`
-                    : "Não configurado"}
-                </p>
-              </div>
-            </div>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <StatusItem label="BTG_CLIENT_ID" configured={Boolean(config?.clientIdConfigured)} />
+            <StatusItem label="BTG_CLIENT_SECRET" configured={Boolean(config?.clientSecretConfigured)} />
+            <StatusItem label="BTG_REDIRECT_URI" configured={Boolean(oauth?.redirectUri)} />
+            <StatusItem label="Proteção de tokens" configured={Boolean(oauth?.configuracaoCompleta)} />
           </div>
 
-          {!config?.credenciaisConfiguradas && (
-            <Alert variant="destructive" className="mt-4">
+          {!oauth?.configuracaoCompleta && (
+            <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
               <AlertDescription>
-                As credenciais BTG não estão configuradas. Acesse o painel de <strong>Secrets</strong> do
-                projeto e defina <strong>BTG_CLIENT_ID</strong>, <strong>BTG_CLIENT_SECRET</strong> e{" "}
+                Configure no servidor <strong>BTG_CLIENT_ID</strong>, <strong>BTG_CLIENT_SECRET</strong>,{" "}
+                <strong>BTG_REDIRECT_URI</strong> e <strong>BTG_TOKEN_ENCRYPTION_KEY</strong>. Em produção, informe também{" "}
                 <strong>BTG_COMPANY_ID</strong>.
               </AlertDescription>
             </Alert>
           )}
 
-          {config?.isSandbox && (
-            <Alert className="mt-4 border-yellow-500/50 bg-yellow-50/50 dark:bg-yellow-950/20">
-              <Info className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-700 dark:text-yellow-400">
-                <strong>Modo Sandbox ativo.</strong> As cobranças não são efetivamente criadas.
-                O Company ID usado automaticamente é <code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900 px-1 rounded">30306294000145</code> (empresa dedicada do sandbox BTG).
-                Para usar em produção, remova a variável <code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900 px-1 rounded">BTG_SANDBOX</code> ou defina como <code className="font-mono text-xs bg-yellow-100 dark:bg-yellow-900 px-1 rounded">false</code>.
+          {oauth?.redirectUri && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs break-all">
+                URI de retorno cadastrada no aplicativo BTG: <code className="font-mono">{oauth.redirectUri}</code>
               </AlertDescription>
             </Alert>
           )}
 
-          {config?.credenciaisConfiguradas && (
-            <div className="mt-4">
+          {oauth?.configuracaoCompleta && (
+            <div>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => testarMutation.mutate()}
-                disabled={testarMutation.isPending}
+                onClick={() => conectarMutation.mutate()}
+                disabled={conectarMutation.isPending}
               >
-                {testarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Testar Conexão com BTG
+                {conectarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {conectado ? "Reconectar conta BTG" : "Conectar conta BTG"}
               </Button>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Você será direcionado ao BTG para consentir o acesso da conta do escritório. Nenhum token é exibido no Luminus.
+              </p>
             </div>
           )}
         </CardContent>
       </Card>
 
       <form onSubmit={handleSave} className="space-y-6">
-        {/* Configurações de Emissão */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Configurações de Emissão</CardTitle>
-            <CardDescription>
-              Parâmetros padrão usados na emissão de boletos para todos os condomínios
-            </CardDescription>
+            <CardTitle className="text-base">Configurações de emissão</CardTitle>
+            <CardDescription>Parâmetros padrão previstos para a emissão de boletos pelos condomínios atendidos pelo escritório.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="diasVencimento">Dias até o Vencimento (padrão)</Label>
+                <Label htmlFor="diasVencimento">Dias até o vencimento</Label>
                 <Input
                   id="diasVencimento"
                   type="number"
                   min={1}
                   max={365}
                   value={formData.diasVencimentoPadrao}
-                  onChange={e => setFormData(prev => ({ ...prev, diasVencimentoPadrao: e.target.value }))}
+                  onChange={(event) => setFormData((current) => ({ ...current, diasVencimentoPadrao: event.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Usado quando a cobrança não tem data de vencimento definida
-                </p>
+                <p className="text-xs text-muted-foreground">Usado quando a cobrança não tiver vencimento definido.</p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="diasLimite">Dias Limite para Pagamento Após Vencimento</Label>
+                <Label htmlFor="diasLimite">Dias limite após o vencimento</Label>
                 <Input
                   id="diasLimite"
                   type="number"
                   min={1}
                   max={365}
                   value={formData.diasLimitePagamento}
-                  onChange={e => setFormData(prev => ({ ...prev, diasLimitePagamento: e.target.value }))}
+                  onChange={(event) => setFormData((current) => ({ ...current, diasLimitePagamento: event.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Após este prazo o boleto expira automaticamente
-                </p>
+                <p className="text-xs text-muted-foreground">Após este prazo, a cobrança deve expirar conforme a regra homologada no BTG.</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="instrucoes">Instruções do Boleto</Label>
+              <Label htmlFor="instrucoes">Instruções do boleto</Label>
               <Textarea
                 id="instrucoes"
                 value={formData.instrucoes}
-                onChange={e => setFormData(prev => ({ ...prev, instrucoes: e.target.value }))}
-                placeholder="Texto que aparece no boleto..."
+                onChange={(event) => setFormData((current) => ({ ...current, instrucoes: event.target.value }))}
+                placeholder="Texto que aparecerá no boleto..."
                 rows={3}
               />
-              <p className="text-xs text-muted-foreground">
-                Este texto aparece no campo de instruções do boleto emitido
-              </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Webhook */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Webhook className="h-4 w-4" />
-              Webhook de Pagamento Automático
-            </CardTitle>
+            <CardTitle className="text-base flex items-center gap-2"><Webhook className="h-4 w-4" /> Webhooks de pagamento</CardTitle>
             <CardDescription>
-              Configure esta URL no portal BTG Empresas para receber notificações automáticas de pagamento.
-              O sistema dará baixa automática nas cobranças ao receber o evento <strong>collections.paid</strong>.
+              A ativação de eventos será feita após a homologação do callback de cobrança. O segredo, quando configurado, nunca é exibido novamente.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono break-all">
-                {webhookUrl}
-              </code>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(webhookUrl);
-                  toast.success("URL copiada!");
-                }}
-              >
-                Copiar
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="webhookSecret">Webhook Secret (opcional)</Label>
-              <Input
-                id="webhookSecret"
-                type="password"
-                value={formData.webhookSecret}
-                onChange={e => setFormData(prev => ({ ...prev, webhookSecret: e.target.value }))}
-                placeholder="Secret para validar assinatura HMAC dos webhooks BTG"
-              />
-              <p className="text-xs text-muted-foreground">
-                Se configurado, o sistema valida a assinatura HMAC-SHA256 de cada webhook recebido
-              </p>
-            </div>
-
+          <CardContent>
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                No portal BTG Empresas, acesse <strong>Configurações → Webhooks</strong> e cadastre
-                a URL acima para os eventos: <strong>collections.paid</strong>,{" "}
-                <strong>collections.expired</strong> e <strong>collections.cancelled</strong>.
+                Estado do segredo de webhook: <strong>{config?.webhookSecretConfigured ? "configurado" : "não configurado"}</strong>.
+                A URL e os eventos serão liberados após a validação obrigatória do webhook com o BTG.
               </AlertDescription>
             </Alert>
           </CardContent>
         </Card>
 
-        <div className="flex gap-3">
-          <Button type="submit" disabled={saveMutation.isPending}>
-            {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Salvar Configuração
-          </Button>
-        </div>
+        <Button type="submit" disabled={saveMutation.isPending}>
+          {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Salvar configuração de emissão
+        </Button>
       </form>
+    </div>
+  );
+}
+
+function StatusItem({ label, configured }: { label: string; configured: boolean }) {
+  return (
+    <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
+      {configured ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> : <XCircle className="h-4 w-4 text-red-500 shrink-0" />}
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{configured ? "Configurado" : "Não configurado"}</p>
+      </div>
     </div>
   );
 }

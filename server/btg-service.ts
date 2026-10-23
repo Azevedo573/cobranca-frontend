@@ -13,25 +13,15 @@
 import { getDb } from "./db";
 import { btgConfig } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { getBtgOAuthConfig, obterAccessTokenBtg } from "./btg-oauth";
 
 // Detectar ambiente: sandbox ou produção
 // Defina BTG_SANDBOX=true nas env vars para usar o ambiente de sandbox
 const IS_SANDBOX = process.env.BTG_SANDBOX === "true";
 
-const BTG_AUTH_URL = IS_SANDBOX
-  ? "https://id.sandbox.btgpactual.com/oauth2/token"
-  : "https://id.btgpactual.com/oauth2/token";
-
 const BTG_API_BASE = IS_SANDBOX
   ? "https://api.sandbox.empresas.btgpactual.com"
   : "https://api.empresas.btgpactual.com";
-
-// No sandbox, o companyId é sempre este valor fixo (empresa dedicada do sandbox)
-const BTG_SANDBOX_COMPANY_ID = "30306294000145";
-
-// ─── Cache de token em memória ─────────────────────────────────────────────────
-let _cachedToken: string | null = null;
-let _tokenExpiresAt: number = 0; // timestamp ms
 
 // ─── Tipos da API BTG ──────────────────────────────────────────────────────────
 
@@ -125,30 +115,12 @@ export interface BtgWebhookPayload {
 // ─── Configuração Global ───────────────────────────────────────────────────────
 
 /**
- * Retorna as credenciais BTG das variáveis de ambiente globais.
- * Lança erro se não estiverem configuradas.
+ * Retorna o CNPJ autorizado no token OAuth Authorization Code do BTG.
+ * Client Secret e tokens são mantidos exclusivamente no módulo btg-oauth.
  */
-function getBtgCredentials(): { clientId: string; clientSecret: string; companyId: string } {
-  const clientId = process.env.BTG_CLIENT_ID;
-  const clientSecret = process.env.BTG_CLIENT_SECRET;
-  const companyId = process.env.BTG_COMPANY_ID;
-
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      "Credenciais BTG não configuradas. Defina BTG_CLIENT_ID e BTG_CLIENT_SECRET nas variáveis de ambiente."
-    );
-  }
-
-  if (!IS_SANDBOX && !companyId) {
-    throw new Error(
-      "BTG_COMPANY_ID não configurado. Defina BTG_COMPANY_ID nas variáveis de ambiente."
-    );
-  }
-
-  // No sandbox, o companyId é sempre o fixo da empresa dedicada do sandbox
-  const effectiveCompanyId = IS_SANDBOX ? BTG_SANDBOX_COMPANY_ID : companyId!;
-
-  return { clientId, clientSecret, companyId: effectiveCompanyId };
+function getBtgCredentials(): { companyId: string } {
+  const config = getBtgOAuthConfig();
+  return { companyId: config.companyId };
 }
 
 /**
@@ -189,51 +161,9 @@ export async function getBtgExtraConfig(): Promise<{
 
 // ─── Autenticação ──────────────────────────────────────────────────────────────
 
-/**
- * Obtém token de acesso BTG via Client Credentials.
- * Usa cache em memória para evitar reautenticação desnecessária.
- */
+/** Obtém access token válido por Authorization Code e refresh token cifrados. */
 export async function getBtgAccessToken(): Promise<string> {
-  // Verificar cache em memória (com 5 min de margem)
-  if (_cachedToken && Date.now() < _tokenExpiresAt - 5 * 60 * 1000) {
-    return _cachedToken;
-  }
-
-  const { clientId, clientSecret } = getBtgCredentials();
-
-  // BTG usa Basic Auth: Base64(client_id:client_secret) no header Authorization
-  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-
-  const params = new URLSearchParams({
-    grant_type: "client_credentials",
-    scope: "collections",
-  });
-
-  const response = await fetch(BTG_AUTH_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Authorization": `Basic ${basicAuth}`,
-    },
-    body: params.toString(),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Falha na autenticação BTG: ${response.status} - ${errorText}`);
-  }
-
-  const tokenData = await response.json() as {
-    access_token: string;
-    expires_in: number;
-    token_type: string;
-  };
-
-  // Salvar em cache
-  _cachedToken = tokenData.access_token;
-  _tokenExpiresAt = Date.now() + tokenData.expires_in * 1000;
-
-  return _cachedToken;
+  return obterAccessTokenBtg();
 }
 
 // ─── Funções de Cobrança ───────────────────────────────────────────────────────
