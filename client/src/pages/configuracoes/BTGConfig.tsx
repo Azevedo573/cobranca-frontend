@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +6,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { AdminCondominioSelector } from "@/components/AdminCondominioSelector";
 import { toast } from "sonner";
-import { Building2, CheckCircle2, XCircle, Loader2, Webhook, Info, ShieldCheck } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Activity,
+  Building2,
+  CheckCircle2,
+  CircleAlert,
+  ClipboardCheck,
+  Info,
+  Landmark,
+  Loader2,
+  LockKeyhole,
+  RefreshCw,
+  ShieldCheck,
+  Unplug,
+  WalletCards,
+  XCircle,
+} from "lucide-react";
 
 const mensagensOAuth = {
   conectado: "Conta BTG conectada com sucesso.",
@@ -16,241 +43,256 @@ const mensagensOAuth = {
   erro: "Não foi possível concluir a autorização BTG.",
 } as const;
 
-export default function BTGConfig() {
-  const [formData, setFormData] = useState({
-    diasVencimentoPadrao: "30",
-    diasLimitePagamento: "60",
-    instrucoes: "Pagável em qualquer banco até o vencimento. Após o vencimento, sujeito a multa e juros.",
-    ativo: "1",
-  });
+function formatarData(data: Date | string | null | undefined) {
+  if (!data) return "—";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(data));
+}
 
-  const { data: config, refetch } = trpc.btg.getConfig.useQuery();
+export default function BTGConfig() {
+  const utils = trpc.useUtils();
+  const [condominioId, setCondominioId] = useState<number | null>(null);
+  const [contaRecebedoraId, setContaRecebedoraId] = useState<string>("");
+  const [confirmacaoHomologacao, setConfirmacaoHomologacao] = useState("");
+  const [dialogHomologacaoOpen, setDialogHomologacaoOpen] = useState(false);
+  const [formRegras, setFormRegras] = useState({ diasLimitePagamento: "60", instrucoes: "" });
+
+  const { data: painel, isLoading, refetch } = trpc.btgV2.painel.useQuery();
+  const { data: condominios } = trpc.condominios.list.useQuery();
+  const { data: vinculoAtual, refetch: refetchVinculo } = trpc.btgV2.vinculoCondominio.useQuery(
+    { condominioId: condominioId ?? 0 },
+    { enabled: Boolean(condominioId) },
+  );
 
   useEffect(() => {
-    if (!config) return;
-    setFormData({
-      diasVencimentoPadrao: config.diasVencimentoPadrao?.toString() || "30",
-      diasLimitePagamento: config.diasLimitePagamento?.toString() || "60",
-      instrucoes: config.instrucoes || "Pagável em qualquer banco até o vencimento. Após o vencimento, sujeito a multa e juros.",
-      ativo: config.ativo ? "1" : "0",
+    if (!painel?.integracao) return;
+    setFormRegras({
+      diasLimitePagamento: String(painel.integracao.diasLimitePagamento ?? 60),
+      instrucoes: painel.integracao.instrucoes ?? "",
     });
-  }, [config]);
+  }, [painel?.integracao]);
 
-  const saveMutation = trpc.btg.saveConfig.useMutation({
-    onSuccess: () => {
-      toast.success("Configuração de emissão BTG salva com sucesso.");
-      refetch();
-    },
-    onError: (err) => toast.error("Erro ao salvar: " + err.message),
-  });
+  useEffect(() => {
+    if (!vinculoAtual?.conta) {
+      setContaRecebedoraId("");
+      return;
+    }
+    setContaRecebedoraId(String(vinculoAtual.conta.id));
+  }, [vinculoAtual]);
 
   const conectarMutation = trpc.btg.iniciarAutorizacao.useMutation({
-    onSuccess: (result) => {
-      window.location.assign(result.authorizationUrl);
+    onSuccess: (result) => window.location.assign(result.authorizationUrl),
+    onError: (error) => toast.error(`Não foi possível iniciar a autorização: ${error.message}`),
+  });
+  const sincronizarContasMutation = trpc.btgV2.sincronizarContas.useMutation({
+    onSuccess: ({ quantidade }) => {
+      toast.success(`${quantidade} conta(s) recebedora(s) sincronizada(s).`);
+      void refetch();
     },
-    onError: (err) => toast.error("Não foi possível iniciar a autorização: " + err.message),
+    onError: (error) => toast.error(error.message),
+  });
+  const salvarRegrasMutation = trpc.btgV2.salvarPoliticaHomologacao.useMutation({
+    onSuccess: () => {
+      toast.success("Regras de homologação salvas.");
+      void refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const vincularContaMutation = trpc.btgV2.vincularContaCondominio.useMutation({
+    onSuccess: () => {
+      toast.success("Conta recebedora vinculada ao condomínio.");
+      void refetchVinculo();
+      void refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const habilitarSandboxMutation = trpc.btgV2.habilitarEmissaoSandbox.useMutation({
+    onSuccess: () => {
+      toast.success("Homologação BolePix Sandbox habilitada.");
+      setDialogHomologacaoOpen(false);
+      setConfirmacaoHomologacao("");
+      void refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const desabilitarSandboxMutation = trpc.btgV2.desabilitarEmissaoSandbox.useMutation({
+    onSuccess: () => {
+      toast.success("Homologação BolePix Sandbox desabilitada.");
+      void refetch();
+    },
+    onError: (error) => toast.error(error.message),
   });
 
-  const handleSave = (event: React.FormEvent) => {
-    event.preventDefault();
-    saveMutation.mutate({
-      diasVencimentoPadrao: parseInt(formData.diasVencimentoPadrao) || 30,
-      diasLimitePagamento: parseInt(formData.diasLimitePagamento) || 60,
-      instrucoes: formData.instrucoes || undefined,
-      ativo: parseInt(formData.ativo) || 1,
-    });
-  };
-
   const oauthResult = new URLSearchParams(window.location.search).get("btgOAuth");
-
   useEffect(() => {
     if (!oauthResult) return;
-    const message = mensagensOAuth[oauthResult as keyof typeof mensagensOAuth];
-    if (!message) return;
-
-    oauthResult === "conectado" ? toast.success(message) : toast.error(message);
+    const mensagem = mensagensOAuth[oauthResult as keyof typeof mensagensOAuth];
+    if (!mensagem) return;
+    oauthResult === "conectado" ? toast.success(mensagem) : toast.error(mensagem);
     window.history.replaceState({}, document.title, "/configuracoes/btg");
-    refetch();
+    void refetch();
   }, [oauthResult, refetch]);
 
-  const oauth = config?.oauth;
+  const oauth = painel?.oauth;
+  const sandbox = oauth?.ambiente === "sandbox";
   const conectado = oauth?.status === "conectado";
-  const statusLabel = {
-    nao_configurado: "Variáveis de servidor pendentes",
-    nao_conectado: "Aguardando consentimento",
-    conectado: "Conta BTG conectada",
-    requer_reconexao: "Reconexão necessária",
-  }[oauth?.status || "nao_configurado"];
+  const contaDisponivel = Boolean(painel?.contas.some((conta) => conta.ativo));
+  const checklist = useMemo(() => [
+    { label: "Variáveis seguras do servidor", ok: Boolean(oauth?.configuracaoCompleta), detail: oauth?.configuracaoCompleta ? "Credenciais e criptografia configuradas" : "Client ID, secret, callback HTTPS ou chave de cifragem pendentes" },
+    { label: "Consentimento OAuth", ok: conectado, detail: conectado ? "Conta BTG conectada" : "Conecte a conta do escritório" },
+    { label: "Conta recebedora", ok: contaDisponivel, detail: contaDisponivel ? `${painel?.contas.length ?? 0} conta(s) sincronizada(s)` : "Consulte as contas autorizadas pelo BTG" },
+    { label: "Emissão BolePix", ok: Boolean(painel?.emissaoHabilitada), detail: painel?.emissaoHabilitada ? "Homologação Sandbox liberada" : "Permanece bloqueada por segurança" },
+  ], [contaDisponivel, conectado, oauth?.configuracaoCompleta, painel?.contas.length, painel?.emissaoHabilitada]);
+
+  if (isLoading) {
+    return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="p-2 rounded-lg bg-blue-500/10">
-          <Building2 className="h-6 w-6 text-blue-500" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold">Integração BTG Pactual</h1>
-          <p className="text-muted-foreground text-sm">
-            Consentimento seguro para a conta BTG do escritório e emissão futura de boletos híbridos.
-          </p>
-        </div>
-        {config && (
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            {config.isSandbox && (
-              <Badge variant="outline" className="border-yellow-500 text-yellow-600 bg-yellow-50 dark:bg-yellow-950">
-                SANDBOX
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="p-3 rounded-xl bg-blue-500/10"><Landmark className="h-7 w-7 text-blue-600" /></div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold">BTG — Integração e emissão</h1>
+              <Badge variant="outline" className={sandbox ? "border-amber-500 bg-amber-50 text-amber-700" : "border-slate-400"}>
+                {sandbox ? "SANDBOX" : "PRODUÇÃO BLOQUEADA"}
               </Badge>
-            )}
-            <Badge variant={conectado ? "default" : "destructive"}>
-              {conectado ? (
-                <><CheckCircle2 className="h-3 w-3 mr-1" /> {statusLabel}</>
-              ) : (
-                <><XCircle className="h-3 w-3 mr-1" /> {statusLabel}</>
-              )}
-            </Badge>
+              <Badge variant={painel?.emissaoHabilitada ? "default" : "secondary"}>
+                {painel?.emissaoHabilitada ? "BolePix de homologação ativo" : "Emissão bloqueada"}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">Integração First-Party do escritório. Cada condomínio precisa de uma conta recebedora vinculada antes da emissão.</p>
           </div>
-        )}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            Conexão OAuth com o BTG
-          </CardTitle>
-          <CardDescription>
-            O Client Secret, access token e refresh token permanecem somente no servidor. A tela não exibe nem armazena esses valores.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <StatusItem label="BTG_CLIENT_ID" configured={Boolean(config?.clientIdConfigured)} />
-            <StatusItem label="BTG_CLIENT_SECRET" configured={Boolean(config?.clientSecretConfigured)} />
-            <StatusItem label="BTG_REDIRECT_URI" configured={Boolean(oauth?.redirectUri)} />
-            <StatusItem label="Proteção de tokens" configured={Boolean(oauth?.configuracaoCompleta)} />
-          </div>
-
-          {!oauth?.configuracaoCompleta && (
-            <Alert variant="destructive">
-              <XCircle className="h-4 w-4" />
-              <AlertDescription>
-                Configure no servidor <strong>BTG_CLIENT_ID</strong>, <strong>BTG_CLIENT_SECRET</strong>,{" "}
-                <strong>BTG_REDIRECT_URI</strong> e <strong>BTG_TOKEN_ENCRYPTION_KEY</strong>. Em produção, informe também{" "}
-                <strong>BTG_COMPANY_ID</strong>.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {oauth?.redirectUri && (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription className="text-xs break-all">
-                URI de retorno cadastrada no aplicativo BTG: <code className="font-mono">{oauth.redirectUri}</code>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {oauth?.configuracaoCompleta && (
-            <div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => conectarMutation.mutate()}
-                disabled={conectarMutation.isPending}
-              >
-                {conectarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {conectado ? "Reconectar conta BTG" : "Conectar conta BTG"}
-              </Button>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Você será direcionado ao BTG para consentir o acesso da conta do escritório. Nenhum token é exibido no Luminus.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <form onSubmit={handleSave} className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Configurações de emissão</CardTitle>
-            <CardDescription>Parâmetros padrão previstos para a emissão de boletos pelos condomínios atendidos pelo escritório.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="diasVencimento">Dias até o vencimento</Label>
-                <Input
-                  id="diasVencimento"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={formData.diasVencimentoPadrao}
-                  onChange={(event) => setFormData((current) => ({ ...current, diasVencimentoPadrao: event.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">Usado quando a cobrança não tiver vencimento definido.</p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="diasLimite">Dias limite após o vencimento</Label>
-                <Input
-                  id="diasLimite"
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={formData.diasLimitePagamento}
-                  onChange={(event) => setFormData((current) => ({ ...current, diasLimitePagamento: event.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">Após este prazo, a cobrança deve expirar conforme a regra homologada no BTG.</p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="instrucoes">Instruções do boleto</Label>
-              <Textarea
-                id="instrucoes"
-                value={formData.instrucoes}
-                onChange={(event) => setFormData((current) => ({ ...current, instrucoes: event.target.value }))}
-                placeholder="Texto que aparecerá no boleto..."
-                rows={3}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2"><Webhook className="h-4 w-4" /> Webhooks de pagamento</CardTitle>
-            <CardDescription>
-              A ativação de eventos será feita após a homologação do callback de cobrança. O segredo, quando configurado, nunca é exibido novamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                Estado do segredo de webhook: <strong>{config?.webhookSecretConfigured ? "configurado" : "não configurado"}</strong>.
-                A URL e os eventos serão liberados após a validação obrigatória do webhook com o BTG.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-
-        <Button type="submit" disabled={saveMutation.isPending}>
-          {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Salvar configuração de emissão
+        </div>
+        <Button variant="outline" onClick={() => void refetch()} disabled={isLoading}>
+          <RefreshCw className="h-4 w-4 mr-2" /> Atualizar estado
         </Button>
-      </form>
+      </header>
+
+      {!sandbox && (
+        <Alert variant="destructive">
+          <LockKeyhole className="h-4 w-4" />
+          <AlertTitle>Produção ainda não está liberada</AlertTitle>
+          <AlertDescription>A emissão v2 foi construída para homologação no Sandbox. Nenhuma cobrança de produção pode ser criada por esta tela.</AlertDescription>
+        </Alert>
+      )}
+
+      <Tabs defaultValue="visao-geral" className="space-y-5">
+        <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap">
+          <TabsTrigger value="visao-geral">Visão geral</TabsTrigger>
+          <TabsTrigger value="conexao">Conexão</TabsTrigger>
+          <TabsTrigger value="contas">Contas e condomínios</TabsTrigger>
+          <TabsTrigger value="regras">Regras e saúde</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="visao-geral" className="space-y-5">
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {checklist.map((item) => (
+              <Card key={item.label} className={item.ok ? "border-emerald-200" : "border-amber-200"}>
+                <CardContent className="p-4">
+                  <div className="flex gap-2 items-start">
+                    {item.ok ? <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" /> : <CircleAlert className="h-5 w-5 text-amber-600 shrink-0" />}
+                    <div><p className="font-medium text-sm">{item.label}</p><p className="text-xs text-muted-foreground mt-1">{item.detail}</p></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><ClipboardCheck className="h-4 w-4" /> Próximo passo seguro</CardTitle>
+              <CardDescription>O fluxo é sequencial para evitar que um título seja emitido para uma conta errada ou fora do ambiente de homologação.</CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2 text-muted-foreground">
+              <p>1. Conecte o OAuth da conta do escritório. 2. Consulte as contas autorizadas pelo BTG. 3. Associe a conta a um condomínio de teste. 4. Habilite a homologação e emita um BolePix de teste.</p>
+              <p>O Sandbox valida contrato e autenticação; não cria títulos reais no BTG.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="conexao" className="space-y-5">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> OAuth Authorization Code</CardTitle>
+              <CardDescription>Client Secret, access token e refresh token ficam exclusivamente no servidor e não são exibidos nesta tela.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid sm:grid-cols-3 gap-4">
+                <StatusItem label="Configuração segura" ok={Boolean(oauth?.configuracaoCompleta)} detail={oauth?.configuracaoCompleta ? "Pronta" : "Pendente"} />
+                <StatusItem label="Conta BTG" ok={conectado} detail={conectado ? "Conectada" : "Aguardando consentimento"} />
+                <StatusItem label="CNPJ da integração" ok={Boolean(oauth?.companyIdMasked)} detail={oauth?.companyIdMasked ?? "Não disponível"} />
+              </div>
+              {oauth?.redirectUri && <Alert><Info className="h-4 w-4" /><AlertDescription className="text-xs break-all">URI de retorno cadastrada no BTG: <code>{oauth.redirectUri}</code></AlertDescription></Alert>}
+              {!oauth?.configuracaoCompleta ? (
+                <Alert variant="destructive"><XCircle className="h-4 w-4" /><AlertDescription>Configure as credenciais e a chave de cifragem no cofre seguro do ambiente antes de iniciar o consentimento.</AlertDescription></Alert>
+              ) : (
+                <Button onClick={() => conectarMutation.mutate()} disabled={conectarMutation.isPending}>
+                  {conectarMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {conectado ? "Reconectar conta BTG" : "Conectar conta BTG"}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="contas" className="space-y-5">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+              <div><CardTitle className="text-base flex items-center gap-2"><WalletCards className="h-4 w-4" /> Contas recebedoras autorizadas</CardTitle><CardDescription>Consulta manual à API Accounts do BTG. Nenhuma conta é escolhida automaticamente.</CardDescription></div>
+              <Button variant="outline" onClick={() => sincronizarContasMutation.mutate()} disabled={!conectado || sincronizarContasMutation.isPending}>
+                {sincronizarContasMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}Consultar contas
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {!painel?.contas.length ? <p className="text-sm text-muted-foreground py-4">Nenhuma conta foi sincronizada ainda.</p> : (
+                <div className="divide-y rounded-lg border">
+                  {painel.contas.map((conta) => <div className="p-3 flex flex-wrap gap-3 items-center justify-between" key={conta.id}><div><p className="font-medium text-sm">{conta.rotulo || conta.nomeBeneficiario || "Conta BTG"}</p><p className="text-xs text-muted-foreground">Ag. {conta.agencia} · Conta {conta.numeroMascarado} · CNPJ {conta.documentoBeneficiarioMascarado || "—"}</p></div><Badge variant={conta.ativo ? "secondary" : "destructive"}>{conta.ativo ? "Disponível" : "Inativa"}</Badge></div>)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Building2 className="h-4 w-4" /> Vínculo por condomínio</CardTitle><CardDescription>O BolePix só poderá ser emitido quando o condomínio tiver conta recebedora v2 vinculada.</CardDescription></CardHeader>
+            <CardContent className="space-y-4">
+              <AdminCondominioSelector condominios={condominios} selectedId={condominioId} onSelect={setCondominioId} />
+              {condominioId && <div className="flex flex-col md:flex-row gap-3 md:items-end rounded-lg border p-4 bg-muted/20">
+                <div className="space-y-2 flex-1"><Label htmlFor="conta-recebedora">Conta recebedora</Label><select id="conta-recebedora" className="w-full h-10 rounded-md border bg-background px-3 text-sm" value={contaRecebedoraId} onChange={(event) => setContaRecebedoraId(event.target.value)}><option value="">Selecione uma conta</option>{painel?.contas.filter((conta) => conta.ativo).map((conta) => <option key={conta.id} value={String(conta.id)}>{conta.rotulo || conta.nomeBeneficiario || "Conta BTG"} — Ag. {conta.agencia}, {conta.numeroMascarado}</option>)}</select></div>
+                <Button onClick={() => vincularContaMutation.mutate({ condominioId, contaRecebedoraId: Number(contaRecebedoraId) })} disabled={!contaRecebedoraId || vincularContaMutation.isPending}>{vincularContaMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salvar vínculo</Button>
+              </div>}
+              {condominioId && vinculoAtual && <p className="text-xs text-emerald-700">Conta atualmente vinculada: <strong>{vinculoAtual.conta.rotulo || vinculoAtual.conta.nomeBeneficiario || "Conta BTG"}</strong>.</p>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="regras" className="space-y-5">
+          <Card>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Regras de homologação BolePix</CardTitle><CardDescription>Essas regras pertencem à integração v2 e não alteram a configuração CNAB nem os boletos legados.</CardDescription></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="limite">Dias-limite após o vencimento</Label><Input id="limite" type="number" min={1} max={365} value={formRegras.diasLimitePagamento} onChange={(event) => setFormRegras((old) => ({ ...old, diasLimitePagamento: event.target.value }))} /></div><div className="space-y-2"><Label htmlFor="instrucoes">Descrição/instruções padrão</Label><Textarea id="instrucoes" rows={3} maxLength={300} value={formRegras.instrucoes} onChange={(event) => setFormRegras((old) => ({ ...old, instrucoes: event.target.value }))} /></div></div>
+              <Button variant="outline" onClick={() => salvarRegrasMutation.mutate({ diasLimitePagamento: Number(formRegras.diasLimitePagamento), instrucoes: formRegras.instrucoes || undefined })} disabled={!sandbox || salvarRegrasMutation.isPending}>{salvarRegrasMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salvar regras Sandbox</Button>
+            </CardContent>
+          </Card>
+
+          <Card className={painel?.emissaoHabilitada ? "border-emerald-300" : "border-amber-300"}>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Controle de emissão</CardTitle><CardDescription>Liberação explícita, limitada ao Sandbox, para validar o fluxo de BolePix. Produção permanece bloqueada.</CardDescription></CardHeader>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium">{painel?.emissaoHabilitada ? "Homologação habilitada" : "Homologação bloqueada"}</p><p className="text-xs text-muted-foreground">Última consulta de contas: {formatarData(painel?.integracao?.ultimaConsultaContasEm)}</p></div>{painel?.emissaoHabilitada ? <Button variant="destructive" onClick={() => desabilitarSandboxMutation.mutate()} disabled={desabilitarSandboxMutation.isPending}><Unplug className="h-4 w-4 mr-2" />Desabilitar</Button> : <Button onClick={() => setDialogHomologacaoOpen(true)} disabled={!painel?.prontoParaHomologacao || !sandbox}>Habilitar homologação</Button>}</CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <AlertDialog open={dialogHomologacaoOpen} onOpenChange={setDialogHomologacaoOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Habilitar emissão BolePix no Sandbox?</AlertDialogTitle><AlertDialogDescription>Essa ação libera somente respostas estáticas do ambiente Sandbox. Não há emissão de cobrança real. Digite <strong>HOMOLOGAR</strong> para confirmar.</AlertDialogDescription></AlertDialogHeader>
+          <Input value={confirmacaoHomologacao} onChange={(event) => setConfirmacaoHomologacao(event.target.value)} placeholder="HOMOLOGAR" />
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction disabled={confirmacaoHomologacao !== "HOMOLOGAR" || habilitarSandboxMutation.isPending} onClick={(event) => { event.preventDefault(); habilitarSandboxMutation.mutate({ confirmacao: "HOMOLOGAR" }); }}>{habilitarSandboxMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Confirmar homologação</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-function StatusItem({ label, configured }: { label: string; configured: boolean }) {
-  return (
-    <div className="flex items-center gap-2 p-3 rounded-lg border bg-muted/30">
-      {configured ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> : <XCircle className="h-4 w-4 text-red-500 shrink-0" />}
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground">{configured ? "Configurado" : "Não configurado"}</p>
-      </div>
-    </div>
-  );
+function StatusItem({ label, ok, detail }: { label: string; ok: boolean; detail: string }) {
+  return <div className="rounded-lg border p-3 flex gap-2 items-start">{ok ? <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5" /> : <XCircle className="h-4 w-4 text-red-600 mt-0.5" />}<div><p className="text-sm font-medium">{label}</p><p className="text-xs text-muted-foreground">{detail}</p></div></div>;
 }

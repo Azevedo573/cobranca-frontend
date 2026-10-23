@@ -1,0 +1,381 @@
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { logAudit } from "../audit";
+import { getBtgOAuthConfig, getStatusOAuthBtg } from "../btg-oauth";
+import { getDb } from "../db";
+import {
+  btgContaRecebedoraCondominios,
+  btgContasRecebedoras,
+  btgIntegracoes,
+  condominios,
+} from "../../drizzle/schema";
+import { adminProcedure, router } from "../_core/trpc";
+import {
+  BtgV2ConfigurationError,
+  consultarContasRecebedorasBtg,
+  getBtgV2ServerConfig,
+  mascararNumeroConta,
+} from "../btg-v2/config";
+import { emitirBolePixV2 } from "../btg-v2/issuance";
+
+function toTrpcError(error: unknown): TRPCError {
+  if (error instanceof BtgV2ConfigurationError) {
+    return new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
+  }
+  if (error instanceof Error && error.name === "BtgOAuthError") {
+    return new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
+  }
+  return new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível concluir a operação BTG agora." });
+}
+
+async function getIntegracaoAtual() {
+  const serverConfig = getBtgV2ServerConfig();
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+
+  const rows = await db.select().from(btgIntegracoes)
+    .where(eq(btgIntegracoes.ambiente, serverConfig.ambiente))
+    .limit(1);
+  return { db, serverConfig, integracao: rows[0] ?? null };
+}
+
+async function getOrCreateIntegracaoAtual() {
+  const { db, serverConfig, integracao } = await getIntegracaoAtual();
+  if (integracao) return { db, serverConfig, integracao };
+
+  await db.insert(btgIntegracoes).values({
+    ambiente: serverConfig.ambiente,
+    companyId: serverConfig.companyId,
+    ativo: 1,
+    emissaoHabilitada: 0,
+  });
+  const rows = await db.select().from(btgIntegracoes)
+    .where(eq(btgIntegracoes.ambiente, serverConfig.ambiente))
+    .limit(1);
+  if (!rows[0]) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível preparar a integração BTG." });
+
+  return { db, serverConfig, integracao: rows[0] };
+}
+
+function serializeConta(conta: {
+  id: number;
+  accountId: string;
+  agencia: string;
+  numero: string;
+  documentoBeneficiario: string | null;
+  nomeBeneficiario: string | null;
+  rotulo: string | null;
+  ativo: number;
+  ultimaSincronizacaoEm: Date;
+}) {
+  return {
+    id: conta.id,
+    accountId: conta.accountId,
+    agencia: conta.agencia,
+    numeroMascarado: mascararNumeroConta(conta.numero),
+    documentoBeneficiarioMascarado: conta.documentoBeneficiario
+      ? `***${conta.documentoBeneficiario.slice(-4)}`
+      : null,
+    nomeBeneficiario: conta.nomeBeneficiario,
+    rotulo: conta.rotulo,
+    ativo: conta.ativo === 1,
+    ultimaSincronizacaoEm: conta.ultimaSincronizacaoEm,
+  };
+}
+
+export const btgV2Router = router({
+  /** Estado seguro e somente leitura que alimenta a nova página administrativa. */
+  painel: adminProcedure.query(async () => {
+    const oauth = await getStatusOAuthBtg();
+    let configuracao: ReturnType<typeof getBtgOAuthConfig> | null = null;
+    try {
+      configuracao = getBtgOAuthConfig();
+    } catch {
+      return {
+        oauth,
+        integracao: null,
+        contas: [],
+        prontoParaHomologacao: false,
+        emissaoHabilitada: false,
+      };
+    }
+
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+    const integracoes = await db.select().from(btgIntegracoes)
+      .where(eq(btgIntegracoes.ambiente, configuracao.ambiente))
+      .limit(1);
+    const integracao = integracoes[0] ?? null;
+    const contas = integracao
+      ? await db.select().from(btgContasRecebedoras)
+        .where(eq(btgContasRecebedoras.btgIntegracaoId, integracao.id))
+        .orderBy(desc(btgContasRecebedoras.ativo), btgContasRecebedoras.agencia, btgContasRecebedoras.numero)
+      : [];
+
+    return {
+      oauth,
+      integracao: integracao ? {
+        id: integracao.id,
+        ambiente: integracao.ambiente,
+        companyIdMascarado: `***${integracao.companyId.slice(-4)}`,
+        ativo: integracao.ativo === 1,
+        emissaoHabilitada: integracao.emissaoHabilitada === 1,
+        diasLimitePagamento: integracao.diasLimitePagamento,
+        instrucoes: integracao.instrucoes,
+        ultimaConsultaContasEm: integracao.ultimaConsultaContasEm,
+      } : null,
+      contas: contas.map(serializeConta),
+      prontoParaHomologacao: oauth.status === "conectado" && Boolean(integracao?.ativo) && contas.some((conta) => conta.ativo === 1),
+      emissaoHabilitada: integracao?.emissaoHabilitada === 1,
+    };
+  }),
+
+  salvarPoliticaHomologacao: adminProcedure
+    .input(z.object({
+      diasLimitePagamento: z.number().int().min(1).max(365),
+      instrucoes: z.string().trim().max(300).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { db, serverConfig, integracao } = await getOrCreateIntegracaoAtual();
+        if (serverConfig.ambiente !== "sandbox") {
+          throw new BtgV2ConfigurationError("As regras de produção ainda não podem ser alteradas pelo fluxo de homologação.");
+        }
+        await db.update(btgIntegracoes).set({
+          diasLimitePagamento: input.diasLimitePagamento,
+          instrucoes: input.instrucoes || null,
+          updatedAt: new Date(),
+        }).where(eq(btgIntegracoes.id, integracao.id));
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "configuracao",
+          entityId: `btg-v2:${integracao.ambiente}`,
+          metadata: { integracao: "btg-v2", evento: "politica_homologacao_atualizada" },
+        });
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  habilitarEmissaoSandbox: adminProcedure
+    .input(z.object({ confirmacao: z.literal("HOMOLOGAR") }))
+    .mutation(async ({ input: _input, ctx }) => {
+      try {
+        const oauth = await getStatusOAuthBtg();
+        const { db, serverConfig, integracao } = await getOrCreateIntegracaoAtual();
+        if (serverConfig.ambiente !== "sandbox" || oauth.status !== "conectado") {
+          throw new BtgV2ConfigurationError("Conecte a conta BTG Sandbox antes de habilitar a emissão de homologação.");
+        }
+        const contas = await db.select({ id: btgContasRecebedoras.id }).from(btgContasRecebedoras)
+          .where(and(eq(btgContasRecebedoras.btgIntegracaoId, integracao.id), eq(btgContasRecebedoras.ativo, 1)))
+          .limit(1);
+        if (!contas[0]) {
+          throw new BtgV2ConfigurationError("Sincronize ao menos uma conta recebedora antes de habilitar a homologação.");
+        }
+        await db.update(btgIntegracoes).set({ emissaoHabilitada: 1, updatedAt: new Date() })
+          .where(eq(btgIntegracoes.id, integracao.id));
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "configuracao",
+          entityId: `btg-v2:${integracao.ambiente}`,
+          metadata: { integracao: "btg-v2", evento: "emissao_sandbox_habilitada" },
+          severity: "warning",
+        });
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  desabilitarEmissaoSandbox: adminProcedure.mutation(async ({ ctx }) => {
+    try {
+      const { db, serverConfig, integracao } = await getIntegracaoAtual();
+      if (serverConfig.ambiente !== "sandbox" || !integracao) return { success: true };
+      await db.update(btgIntegracoes).set({ emissaoHabilitada: 0, updatedAt: new Date() })
+        .where(eq(btgIntegracoes.id, integracao.id));
+      await logAudit(ctx, {
+        action: "config_change",
+        entity: "configuracao",
+        entityId: `btg-v2:${integracao.ambiente}`,
+        metadata: { integracao: "btg-v2", evento: "emissao_sandbox_desabilitada" },
+        severity: "warning",
+      });
+      return { success: true };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      throw toTrpcError(error);
+    }
+  }),
+
+  /** Consulta explícita da API Accounts; não é acionada no carregamento da página. */
+  sincronizarContas: adminProcedure.mutation(async ({ ctx }) => {
+    try {
+      const { db, integracao } = await getOrCreateIntegracaoAtual();
+      const contas = await consultarContasRecebedorasBtg();
+      const now = new Date();
+
+      for (const conta of contas) {
+        await db.insert(btgContasRecebedoras).values({
+          btgIntegracaoId: integracao.id,
+          accountId: conta.accountId,
+          agencia: conta.agencia,
+          numero: conta.numero,
+          documentoBeneficiario: conta.documentoBeneficiario,
+          nomeBeneficiario: conta.nomeBeneficiario,
+          rotulo: conta.nomeBeneficiario,
+          ativo: 1,
+          ultimaSincronizacaoEm: now,
+        }).onDuplicateKeyUpdate({
+          set: {
+            agencia: conta.agencia,
+            numero: conta.numero,
+            documentoBeneficiario: conta.documentoBeneficiario,
+            nomeBeneficiario: conta.nomeBeneficiario,
+            rotulo: conta.nomeBeneficiario,
+            ativo: 1,
+            ultimaSincronizacaoEm: now,
+          },
+        });
+      }
+
+      await db.update(btgIntegracoes)
+        .set({ ativo: 1, ultimaConsultaContasEm: now, updatedAt: now })
+        .where(eq(btgIntegracoes.id, integracao.id));
+
+      await logAudit(ctx, {
+        action: "config_change",
+        entity: "configuracao",
+        entityId: `btg-v2:${integracao.ambiente}`,
+        metadata: { integracao: "btg-v2", evento: "contas_sincronizadas", quantidade: contas.length },
+      });
+
+      return { success: true, quantidade: contas.length };
+    } catch (error) {
+      throw toTrpcError(error);
+    }
+  }),
+
+  vinculoCondominio: adminProcedure
+    .input(z.object({ condominioId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      let current: Awaited<ReturnType<typeof getIntegracaoAtual>>;
+      try {
+        current = await getIntegracaoAtual();
+      } catch (error) {
+        throw toTrpcError(error);
+      }
+      if (!current.integracao) return null;
+
+      const rows = await current.db.select({
+        vinculoId: btgContaRecebedoraCondominios.id,
+        ativo: btgContaRecebedoraCondominios.ativo,
+        conta: btgContasRecebedoras,
+      }).from(btgContaRecebedoraCondominios)
+        .innerJoin(
+          btgContasRecebedoras,
+          eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId),
+        )
+        .where(and(
+          eq(btgContaRecebedoraCondominios.btgIntegracaoId, current.integracao.id),
+          eq(btgContaRecebedoraCondominios.condominioId, input.condominioId),
+        ))
+        .limit(1);
+      const row = rows[0];
+      return row ? { id: row.vinculoId, ativo: row.ativo === 1, conta: serializeConta(row.conta) } : null;
+    }),
+
+  vincularContaCondominio: adminProcedure
+    .input(z.object({
+      condominioId: z.number().int().positive(),
+      contaRecebedoraId: z.number().int().positive(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { db, integracao } = await getOrCreateIntegracaoAtual();
+        const [condominio] = await db.select({ id: condominios.id, name: condominios.name })
+          .from(condominios)
+          .where(eq(condominios.id, input.condominioId))
+          .limit(1);
+        if (!condominio) throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado." });
+
+        const [conta] = await db.select().from(btgContasRecebedoras)
+          .where(and(
+            eq(btgContasRecebedoras.id, input.contaRecebedoraId),
+            eq(btgContasRecebedoras.btgIntegracaoId, integracao.id),
+            eq(btgContasRecebedoras.ativo, 1),
+          ))
+          .limit(1);
+        if (!conta) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A conta selecionada não está disponível nesta integração BTG." });
+        }
+
+        await db.insert(btgContaRecebedoraCondominios).values({
+          btgIntegracaoId: integracao.id,
+          condominioId: input.condominioId,
+          btgContaRecebedoraId: conta.id,
+          ativo: 1,
+        }).onDuplicateKeyUpdate({
+          set: { btgContaRecebedoraId: conta.id, ativo: 1, updatedAt: new Date() },
+        });
+
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "condominio",
+          entityId: String(condominio.id),
+          entityLabel: condominio.name,
+          condominioId: condominio.id,
+          metadata: {
+            integracao: "btg-v2",
+            evento: "conta_recebedora_vinculada",
+            ambiente: integracao.ambiente,
+            contaId: conta.id,
+            accountId: conta.accountId,
+          },
+        });
+
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  emitirBolePix: adminProcedure
+    .input(z.object({
+      origemTipo: z.enum(["cobranca", "parcela_acordo"]),
+      origemId: z.number().int().positive(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const config = getBtgV2ServerConfig();
+        if (config.ambiente !== "sandbox") {
+          throw new BtgV2ConfigurationError("A emissão BolePix v2 está limitada ao Sandbox nesta fase de homologação.");
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+        const resultado = await emitirBolePixV2({ db, ...input });
+        await logAudit(ctx, {
+          action: "generate_boleto",
+          entity: "boleto",
+          entityId: String(resultado.id),
+          metadata: {
+            integracao: "btg-v2",
+            instrumento: "bolepix",
+            origemTipo: input.origemTipo,
+            origemId: input.origemId,
+            jaExistia: resultado.jaExistia,
+            status: resultado.status,
+          },
+          severity: "warning",
+        });
+        return resultado;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+});

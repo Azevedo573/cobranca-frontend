@@ -24,7 +24,7 @@ const CONFIG_SANDBOX: BtgOAuthConfig = {
   redirectUri: "https://app.exemplo.com/api/integracoes/btg/callback",
   companyId: "30306294000145",
   encryptionKey: CHAVE_TESTE,
-  scopes: ["openid", "brn:btg:empresas:banking:collections"],
+  scopes: ["openid", "brn:btg:empresas:banking:collections", "empresas.btgpactual.com/accounts.readonly"],
 };
 
 describe("OAuth BTG — Authorization Code", () => {
@@ -47,7 +47,7 @@ describe("OAuth BTG — Authorization Code", () => {
     expect(url.searchParams.get("client_id")).toBe("client-id-teste");
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("redirect_uri")).toBe(CONFIG_SANDBOX.redirectUri);
-    expect(url.searchParams.get("scope")).toBe("openid brn:btg:empresas:banking:collections");
+    expect(url.searchParams.get("scope")).toBe("openid brn:btg:empresas:banking:collections empresas.btgpactual.com/accounts.readonly");
     expect(url.searchParams.get("state")).toBe("state-seguro");
   });
 

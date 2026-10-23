@@ -112,7 +112,11 @@ export function getBtgOAuthConfig(): BtgOAuthConfig {
     redirectUri: redirectUrl.toString(),
     companyId,
     encryptionKey,
-    scopes: ["openid", "brn:btg:empresas:banking:collections"],
+    scopes: [
+      "openid",
+      "brn:btg:empresas:banking:collections",
+      "empresas.btgpactual.com/accounts.readonly",
+    ],
   };
 }
 

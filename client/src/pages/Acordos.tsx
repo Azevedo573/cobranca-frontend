@@ -88,11 +88,11 @@ export default function Acordos() {
     onError: (err) => toast.error('Erro ao gerar PDF: ' + err.message),
   });
 
-  // Mutation para emitir boleto BTG
-  const emitirBtgMutation = trpc.btg.emitirBoletoParcela.useMutation({
+  // Emissão BolePix v2: limitada ao Sandbox e protegida por idempotência.
+  const emitirBtgMutation = trpc.btgV2.emitirBolePix.useMutation({
     onSuccess: () => {
       utils.acordos.getParcelas.invalidate({ acordoId: selectedAcordoId! });
-      toast.success('Boleto BTG emitido com sucesso!');
+      toast.success('BolePix BTG v2 emitido no Sandbox.');
     },
     onError: (err) => toast.error('Erro ao emitir boleto BTG: ' + err.message),
   });
@@ -652,11 +652,11 @@ export default function Acordos() {
                                 </div>
                               ) : (
                                 <Button size="sm" variant="outline" className="h-6 text-xs px-2"
-                                  onClick={() => emitirBtgMutation.mutate({ parcelaId: parcela.id })}
+                                  onClick={() => emitirBtgMutation.mutate({ origemTipo: "parcela_acordo", origemId: parcela.id })}
                                   disabled={emitirBtgMutation.isPending}
                                 >
                                   {emitirBtgMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
-                                  <span className="ml-1">Emitir BTG</span>
+                                  <span className="ml-1">BolePix teste</span>
                                 </Button>
                               )
                             ) : (

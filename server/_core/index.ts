@@ -35,6 +35,14 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Webhook BTG v2 precisa receber o corpo bruto para validar HMAC sobre os
+  // bytes originais. Deve vir antes dos parsers JSON globais.
+  const { webhookBtgV2Handler } = await import("../btg-v2/webhook");
+  app.post(
+    "/api/webhooks/btg/v2/:ambiente",
+    express.raw({ type: "application/json", limit: "1mb" }),
+    webhookBtgV2Handler,
+  );
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

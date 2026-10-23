@@ -77,11 +77,11 @@ export default function AcordoDetalhes() {
   );
   const modoBoleto = ((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg";
 
-  // Mutation para emitir boleto BTG
-  const emitirBtgMutation = trpc.btg.emitirBoletoParcela.useMutation({
+  // Emissão BolePix v2: limitada ao Sandbox e protegida por idempotência.
+  const emitirBtgMutation = trpc.btgV2.emitirBolePix.useMutation({
     onSuccess: (data, variables) => {
       utils.acordos.getParcelas.invalidate({ acordoId });
-      toast.success("Boleto BTG emitido com sucesso!");
+      toast.success("BolePix BTG v2 emitido no Sandbox.");
     },
     onError: (err) => toast.error("Erro ao emitir boleto BTG: " + err.message),
   });
@@ -506,11 +506,11 @@ export default function AcordoDetalhes() {
                                   size="sm"
                                   variant="outline"
                                   className="h-7 px-2 text-xs w-full"
-                                  onClick={() => emitirBtgMutation.mutate({ parcelaId: parcela.id })}
+                                  onClick={() => emitirBtgMutation.mutate({ origemTipo: "parcela_acordo", origemId: parcela.id })}
                                   disabled={emitirBtgMutation.isPending}
                                 >
                                   {emitirBtgMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                                  Emitir BTG
+                                  BolePix teste
                                 </Button>
                               )
                             ) : (

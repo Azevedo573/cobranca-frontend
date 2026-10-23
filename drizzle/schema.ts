@@ -296,6 +296,132 @@ export const btgOauthTokens = mysqlTable("btgOauthTokens", {
 export type BtgOauthToken = typeof btgOauthTokens.$inferSelect;
 export type InsertBtgOauthToken = typeof btgOauthTokens.$inferInsert;
 
+// ─── BTG v2 — configuração First-Party e contas recebedoras ──────────────────
+// Camada aditiva: não reutiliza campos BTG legados das cobranças nem dados CNAB.
+// A emissão v2 só será permitida quando houver integração e conta vinculadas.
+export const btgIntegracoes = mysqlTable("btgIntegracoes", {
+  id: int("id").autoincrement().primaryKey(),
+  ambiente: mysqlEnum("ambiente", ["sandbox", "producao"]).notNull(),
+  companyId: varchar("companyId", { length: 50 }).notNull(),
+  ativo: int("ativo").default(0).notNull(),
+  emissaoHabilitada: int("emissaoHabilitada").default(0).notNull(),
+  diasLimitePagamento: int("diasLimitePagamento").default(60).notNull(),
+  instrucoes: text("instrucoes"),
+  ultimaConsultaContasEm: timestamp("ultimaConsultaContasEm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgIntegracoes_ambiente_unique").on(table.ambiente),
+]);
+export type BtgIntegracao = typeof btgIntegracoes.$inferSelect;
+export type InsertBtgIntegracao = typeof btgIntegracoes.$inferInsert;
+
+export const btgContasRecebedoras = mysqlTable("btgContasRecebedoras", {
+  id: int("id").autoincrement().primaryKey(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  accountId: varchar("accountId", { length: 150 }).notNull(),
+  agencia: varchar("agencia", { length: 30 }).notNull(),
+  numero: varchar("numero", { length: 50 }).notNull(),
+  documentoBeneficiario: varchar("documentoBeneficiario", { length: 20 }),
+  nomeBeneficiario: varchar("nomeBeneficiario", { length: 255 }),
+  rotulo: varchar("rotulo", { length: 255 }),
+  ativo: int("ativo").default(1).notNull(),
+  ultimaSincronizacaoEm: timestamp("ultimaSincronizacaoEm").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgContasRecebedoras_integracao_account_unique").on(table.btgIntegracaoId, table.accountId),
+  index("btgContasRecebedoras_integracao_ativo_idx").on(table.btgIntegracaoId, table.ativo),
+]);
+export type BtgContaRecebedora = typeof btgContasRecebedoras.$inferSelect;
+export type InsertBtgContaRecebedora = typeof btgContasRecebedoras.$inferInsert;
+
+export const btgContaRecebedoraCondominios = mysqlTable("btgContaRecebedoraCondominios", {
+  id: int("id").autoincrement().primaryKey(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  btgContaRecebedoraId: int("btgContaRecebedoraId").notNull(),
+  ativo: int("ativo").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgContaRecebedoraCondominios_integracao_condominio_unique").on(table.btgIntegracaoId, table.condominioId),
+  index("btgContaRecebedoraCondominios_conta_idx").on(table.btgContaRecebedoraId),
+]);
+export type BtgContaRecebedoraCondominio = typeof btgContaRecebedoraCondominios.$inferSelect;
+export type InsertBtgContaRecebedoraCondominio = typeof btgContaRecebedoraCondominios.$inferInsert;
+
+// Registro canônico e separado de cada emissão v2. Os campos btg* antigos em
+// cobrancas/parcelasAcordo continuam apenas como histórico do fluxo legado.
+export const btgCobrancasEmitidas = mysqlTable("btgCobrancasEmitidas", {
+  id: int("id").autoincrement().primaryKey(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  btgContaRecebedoraId: int("btgContaRecebedoraId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  origemTipo: mysqlEnum("origemTipo", ["cobranca", "parcela_acordo"]).notNull(),
+  origemId: int("origemId").notNull(),
+  revisao: int("revisao").default(1).notNull(),
+  instrumento: mysqlEnum("instrumento", ["bolepix"]).default("bolepix").notNull(),
+  externalId: varchar("externalId", { length: 180 }).notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 128 }).notNull(),
+  btgCollectionId: varchar("btgCollectionId", { length: 150 }),
+  status: mysqlEnum("status", ["reservada", "enviando", "emitida", "incerta", "paga", "cancelada", "expirada", "falha"])
+    .default("reservada")
+    .notNull(),
+  amount: int("amount").notNull(),
+  dueDate: timestamp("dueDate").notNull(),
+  agenciaRecebedora: varchar("agenciaRecebedora", { length: 30 }).notNull(),
+  contaRecebedora: varchar("contaRecebedora", { length: 50 }).notNull(),
+  documentoBeneficiario: varchar("documentoBeneficiario", { length: 20 }),
+  nomeBeneficiario: varchar("nomeBeneficiario", { length: 255 }),
+  bankSlipUrl: text("bankSlipUrl"),
+  pixQrCode: text("pixQrCode"),
+  pixCopiaECola: text("pixCopiaECola"),
+  codigoBarras: varchar("codigoBarras", { length: 300 }),
+  linhaDigitavel: varchar("linhaDigitavel", { length: 300 }),
+  nossoNumero: varchar("nossoNumero", { length: 100 }),
+  erroCodigo: varchar("erroCodigo", { length: 80 }),
+  emitidaEm: timestamp("emitidaEm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgCobrancasEmitidas_integracao_origem_revisao_unique")
+    .on(table.btgIntegracaoId, table.origemTipo, table.origemId, table.revisao),
+  uniqueIndex("btgCobrancasEmitidas_integracao_externalId_unique")
+    .on(table.btgIntegracaoId, table.externalId),
+  uniqueIndex("btgCobrancasEmitidas_integracao_idempotencyKey_unique")
+    .on(table.btgIntegracaoId, table.idempotencyKey),
+  uniqueIndex("btgCobrancasEmitidas_integracao_collection_unique")
+    .on(table.btgIntegracaoId, table.btgCollectionId),
+  index("btgCobrancasEmitidas_integracao_status_idx").on(table.btgIntegracaoId, table.status, table.dueDate),
+]);
+export type BtgCobrancaEmitida = typeof btgCobrancasEmitidas.$inferSelect;
+export type InsertBtgCobrancaEmitida = typeof btgCobrancasEmitidas.$inferInsert;
+
+// Livro imutável de entregas do webhook. Armazena hash e metadados mínimos;
+// CPF/CNPJ e conteúdo integral do evento não são persistidos nesta tabela.
+export const btgWebhookEntregas = mysqlTable("btgWebhookEntregas", {
+  id: int("id").autoincrement().primaryKey(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  providerEventId: varchar("providerEventId", { length: 150 }),
+  payloadHash: varchar("payloadHash", { length: 64 }).notNull(),
+  evento: varchar("evento", { length: 100 }).notNull(),
+  btgCollectionId: varchar("btgCollectionId", { length: 150 }),
+  assinaturaValida: int("assinaturaValida").notNull().default(0),
+  statusProcessamento: mysqlEnum("statusProcessamento", ["recebido", "processado", "ignorado", "falha"])
+    .default("recebido")
+    .notNull(),
+  erroCodigo: varchar("erroCodigo", { length: 100 }),
+  recebidoEm: timestamp("recebidoEm").defaultNow().notNull(),
+  processadoEm: timestamp("processadoEm"),
+}, (table) => [
+  uniqueIndex("btgWebhookEntregas_integracao_payloadHash_unique").on(table.btgIntegracaoId, table.payloadHash),
+  index("btgWebhookEntregas_integracao_collection_idx").on(table.btgIntegracaoId, table.btgCollectionId),
+  index("btgWebhookEntregas_recebidoEm_idx").on(table.recebidoEm),
+]);
+export type BtgWebhookEntrega = typeof btgWebhookEntregas.$inferSelect;
+export type InsertBtgWebhookEntrega = typeof btgWebhookEntregas.$inferInsert;
+
 // Tabela para armazenar índices de correção monetária do Banco Central
 // Usa nome indicesBCB (com B maiúsculo) para manter compatibilidade com tabela existente
 export const indicesbcb = mysqlTable("indicesBCB", {

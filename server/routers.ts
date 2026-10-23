@@ -11,6 +11,7 @@ import { logAudit, auditLoginSuccess, auditLoginFailed, auditLogout } from "./au
 import { atendimentoRouter } from "./routers/atendimento";
 import { fluxosRouter } from "./routers/fluxos";
 import { btgRouter } from "./routers/btg";
+import { btgV2Router } from "./routers/btg-v2";
 import { processosRouter, prazosRouter } from "./routers/processos";
 import { mniRouter } from "./routers/mni";
 import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
@@ -28,6 +29,7 @@ export const appRouter = router({
   atendimento: atendimentoRouter,
   fluxos: fluxosRouter,
   btg: btgRouter,
+  btgV2: btgV2Router,
   processos: processosRouter,
   prazos: prazosRouter,
   mni: mniRouter,
