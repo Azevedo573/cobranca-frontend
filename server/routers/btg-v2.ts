@@ -419,7 +419,15 @@ export const btgV2Router = router({
     }),
 
   listarEntregasWebhook: adminProcedure.query(async () => {
-    const { db, integracao } = await getIntegracaoAtual();
+    let current: Awaited<ReturnType<typeof getIntegracaoAtual>>;
+    try {
+      current = await getIntegracaoAtual();
+    } catch {
+      // A página de configuração deve continuar exibindo o checklist quando as
+      // variáveis ainda não foram cadastradas no cofre seguro.
+      return [];
+    }
+    const { db, integracao } = current;
     if (!integracao) return [];
     const rows = await db.select({
       id: btgWebhookEntregas.id,
