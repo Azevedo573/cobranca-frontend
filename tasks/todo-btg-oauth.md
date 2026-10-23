@@ -27,3 +27,11 @@
 - [ ] Cadastrar a URI de callback do ambiente correspondente no portal BTG e configurar os segredos no servidor.
   - Aceite: o botão “Conectar conta BTG” abre o consentimento e retorna com status conectado, sem exibir tokens.
   - Verificar: fluxo Authorization Code no Sandbox, depois homologação controlada em Produção.
+
+- [ ] Substituir o adaptador de emissão pelo contrato atual da API BTG Collections.
+  - Aceite: payload usa `BANKSLIP_QRCODE`, valores em reais, `account`, `detail`, `payer.taxId` e `payer.phoneNumber`; Sandbox recebe `x-response: success`.
+  - Verificar: teste de contrato no Sandbox sem alterar títulos financeiros locais.
+
+- [ ] Corrigir o mapeamento de resposta e proteger as operações financeiras BTG.
+  - Aceite: linha digitável e EMV são lidos de `detail`; emissão, cancelamento e conciliação exigem autorização administrativa ou escopo explícito.
+  - Verificar: testes unitários e de RBAC antes de habilitar a emissão em Produção.
