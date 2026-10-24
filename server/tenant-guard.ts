@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
-import { condominios, userCondominios } from "../drizzle/schema";
+import { acordos, cobrancas, condominios, devedores, userCondominios } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type TenantActor = {
@@ -89,6 +89,51 @@ export async function resolveCondominioEfetivo(
 /** Verifica que o ator pode operar no condomínio informado. */
 export async function assertCondominioAccess(actor: TenantActor, condominioId: number): Promise<void> {
   await resolveCondominioEfetivo(actor, condominioId);
+}
+
+async function recursoFinanceiroAcessivel<T extends { condominioId: number }>(
+  actor: TenantActor,
+  query: Promise<T | undefined>,
+  mensagem: string,
+): Promise<T> {
+  const recurso = await query;
+  if (!recurso) throw new TRPCError({ code: "NOT_FOUND", message: mensagem });
+  try {
+    await assertCondominioAccess(actor, recurso.condominioId);
+  } catch {
+    throw new TRPCError({ code: "NOT_FOUND", message: mensagem });
+  }
+  return recurso;
+}
+
+export async function assertDevedorAcessivel(actor: TenantActor, devedorId: number) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+  return recursoFinanceiroAcessivel(
+    actor,
+    db.select({ id: devedores.id, condominioId: devedores.condominioId }).from(devedores).where(eq(devedores.id, devedorId)).limit(1).then((rows) => rows[0]),
+    "Devedor não encontrado",
+  );
+}
+
+export async function assertCobrancaAcessivel(actor: TenantActor, cobrancaId: number) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+  return recursoFinanceiroAcessivel(
+    actor,
+    db.select({ id: cobrancas.id, devedorId: cobrancas.devedorId, condominioId: cobrancas.condominioId }).from(cobrancas).where(eq(cobrancas.id, cobrancaId)).limit(1).then((rows) => rows[0]),
+    "Cobrança não encontrada",
+  );
+}
+
+export async function assertAcordoAcessivel(actor: TenantActor, acordoId: number) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
+  return recursoFinanceiroAcessivel(
+    actor,
+    db.select({ id: acordos.id, devedorId: acordos.devedorId, condominioId: acordos.condominioId }).from(acordos).where(eq(acordos.id, acordoId)).limit(1).then((rows) => rows[0]),
+    "Acordo não encontrado",
+  );
 }
 
 /**

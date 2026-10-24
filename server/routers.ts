@@ -646,16 +646,18 @@ export const appRouter = router({
   // Devedores
   devedores: router({
     list: requirePermission("devedores", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
-      const rolesComSeletorCondominio = ["admin", "advogado"];
-      const condominioId = rolesComSeletorCondominio.includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+      const condominioId = await (await import("./tenant-guard")).resolveCondominioEfetivo(ctx.user, input.condominioId);
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o condomínio." });
       const { getDevedoresByCondominio } = await import("./db-devedores");
       return await getDevedoresByCondominio(condominioId);
     }),
-    getById: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
+    getById: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./tenant-guard")).assertDevedorAcessivel(ctx.user, input.id);
       const { getDevedorById } = await import("./db-devedores");
       return await getDevedorById(input.id);
     }),
-    visao360: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
+    visao360: requirePermission("devedores", "visualizar").input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./tenant-guard")).assertDevedorAcessivel(ctx.user, input.id);
       const { getVisao360Devedor } = await import("./db-devedores");
       return await getVisao360Devedor(input.id);
     }),
@@ -731,6 +733,7 @@ export const appRouter = router({
       zipCode: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { id, statusUnidade, ...data } = input;
+      await (await import("./tenant-guard")).assertDevedorAcessivel(ctx.user, id);
       const { updateDevedor, getDevedorById } = await import("./db-devedores");
       const result = await updateDevedor(id, data);
       // Sincronizar demanda judicial conforme statusUnidade
@@ -774,6 +777,7 @@ export const appRouter = router({
       return result;
     }),
     delete: requirePermission("devedores", "excluir").input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await (await import("./tenant-guard")).assertDevedorAcessivel(ctx.user, input.id);
       const { deleteDevedor } = await import("./db-devedores");
       await deleteDevedor(input.id);
       await logAudit(ctx, { action: "delete", entity: "devedor", entityId: String(input.id), severity: "warning" });
@@ -1152,11 +1156,13 @@ export const appRouter = router({
   // Acordos
   acordos: router({
     list: requirePermission("acordos", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
-      const condominioId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+      const condominioId = await (await import("./tenant-guard")).resolveCondominioEfetivo(ctx.user, input.condominioId);
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o condomínio." });
       const { getAcordosByCondominio } = await import("./db-acordos");
       return await getAcordosByCondominio(condominioId);
     }),
-    getById: requirePermission("acordos", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
+    getById: requirePermission("acordos", "visualizar").input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./tenant-guard")).assertAcordoAcessivel(ctx.user, input.id);
       const { getAcordoById } = await import("./db-acordos");
       return await getAcordoById(input.id);
     }),

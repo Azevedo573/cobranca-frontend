@@ -60,6 +60,21 @@ async function resolverProcessoAcessivel(ctx: any, processoId: number) {
   return processo;
 }
 
+async function resolverPrazoAcessivel(ctx: any, prazoId: number) {
+  const prazo = await getPrazoById(prazoId);
+  if (!prazo) throw new TRPCError({ code: "NOT_FOUND", message: "Prazo não encontrado" });
+  if (!prazo.condominioId) {
+    if (ctx.user.role !== "admin") throw new TRPCError({ code: "NOT_FOUND", message: "Prazo não encontrado" });
+    return prazo;
+  }
+  try {
+    await (await import("../tenant-guard")).assertCondominioAccess(ctx.user, prazo.condominioId);
+  } catch {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Prazo não encontrado" });
+  }
+  return prazo;
+}
+
 // ─── Funções auxiliares ─────────────────────────────────────────────────────────
 
 /** Mapeia código CNJ de movimento para o tipo interno */
@@ -652,8 +667,10 @@ export const prazosRouter = router({
       status: z.enum(["pendente", "concluido", "cancelado", "atrasado"]).optional(),
       urgencia: z.enum(["atrasado", "hoje", "7dias", "15dias", "30dias", "futuro"]).optional(),
     }).optional())
-    .query(async ({ input }) => {
-      const prazos = await getPrazos(input ?? {});
+    .query(async ({ input, ctx }) => {
+      const { resolveCondominioEfetivo } = await import("../tenant-guard");
+      const condominioId = await resolveCondominioEfetivo(ctx.user, input?.condominioId);
+      const prazos = await getPrazos({ ...(input ?? {}), condominioId });
       return prazos.map((p) => ({
         ...p,
         urgencia: p.status === "pendente" ? calcularUrgencia(p.dataLimite) : null,
@@ -663,7 +680,10 @@ export const prazosRouter = router({
   // Resumo de prazos para dashboard
   resumo: protectedProcedure
     .input(z.object({ condominioId: z.number().int().positive().optional() }).optional())
-    .query(async ({ input }) => getResumoPrazos(input?.condominioId)),
+    .query(async ({ input, ctx }) => {
+      const condominioId = await (await import("../tenant-guard")).resolveCondominioEfetivo(ctx.user, input?.condominioId);
+      return getResumoPrazos(condominioId);
+    }),
 
   // Criar prazo
   create: protectedProcedure
@@ -681,7 +701,10 @@ export const prazosRouter = router({
       observacoes: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      return createPrazo({ ...input, criadoPorId: ctx.user.id });
+      const condominioId = await (await import("../tenant-guard")).resolveCondominioEfetivo(ctx.user, input.condominioId);
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o condomínio do prazo." });
+      if (input.processoId) await resolverProcessoAcessivel(ctx, input.processoId);
+      return createPrazo({ ...input, condominioId, criadoPorId: ctx.user.id });
     }),
 
   // Atualizar prazo
@@ -699,8 +722,11 @@ export const prazosRouter = router({
       alertas: z.string().optional(),
       observacoes: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await resolverPrazoAcessivel(ctx, id);
+      if (data.condominioId) await (await import("../tenant-guard")).assertCondominioAccess(ctx.user, data.condominioId);
+      if (data.processoId) await resolverProcessoAcessivel(ctx, data.processoId);
       const prazo = await updatePrazo(id, data);
       if (!prazo) throw new TRPCError({ code: "NOT_FOUND", message: "Prazo não encontrado" });
       return prazo;
@@ -709,7 +735,8 @@ export const prazosRouter = router({
   // Concluir prazo
   concluir: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await resolverPrazoAcessivel(ctx, input.id);
       const prazo = await concluirPrazo(input.id);
       if (!prazo) throw new TRPCError({ code: "NOT_FOUND", message: "Prazo não encontrado" });
       return prazo;
@@ -718,7 +745,8 @@ export const prazosRouter = router({
   // Cancelar prazo
   cancelar: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await resolverPrazoAcessivel(ctx, input.id);
       const prazo = await updatePrazo(input.id, { status: "cancelado" });
       if (!prazo) throw new TRPCError({ code: "NOT_FOUND", message: "Prazo não encontrado" });
       return prazo;
@@ -727,7 +755,8 @@ export const prazosRouter = router({
   // Excluir prazo
   delete: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await resolverPrazoAcessivel(ctx, input.id);
       await deletePrazo(input.id);
       return { success: true };
     }),
