@@ -18,6 +18,7 @@ Como administrador, após criar um acordo, quero selecionar quais parcelas pende
 4. A ação não é automática: uma confirmação explícita é obrigatória.
 5. A fase atual continua limitada ao Sandbox; as respostas são simuladas por Wiremock e não persistem cobranças no portal BTG.
 6. A emissão permanece restrita a administradores enquanto a homologação estiver ativa.
+7. A experiência aprovada combina um cabeçalho executivo no detalhe do acordo com um painel lateral de seleção, mantendo o contexto do acordo visível durante a revisão.
 
 ## Problema atual
 
@@ -116,7 +117,7 @@ No cabeçalho do acordo ativo haverá o botão `Enviar parcelas ao BTG`. Ele abr
 
 ### Seletor de parcelas
 
-O diálogo terá resumo do acordo, aviso de Sandbox, tabela com número, valor, vencimento, situação, caixa de seleção e motivo de bloqueio. O cabeçalho terá seleção de todas as elegíveis. O rodapé mostrará quantidade e valor das parcelas selecionadas.
+O painel lateral à direita terá resumo do acordo, aviso de Sandbox, lista com número, valor, vencimento, situação, caixa de seleção e motivo de bloqueio. O cabeçalho terá seleção de todas as elegíveis. O rodapé fixo mostrará quantidade e valor das parcelas selecionadas, preservando o detalhe do acordo ao fundo.
 
 A confirmação exibirá texto inequívoco: `Simular envio de N parcelas ao BTG Sandbox`. O botão só fica habilitado se houver seleção elegível e nenhum pré-requisito global pendente.
 

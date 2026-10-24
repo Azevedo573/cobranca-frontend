@@ -194,6 +194,8 @@ export default function AcordoDetalhes() {
   const progressoPorcentagem = totalParcelas > 0 ? (parcelasPagas / totalParcelas) * 100 : 0;
   const valorPago = parcelas?.filter((p) => p.status === "pago").reduce((acc, p) => acc + p.amount, 0) || 0;
   const valorRestante = (acordo?.agreedAmount || 0) - valorPago;
+  const parcelasEmAberto = parcelas?.filter((p) => ["pendente", "atrasado"].includes(p.status)) ?? [];
+  const proximaParcela = [...parcelasEmAberto].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
   if (loadingAcordo || loadingParcelas) {
     return (
@@ -227,82 +229,75 @@ export default function AcordoDetalhes() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/acordos">
-              <Button variant="outline" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
+        {/* Cabeçalho executivo: contexto do acordo, métricas-chave e próximo passo. */}
+        <section className="space-y-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h1 className="text-3xl font-bold flex items-center gap-2">
-                <HandshakeIcon className="h-8 w-8 text-primary" />
-                Detalhes do Acordo #{acordo.id}
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Visualização completa e gestão de parcelas
+              <Link href="/acordos" className="inline-flex items-center text-sm font-medium text-blue-700 hover:text-blue-900">
+                <ArrowLeft className="mr-1 h-4 w-4" /> Voltar para acordos
+              </Link>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-bold tracking-tight">Acordo #{acordo.id}</h1>
+                <Badge className={acordo.status === "ativo" ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : ""} variant={acordo.status === "ativo" ? "secondary" : "outline"}>
+                  {acordo.status.charAt(0).toUpperCase() + acordo.status.slice(1)}
+                </Badge>
+              </div>
+              <p className="mt-1 text-muted-foreground">
+                {condominio?.name ?? `Condomínio #${acordo.condominioId}`} · Gestão de parcelas e envio financeiro
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Botão Gerar Relatório — visível apenas quando o emissor não é emissão própria */}
-            {isAdministradora && (
-              <div className="flex items-center gap-2">
-                {relatorioUrl ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/30"
-                    onClick={() => window.open(relatorioUrl, '_blank')}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Baixar Relatório
+            <div className="flex flex-wrap items-center gap-2">
+              {isAdministradora && (
+                relatorioUrl ? (
+                  <Button variant="outline" size="sm" onClick={() => window.open(relatorioUrl, "_blank")}>
+                    <Download className="mr-2 h-4 w-4" /> Baixar relatório
                   </Button>
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/30"
-                    onClick={() => gerarRelatorioMutation.mutate({ acordoId })}
-                    disabled={gerarRelatorioMutation.isPending}
-                  >
-                    {gerarRelatorioMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Building2 className="h-4 w-4 mr-2" />
-                    )}
-                    {gerarRelatorioMutation.isPending ? 'Gerando...' : `Relatório para ${nomeEmissor}`}
+                  <Button variant="outline" size="sm" onClick={() => gerarRelatorioMutation.mutate({ acordoId })} disabled={gerarRelatorioMutation.isPending}>
+                    {gerarRelatorioMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Building2 className="mr-2 h-4 w-4" />}
+                    {gerarRelatorioMutation.isPending ? "Gerando..." : `Relatório para ${nomeEmissor}`}
                   </Button>
-                )}
-              </div>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setModalDocumentoOpen(true)}
-              disabled={!parcelas || parcelas.length === 0}
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Gerar Documento
-            </Button>
-            {acordo.status === "ativo" && user?.role === "admin" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-blue-300 text-blue-700 hover:bg-blue-50"
-                onClick={() => setBtgAcordoOpen(true)}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                Enviar parcelas ao BTG
+                )
+              )}
+              <Button variant="outline" size="sm" onClick={() => setModalDocumentoOpen(true)} disabled={!parcelas || parcelas.length === 0}>
+                <FileText className="mr-2 h-4 w-4" /> Gerar documento
               </Button>
-            )}
-            <span className="text-sm text-muted-foreground">{user?.name}</span>
-            <Badge variant="outline" className="capitalize">
-              {user?.role}
-            </Badge>
+              {acordo.status === "ativo" && user?.role === "admin" && (
+                <Button size="sm" className="bg-blue-600 shadow-sm hover:bg-blue-700" onClick={() => setBtgAcordoOpen(true)}>
+                  <Send className="mr-2 h-4 w-4" /> Enviar parcelas ao BTG
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Card className="border-border/80 shadow-sm">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Valor acordado</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums">{formatCurrency(acordo.agreedAmount)}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/80 shadow-sm">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Parcelas em aberto</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums">{parcelasEmAberto.length} <span className="text-base font-medium text-muted-foreground">de {totalParcelas}</span></p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/80 shadow-sm">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Próximo vencimento</p>
+                <p className="mt-2 text-xl font-semibold">{proximaParcela ? formatDate(proximaParcela.dueDate) : "—"}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-200 bg-blue-50/50 shadow-sm">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-blue-700">BolePix BTG</p>
+                <p className="mt-2 text-sm font-semibold text-blue-950">{acordo.status === "ativo" ? "Pronto para revisão" : "Acordo não elegível"}</p>
+                <p className="mt-1 text-xs text-blue-800">Sandbox · envio controlado</p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
 
         {/* Informações do Acordo */}
         <Card>
