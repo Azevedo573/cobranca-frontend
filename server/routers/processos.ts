@@ -11,13 +11,16 @@ import {
   getPartes,
   addParte,
   removeParte,
+  getParteById,
   getMovimentacoes,
   addMovimentacao,
   deleteMovimentacao,
+  getMovimentacaoById,
   getFinanceiro,
   addFinanceiro,
   updateFinanceiro,
   deleteFinanceiro,
+  getFinanceiroById,
   getResumoFinanceiro,
   updateParteAdvogados,
 } from "../db-processos";
@@ -281,7 +284,10 @@ export const processosRouter = router({
 
   removeParte: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const parte = await getParteById(input.id);
+      if (!parte) throw new TRPCError({ code: "NOT_FOUND", message: "Parte não encontrada" });
+      await resolverProcessoAcessivel(ctx, parte.processoId);
       await removeParte(input.id);
       return { success: true };
     }),
@@ -314,7 +320,10 @@ export const processosRouter = router({
 
   deleteMovimentacao: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const movimentacao = await getMovimentacaoById(input.id);
+      if (!movimentacao) throw new TRPCError({ code: "NOT_FOUND", message: "Movimentação não encontrada" });
+      await resolverProcessoAcessivel(ctx, movimentacao.processoId);
       await deleteMovimentacao(input.id);
       return { success: true };
     }),
@@ -351,14 +360,20 @@ export const processosRouter = router({
       descricao: z.string().optional(),
       valor: z.number().int().min(1).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      const financeiro = await getFinanceiroById(id);
+      if (!financeiro) throw new TRPCError({ code: "NOT_FOUND", message: "Lançamento financeiro não encontrado" });
+      await resolverProcessoAcessivel(ctx, financeiro.processoId);
       return updateFinanceiro(id, data);
     }),
 
   deleteFinanceiro: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const financeiro = await getFinanceiroById(input.id);
+      if (!financeiro) throw new TRPCError({ code: "NOT_FOUND", message: "Lançamento financeiro não encontrado" });
+      await resolverProcessoAcessivel(ctx, financeiro.processoId);
       await deleteFinanceiro(input.id);
       return { success: true };
     }),

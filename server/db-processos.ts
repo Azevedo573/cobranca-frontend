@@ -192,6 +192,13 @@ export async function removeParte(id: number): Promise<boolean> {
   return true;
 }
 
+export async function getParteById(id: number): Promise<ParteProcesso | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(partesProcesso).where(eq(partesProcesso.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
 export async function updateParteAdvogados(id: number, advogadosJson: string): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
@@ -232,6 +239,13 @@ export async function deleteMovimentacao(id: number): Promise<boolean> {
   return true;
 }
 
+export async function getMovimentacaoById(id: number): Promise<MovimentacaoProcesso | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(movimentacoesProcesso).where(eq(movimentacoesProcesso.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
 // ─── Financeiro ───────────────────────────────────────────────────────────────
 
 export async function getFinanceiro(processoId: number): Promise<FinanceiroProcesso[]> {
@@ -258,6 +272,13 @@ export async function updateFinanceiro(id: number, data: Partial<InsertFinanceir
   await db.update(financeirosProcesso).set(data).where(eq(financeirosProcesso.id, id));
   const rows = await db.select().from(financeirosProcesso)
     .where(eq(financeirosProcesso.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getFinanceiroById(id: number): Promise<FinanceiroProcesso | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(financeirosProcesso).where(eq(financeirosProcesso.id, id)).limit(1);
   return rows[0] ?? null;
 }
 
