@@ -77,6 +77,7 @@ import AtendimentoConfig from "./pages/AtendimentoConfig";
 import FluxosAtendimento from "./pages/FluxosAtendimento";
 import BTGConfig from "./pages/configuracoes/BTGConfig";
 import BTGConciliacao from "./pages/admin/BTGConciliacao";
+import BTGRemessas from "./pages/admin/BTGRemessas";
 import CentralDemandas from "./pages/admin/juridico/CentralDemandas";
 import KanbanDemandas from "./pages/admin/juridico/KanbanDemandas";
 import MinhasTarefas from "./pages/MinhasTarefas";
@@ -470,6 +471,9 @@ function Router() {
       </Route>
       <Route path="/admin/btg-conciliacao">
         {() => <ProtectedRoute component={BTGConciliacao} allowedRoles={["admin"]} />}
+      </Route>
+      <Route path="/admin/remessas-btg">
+        {() => <ProtectedRoute component={BTGRemessas} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/minhas-tarefas">
         {() => <ProtectedRoute component={MinhasTarefas} allowedRoles={["admin", "colaborador", "advogado", "sindico", "cobrador"]} />}

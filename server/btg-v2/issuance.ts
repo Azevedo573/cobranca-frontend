@@ -58,6 +58,7 @@ export interface ParcelaAcordoBtgV2Elegibilidade {
   remessaId?: number | null;
   statusRemessa?: string | null;
   btgCollectionId?: string | null;
+  btgEmissaoV2Existente?: boolean;
 }
 
 export function avaliarElegibilidadeParcelaAcordoBtgV2(parcela: ParcelaAcordoBtgV2Elegibilidade) {
@@ -68,10 +69,11 @@ export function avaliarElegibilidadeParcelaAcordoBtgV2(parcela: ParcelaAcordoBtg
     parcela.nossoNumero ||
     parcela.remessaId ||
     parcela.btgCollectionId ||
+    parcela.btgEmissaoV2Existente ||
     (parcela.statusRemessa && parcela.statusRemessa !== "nao_enviado"),
   );
   if (vinculadaAoLegado) {
-    return { elegivel: false, motivo: "Parcela vinculada ao fluxo CNAB/BTG legado" };
+    return { elegivel: false, motivo: "Parcela já vinculada a uma remessa CNAB, boleto legado ou emissão BolePix" };
   }
   if (!["pendente", "atrasado"].includes(parcela.status)) {
     return { elegivel: false, motivo: "Status da parcela não permite emissão" };
@@ -240,8 +242,9 @@ async function findExisting(db: Db, integracaoId: number, origemTipo: BtgV2Orige
 export async function emitirBolePixV2(input: {
   db: Db;
   parcelaId: number;
+  btgRemessaId?: number;
 }): Promise<BtgV2EmissaoResultado> {
-  const { db, parcelaId } = input;
+  const { db, parcelaId, btgRemessaId } = input;
   const origemTipo: BtgV2OrigemTipo = "parcela_acordo";
   const serverConfig = getBtgV2ServerConfig();
   const [integracao] = await db.select().from(btgIntegracoes)
@@ -318,6 +321,7 @@ export async function emitirBolePixV2(input: {
     await db.insert(btgCobrancasEmitidas).values({
       btgIntegracaoId: integracao.id,
       btgContaRecebedoraId: accountRow.conta.id,
+      btgRemessaId: btgRemessaId ?? null,
       condominioId: origem.condominioId,
       origemTipo,
       origemId: parcelaId,

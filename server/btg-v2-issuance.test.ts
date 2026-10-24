@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calcularDataLimiteBtgV2,
+  avaliarElegibilidadeParcelaAcordoBtgV2,
   gerarExternalIdBtgV2,
   gerarIdempotencyKeyBtgV2,
 } from "./btg-v2/issuance";
@@ -22,5 +23,12 @@ describe("BTG v2 — proteção de emissão", () => {
     expect(calcularDataLimiteBtgV2(vencimento, 60).toISOString()).toBe("2027-01-14T12:00:00.000Z");
     expect(() => calcularDataLimiteBtgV2(vencimento, 0)).toThrow("entre 1 e 365");
     expect(() => calcularDataLimiteBtgV2(vencimento, 366)).toThrow("entre 1 e 365");
+  });
+
+  it("bloqueia uma parcela que já possui emissão BolePix v2 registrada", () => {
+    expect(avaliarElegibilidadeParcelaAcordoBtgV2({
+      status: "pendente",
+      btgEmissaoV2Existente: true,
+    })).toEqual({ elegivel: false, motivo: "Parcela já vinculada a uma remessa CNAB, boleto legado ou emissão BolePix" });
   });
 });

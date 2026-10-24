@@ -374,12 +374,42 @@ export const btgContaRecebedoraCondominios = mysqlTable("btgContaRecebedoraCondo
 export type BtgContaRecebedoraCondominio = typeof btgContaRecebedoraCondominios.$inferSelect;
 export type InsertBtgContaRecebedoraCondominio = typeof btgContaRecebedoraCondominios.$inferInsert;
 
+// Lote operacional de emissões BolePix. Uma remessa representa um único
+// condomínio/beneficiário e permanece no histórico mesmo quando houver falha parcial.
+export const btgRemessas = mysqlTable("btgRemessas", {
+  id: int("id").autoincrement().primaryKey(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  btgContaRecebedoraId: int("btgContaRecebedoraId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  status: mysqlEnum("status", ["rascunho", "enviando", "processada", "processada_parcialmente", "falha", "cancelada"])
+    .default("rascunho")
+    .notNull(),
+  totalSelecionado: int("totalSelecionado").default(0).notNull(),
+  totalEmitido: int("totalEmitido").default(0).notNull(),
+  totalFalha: int("totalFalha").default(0).notNull(),
+  valorTotalCentavos: int("valorTotalCentavos").default(0).notNull(),
+  usuarioCriadorId: int("usuarioCriadorId").notNull(),
+  observacao: varchar("observacao", { length: 500 }),
+  erroResumo: varchar("erroResumo", { length: 500 }),
+  criadaEm: timestamp("criadaEm").defaultNow().notNull(),
+  iniciadaEm: timestamp("iniciadaEm"),
+  finalizadaEm: timestamp("finalizadaEm"),
+  canceladaEm: timestamp("canceladaEm"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("btgRemessas_integracao_condominio_status_idx").on(table.btgIntegracaoId, table.condominioId, table.status, table.criadaEm),
+]);
+export type BtgRemessa = typeof btgRemessas.$inferSelect;
+export type InsertBtgRemessa = typeof btgRemessas.$inferInsert;
+
 // Registro canônico e separado de cada emissão v2. Os campos btg* antigos em
 // cobrancas/parcelasAcordo continuam apenas como histórico do fluxo legado.
 export const btgCobrancasEmitidas = mysqlTable("btgCobrancasEmitidas", {
   id: int("id").autoincrement().primaryKey(),
   btgIntegracaoId: int("btgIntegracaoId").notNull(),
   btgContaRecebedoraId: int("btgContaRecebedoraId").notNull(),
+  btgRemessaId: int("btgRemessaId"),
   condominioId: int("condominioId").notNull(),
   origemTipo: mysqlEnum("origemTipo", ["cobranca", "parcela_acordo"]).notNull(),
   origemId: int("origemId").notNull(),
@@ -417,9 +447,30 @@ export const btgCobrancasEmitidas = mysqlTable("btgCobrancasEmitidas", {
   uniqueIndex("btgCobrancasEmitidas_integracao_collection_unique")
     .on(table.btgIntegracaoId, table.btgCollectionId),
   index("btgCobrancasEmitidas_integracao_status_idx").on(table.btgIntegracaoId, table.status, table.dueDate),
+  index("btgCobrancasEmitidas_remessa_idx").on(table.btgRemessaId),
 ]);
 export type BtgCobrancaEmitida = typeof btgCobrancasEmitidas.$inferSelect;
 export type InsertBtgCobrancaEmitida = typeof btgCobrancasEmitidas.$inferInsert;
+
+export const btgRemessaItens = mysqlTable("btgRemessaItens", {
+  id: int("id").autoincrement().primaryKey(),
+  btgRemessaId: int("btgRemessaId").notNull(),
+  parcelaAcordoId: int("parcelaAcordoId").notNull(),
+  btgCobrancaEmitidaId: int("btgCobrancaEmitidaId"),
+  installmentNumber: int("installmentNumber").notNull(),
+  valorCentavos: int("valorCentavos").notNull(),
+  resultado: mysqlEnum("resultado", ["pendente", "emitida", "ja_existia", "falha"])
+    .default("pendente")
+    .notNull(),
+  mensagem: varchar("mensagem", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgRemessaItens_remessa_parcela_unique").on(table.btgRemessaId, table.parcelaAcordoId),
+  index("btgRemessaItens_emissao_idx").on(table.btgCobrancaEmitidaId),
+]);
+export type BtgRemessaItem = typeof btgRemessaItens.$inferSelect;
+export type InsertBtgRemessaItem = typeof btgRemessaItens.$inferInsert;
 
 // Livro imutável de entregas do webhook. Armazena hash e metadados mínimos;
 // CPF/CNPJ e conteúdo integral do evento não são persistidos nesta tabela.

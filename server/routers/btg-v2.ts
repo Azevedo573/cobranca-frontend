@@ -9,6 +9,8 @@ import {
   btgContasRecebedoras,
   btgCobrancasEmitidas,
   btgIntegracoes,
+  btgRemessaItens,
+  btgRemessas,
   btgWebhookEntregas,
   condominios,
 } from "../../drizzle/schema";
@@ -22,6 +24,7 @@ import {
   validarCadastroManualSandbox,
 } from "../btg-v2/config";
 import { emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2 } from "../btg-v2/issuance";
+import { executarRemessaBtgV2, listarFilaRemessaBtgV2, validarSelecaoRemessaBtgV2 } from "../btg-v2/remessas";
 import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
 
 function toTrpcError(error: unknown): TRPCError {
@@ -461,6 +464,151 @@ export const btgV2Router = router({
         if (error instanceof TRPCError) throw error;
         throw toTrpcError(error);
       }
+    }),
+
+  filaRemessa: adminProcedure
+    .input(z.object({ condominioId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      try {
+        const { db, integracao } = await getIntegracaoAtual();
+        if (!integracao) throw new BtgV2ConfigurationError("Configure a integração BTG antes de montar uma remessa.");
+        const [contaVinculada] = await db.select({
+          id: btgContasRecebedoras.id,
+          agencia: btgContasRecebedoras.agencia,
+          numero: btgContasRecebedoras.numero,
+          rotulo: btgContasRecebedoras.rotulo,
+          nomeBeneficiario: btgContasRecebedoras.nomeBeneficiario,
+        }).from(btgContaRecebedoraCondominios)
+          .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+          .where(and(
+            eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracao.id),
+            eq(btgContaRecebedoraCondominios.condominioId, input.condominioId),
+            eq(btgContaRecebedoraCondominios.ativo, 1),
+            eq(btgContasRecebedoras.ativo, 1),
+          ))
+          .limit(1);
+        const parcelas = await listarFilaRemessaBtgV2({ db, condominioId: input.condominioId, btgIntegracaoId: integracao.id });
+        return {
+          conta: contaVinculada ? {
+            id: contaVinculada.id,
+            rotulo: contaVinculada.rotulo || contaVinculada.nomeBeneficiario || "Conta BTG",
+            agencia: contaVinculada.agencia,
+            numeroMascarado: mascararNumeroConta(contaVinculada.numero),
+          } : null,
+          parcelas,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  criarEEnviarRemessa: adminProcedure
+    .input(z.object({
+      condominioId: z.number().int().positive(),
+      parcelaIds: z.array(z.number().int().positive()).min(1).max(50),
+      observacao: z.string().trim().max(500).optional(),
+      confirmacao: z.literal("ENVIAR REMESSA"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const { db, integracao } = await getIntegracaoAtual();
+        if (!integracao || integracao.ativo !== 1 || integracao.emissaoHabilitada !== 1) {
+          throw new BtgV2ConfigurationError("A emissão BTG não está habilitada para este ambiente.");
+        }
+        const [contaVinculada] = await db.select({ id: btgContasRecebedoras.id })
+          .from(btgContaRecebedoraCondominios)
+          .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+          .where(and(
+            eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracao.id),
+            eq(btgContaRecebedoraCondominios.condominioId, input.condominioId),
+            eq(btgContaRecebedoraCondominios.ativo, 1),
+            eq(btgContasRecebedoras.ativo, 1),
+          ))
+          .limit(1);
+        if (!contaVinculada) throw new BtgV2ConfigurationError("Vincule uma conta recebedora BTG ativa a este condomínio antes de enviar a remessa.");
+
+        const fila = await listarFilaRemessaBtgV2({ db, condominioId: input.condominioId, btgIntegracaoId: integracao.id });
+        const selecionadas = validarSelecaoRemessaBtgV2({ condominioId: input.condominioId, parcelaIds: input.parcelaIds, fila });
+        const valorTotalCentavos = selecionadas.reduce((total, parcela) => total + parcela.amount, 0);
+        const now = new Date();
+        const result = await db.insert(btgRemessas).values({
+          btgIntegracaoId: integracao.id,
+          btgContaRecebedoraId: contaVinculada.id,
+          condominioId: input.condominioId,
+          status: "rascunho",
+          totalSelecionado: selecionadas.length,
+          valorTotalCentavos,
+          usuarioCriadorId: ctx.user.id,
+          observacao: input.observacao || null,
+          criadaEm: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const remessaId = Number((result as { insertId?: number })?.insertId ?? 0);
+        if (!remessaId) throw new BtgV2ConfigurationError("Não foi possível registrar a remessa BTG antes do envio.");
+
+        await db.insert(btgRemessaItens).values(selecionadas.map((parcela) => ({
+          btgRemessaId: remessaId,
+          parcelaAcordoId: parcela.id,
+          installmentNumber: parcela.installmentNumber,
+          valorCentavos: parcela.amount,
+          resultado: "pendente" as const,
+        })));
+
+        const resumo = await executarRemessaBtgV2({ db, remessaId, parcelas: selecionadas });
+        await logAudit(ctx, {
+          action: "generate_boleto",
+          entity: "configuracao",
+          entityId: `btg-remessa:${remessaId}`,
+          condominioId: input.condominioId,
+          metadata: { integracao: "btg-v2", evento: "remessa_enviada", remessaId, ...resumo },
+          severity: resumo.totalFalha ? "warning" : "info",
+        });
+        return { id: remessaId, ...resumo };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  listarRemessas: adminProcedure
+    .input(z.object({
+      condominioId: z.number().int().positive().optional(),
+      status: z.enum(["rascunho", "enviando", "processada", "processada_parcialmente", "falha", "cancelada"]).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { db, integracao } = await getIntegracaoAtual();
+      if (!integracao) return [];
+      const filtros = [eq(btgRemessas.btgIntegracaoId, integracao.id)];
+      if (input?.condominioId) filtros.push(eq(btgRemessas.condominioId, input.condominioId));
+      if (input?.status) filtros.push(eq(btgRemessas.status, input.status));
+      const rows = await db.select({ remessa: btgRemessas, condominioNome: condominios.name })
+        .from(btgRemessas)
+        .innerJoin(condominios, eq(condominios.id, btgRemessas.condominioId))
+        .where(and(...filtros))
+        .orderBy(desc(btgRemessas.criadaEm))
+        .limit(100);
+      return rows.map(({ remessa, condominioNome }) => ({ ...remessa, condominioNome }));
+    }),
+
+  detalheRemessa: adminProcedure
+    .input(z.object({ remessaId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      const { db, integracao } = await getIntegracaoAtual();
+      if (!integracao) throw new TRPCError({ code: "NOT_FOUND", message: "Remessa não encontrada." });
+      const [remessa] = await db.select({ remessa: btgRemessas, condominioNome: condominios.name })
+        .from(btgRemessas)
+        .innerJoin(condominios, eq(condominios.id, btgRemessas.condominioId))
+        .where(and(eq(btgRemessas.id, input.remessaId), eq(btgRemessas.btgIntegracaoId, integracao.id)))
+        .limit(1);
+      if (!remessa) throw new TRPCError({ code: "NOT_FOUND", message: "Remessa não encontrada." });
+      const itens = await db.select({ item: btgRemessaItens, emissao: btgCobrancasEmitidas })
+        .from(btgRemessaItens)
+        .leftJoin(btgCobrancasEmitidas, eq(btgCobrancasEmitidas.id, btgRemessaItens.btgCobrancaEmitidaId))
+        .where(eq(btgRemessaItens.btgRemessaId, input.remessaId))
+        .orderBy(btgRemessaItens.installmentNumber);
+      return { ...remessa, itens: itens.map(({ item, emissao }) => ({ ...item, emissao })) };
     }),
 
   prepararEmissaoAcordo: adminProcedure

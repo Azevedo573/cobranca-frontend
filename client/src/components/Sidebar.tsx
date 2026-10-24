@@ -198,7 +198,8 @@ const menuGroups: MenuGroup[] = [
       { label: "Remessa CNAB 240", href: "/admin/cnab240", icon: FolderOpen, roles: ["admin", "colaborador"], rbacModulo: "banco" },
       { label: "Retorno CNAB 240", href: "/admin/retorno-cnab", icon: Download, roles: ["admin", "colaborador"], rbacModulo: "banco" },
       { label: "BTG — Configuração", href: "/configuracoes/btg", icon: Settings, roles: ["admin"] },
-      { label: "BTG — Conciliação", href: "/admin/btg-conciliacao", icon: Landmark, roles: ["admin", "colaborador"], rbacModulo: "banco" },
+      { label: "Remessas BTG", href: "/admin/remessas-btg", icon: Upload, roles: ["admin"] },
+      { label: "BTG — Conciliação", href: "/admin/btg-conciliacao", icon: Landmark, roles: ["admin"] },
     ],
   },
 
