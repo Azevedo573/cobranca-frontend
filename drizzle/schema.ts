@@ -26,6 +26,28 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+/**
+ * Vínculos ativos de um usuário com os condomínios que pode operar.
+ * `users.condominioId` permanece como condomínio principal para compatibilidade
+ * com fluxos históricos; esta tabela representa os acessos adicionais e permite
+ * aplicar isolamento no servidor sem conceder visão global a roles locais.
+ */
+export const userCondominios = mysqlTable("userCondominios", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  isActive: int("isActive").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("userCondominios_user_condominio_unique").on(table.userId, table.condominioId),
+  index("userCondominios_user_active_idx").on(table.userId, table.isActive),
+  index("userCondominios_condominio_active_idx").on(table.condominioId, table.isActive),
+]);
+
+export type UserCondominio = typeof userCondominios.$inferSelect;
+export type InsertUserCondominio = typeof userCondominios.$inferInsert;
+
 export const condominios = mysqlTable("condominios", {
   id: int("id").autoincrement().primaryKey(),
   tipo: mysqlEnum("tipo", ["condominio", "empresa"]).default("condominio").notNull(),

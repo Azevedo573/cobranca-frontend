@@ -41,6 +41,25 @@ import {
 } from "../datajud";
 import { encontrarProcessoPorCNJ } from "../processos-cnj";
 
+async function resolverProcessoAcessivel(ctx: any, processoId: number) {
+  const processo = await getProcessoById(processoId);
+  if (!processo) throw new TRPCError({ code: "NOT_FOUND", message: "Processo não encontrado" });
+  if (!processo.condominioId) {
+    if (ctx.user.role !== "admin") {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Processo não encontrado" });
+    }
+    return processo;
+  }
+  const { assertCondominioAccess } = await import("../tenant-guard");
+  try {
+    await assertCondominioAccess(ctx.user, processo.condominioId);
+  } catch {
+    // Não revela a existência de um processo de condomínio não autorizado.
+    throw new TRPCError({ code: "NOT_FOUND", message: "Processo não encontrado" });
+  }
+  return processo;
+}
+
 // ─── Funções auxiliares ─────────────────────────────────────────────────────────
 
 /** Mapeia código CNJ de movimento para o tipo interno */
@@ -85,16 +104,17 @@ export const processosRouter = router({
       demandaId: z.number().int().positive().optional(),
       buscaParte: z.string().optional(),
     }).optional())
-    .query(async ({ input }) => {
-      return getProcessos(input ?? {});
+    .query(async ({ input, ctx }) => {
+      const { resolveCondominioEfetivo } = await import("../tenant-guard");
+      const condominioId = await resolveCondominioEfetivo(ctx.user, input?.condominioId);
+      return getProcessos({ ...(input ?? {}), condominioId });
     }),
 
   // Buscar processo por ID com partes, movimentações e financeiro
   getById: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .query(async ({ input }) => {
-      const processo = await getProcessoById(input.id);
-      if (!processo) throw new TRPCError({ code: "NOT_FOUND", message: "Processo não encontrado" });
+    .query(async ({ input, ctx }) => {
+      const processo = await resolverProcessoAcessivel(ctx, input.id);
       const [partes, movimentacoes, financeiro, resumoFinanceiro] = await Promise.all([
         getPartes(input.id),
         getMovimentacoes(input.id),
@@ -107,8 +127,10 @@ export const processosRouter = router({
   // Resumo de processos (para dashboard)
   resumo: protectedProcedure
     .input(z.object({ condominioId: z.number().int().positive().optional() }).optional())
-    .query(async ({ input }) => {
-      return getResumoProcessos(input?.condominioId);
+    .query(async ({ input, ctx }) => {
+      const { resolveCondominioEfetivo } = await import("../tenant-guard");
+      const condominioId = await resolveCondominioEfetivo(ctx.user, input?.condominioId);
+      return getResumoProcessos(condominioId);
     }),
 
   // Criar processo
@@ -137,7 +159,10 @@ export const processosRouter = router({
       datajudSincronizadoEm: z.date().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      return createProcesso({ ...input, criadoPorId: ctx.user.id });
+      const { resolveCondominioEfetivo } = await import("../tenant-guard");
+      const condominioId = await resolveCondominioEfetivo(ctx.user, input.condominioId);
+      if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o condomínio do processo." });
+      return createProcesso({ ...input, condominioId, criadoPorId: ctx.user.id });
     }),
 
   // Cria ou localiza por CNJ, evitando duplicidade em integrações como publicações PJe.
@@ -195,8 +220,13 @@ export const processosRouter = router({
       valorCondenacao: z.number().int().min(0).optional(),
       observacoes: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await resolverProcessoAcessivel(ctx, id);
+      if (data.condominioId) {
+        const { assertCondominioAccess } = await import("../tenant-guard");
+        await assertCondominioAccess(ctx.user, data.condominioId);
+      }
       const processo = await updateProcesso(id, data);
       if (!processo) throw new TRPCError({ code: "NOT_FOUND", message: "Processo não encontrado" });
       return processo;
@@ -205,7 +235,8 @@ export const processosRouter = router({
   // Excluir processo
   delete: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await resolverProcessoAcessivel(ctx, input.id);
       await deleteProcesso(input.id);
       return { success: true };
     }),
@@ -214,7 +245,10 @@ export const processosRouter = router({
 
   getPartes: protectedProcedure
     .input(z.object({ processoId: z.number().int().positive() }))
-    .query(async ({ input }) => getPartes(input.processoId)),
+    .query(async ({ input, ctx }) => {
+      await resolverProcessoAcessivel(ctx, input.processoId);
+      return getPartes(input.processoId);
+    }),
 
   addParte: protectedProcedure
     .input(z.object({
@@ -225,7 +259,10 @@ export const processosRouter = router({
       representante: z.string().optional(),
       observacoes: z.string().optional(),
     }))
-    .mutation(async ({ input }) => addParte(input)),
+    .mutation(async ({ input, ctx }) => {
+      await resolverProcessoAcessivel(ctx, input.processoId);
+      return addParte(input);
+    }),
 
   removeParte: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
@@ -238,7 +275,10 @@ export const processosRouter = router({
 
   getMovimentacoes: protectedProcedure
     .input(z.object({ processoId: z.number().int().positive() }))
-    .query(async ({ input }) => getMovimentacoes(input.processoId)),
+    .query(async ({ input, ctx }) => {
+      await resolverProcessoAcessivel(ctx, input.processoId);
+      return getMovimentacoes(input.processoId);
+    }),
 
   addMovimentacao: protectedProcedure
     .input(z.object({
@@ -248,6 +288,7 @@ export const processosRouter = router({
       tipo: z.enum(["distribuicao", "citacao", "contestacao", "audiencia", "sentenca", "recurso", "despacho", "decisao", "peticao", "transito_julgado", "execucao", "outro"]).default("outro"),
     }))
     .mutation(async ({ input, ctx }) => {
+      await resolverProcessoAcessivel(ctx, input.processoId);
       return addMovimentacao({
         ...input,
         origem: "manual",
@@ -267,7 +308,10 @@ export const processosRouter = router({
 
   getFinanceiro: protectedProcedure
     .input(z.object({ processoId: z.number().int().positive() }))
-    .query(async ({ input }) => getFinanceiro(input.processoId)),
+    .query(async ({ input, ctx }) => {
+      await resolverProcessoAcessivel(ctx, input.processoId);
+      return getFinanceiro(input.processoId);
+    }),
 
   addFinanceiro: protectedProcedure
     .input(z.object({
@@ -280,6 +324,7 @@ export const processosRouter = router({
       dataPagamento: z.date().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
+      await resolverProcessoAcessivel(ctx, input.processoId);
       return addFinanceiro({ ...input, criadoPorId: ctx.user.id });
     }),
 
@@ -497,8 +542,7 @@ export const processosRouter = router({
   sincronizarDataJud: protectedProcedure
     .input(z.object({ processoId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
-      const processo = await getProcessoById(input.processoId);
-      if (!processo) throw new TRPCError({ code: "NOT_FOUND", message: "Processo não encontrado" });
+      const processo = await resolverProcessoAcessivel(ctx, input.processoId);
       if (!processo.tribunalAlias) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Processo não tem alias de tribunal configurado" });
       }

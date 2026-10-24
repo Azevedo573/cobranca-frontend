@@ -4,9 +4,9 @@
 
 Corrigir o controle de acesso efetivo no servidor para que sessões, permissões e recursos pertençam ao condomínio autorizado. O Gate 1 não redesenha funcionalidades; ele fecha acessos indevidos no backend sem remover histórico, alterar valores financeiros ou reconfigurar integrações.
 
-## Assunção que requer confirmação
+## Política aprovada
 
-A política recomendada é: **somente `admin` possui visão global**. `sindico`, `cobrador`, `colaborador` e `advogado` ficam limitados ao próprio `condominioId`; `colaborador` e `advogado` também obedecem a matriz de perfil por módulo e ação. Não há informação suficiente para assumir que advogados devam ver todos os condomínios, portanto eles não receberão bypass global.
+**Somente `admin` possui visão global.** `sindico`, `cobrador`, `colaborador` e `advogado` podem acessar um ou mais condomínios, mas exclusivamente aqueles com vínculo ativo registrado para a pessoa usuária. O campo atual `users.condominioId` permanece como vínculo principal de compatibilidade; a nova associação persistida registra os demais condomínios autorizados. `colaborador` e `advogado` também obedecem à matriz de perfil por módulo e ação.
 
 ## Módulos
 
@@ -14,7 +14,7 @@ A política recomendada é: **somente `admin` possui visão global**. `sindico`,
 |---|---|---|
 | `identity-session` | Validar a identidade real do login condominial, o status de usuário e o status ativo do condomínio | — |
 | `rbac-server` | Alinhar a matriz de permissões do servidor ao frontend, incluindo advogado | — |
-| `tenant-core` | Resolver o condomínio efetivo, bloquear escopo forjado e validar propriedade de recursos por ID | `identity-session`, `rbac-server` |
+| `tenant-core` | Registrar vínculos múltiplos, resolver o condomínio efetivo, bloquear escopo forjado e validar propriedade de recursos por ID | `identity-session`, `rbac-server` |
 | `tenant-financeiro` | Aplicar o guard de tenant em devedores, cobranças, tentativas, acordos, parcelas, relatórios e exportações | `tenant-core` |
 | `tenant-juridico-vinculado` | Aplicar o guard em processos, prazos, demandas, tarefas, TJRJ, MNI e visões jurídicas que já possuem vínculo de condomínio/processo | `tenant-core` |
 | `tenant-juridico-global` | Modelar vínculo por condomínio e restringir/publicar dados hoje globais: PJe, DOERJ, publicações, monitoramentos e intimações sem processo | `tenant-core` |
@@ -31,14 +31,14 @@ A política recomendada é: **somente `admin` possui visão global**. `sindico`,
 
 ## Política de Falha
 
-- Tentativa de escolher explicitamente um `condominioId` diferente: `FORBIDDEN`.
+- Tentativa de escolher explicitamente um `condominioId` sem vínculo ativo: `FORBIDDEN`.
 - ID de recurso de outro condomínio: resposta genérica `NOT_FOUND`, evitando enumeração de dados e IDs.
 - Recurso global sem vínculo condominial: somente `admin` até associação/backfill seguro.
-- Usuário sem `condominioId` em role local: `FORBIDDEN`.
+- Usuário local sem vínculo ativo: `FORBIDDEN`.
 
 ## Critérios de Saída do Gate 1
 
-1. Nenhum usuário local consegue ler, editar, excluir, emitir, baixar, sincronizar ou exportar dados de outro condomínio por chamada direta ao servidor.
+1. Nenhum usuário local consegue ler, editar, excluir, emitir, baixar, sincronizar ou exportar dados de condomínio sem vínculo ativo por chamada direta ao servidor.
 2. Advogado sem perfil/permissão é bloqueado pelo backend, não apenas pela interface.
 3. Sessões condominiais preservam a identidade individual e recusam condomínio/usuário inativo.
 4. Dados jurídicos globais permanecem indisponíveis a não-admin até a migração que cria o vínculo por condomínio ser concluída e validada.

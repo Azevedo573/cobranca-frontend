@@ -1,57 +1,57 @@
 /**
- * Hook para gerenciar o condomínio selecionado pelo administrador.
+ * Contexto de condomínio selecionado.
  *
- * - Para usuários com role "admin": permite selecionar qualquer condomínio.
- *   O ID selecionado é persistido no localStorage para não perder ao navegar.
- * - Para outros roles (sindico, cobrador): retorna automaticamente o condominioId do usuário.
+ * Admin visualiza todos os condomínios; os demais usuários recebem do servidor
+ * somente seus vínculos ativos. A seleção é uma preferência de interface: cada
+ * procedure continua validando o vínculo no backend.
  */
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 
-const STORAGE_KEY = "admin_selected_condominio_id";
+const storageKey = (userId?: number) => `selected_condominio_id_${userId ?? "anon"}`;
 
 export function useAdminCondominio() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-
   const [selectedCondominioId, setSelectedCondominioId] = useState<number | null>(() => {
-    if (!isAdmin) return null;
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? parseInt(saved, 10) : null;
+    if (!user) return null;
+    const saved = localStorage.getItem(storageKey(user.id));
+    return saved ? parseInt(saved, 10) : (user.condominioId ?? null);
   });
 
-  // Buscar lista de condomínios (apenas para admin)
   const { data: condominios, isLoading: condominiosLoading } = trpc.condominios.list.useQuery(
     undefined,
-    { enabled: isAdmin }
+    { enabled: !!user },
   );
 
-  // Persistir seleção no localStorage
   useEffect(() => {
-    if (isAdmin && selectedCondominioId !== null) {
-      localStorage.setItem(STORAGE_KEY, String(selectedCondominioId));
-    }
-  }, [isAdmin, selectedCondominioId]);
+    if (!user || !condominios?.length) return;
+    const salvo = localStorage.getItem(storageKey(user.id));
+    const idSalvo = salvo ? parseInt(salvo, 10) : null;
+    const candidato = idSalvo && condominios.some((condominio) => condominio.id === idSalvo)
+      ? idSalvo
+      : (user.condominioId && condominios.some((condominio) => condominio.id === user.condominioId)
+        ? user.condominioId
+        : condominios[0].id);
+    if (selectedCondominioId !== candidato) setSelectedCondominioId(candidato);
+  }, [condominios, selectedCondominioId, user]);
 
-  // Auto-selecionar o primeiro condomínio se nenhum estiver selecionado
   useEffect(() => {
-    if (isAdmin && condominios && condominios.length > 0 && selectedCondominioId === null) {
-      setSelectedCondominioId(condominios[0].id);
+    if (user && selectedCondominioId !== null) {
+      localStorage.setItem(storageKey(user.id), String(selectedCondominioId));
     }
-  }, [isAdmin, condominios, selectedCondominioId]);
+  }, [selectedCondominioId, user]);
 
-  const condominioId: number | null = isAdmin
-    ? selectedCondominioId
-    : (user?.condominioId ?? null);
+  const podeSelecionarCondominio = Boolean(isAdmin || (condominios?.length ?? 0) > 1);
 
   return {
-    condominioId,
+    condominioId: selectedCondominioId,
     isAdmin,
-    condominios: isAdmin ? condominios : undefined,
-    condominiosLoading: isAdmin ? condominiosLoading : false,
-    selectedCondominioId: isAdmin ? selectedCondominioId : (user?.condominioId ?? null),
-    setSelectedCondominioId: isAdmin ? setSelectedCondominioId : undefined,
+    podeSelecionarCondominio,
+    condominios,
+    condominiosLoading,
+    selectedCondominioId,
+    setSelectedCondominioId,
   };
 }

@@ -80,6 +80,23 @@ describe("hasPermission", () => {
     expect(result).toBe(false);
   });
 
+  it("advogado sem perfil retorna false e não recebe bypass no servidor", async () => {
+    const { getDb } = await import("./db");
+    vi.mocked(getDb).mockResolvedValue({
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => [{ profileId: null }],
+          }),
+        }),
+      }),
+    } as any);
+
+    const { hasPermission } = await import("./rbac");
+    const result = await hasPermission(11, "advogado", "juridico_processos", "visualizar");
+    expect(result).toBe(false);
+  });
+
   it("colaborador com permissão permitida retorna true", async () => {
     const { getDb } = await import("./db");
     let callCount = 0;

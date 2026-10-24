@@ -54,15 +54,12 @@ describe("Vencimentos Próximos", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("deve retornar vencimentos próximos para síndico (filtrado automaticamente)", async () => {
+  it("bloqueia síndico sem vínculo ativo persistido", async () => {
     const ctx = createAuthContext("sindico", 1);
     const caller = appRouter.createCaller(ctx);
 
-    const result = await caller.acordos.getVencimentosProximos({
-      dias: 7,
-    });
-
-    expect(Array.isArray(result)).toBe(true);
+    await expect(caller.acordos.getVencimentosProximos({ dias: 7 }))
+      .rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("deve aceitar diferentes períodos (7, 15, 30 dias)", async () => {

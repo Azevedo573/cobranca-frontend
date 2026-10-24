@@ -11,9 +11,9 @@
  *
  * Regras:
  *   - role === "admin"       → sempre permitido (bypass total)
- *   - role === "colaborador" → verificado contra profile_permissions do perfil atribuído
- *   - outros roles           → sempre permitido (sindico, cobrador têm controle próprio por role)
- *   - colaborador sem perfil → FORBIDDEN
+ *   - role === "colaborador" ou "advogado" → verificado contra profile_permissions
+ *   - sindico/cobrador       → controle próprio por role e tenancy
+ *   - colaborador/advogado sem perfil → FORBIDDEN
  *   - permissão não encontrada no perfil → FORBIDDEN
  */
 
@@ -94,7 +94,7 @@ export async function invalidatePermCacheForProfile(profileId: number) {
 
 /**
  * Verifica se um usuário tem uma permissão específica.
- * Admin sempre retorna true. Colaborador sem perfil retorna false.
+ * Admin sempre retorna true. Colaborador e advogado sem perfil retornam false.
  */
 export async function hasPermission(
   userId: number,
@@ -104,8 +104,8 @@ export async function hasPermission(
 ): Promise<boolean> {
   // Admin tem acesso total
   if (role === "admin") return true;
-  // Outros roles não-colaborador têm acesso livre (sindico, cobrador controlados por role)
-  if (role !== "colaborador") return true;
+  // Síndico e cobrador têm controle próprio por role e tenancy.
+  if (role !== "colaborador" && role !== "advogado") return true;
 
   const perms = await getUserPermissions(userId);
   if (perms.size === 0) return false; // sem perfil atribuído
@@ -128,10 +128,10 @@ export function requirePermission(modulo: ModuloId, acao: AcaoId) {
     // Admin: bypass total
     if (user.role === "admin") return next({ ctx });
 
-    // Outros roles não-colaborador: bypass (controle por role já existe)
-    if (user.role !== "colaborador") return next({ ctx });
+    // Síndico e cobrador: controle por role e tenancy já aplicado nas procedures.
+    if (user.role !== "colaborador" && user.role !== "advogado") return next({ ctx });
 
-    // Colaborador: verificar permissão no perfil
+    // Colaborador e advogado: verificar permissão no perfil
     const allowed = await hasPermission(user.id, user.role, modulo, acao);
     if (!allowed) {
       throw new TRPCError({

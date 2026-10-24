@@ -37,33 +37,25 @@ export async function verifyCustomToken(token: string | undefined | null): Promi
     }
 
     if (payload.authType !== "custom") return null;
-    const { condominioId, username } = payload as Record<string, unknown>;
-    if (typeof condominioId !== "number" || typeof username !== "string") return null;
+    const { condominioId, userId } = payload as Record<string, unknown>;
+    if (typeof condominioId !== "number" || typeof userId !== "number") return null;
 
     const db = await getDb();
     if (!db) return null;
     const [condominio] = await db.select().from(condominios).where(eq(condominios.id, condominioId)).limit(1);
-    if (!condominio) return null;
+    if (!condominio || condominio.statusCadastro !== "ativo") return null;
 
-    const openId = `condominio_${condominioId}`;
-    let [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-    if (!user) {
-      await db.insert(users).values({
-        openId,
-        name: condominio.name || "Condomínio",
-        email: condominio.email || null,
-        loginMethod: "custom",
-        role: "sindico",
-        condominioId: condominio.id,
-        lastSignedIn: new Date(),
-      });
-      [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-    } else if (user.isDeleted === 1 || user.isActive !== 1) {
-      return null;
-    } else {
-      await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
-    }
-    return user || null;
+    const [user] = await db.select().from(users)
+      .where(and(eq(users.id, userId), eq(users.isDeleted, 0)))
+      .limit(1);
+    if (!user || user.isActive !== 1) return null;
+
+    const { getCondominiosAtivosDoUsuario } = await import("../tenant-guard");
+    const vinculados = await getCondominiosAtivosDoUsuario(user);
+    if (!vinculados.includes(condominioId)) return null;
+
+    await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
+    return user;
   } catch (error) {
     console.warn("[Custom Auth] Token verification failed:", error);
     return null;

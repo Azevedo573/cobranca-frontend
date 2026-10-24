@@ -1,0 +1,23 @@
+# Tarefas — Gate 1: Identidade, RBAC e Tenancy Multi-Condomínio
+
+- [x] Criar testes iniciais para RBAC de advogado, tenancy multi-condomínio e sessão customizada.
+  - Aceite: os testes falham antes da implementação e descrevem admin global, vínculos A/B e negação para C.
+  - Verificar: `pnpm exec vitest run server/rbac.test.ts server/tenant-guard.test.ts server/auth-custom.test.ts --no-file-parallelism`.
+- [x] Criar tabela `userCondominios` e migration aditiva com backfill de `users.condominioId`.
+  - Aceite: uma associação por usuário+condomínio, status ativo, vínculo principal e índices de consulta.
+  - Verificar: revisão SQL e inspeção do banco Sandbox.
+- [x] Implementar `tenant-guard.ts` e atualizar `condominioAccessProcedure`.
+  - Aceite: somente admin é global; usuários locais só acessam condomínios vinculados ativos.
+  - Verificar: testes unitários de escopo.
+- [x] Corrigir RBAC e sessão customizada.
+  - Aceite: advogado respeita perfil; sessão retorna usuário individual e bloqueia usuário/condomínio inativo; token legado compartilhado é recusado.
+  - Verificar: testes RBAC e auth.
+- [x] Persistir e expor vínculos múltiplos no CRUD de usuários e no formulário administrativo.
+  - Aceite: administrador escolhe condomínio principal e adicionais; atualizações sincronizam os vínculos ativos e geram auditoria.
+  - Verificar: caller tRPC, typecheck e teste manual Sandbox.
+- [ ] Aplicar a guarda aos routers financeiros e jurídicos remanescentes.
+  - Aceite: nenhuma procedure de domínio aceita condomínio não vinculado nem recurso de outro condomínio.
+  - Verificar: testes negativos por router, com condomínios A/B/C.
+- [ ] Validar a fundação antes de aplicar aos routers financeiros e jurídicos.
+  - Aceite: typecheck, suíte completa e build aprovados.
+  - Verificar: `pnpm check && pnpm exec vitest run --no-file-parallelism --reporter=default && pnpm build`.

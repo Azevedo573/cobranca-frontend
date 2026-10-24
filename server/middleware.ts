@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "./_core/trpc";
+import { resolveCondominioEfetivo } from "./tenant-guard";
 
 // Middleware para verificar se o usuário é admin
 export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -13,28 +14,15 @@ export const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 // Middleware para verificar se o usuário tem acesso ao condomínio
-export const condominioAccessProcedure = protectedProcedure.use(({ ctx, next, input }) => {
-  // Admin tem acesso a tudo
-  if (ctx.user.role === "admin") {
-    return next({ ctx });
-  }
+export const condominioAccessProcedure = protectedProcedure.use(async ({ ctx, next, input }) => {
+  const requestedCondominioId = (input as { condominioId?: number } | undefined)?.condominioId;
+  const condominioEfetivo = await resolveCondominioEfetivo(ctx.user, requestedCondominioId);
 
-  // Verificar se o usuário tem condominioId
-  if (!ctx.user.condominioId) {
-    throw new TRPCError({ 
-      code: "FORBIDDEN",
-      message: "Usuário não está vinculado a nenhum condomínio." 
-    });
-  }
+  // Mantém compatibilidade com handlers legados que usam ctx.user.condominioId,
+  // mas nunca aceita um condomínio sem vínculo ativo para roles locais.
+  const userComEscopo = condominioEfetivo === undefined
+    ? ctx.user
+    : { ...ctx.user, condominioId: condominioEfetivo };
 
-  // Verificar se está tentando acessar dados do próprio condomínio
-  const requestedCondominioId = (input as any)?.condominioId;
-  if (requestedCondominioId && requestedCondominioId !== ctx.user.condominioId) {
-    throw new TRPCError({ 
-      code: "FORBIDDEN",
-      message: "Acesso negado. Você só pode acessar dados do seu condomínio." 
-    });
-  }
-
-  return next({ ctx });
+  return next({ ctx: { ...ctx, user: userComEscopo } });
 });

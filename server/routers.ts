@@ -302,9 +302,13 @@ export const appRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const { getAllCondominios } = await import("./db-condominios");
       const todos = await getAllCondominios();
-      // Admin vê todos; advogado/colaborador vêem apenas ativos (para seleção em formulários)
+      // Admin vê todos. Demais roles só recebem condomínios ativos com vínculo.
       if (ctx.user.role === "admin") return todos;
-      return (todos as any[]).filter((c: any) => !c.statusCadastro || c.statusCadastro === "ativo");
+      const { getCondominiosAtivosDoUsuario } = await import("./tenant-guard");
+      const permitidos = await getCondominiosAtivosDoUsuario(ctx.user);
+      return (todos as any[]).filter((c: any) =>
+        c.statusCadastro === "ativo" && permitidos.includes(Number(c.id)),
+      );
     }),
     getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getCondominioById } = await import("./db-condominios");
@@ -313,7 +317,8 @@ export const appRouter = router({
     // Retorna os módulos ativos do condomínio do usuário logado (ou de um id específico para admin)
     getModulosAtivos: protectedProcedure.input(z.object({ condominioId: z.number().optional() })).query(async ({ input, ctx }) => {
       const { getCondominioById } = await import("./db-condominios");
-      const id = input.condominioId ?? ctx.user.condominioId;
+      const { resolveCondominioEfetivo } = await import("./tenant-guard");
+      const id = await resolveCondominioEfetivo(ctx.user, input.condominioId);
       if (!id) return ["cobranca"]; // admin sem condomínio vê tudo
       const condominio = await getCondominioById(id);
       if (!condominio) return ["cobranca"];
@@ -2082,6 +2087,10 @@ export const appRouter = router({
       const result = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(eq(users.id, input.id)).limit(1);
       return result[0] || null;
     }),
+    getVinculosCondominios: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(async ({ input }) => {
+      const { listarVinculosDeCondominio } = await import("./tenant-guard");
+      return listarVinculosDeCondominio(input.userId);
+    }),
     // Listar usuários de um condomínio específico
     listByCondominio: adminProcedure
       .input(z.object({ condominioId: z.number(), includeDeleted: z.boolean().default(false) }))
@@ -2128,6 +2137,7 @@ export const appRouter = router({
       password: z.string().min(10).max(128),
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]),
       condominioId: z.number().optional(),
+      condominioIds: z.array(z.number().int().positive()).optional(),
       isActive: z.number().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
@@ -2149,6 +2159,13 @@ export const appRouter = router({
       const bcrypt = await import("bcryptjs");
       const hashedPassword = await bcrypt.default.hash(input.password, 10);
       const openId = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const { validarCondominiosAtivos, substituirVinculosDeCondominio } = await import("./tenant-guard");
+      const condominioIdsSolicitados = input.condominioIds ?? (input.condominioId ? [input.condominioId] : []);
+      const condominioIds = await validarCondominiosAtivos(condominioIdsSolicitados);
+      const condominioPrincipalId = input.condominioId ?? condominioIds[0] ?? null;
+      if (input.role !== "admin" && condominioIds.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe ao menos um condomínio para este usuário." });
+      }
 
       const insertResult = await db.insert(users).values({
         openId,
@@ -2157,11 +2174,18 @@ export const appRouter = router({
         passwordHash: hashedPassword,
         loginMethod: "custom",
         role: input.role,
-        condominioId: input.condominioId,
+        condominioId: condominioPrincipalId,
         isPrimaryAdmin: 0,
         isActive: input.isActive ?? 1,
       });
-      await logAudit(ctx, { action: "create", entity: "user", entityLabel: input.name, condominioId: input.condominioId, afterData: { name: input.name, email: emailNormalizado, role: input.role, isActive: input.isActive ?? 1 }, severity: "info" });
+      const userId = Number((insertResult as { insertId?: number }).insertId);
+      try {
+        await substituirVinculosDeCondominio(userId, condominioIds, condominioPrincipalId);
+      } catch (error) {
+        await db.delete(users).where(eq(users.id, userId));
+        throw error;
+      }
+      await logAudit(ctx, { action: "create", entity: "user", entityId: String(userId), entityLabel: input.name, condominioId: condominioPrincipalId ?? undefined, afterData: { name: input.name, email: emailNormalizado, role: input.role, isActive: input.isActive ?? 1, condominioIds }, severity: "info" });
       return insertResult;
     }),
     update: adminProcedure.input(z.object({
@@ -2171,9 +2195,10 @@ export const appRouter = router({
       password: z.string().min(10).max(128).optional(),
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]).optional(),
       condominioId: z.number().optional(),
+      condominioIds: z.array(z.number().int().positive()).optional(),
       isActive: z.number().optional(),
     })).mutation(async ({ input, ctx }) => {
-      const { id, password, condominioId, ...data } = input;
+      const { id, password, condominioId, condominioIds: condominioIdsInput, ...data } = input;
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
@@ -2196,7 +2221,23 @@ export const appRouter = router({
       }
 
       const updateData: any = { ...data };
-      if (condominioId !== undefined) updateData.condominioId = condominioId;
+      const papelEfetivo = input.role ?? target.role;
+      const { validarCondominiosAtivos, substituirVinculosDeCondominio } = await import("./tenant-guard");
+      const deveAtualizarVinculos = condominioIdsInput !== undefined || condominioId !== undefined;
+      let condominioIdsEfetivos: number[] | undefined;
+      let condominioPrincipalEfetivo: number | null = target.condominioId ?? null;
+      if (deveAtualizarVinculos) {
+        const candidatos = condominioIdsInput ?? (condominioId ? [condominioId] : []);
+        condominioIdsEfetivos = await validarCondominiosAtivos(candidatos);
+        condominioPrincipalEfetivo = condominioId ?? condominioIdsEfetivos[0] ?? null;
+        if (papelEfetivo !== "admin" && condominioIdsEfetivos.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Informe ao menos um condomínio para este usuário." });
+        }
+        if (condominioPrincipalEfetivo !== null && !condominioIdsEfetivos.includes(condominioPrincipalEfetivo)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "O condomínio principal deve constar entre os vínculos autorizados." });
+        }
+        updateData.condominioId = condominioPrincipalEfetivo;
+      }
       if (input.email && input.email.toLowerCase() !== (target.email ?? "").toLowerCase()) {
         const duplicado = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email.toLowerCase())).limit(1);
         if (duplicado.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
@@ -2208,7 +2249,10 @@ export const appRouter = router({
       }
 
       await db.update(users).set(updateData).where(eq(users.id, id));
-      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, afterData: { name: updateData.name ?? target.name, email: updateData.email ?? target.email, role: updateData.role ?? target.role, isActive: updateData.isActive ?? target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, severity: "info" });
+      if (condominioIdsEfetivos !== undefined) {
+        await substituirVinculosDeCondominio(id, condominioIdsEfetivos, condominioPrincipalEfetivo);
+      }
+      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), entityLabel: target.name ?? undefined, condominioId: condominioPrincipalEfetivo ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, afterData: { name: updateData.name ?? target.name, email: updateData.email ?? target.email, role: updateData.role ?? target.role, isActive: updateData.isActive ?? target.isActive, isPrimaryAdmin: target.isPrimaryAdmin, condominioIds: condominioIdsEfetivos }, severity: "info" });
       return { success: true };
     }),
     delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
