@@ -22,12 +22,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
-import { Calculator, HandshakeIcon, Loader2, AlertCircle, FileText, Mail, Printer, CheckCircle2, Gavel, X } from "lucide-react";
+import { Calculator, HandshakeIcon, Loader2, AlertCircle, FileText, Mail, Printer, CheckCircle2, Gavel, X, Send } from "lucide-react";
 import { Dialog as CustasDialog, DialogContent as CustasDialogContent, DialogHeader as CustasDialogHeader, DialogTitle as CustasDialogTitle } from "@/components/ui/dialog";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import EnviarEmailModal from "@/components/EnviarEmailModal";
 import { CustasJudiciais } from "@/components/CustasJudiciais";
+import { BTGEnviarParcelasAcordoModal } from "@/components/BTGEnviarParcelasAcordoModal";
 import { calcularPlanoAcordo, formatarMoedaAcordo } from "@/../../shared/calculos-acordo";
 import { format } from "date-fns";
 import { formatarDataVencimento } from "@/lib/dateUtils";
@@ -98,6 +100,7 @@ export function RealizarAcordoModal({
   condominioNome,
   onAcordoCriado,
 }: RealizarAcordoModalProps) {
+  const { user } = useAuth();
   // ── Parâmetros globais de cálculo ──────────────────────────────────────────
   const [dataCalculo, setDataCalculo] = useState(hoje());
   const [usarCorrecao, setUsarCorrecao] = useState(true);
@@ -288,6 +291,7 @@ export function RealizarAcordoModal({
 
   // ── Estados dos modais de ação final ─────────────────────────────────────
   const [acordoCriadoId, setAcordoCriadoId] = useState<number | null>(null);
+  const [btgAcordoOpen, setBtgAcordoOpen] = useState(false);
   const [modalDocOpen, setModalDocOpen] = useState(false);
   const [modalEmailOpen, setModalEmailOpen] = useState(false);
   const [emailDevedor, setEmailDevedor] = useState("");
@@ -1193,6 +1197,19 @@ export function RealizarAcordoModal({
               {gerandoBoletos ? "Gerando..." : "Boleto"}
             </Button>
 
+            {user?.role === "admin" && (
+              <Button
+                variant="outline"
+                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={() => setBtgAcordoOpen(true)}
+                disabled={!acordoCriadoId}
+                title={!acordoCriadoId ? "Finalize o acordo primeiro" : "Selecionar parcelas para simular no BTG Sandbox"}
+              >
+                <Send className="h-4 w-4" />
+                Enviar parcelas ao BTG
+              </Button>
+            )}
+
             {/* Email Boleto/Termo */}
             <Button
               variant="outline"
@@ -1225,6 +1242,13 @@ export function RealizarAcordoModal({
           emailDevedor={emailDevedor}
           condominioId={condominioId}
         />
+        {acordoCriadoId && (
+          <BTGEnviarParcelasAcordoModal
+            open={btgAcordoOpen}
+            onOpenChange={setBtgAcordoOpen}
+            acordoId={acordoCriadoId}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

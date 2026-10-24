@@ -35,15 +35,16 @@ BTG_WEBHOOK_SECRET=<segredo HMAC entregue/cadastrado no BTG>
 3. Na aba **Contas e condomínios**, clique em **Consultar contas**. Essa chamada é manual e consulta `GET /:companyId/banking/accounts` no BTG. [4]
 4. Selecione um condomínio de teste e associe uma das contas retornadas. Não há seleção automática de conta.
 5. Na aba **Regras e saúde**, defina o limite após o vencimento e a descrição padrão. Em seguida, clique em **Habilitar homologação** e confirme digitando `HOMOLOGAR`.
-6. Abra um devedor de teste com CPF/CNPJ, nome e endereço completo. Em uma cobrança pendente, escolha a ação de BolePix. O modal revisa os dados e pede confirmação antes do POST.
-7. Registre o resultado. O novo registro fica em `btgCobrancasEmitidas`; os campos BTG/CNAB históricos de `cobrancas` e `parcelasAcordo` não são alterados por esta emissão v2.
-8. Repita a mesma ação uma vez. O sistema deve devolver o mesmo registro, sem criar um segundo título, pois a emissão usa chave única de origem/revisão e idempotência.
-9. Em **Banco → Conciliação BolePix BTG v2**, execute a consulta manual do título. A baixa só é aplicada se `paidAmount` retornado pelo BTG for idêntico ao valor local em centavos.
-10. Para testar cancelamento, selecione uma emissão não encerrada, digite `CANCELAR` e aguarde a resposta `204` do BTG. O registro de origem continua pendente e não é cancelado automaticamente.
+6. Crie ou abra um **acordo ativo** para um devedor de teste com CPF/CNPJ, nome e endereço completo. No detalhe do acordo, clique em **Enviar parcelas ao BTG**. Após criar o acordo, a mesma ação também fica disponível no rodapé do modal de criação.
+7. Revise o seletor: parcelas pendentes e atrasadas, incluindo entrada, aparecem pré-selecionadas. Parcelas pagas, canceladas ou vinculadas ao CNAB/BTG legado ficam bloqueadas com o motivo.
+8. Selecione uma ou mais parcelas e confirme a simulação. O novo registro fica em `btgCobrancasEmitidas`; os campos BTG/CNAB históricos de `cobrancas` e `parcelasAcordo` não são alterados por esta emissão v2.
+9. Repita a mesma seleção. O sistema deve devolver o registro existente por parcela, sem criar um segundo título, pois a emissão usa chave única de origem/revisão e idempotência.
+10. Em **Banco → Conciliação BolePix BTG v2**, execute a consulta manual do título. A baixa só é aplicada se `paidAmount` retornado pelo BTG for idêntico ao valor local em centavos.
+11. Para testar cancelamento, selecione uma emissão não encerrada, digite `CANCELAR` e aguarde a resposta `204` do BTG. O registro de origem continua pendente e não é cancelado automaticamente.
 
 ## Controles já aplicados
 
-A rota de emissão está limitada ao Sandbox. Produção não tem botão de ativação nesta versão. Antes de chamar o BTG, o sistema grava uma reserva exclusiva da emissão; se houver falha sem confirmação, o título entra em estado `incerta` e não pode ser reemitido automaticamente.
+A rota de emissão está limitada ao Sandbox e aceita apenas parcelas de acordo ativo. Produção não tem botão de ativação nesta versão. Antes de chamar o BTG, o sistema valida integralmente a seleção do acordo e grava uma reserva exclusiva por parcela; se houver falha sem confirmação, o título entra em estado `incerta` e não pode ser reemitido automaticamente.
 
 A rota de webhook v2 é `POST /api/webhooks/btg/v2/:ambiente`. Ela usa corpo bruto, exige HMAC SHA-256 e guarda apenas hash e metadados mínimos da entrega para deduplicação. O Sandbox não é adequado para testar webhooks. [1]
 

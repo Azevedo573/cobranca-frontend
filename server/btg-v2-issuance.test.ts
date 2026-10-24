@@ -7,11 +7,11 @@ import {
 
 describe("BTG v2 — proteção de emissão", () => {
   it("gera identificadores diferentes por ambiente e estáveis para a mesma origem", () => {
-    const sandbox = gerarExternalIdBtgV2("sandbox", "cobranca", 42);
-    const producao = gerarExternalIdBtgV2("producao", "cobranca", 42);
+    const sandbox = gerarExternalIdBtgV2("sandbox", "parcela_acordo", 42);
+    const producao = gerarExternalIdBtgV2("producao", "parcela_acordo", 42);
 
-    expect(sandbox).toBe("v2:sbx:cobranca:42:r1");
-    expect(producao).toBe("v2:prd:cobranca:42:r1");
+    expect(sandbox).toBe("v2:sbx:parcela_acordo:42:r1");
+    expect(producao).toBe("v2:prd:parcela_acordo:42:r1");
     expect(gerarIdempotencyKeyBtgV2(sandbox)).toHaveLength(64);
     expect(gerarIdempotencyKeyBtgV2(sandbox)).toBe(gerarIdempotencyKeyBtgV2(sandbox));
     expect(gerarIdempotencyKeyBtgV2(sandbox)).not.toBe(gerarIdempotencyKeyBtgV2(producao));

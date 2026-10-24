@@ -21,7 +21,7 @@ import {
   normalizarContaManualSandbox,
   validarCadastroManualSandbox,
 } from "../btg-v2/config";
-import { emitirBolePixV2 } from "../btg-v2/issuance";
+import { emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2 } from "../btg-v2/issuance";
 import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
 
 function toTrpcError(error: unknown): TRPCError {
@@ -422,10 +422,27 @@ export const btgV2Router = router({
       }
     }),
 
-  emitirBolePix: adminProcedure
+  prepararEmissaoAcordo: adminProcedure
+    .input(z.object({ acordoId: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      try {
+        const config = getBtgV2ServerConfig();
+        if (config.ambiente !== "sandbox") {
+          throw new BtgV2ConfigurationError("A emissão BolePix v2 está limitada ao Sandbox nesta fase de homologação.");
+        }
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+        return await prepararEmissaoParcelasAcordoBtgV2({ db, acordoId: input.acordoId });
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
+  emitirParcelasAcordo: adminProcedure
     .input(z.object({
-      origemTipo: z.enum(["cobranca", "parcela_acordo"]),
-      origemId: z.number().int().positive(),
+      acordoId: z.number().int().positive(),
+      parcelaIds: z.array(z.number().int().positive()).min(1).max(50),
     }))
     .mutation(async ({ input, ctx }) => {
       try {
@@ -435,18 +452,22 @@ export const btgV2Router = router({
         }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
-        const resultado = await emitirBolePixV2({ db, ...input });
+        const resultado = await emitirParcelasAcordoBtgV2({ db, ...input });
+        const resumo = resultado.resultados.reduce((acumulado, item) => {
+          acumulado[item.resultado] += 1;
+          return acumulado;
+        }, { simulada: 0, ja_existia: 0, falha: 0 });
         await logAudit(ctx, {
           action: "generate_boleto",
-          entity: "boleto",
-          entityId: String(resultado.id),
+          entity: "acordo",
+          entityId: String(input.acordoId),
           metadata: {
             integracao: "btg-v2",
             instrumento: "bolepix",
-            origemTipo: input.origemTipo,
-            origemId: input.origemId,
-            jaExistia: resultado.jaExistia,
-            status: resultado.status,
+            evento: "emissao_parcelas_acordo_solicitada",
+            ambiente: "sandbox",
+            parcelasSelecionadas: input.parcelaIds.length,
+            ...resumo,
           },
           severity: "warning",
         });

@@ -35,7 +35,8 @@ describe("OAuth BTG — permissões", () => {
       numero: "001",
       confirmacao: "CADASTRAR",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller.btgV2.emitirBolePix({ origemTipo: "cobranca", origemId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.btgV2.prepararEmissaoAcordo({ acordoId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.btgV2.emitirParcelasAcordo({ acordoId: 1, parcelaIds: [1] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.btgV2.conciliarEmissao({ emissaoId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.btgV2.cancelarEmissao({ emissaoId: 1, confirmacao: "CANCELAR" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });

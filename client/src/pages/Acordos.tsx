@@ -88,15 +88,6 @@ export default function Acordos() {
     onError: (err) => toast.error('Erro ao gerar PDF: ' + err.message),
   });
 
-  // Emissão BolePix v2: limitada ao Sandbox e protegida por idempotência.
-  const emitirBtgMutation = trpc.btgV2.emitirBolePix.useMutation({
-    onSuccess: () => {
-      utils.acordos.getParcelas.invalidate({ acordoId: selectedAcordoId! });
-      toast.success('BolePix BTG v2 emitido no Sandbox.');
-    },
-    onError: (err) => toast.error('Erro ao emitir boleto BTG: ' + err.message),
-  });
-
   // Mutations
   const darBaixa = trpc.acordos.darBaixaParcela.useMutation({
     onSuccess: () => {
@@ -650,15 +641,7 @@ export default function Acordos() {
                                     <Badge variant="outline" className="text-xs w-fit">{(parcela as any).btgStatus}</Badge>
                                   )}
                                 </div>
-                              ) : (
-                                <Button size="sm" variant="outline" className="h-6 text-xs px-2"
-                                  onClick={() => emitirBtgMutation.mutate({ origemTipo: "parcela_acordo", origemId: parcela.id })}
-                                  disabled={emitirBtgMutation.isPending}
-                                >
-                                  {emitirBtgMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
-                                  <span className="ml-1">BolePix teste</span>
-                                </Button>
-                              )
+                              ) : <span className="text-xs text-muted-foreground italic">Envio disponível no detalhe do acordo</span>
                             ) : (
                               /* CNAB 240 */
                               <div className="flex flex-col gap-1">

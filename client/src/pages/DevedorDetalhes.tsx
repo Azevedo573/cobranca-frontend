@@ -26,7 +26,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
 import { formatarDataVencimento } from "@/lib/dateUtils";
-import { verificarElegibilidadeBolePixV2 } from "@/lib/btgV2Eligibility";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
 import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas";
@@ -39,7 +38,6 @@ import { NovaDividaModal } from "@/components/NovaDividaModal";
 import { NovaTentativaModal } from "@/components/NovaTentativaModal";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import EnviarEmailModal from "@/components/EnviarEmailModal";
-import { BTGEmitirBoletoModal } from "@/components/BTGEmitirBoletoModal";
 import { CustasJudiciais } from "@/components/CustasJudiciais";
 
 export default function DevedorDetalhes() {
@@ -61,8 +59,6 @@ export default function DevedorDetalhes() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [mostrarTodas, setMostrarTodas] = useState(false);
   const [modalAcordoOpen, setModalAcordoOpen] = useState(false);
-  // BTG
-  const [btgModalCobranca, setBtgModalCobranca] = useState<any | null>(null);
   const [custasOpen, setCustasOpen] = useState(false);
   const [modalEscalarOpen, setModalEscalarOpen] = useState(false);
   const [escalarAssunto, setEscalarAssunto] = useState("");
@@ -159,10 +155,6 @@ export default function DevedorDetalhes() {
     { id: devedor?.condominioId! },
     { enabled: !!devedor?.condominioId }
   );
-  const { data: btgV2Painel } = trpc.btgV2.painel.useQuery(undefined, {
-    enabled: user?.role === "admin",
-  });
-
   const taxas: TaxasCondominio | null = useMemo(() => {
     if (!condominio) return null;
     return {
@@ -634,9 +626,7 @@ export default function DevedorDetalhes() {
                           mostrarTodas={mostrarTodas}
                           setMostrarTodas={setMostrarTodas}
                           limiteInicial={LIMITE_INICIAL}
-                          onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                           modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
-                          bolepixSandboxHabilitado={btgV2Painel?.emissaoHabilitada === true}
                         />
                       </CardContent>
                     </Card>
@@ -659,9 +649,7 @@ export default function DevedorDetalhes() {
                           mostrarTodas={true}
                           setMostrarTodas={() => {}}
                           limiteInicial={parcelasAcordoAtivas.length}
-                          onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                           modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
-                          bolepixSandboxHabilitado={btgV2Painel?.emissaoHabilitada === true}
                         />
                       </CardContent>
                     </Card>
@@ -711,9 +699,7 @@ export default function DevedorDetalhes() {
                         mostrarTodas={mostrarTodas}
                         setMostrarTodas={setMostrarTodas}
                         limiteInicial={LIMITE_INICIAL}
-                        onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                         modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
-                        bolepixSandboxHabilitado={btgV2Painel?.emissaoHabilitada === true}
                       />
                     </CardContent>
                   </Card>
@@ -862,20 +848,6 @@ export default function DevedorDetalhes() {
         emailDevedor={devedor.email ?? null}
         condominioId={devedor.condominioId}
       />
-
-      {/* Modal BTG Emitir Boleto */}
-      {btgModalCobranca && devedor && (
-        <BTGEmitirBoletoModal
-          open={!!btgModalCobranca}
-          onClose={() => setBtgModalCobranca(null)}
-          cobranca={btgModalCobranca}
-          devedor={devedor as any}
-          onSuccess={() => {
-            setBtgModalCobranca(null);
-            utils.cobrancas.getComAcordos.invalidate({ devedorId: devedor.id });
-          }}
-        />
-      )}
 
       {/* Modal de Realizar Acordo */}
       <RealizarAcordoModal
@@ -1110,16 +1082,14 @@ export default function DevedorDetalhes() {
 // ===== Componente interno: tabela de cobranças =====
 function CobrancasTabela({
   cobrancas, filtroStatus, mostrarTodas, setMostrarTodas, limiteInicial,
-  onEmitirBtg, modoBoleto, bolepixSandboxHabilitado
+  modoBoleto
 }: {
   cobrancas: any[];
   filtroStatus: string;
   mostrarTodas: boolean;
   setMostrarTodas: (fn: (v: boolean) => boolean) => void;
   limiteInicial: number;
-  onEmitirBtg: (cob: any) => void;
   modoBoleto?: "cnab240" | "api_btg";
-  bolepixSandboxHabilitado?: boolean;
 }) {
   const cobFiltradas = filtroStatus === "todos" ? cobrancas : cobrancas.filter((c: any) => c.status === filtroStatus);
   const cobVisiveis = mostrarTodas ? cobFiltradas : cobFiltradas.slice(0, limiteInicial);
@@ -1196,7 +1166,6 @@ function CobrancasTabela({
                           acordo: "Acordo",
                         };
                         const temSnapshot = isParcela && cob.snapshotPrincipal != null;
-                        const elegibilidadeBolePix = verificarElegibilidadeBolePixV2(cob);
                         return (
                           <React.Fragment key={`${isParcela ? "p" : "c"}-${cob.id}`}>
                           <TableRow className={isParcela ? "bg-blue-50/40" : ""}>
@@ -1233,11 +1202,7 @@ function CobrancasTabela({
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {bolepixSandboxHabilitado && elegibilidadeBolePix.elegivel ? (
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => onEmitirBtg(cob)}>
-                                  <QrCode className="h-3 w-3 mr-1" /> Emitir BolePix
-                                </Button>
-                              ) : !isParcela ? (
+                              {!isParcela ? (
                                 <span className="text-xs text-muted-foreground">—</span>
                               ) : modoBoleto === "api_btg" ? (
                                 // Modo API BTG
@@ -1252,11 +1217,7 @@ function CobrancasTabela({
                                       </Button>
                                     )}
                                   </div>
-                                ) : (
-                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => onEmitirBtg(cob)}>
-                                    <QrCode className="h-3 w-3 mr-1" /> Emitir BTG
-                                  </Button>
-                                )
+                                ) : <span className="text-xs text-muted-foreground italic">Envio disponível no acordo</span>
                               ) : (
                                 // Modo CNAB 240 (padrão)
                                 cob.nossoNumero ? (

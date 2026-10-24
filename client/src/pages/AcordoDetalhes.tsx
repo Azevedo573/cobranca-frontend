@@ -34,10 +34,12 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
+import { BTGEnviarParcelasAcordoModal } from "@/components/BTGEnviarParcelasAcordoModal";
 
 export default function AcordoDetalhes() {
   const { user } = useAuth();
@@ -46,6 +48,7 @@ export default function AcordoDetalhes() {
   const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola: string | null }>>({});
   const [copiandoParcela, setCopiandoParcela] = useState<Record<number, 'linha' | 'pix' | null>>({});
   const [modalDocumentoOpen, setModalDocumentoOpen] = useState(false);
+  const [btgAcordoOpen, setBtgAcordoOpen] = useState(false);
   const [breakdownExpandido, setBreakdownExpandido] = useState<Set<number>>(new Set());
 
   const toggleBreakdown = (parcelaId: number) => {
@@ -76,15 +79,6 @@ export default function AcordoDetalhes() {
     { enabled: !!acordo?.condominioId }
   );
   const modoBoleto = ((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg";
-
-  // Emissão BolePix v2: limitada ao Sandbox e protegida por idempotência.
-  const emitirBtgMutation = trpc.btgV2.emitirBolePix.useMutation({
-    onSuccess: (data, variables) => {
-      utils.acordos.getParcelas.invalidate({ acordoId });
-      toast.success("BolePix BTG v2 emitido no Sandbox.");
-    },
-    onError: (err) => toast.error("Erro ao emitir boleto BTG: " + err.message),
-  });
 
   // Mutation para gerar relatório para administradora
   const gerarRelatorioMutation = trpc.acordos.gerarRelatorioAdministradora.useMutation({
@@ -292,6 +286,17 @@ export default function AcordoDetalhes() {
               <FileText className="h-4 w-4 mr-2" />
               Gerar Documento
             </Button>
+            {acordo.status === "ativo" && user?.role === "admin" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                onClick={() => setBtgAcordoOpen(true)}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Enviar parcelas ao BTG
+              </Button>
+            )}
             <span className="text-sm text-muted-foreground">{user?.name}</span>
             <Badge variant="outline" className="capitalize">
               {user?.role}
@@ -501,18 +506,7 @@ export default function AcordoDetalhes() {
                                     <Badge variant="outline" className="text-xs w-fit">{(parcela as any).btgStatus}</Badge>
                                   )}
                                 </div>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-xs w-full"
-                                  onClick={() => emitirBtgMutation.mutate({ origemTipo: "parcela_acordo", origemId: parcela.id })}
-                                  disabled={emitirBtgMutation.isPending}
-                                >
-                                  {emitirBtgMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                                  BolePix teste
-                                </Button>
-                              )
+                              ) : <span className="text-xs text-muted-foreground italic">Envio disponível pelo acordo</span>
                             ) : (
                               /* ── Modo CNAB 240 ── */
                               <div className="flex flex-col gap-1">
@@ -700,6 +694,13 @@ export default function AcordoDetalhes() {
           }}
           nomeCondominio={condominio?.name}
           nomeResponsavel={user?.name ?? undefined}
+        />
+      )}
+      {acordo && (
+        <BTGEnviarParcelasAcordoModal
+          open={btgAcordoOpen}
+          onOpenChange={setBtgAcordoOpen}
+          acordoId={acordo.id}
         />
       )}
     </div>

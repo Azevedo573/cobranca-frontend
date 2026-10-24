@@ -6,7 +6,6 @@ import {
   btgContasRecebedoras,
   btgCobrancasEmitidas,
   btgIntegracoes,
-  cobrancas,
   devedores,
   parcelasAcordo,
 } from "../../drizzle/schema";
@@ -14,7 +13,7 @@ import { criarBolePixBtgV2 } from "./client";
 import { montarPayloadBolePixV2 } from "./bolepix";
 import { BtgV2ConfigurationError, validarVinculoContaRecebedora } from "./config";
 
-export type BtgV2OrigemTipo = "cobranca" | "parcela_acordo";
+export type BtgV2OrigemTipo = "parcela_acordo";
 
 type Db = NonNullable<Awaited<ReturnType<typeof import("../db").getDb>>>;
 
@@ -48,6 +47,157 @@ export function calcularDataLimiteBtgV2(dueDate: Date, diasLimitePagamento: numb
   if (Number.isNaN(result.getTime())) throw new BtgV2ConfigurationError("A data de vencimento da cobrança é inválida.");
   result.setUTCDate(result.getUTCDate() + diasLimitePagamento);
   return result;
+}
+
+export interface ParcelaAcordoBtgV2Elegibilidade {
+  id?: number;
+  acordoId?: number;
+  installmentNumber?: number;
+  status: string;
+  nossoNumero?: string | null;
+  remessaId?: number | null;
+  statusRemessa?: string | null;
+  btgCollectionId?: string | null;
+}
+
+export function avaliarElegibilidadeParcelaAcordoBtgV2(parcela: ParcelaAcordoBtgV2Elegibilidade) {
+  if (["pago", "cancelado"].includes(parcela.status)) {
+    return { elegivel: false, motivo: "Parcela paga ou cancelada" };
+  }
+  const vinculadaAoLegado = Boolean(
+    parcela.nossoNumero ||
+    parcela.remessaId ||
+    parcela.btgCollectionId ||
+    (parcela.statusRemessa && parcela.statusRemessa !== "nao_enviado"),
+  );
+  if (vinculadaAoLegado) {
+    return { elegivel: false, motivo: "Parcela vinculada ao fluxo CNAB/BTG legado" };
+  }
+  if (!["pendente", "atrasado"].includes(parcela.status)) {
+    return { elegivel: false, motivo: "Status da parcela não permite emissão" };
+  }
+  return { elegivel: true, motivo: null };
+}
+
+export function validarAcordoAtivoBtgV2(status: string): void {
+  if (status !== "ativo") {
+    throw new BtgV2ConfigurationError("A emissão BolePix está disponível apenas para acordo ativo.");
+  }
+}
+
+export function validarSelecaoParcelasAcordoBtgV2(input: {
+  acordoId: number;
+  parcelaIds: number[];
+  parcelas: ParcelaAcordoBtgV2Elegibilidade[];
+}): ParcelaAcordoBtgV2Elegibilidade[] {
+  if (input.parcelaIds.length === 0) {
+    throw new BtgV2ConfigurationError("Selecione ao menos uma parcela do acordo para enviar ao BTG.");
+  }
+  const idsUnicos = new Set(input.parcelaIds);
+  if (idsUnicos.size !== input.parcelaIds.length) {
+    throw new BtgV2ConfigurationError("A seleção de parcelas contém itens duplicados.");
+  }
+  const porId = new Map(input.parcelas.map((parcela) => [parcela.id, parcela]));
+  return input.parcelaIds.map((parcelaId) => {
+    const parcela = porId.get(parcelaId);
+    if (!parcela) {
+      throw new BtgV2ConfigurationError(`A parcela ${parcelaId} não foi encontrada.`);
+    }
+    if (parcela.acordoId !== input.acordoId) {
+      throw new BtgV2ConfigurationError(`A parcela ${parcelaId} não pertence ao acordo informado.`);
+    }
+    const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2(parcela);
+    if (!elegibilidade.elegivel) {
+      throw new BtgV2ConfigurationError(`A parcela ${parcelaId} não pode ser enviada: ${elegibilidade.motivo?.toLowerCase()}.`);
+    }
+    return parcela;
+  });
+}
+
+export interface BtgV2ParcelaAcordoParaEmissao extends ParcelaAcordoBtgV2Elegibilidade {
+  id: number;
+  acordoId: number;
+  installmentNumber: number;
+  amount: number;
+  dueDate: Date;
+  elegivel: boolean;
+  motivoBloqueio: string | null;
+}
+
+export async function prepararEmissaoParcelasAcordoBtgV2(input: {
+  db: Db;
+  acordoId: number;
+}): Promise<{ acordoId: number; parcelas: BtgV2ParcelaAcordoParaEmissao[] }> {
+  const [acordo] = await input.db.select().from(acordos).where(eq(acordos.id, input.acordoId)).limit(1);
+  if (!acordo) throw new BtgV2ConfigurationError("Acordo não encontrado.");
+  validarAcordoAtivoBtgV2(acordo.status);
+
+  const parcelas = await input.db.select().from(parcelasAcordo)
+    .where(eq(parcelasAcordo.acordoId, acordo.id));
+  return {
+    acordoId: acordo.id,
+    parcelas: parcelas.map((parcela) => {
+      const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2(parcela);
+      return {
+        id: parcela.id,
+        acordoId: parcela.acordoId,
+        installmentNumber: parcela.installmentNumber,
+        amount: parcela.amount,
+        dueDate: parcela.dueDate,
+        status: parcela.status,
+        nossoNumero: parcela.nossoNumero,
+        remessaId: parcela.remessaId,
+        statusRemessa: parcela.statusRemessa,
+        btgCollectionId: parcela.btgCollectionId,
+        elegivel: elegibilidade.elegivel,
+        motivoBloqueio: elegibilidade.motivo,
+      };
+    }),
+  };
+}
+
+export interface BtgV2ResultadoEmissaoParcelaAcordo {
+  parcelaId: number;
+  installmentNumber: number;
+  resultado: "simulada" | "ja_existia" | "falha";
+  mensagem: string;
+  emissao?: BtgV2EmissaoResultado;
+}
+
+export async function emitirParcelasAcordoBtgV2(input: {
+  db: Db;
+  acordoId: number;
+  parcelaIds: number[];
+}): Promise<{ acordoId: number; resultados: BtgV2ResultadoEmissaoParcelaAcordo[] }> {
+  const preparacao = await prepararEmissaoParcelasAcordoBtgV2({ db: input.db, acordoId: input.acordoId });
+  const selecionadas = validarSelecaoParcelasAcordoBtgV2({
+    acordoId: input.acordoId,
+    parcelaIds: input.parcelaIds,
+    parcelas: preparacao.parcelas,
+  });
+  const resultados: BtgV2ResultadoEmissaoParcelaAcordo[] = [];
+
+  for (const parcela of selecionadas) {
+    try {
+      const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id! });
+      resultados.push({
+        parcelaId: parcela.id!,
+        installmentNumber: parcela.installmentNumber ?? 0,
+        resultado: emissao.jaExistia ? "ja_existia" : "simulada",
+        mensagem: emissao.jaExistia ? "Simulação já registrada para esta parcela." : "Resposta simulada do BTG Sandbox recebida.",
+        emissao,
+      });
+    } catch (error) {
+      resultados.push({
+        parcelaId: parcela.id!,
+        installmentNumber: parcela.installmentNumber ?? 0,
+        resultado: "falha",
+        mensagem: error instanceof Error ? error.message : "Não foi possível simular esta parcela no BTG.",
+      });
+    }
+  }
+
+  return { acordoId: input.acordoId, resultados };
 }
 
 function toResult(row: typeof btgCobrancasEmitidas.$inferSelect, jaExistia: boolean): BtgV2EmissaoResultado {
@@ -84,10 +234,10 @@ async function findExisting(db: Db, integracaoId: number, origemTipo: BtgV2Orige
 
 export async function emitirBolePixV2(input: {
   db: Db;
-  origemTipo: BtgV2OrigemTipo;
-  origemId: number;
+  parcelaId: number;
 }): Promise<BtgV2EmissaoResultado> {
-  const { db, origemTipo, origemId } = input;
+  const { db, parcelaId } = input;
+  const origemTipo: BtgV2OrigemTipo = "parcela_acordo";
   const [integracao] = await db.select().from(btgIntegracoes)
     .where(eq(btgIntegracoes.ambiente, "sandbox"))
     .limit(1);
@@ -102,41 +252,24 @@ export async function emitirBolePixV2(input: {
     amount: number;
     dueDate: Date;
     description: string;
-    legadoAtivo: boolean;
   };
 
-  if (origemTipo === "cobranca") {
-    const [cobranca] = await db.select().from(cobrancas).where(eq(cobrancas.id, origemId)).limit(1);
-    if (!cobranca) throw new BtgV2ConfigurationError("Cobrança não encontrada.");
-    if (!cobranca.dueDate) throw new BtgV2ConfigurationError("A cobrança precisa ter vencimento definido antes da emissão.");
-    if (["pago", "cancelado"].includes(cobranca.status)) throw new BtgV2ConfigurationError("Não é possível emitir uma cobrança paga ou cancelada.");
-    origem = {
-      condominioId: cobranca.condominioId,
-      devedorId: cobranca.devedorId,
-      amount: cobranca.amount,
-      dueDate: cobranca.dueDate,
-      description: cobranca.description?.trim() || `Cobrança condominial #${cobranca.id}`,
-      legadoAtivo: Boolean(cobranca.btgCollectionId || cobranca.nossoNumero || cobranca.remessaId || (cobranca.statusRemessa && cobranca.statusRemessa !== "nao_enviado")),
-    };
-  } else {
-    const [parcela] = await db.select().from(parcelasAcordo).where(eq(parcelasAcordo.id, origemId)).limit(1);
-    if (!parcela) throw new BtgV2ConfigurationError("Parcela do acordo não encontrada.");
-    if (["pago", "cancelado"].includes(parcela.status)) throw new BtgV2ConfigurationError("Não é possível emitir uma parcela paga ou cancelada.");
-    const [acordo] = await db.select().from(acordos).where(eq(acordos.id, parcela.acordoId)).limit(1);
-    if (!acordo) throw new BtgV2ConfigurationError("Acordo da parcela não encontrado.");
-    origem = {
-      condominioId: acordo.condominioId,
-      devedorId: acordo.devedorId,
-      amount: parcela.amount,
-      dueDate: parcela.dueDate,
-      description: `Parcela ${parcela.installmentNumber} do acordo #${acordo.id}`,
-      legadoAtivo: Boolean(parcela.btgCollectionId || parcela.nossoNumero || parcela.remessaId || (parcela.statusRemessa && parcela.statusRemessa !== "nao_enviado")),
-    };
+  const [parcela] = await db.select().from(parcelasAcordo).where(eq(parcelasAcordo.id, parcelaId)).limit(1);
+  if (!parcela) throw new BtgV2ConfigurationError("Parcela do acordo não encontrada.");
+  const [acordo] = await db.select().from(acordos).where(eq(acordos.id, parcela.acordoId)).limit(1);
+  if (!acordo) throw new BtgV2ConfigurationError("Acordo da parcela não encontrado.");
+  validarAcordoAtivoBtgV2(acordo.status);
+  const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2(parcela);
+  if (!elegibilidade.elegivel) {
+    throw new BtgV2ConfigurationError(`Esta parcela não pode ser enviada: ${elegibilidade.motivo?.toLowerCase()}.`);
   }
-
-  if (origem.legadoAtivo) {
-    throw new BtgV2ConfigurationError("Este título já possui vínculo ativo com o fluxo BTG/CNAB legado e não pode ser duplicado no BolePix v2.");
-  }
+  origem = {
+    condominioId: acordo.condominioId,
+    devedorId: acordo.devedorId,
+    amount: parcela.amount,
+    dueDate: parcela.dueDate,
+    description: `Parcela ${parcela.installmentNumber} do acordo #${acordo.id}`,
+  };
 
   const [devedor] = await db.select().from(devedores).where(eq(devedores.id, origem.devedorId)).limit(1);
   if (!devedor || devedor.condominioId !== origem.condominioId) {
@@ -168,10 +301,10 @@ export async function emitirBolePixV2(input: {
   });
   if (!accountRow) throw new BtgV2ConfigurationError("A conta recebedora não foi encontrada.");
 
-  const existingBeforeReserve = await findExisting(db, integracao.id, origemTipo, origemId);
+  const existingBeforeReserve = await findExisting(db, integracao.id, origemTipo, parcelaId);
   if (existingBeforeReserve) return toResult(existingBeforeReserve, true);
 
-  const externalId = gerarExternalIdBtgV2(integracao.ambiente, origemTipo, origemId);
+  const externalId = gerarExternalIdBtgV2(integracao.ambiente, origemTipo, parcelaId);
   const idempotencyKey = gerarIdempotencyKeyBtgV2(externalId);
   const now = new Date();
 
@@ -181,7 +314,7 @@ export async function emitirBolePixV2(input: {
       btgContaRecebedoraId: accountRow.conta.id,
       condominioId: origem.condominioId,
       origemTipo,
-      origemId,
+      origemId: parcelaId,
       revisao: 1,
       instrumento: "bolepix",
       externalId,
@@ -198,12 +331,12 @@ export async function emitirBolePixV2(input: {
     });
   } catch (error) {
     if (!isDuplicate(error)) throw error;
-    const existingAfterRace = await findExisting(db, integracao.id, origemTipo, origemId);
+    const existingAfterRace = await findExisting(db, integracao.id, origemTipo, parcelaId);
     if (existingAfterRace) return toResult(existingAfterRace, true);
     throw error;
   }
 
-  const reserva = await findExisting(db, integracao.id, origemTipo, origemId);
+  const reserva = await findExisting(db, integracao.id, origemTipo, parcelaId);
   if (!reserva) throw new BtgV2ConfigurationError("Não foi possível reservar a emissão BolePix.");
 
   await db.update(btgCobrancasEmitidas)
@@ -217,7 +350,7 @@ export async function emitirBolePixV2(input: {
       overDueDate: calcularDataLimiteBtgV2(origem.dueDate, integracao.diasLimitePagamento),
       description: integracao.instrucoes?.trim() || origem.description,
       externalId,
-      documentNumber: `${origemTipo}-${origemId}-R1`.slice(0, 100),
+      documentNumber: `${origemTipo}-${parcelaId}-R1`.slice(0, 100),
       correlationId: `btgv2-${reserva.id}`,
       account: { agencia: accountRow.conta.agencia, numero: accountRow.conta.numero },
       payer: {
@@ -251,7 +384,7 @@ export async function emitirBolePixV2(input: {
       emitidaEm: emittedAt,
       updatedAt: emittedAt,
     }).where(eq(btgCobrancasEmitidas.id, reserva.id));
-    const emitted = await findExisting(db, integracao.id, origemTipo, origemId);
+    const emitted = await findExisting(db, integracao.id, origemTipo, parcelaId);
     if (!emitted) throw new BtgV2ConfigurationError("A emissão foi concluída sem registro local.");
     return toResult(emitted, false);
   } catch (error) {
