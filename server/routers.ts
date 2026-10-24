@@ -4070,10 +4070,19 @@ export const appRouter = router({
             amount: parcelasAcordo.amount,
             dueDate: parcelasAcordo.dueDate,
             nossoNumero: parcelasAcordo.nossoNumero,
+            statusParcela: parcelasAcordo.status,
+            statusRemessa: parcelasAcordo.statusRemessa,
             devedorId: devedores.id,
             devedorNome: devedores.name,
             devedorCpfCnpj: devedores.cpfCnpj,
             devedorPhone: devedores.phone,
+            devedorEndereco: devedores.address,
+            devedorNumero: devedores.addressNumber,
+            devedorComplemento: devedores.addressComplement,
+            devedorBairro: devedores.neighborhood,
+            devedorCidade: devedores.city,
+            devedorUF: devedores.state,
+            devedorCEP: devedores.zipCode,
           })
           .from(parcelasAcordo)
           .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
@@ -4083,7 +4092,16 @@ export const appRouter = router({
             eq(acordos.condominioId, condId)
           ));
 
-        if (rows.length === 0) throw new TRPCError({ code: "NOT_FOUND", message: "Nenhuma parcela encontrada." });
+        const parcelaIdsUnicos = Array.from(new Set(input.parcelaIds));
+        if (parcelaIdsUnicos.length !== input.parcelaIds.length) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "A seleção contém parcelas duplicadas." });
+        }
+        if (rows.length !== parcelaIdsUnicos.length) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Uma ou mais parcelas não pertencem ao condomínio selecionado." });
+        }
+        if (rows.some((row) => row.statusParcela !== "pendente" || (row.statusRemessa && row.statusRemessa !== "nao_enviado"))) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A seleção contém parcela já processada ou vinculada a outra remessa." });
+        }
 
         // Atribuir nossoNumero para parcelas que ainda não têm
         const semNossoNumero = rows.filter(r => !r.nossoNumero);
@@ -4106,15 +4124,31 @@ export const appRouter = router({
           .replace('#JUROS#', configGlobalAcordos.taxaJurosDia + '% ao dia');
         const hoje = new Date();
 
-        const titulos = rows.map(r => ({
+        const { formatarEnderecoSacado, validarEnderecoSacadoParaCNAB } = await import("./endereco-sacado");
+        const titulos = rows.map((r) => {
+          const endereco = formatarEnderecoSacado({
+            address: r.devedorEndereco,
+            addressNumber: r.devedorNumero,
+            addressComplement: r.devedorComplemento,
+            neighborhood: r.devedorBairro,
+            city: r.devedorCidade,
+            state: r.devedorUF,
+            zipCode: r.devedorCEP,
+          });
+          try {
+            validarEnderecoSacadoParaCNAB(endereco);
+          } catch (error) {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: error instanceof Error ? error.message : "Endereço do devedor inválido." });
+          }
+          return {
           cobrancaId: r.parcelaId,
           nossoNumero: r.nossoNumero || String(Date.now()),
           devedorNome: r.devedorNome || 'NAO INFORMADO',
           devedorCpfCnpj: r.devedorCpfCnpj || '',
-          devedorEndereco: '',
-          devedorCidade: '',
-          devedorUF: '',
-          devedorCEP: '',
+          devedorEndereco: endereco.endereco,
+          devedorCidade: endereco.cidade,
+          devedorUF: endereco.uf,
+          devedorCEP: endereco.cep,
           valorNominal: Math.round(Number(r.amount)), // converter string "1107.00" para inteiro 1107
           dataVencimento: (() => { const raw = r.dueDate; const iso = raw instanceof Date ? raw.toISOString() : String(raw); const [y, m, d] = iso.substring(0, 10).split('-').map(Number); return new Date(y, m - 1, d); })(),
           dataEmissao: hoje,
@@ -4126,7 +4160,8 @@ export const appRouter = router({
           especieDocumento: configGlobalAcordos.especieDocumento || '01',
           aceite: configGlobalAcordos.aceite || 'N',
           enviarProtesto: configGlobalAcordos.enviarInstrucoesProtesto === 1,
-        }));
+          };
+        });
 
         const { gerarArquivoRemessaCNAB240, criarRemessaCNAB } = await import("./db-cnab");
         const numeroRemessa = configGlobalAcordos.numeroSequencialArquivo;
@@ -4164,7 +4199,10 @@ export const appRouter = router({
             statusRemessa: "remessa_gerada",
             remessaId: remessaId || null,
           })
-          .where(inArray(parcelasAcordo.id, input.parcelaIds));
+          .where(and(
+            inArray(parcelasAcordo.id, rows.map((row) => row.parcelaId)),
+            eq(parcelasAcordo.status, "pendente"),
+          ));
 
         return {
           nomeArquivo,
@@ -4357,6 +4395,14 @@ export const appRouter = router({
             devedorNome: devedores.name,
             devedorCpfCnpj: devedores.cpfCnpj,
             condominioId: acordos.condominioId,
+            devedorPhone: devedores.phone,
+            devedorEndereco: devedores.address,
+            devedorNumero: devedores.addressNumber,
+            devedorComplemento: devedores.addressComplement,
+            devedorBairro: devedores.neighborhood,
+            devedorCidade: devedores.city,
+            devedorUF: devedores.state,
+            devedorCEP: devedores.zipCode,
           })
           .from(parcelasAcordo)
           .innerJoin(acordos, eq(parcelasAcordo.acordoId, acordos.id))
