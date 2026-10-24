@@ -79,7 +79,7 @@ export function BTGEmitirBoletoModal({ open, onClose, cobranca, devedor, onSucce
     onSuccess: (res) => {
       setResultado(res);
       setConfirmarOpen(false);
-      toast.success(res.jaExistia ? "A emissão BolePix já estava registrada." : "BolePix de homologação emitido com sucesso.");
+      toast.success(res.jaExistia ? "A simulação BolePix já estava registrada." : "Resposta simulada do BolePix Sandbox recebida com sucesso.");
       onSuccess?.();
     },
     onError: (err) => {
@@ -115,7 +115,7 @@ export function BTGEmitirBoletoModal({ open, onClose, cobranca, devedor, onSucce
 
           {resultado ? (
             <div className="space-y-4">
-              <Alert className="border-emerald-500/50 bg-emerald-500/5"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><AlertDescription><strong>{resultado.jaExistia ? "Emissão já registrada." : "BolePix emitido no Sandbox."}</strong><br />ID BTG: <code className="text-xs">{resultado.collectionId || "aguardando confirmação"}</code><br />Status: {resultado.status}</AlertDescription></Alert>
+              <Alert className="border-emerald-500/50 bg-emerald-500/5"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><AlertDescription><strong>{resultado.jaExistia ? "Simulação já registrada." : "Resposta simulada do BolePix Sandbox recebida."}</strong><br />ID retornado pelo BTG: <code className="text-xs">{resultado.collectionId || "aguardando confirmação"}</code><br />Status local: {resultado.status}<br /><span className="text-xs">O Sandbox BTG usa respostas estáticas de homologação; esta etapa não cria cobrança persistida no portal bancário.</span></AlertDescription></Alert>
               <Tabs defaultValue="boleto"><TabsList className="grid w-full grid-cols-2"><TabsTrigger value="boleto">Boleto</TabsTrigger><TabsTrigger value="pix">Pix</TabsTrigger></TabsList>
                 <TabsContent value="boleto" className="space-y-3 mt-3">
                   {resultado.bankSlipUrl ? <DataLine label="Link do boleto" value={resultado.bankSlipUrl} copyLabel="Link" external /> : <p className="text-sm text-muted-foreground">A URL do boleto não foi retornada no ambiente atual.</p>}
@@ -130,7 +130,7 @@ export function BTGEmitirBoletoModal({ open, onClose, cobranca, devedor, onSucce
             </div>
           ) : (
             <div className="space-y-4">
-              <Alert><ShieldCheck className="h-4 w-4" /><AlertDescription><strong>Homologação Sandbox.</strong> A emissão usa BolePix, conta recebedora vinculada ao condomínio e trava de idempotência. Nenhuma cobrança real é criada neste ambiente.</AlertDescription></Alert>
+              <Alert><ShieldCheck className="h-4 w-4" /><AlertDescription><strong>Homologação Sandbox.</strong> A emissão usa BolePix, conta recebedora vinculada ao condomínio e trava de idempotência. O BTG devolve uma resposta estática de teste; nenhuma cobrança é persistida no portal bancário neste ambiente.</AlertDescription></Alert>
               <div className="grid sm:grid-cols-2 gap-3 rounded-lg border p-4 text-sm"><Detail label="Pagador" value={devedor.name || "Não informado"} /><Detail label="CPF/CNPJ" value={devedor.cpfCnpj || "Não informado"} /><Detail label="Unidade" value={`${devedor.bloco ? `Bl. ${devedor.bloco} · ` : ""}${devedor.unitNumber}`} /><Detail label="Valor" value={valorFormatado} /><Detail label="Vencimento" value={dueDateFormatado} /><Detail label="Instrumento" value="Boleto com QR Code Pix" /></div>
               {pendencias.length > 0 && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertDescription><strong>Emissão bloqueada:</strong><ul className="list-disc ml-4 mt-1">{pendencias.map((pendencia) => <li key={pendencia}>{pendencia}</li>)}</ul><a href={`/devedores/${devedor.id}/editar`} className="underline text-primary inline-block mt-2">Corrigir cadastro do devedor</a></AlertDescription></Alert>}
               <DialogFooter><Button variant="outline" onClick={onClose}>Cancelar</Button><Button disabled={!aptoParaEmitir} onClick={() => setConfirmarOpen(true)}>Revisar emissão de teste</Button></DialogFooter>
@@ -140,7 +140,7 @@ export function BTGEmitirBoletoModal({ open, onClose, cobranca, devedor, onSucce
       </Dialog>
 
       <AlertDialog open={confirmarOpen} onOpenChange={setConfirmarOpen}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirmar emissão BolePix no Sandbox?</AlertDialogTitle><AlertDialogDescription>Serão enviados ao BTG Sandbox o valor, vencimento e dados cadastrados do pagador. O título ficará protegido contra reemissão duplicada no sistema.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Voltar</AlertDialogCancel><AlertDialogAction disabled={emitirMutation.isPending} onClick={(event) => { event.preventDefault(); emitirMutation.mutate({ origemTipo: "cobranca", origemId: cobranca.id }); }}>{emitirMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Confirmar emissão de teste</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Confirmar simulação BolePix no Sandbox?</AlertDialogTitle><AlertDialogDescription>Serão enviados ao BTG Sandbox o valor, vencimento e dados cadastrados do pagador. O ambiente responde por stub de homologação e não cria cobrança no portal bancário. O título ficará protegido contra reemissão duplicada no sistema.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Voltar</AlertDialogCancel><AlertDialogAction disabled={emitirMutation.isPending} onClick={(event) => { event.preventDefault(); emitirMutation.mutate({ origemTipo: "cobranca", origemId: cobranca.id }); }}>{emitirMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Confirmar simulação</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
     </>
   );

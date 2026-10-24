@@ -10,7 +10,8 @@ vi.mock("./btg-v2/config", () => ({
   getBtgV2ServerConfig: configMock,
 }));
 
-import { cancelarCobrancaBtgV2, consultarCobrancaBtgV2 } from "./btg-v2/client";
+import { cancelarCobrancaBtgV2, consultarCobrancaBtgV2, criarBolePixBtgV2 } from "./btg-v2/client";
+import type { BtgV2BolePixPayload } from "./btg-v2/bolepix";
 
 describe("BTG v2 — cliente Collections", () => {
   beforeEach(() => {
@@ -40,6 +41,20 @@ describe("BTG v2 — cliente Collections", () => {
     expect(String(url)).toContain("id=collection-1");
     expect(options.headers["x-response"]).toBe("success");
     expect(result).toMatchObject({ collectionId: "collection-1", status: "PAID", paidAmount: 12345, pixCopiaECola: "000201" });
+  });
+
+  it("cria BolePix no Sandbox solicitando o stub de sucesso", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      collectionId: "stub-collection-1",
+      status: "CREATED",
+    }), { status: 201 }));
+
+    await criarBolePixBtgV2({} as BtgV2BolePixPayload, fetchMock);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/banking/collections");
+    expect(options.method).toBe("POST");
+    expect(options.headers["x-response"]).toBe("success");
   });
 
   it("cancela somente quando o BTG confirma HTTP 204", async () => {
