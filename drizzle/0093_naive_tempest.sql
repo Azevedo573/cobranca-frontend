@@ -1,0 +1,1 @@
+ALTER TABLE `btgContasRecebedoras` ADD `origemCadastro` enum('api','manual_sandbox') DEFAULT 'api' NOT NULL;

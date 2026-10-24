@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { getBtgOAuthConfig, obterAccessTokenBtg } from "../btg-oauth";
 
 export type BtgV2Ambiente = "sandbox" | "producao";
@@ -23,6 +24,11 @@ export interface BtgContaRecebedoraNormalizada {
   nomeBeneficiario: string | null;
 }
 
+export interface BtgContaManualSandboxNormalizada extends BtgContaRecebedoraNormalizada {
+  origemCadastro: "manual_sandbox";
+  rotulo: string;
+}
+
 type BtgAccountApiRecord = Record<string, unknown>;
 
 function stringValue(value: unknown): string | null {
@@ -34,6 +40,65 @@ function stringValue(value: unknown): string | null {
 function digits(value: string | null): string | null {
   const normalized = value?.replace(/\D/g, "") ?? "";
   return normalized || null;
+}
+
+function somenteDigitosObrigatorio(valor: string, campo: "agência" | "conta"): string {
+  const normalizado = valor.trim();
+  if (!normalizado) {
+    throw new BtgV2ConfigurationError("Agência e conta são obrigatórios para o cadastro manual.");
+  }
+  if (!/^\d+$/.test(normalizado)) {
+    throw new BtgV2ConfigurationError(`A ${campo} deve conter somente dígitos, sem hífen ou formatação.`);
+  }
+  return normalizado;
+}
+
+/**
+ * Valida dados digitados por administrador para homologação quando o BTG não
+ * disponibiliza o escopo Banking Accounts. O identificador é interno e não
+ * representa nem reproduz o accountId oficial do BTG.
+ */
+export function normalizarContaManualSandbox(input: {
+  rotulo: string;
+  agencia: string;
+  numero: string;
+  documentoBeneficiario?: string | null;
+  nomeBeneficiario?: string | null;
+}): BtgContaManualSandboxNormalizada {
+  const rotulo = input.rotulo.trim();
+  if (rotulo.length < 3 || rotulo.length > 255) {
+    throw new BtgV2ConfigurationError("O rótulo da conta manual deve ter entre 3 e 255 caracteres.");
+  }
+  const agencia = somenteDigitosObrigatorio(input.agencia, "agência");
+  const numero = somenteDigitosObrigatorio(input.numero, "conta");
+  if (agencia.length > 30 || numero.length > 50) {
+    throw new BtgV2ConfigurationError("A agência ou a conta excede o tamanho permitido.");
+  }
+
+  const documentoBeneficiario = input.documentoBeneficiario?.replace(/\D/g, "") || null;
+  if (documentoBeneficiario && ![11, 14].includes(documentoBeneficiario.length)) {
+    throw new BtgV2ConfigurationError("O documento do beneficiário deve conter 11 ou 14 dígitos.");
+  }
+  const nomeBeneficiario = input.nomeBeneficiario?.trim() || null;
+  if (nomeBeneficiario && nomeBeneficiario.length > 255) {
+    throw new BtgV2ConfigurationError("O nome do beneficiário excede o tamanho permitido.");
+  }
+
+  const idSeed = `${agencia}|${numero}|${documentoBeneficiario ?? ""}`;
+  const accountId = `manual-sandbox:${createHash("sha256").update(idSeed).digest("hex").slice(0, 48)}`;
+  return { accountId, origemCadastro: "manual_sandbox", agencia, numero, documentoBeneficiario, nomeBeneficiario, rotulo };
+}
+
+export function validarCadastroManualSandbox(input: {
+  ambiente: BtgV2Ambiente;
+  oauthConectado: boolean;
+}): void {
+  if (input.ambiente !== "sandbox") {
+    throw new BtgV2ConfigurationError("O cadastro manual de conta é permitido apenas no Sandbox.");
+  }
+  if (!input.oauthConectado) {
+    throw new BtgV2ConfigurationError("Conecte a conta BTG Sandbox antes de cadastrar uma conta manual.");
+  }
 }
 
 function getFirstString(record: BtgAccountApiRecord, keys: string[]): string | null {

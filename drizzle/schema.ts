@@ -320,6 +320,7 @@ export const btgContasRecebedoras = mysqlTable("btgContasRecebedoras", {
   id: int("id").autoincrement().primaryKey(),
   btgIntegracaoId: int("btgIntegracaoId").notNull(),
   accountId: varchar("accountId", { length: 150 }).notNull(),
+  origemCadastro: mysqlEnum("origemCadastro", ["api", "manual_sandbox"]).default("api").notNull(),
   agencia: varchar("agencia", { length: 30 }).notNull(),
   numero: varchar("numero", { length: 50 }).notNull(),
   documentoBeneficiario: varchar("documentoBeneficiario", { length: 20 }),

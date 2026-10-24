@@ -25,6 +25,7 @@ import {
   Building2,
   CheckCircle2,
   CircleAlert,
+  CirclePlus,
   ClipboardCheck,
   Info,
   Landmark,
@@ -55,6 +56,15 @@ export default function BTGConfig() {
   const [confirmacaoHomologacao, setConfirmacaoHomologacao] = useState("");
   const [dialogHomologacaoOpen, setDialogHomologacaoOpen] = useState(false);
   const [formRegras, setFormRegras] = useState({ diasLimitePagamento: "60", instrucoes: "" });
+  const [dialogContaManualOpen, setDialogContaManualOpen] = useState(false);
+  const [confirmacaoContaManual, setConfirmacaoContaManual] = useState("");
+  const [formContaManual, setFormContaManual] = useState({
+    rotulo: "",
+    agencia: "",
+    numero: "",
+    documentoBeneficiario: "",
+    nomeBeneficiario: "",
+  });
 
   const { data: painel, isLoading, refetch } = trpc.btgV2.painel.useQuery();
   const { data: entregasWebhook } = trpc.btgV2.listarEntregasWebhook.useQuery();
@@ -106,6 +116,16 @@ export default function BTGConfig() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const cadastrarContaManualMutation = trpc.btgV2.cadastrarContaManualSandbox.useMutation({
+    onSuccess: () => {
+      toast.success("Conta manual cadastrada somente para a homologação Sandbox.");
+      setDialogContaManualOpen(false);
+      setConfirmacaoContaManual("");
+      setFormContaManual({ rotulo: "", agencia: "", numero: "", documentoBeneficiario: "", nomeBeneficiario: "" });
+      void refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const habilitarSandboxMutation = trpc.btgV2.habilitarEmissaoSandbox.useMutation({
     onSuccess: () => {
       toast.success("Homologação BolePix Sandbox habilitada.");
@@ -140,7 +160,7 @@ export default function BTGConfig() {
   const checklist = useMemo(() => [
     { label: "Variáveis seguras do servidor", ok: Boolean(oauth?.configuracaoCompleta), detail: oauth?.configuracaoCompleta ? "Credenciais e criptografia configuradas" : "Client ID, secret, callback HTTPS ou chave de cifragem pendentes" },
     { label: "Consentimento OAuth", ok: conectado, detail: conectado ? "Conta BTG conectada" : "Conecte a conta do escritório" },
-    { label: "Conta recebedora", ok: contaDisponivel, detail: contaDisponivel ? `${painel?.contas.length ?? 0} conta(s) sincronizada(s)` : "Consulte as contas autorizadas pelo BTG" },
+    { label: "Conta recebedora", ok: contaDisponivel, detail: contaDisponivel ? `${painel?.contas.length ?? 0} conta(s) configurada(s)` : "Consulte ou cadastre a conta de homologação" },
     { label: "Emissão BolePix", ok: Boolean(painel?.emissaoHabilitada), detail: painel?.emissaoHabilitada ? "Homologação Sandbox liberada" : "Permanece bloqueada por segurança" },
   ], [contaDisponivel, conectado, oauth?.configuracaoCompleta, painel?.contas.length, painel?.emissaoHabilitada]);
 
@@ -240,15 +260,21 @@ export default function BTGConfig() {
         <TabsContent value="contas" className="space-y-5">
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
-              <div><CardTitle className="text-base flex items-center gap-2"><WalletCards className="h-4 w-4" /> Contas recebedoras autorizadas</CardTitle><CardDescription>Consulta manual à API Accounts do BTG. Nenhuma conta é escolhida automaticamente.</CardDescription></div>
-              <Button variant="outline" onClick={() => sincronizarContasMutation.mutate()} disabled={!conectado || sincronizarContasMutation.isPending}>
-                {sincronizarContasMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}Consultar contas
-              </Button>
+              <div><CardTitle className="text-base flex items-center gap-2"><WalletCards className="h-4 w-4" /> Contas recebedoras configuradas</CardTitle><CardDescription>A consulta oficial permanece preferencial. O cadastro manual é uma exceção de homologação Sandbox e não valida a conta no BTG.</CardDescription></div>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Button variant="outline" onClick={() => sincronizarContasMutation.mutate()} disabled={!conectado || sincronizarContasMutation.isPending}>
+                  {sincronizarContasMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}Consultar contas
+                </Button>
+                <Button variant="secondary" onClick={() => setDialogContaManualOpen(true)} disabled={!sandbox || !conectado}>
+                  <CirclePlus className="h-4 w-4 mr-2" />Cadastrar manualmente
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
-              {!painel?.contas.length ? <p className="text-sm text-muted-foreground py-4">Nenhuma conta foi sincronizada ainda.</p> : (
+            <CardContent className="space-y-3">
+              {sandbox && <Alert><Info className="h-4 w-4" /><AlertDescription className="text-xs">Use o cadastro manual somente se o serviço Conta PJ não estiver habilitado pelo BTG. Confirme agência e conta em uma fonte confiável; esse fluxo permanece bloqueado em Produção.</AlertDescription></Alert>}
+              {!painel?.contas.length ? <p className="text-sm text-muted-foreground py-4">Nenhuma conta foi configurada ainda.</p> : (
                 <div className="divide-y rounded-lg border">
-                  {painel.contas.map((conta) => <div className="p-3 flex flex-wrap gap-3 items-center justify-between" key={conta.id}><div><p className="font-medium text-sm">{conta.rotulo || conta.nomeBeneficiario || "Conta BTG"}</p><p className="text-xs text-muted-foreground">Ag. {conta.agencia} · Conta {conta.numeroMascarado} · CNPJ {conta.documentoBeneficiarioMascarado || "—"}</p></div><Badge variant={conta.ativo ? "secondary" : "destructive"}>{conta.ativo ? "Disponível" : "Inativa"}</Badge></div>)}
+                  {painel.contas.map((conta) => <div className="p-3 flex flex-wrap gap-3 items-center justify-between" key={conta.id}><div><p className="font-medium text-sm">{conta.rotulo || conta.nomeBeneficiario || "Conta BTG"}</p><p className="text-xs text-muted-foreground">Ag. {conta.agencia} · Conta {conta.numeroMascarado} · CNPJ {conta.documentoBeneficiarioMascarado || "—"}</p></div><div className="flex gap-2 items-center"><Badge variant={conta.origemCadastro === "manual_sandbox" ? "outline" : "secondary"}>{conta.origemCadastro === "manual_sandbox" ? "Manual — Sandbox" : "API BTG"}</Badge><Badge variant={conta.ativo ? "secondary" : "destructive"}>{conta.ativo ? "Disponível" : "Inativa"}</Badge></div></div>)}
                 </div>
               )}
             </CardContent>
@@ -286,6 +312,19 @@ export default function BTGConfig() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={dialogContaManualOpen} onOpenChange={setDialogContaManualOpen}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader><AlertDialogTitle>Cadastrar conta manual de homologação</AlertDialogTitle><AlertDialogDescription>Use exclusivamente dados confirmados pelo BTG. Esta inclusão não consulta nem valida a conta na API e ficará identificada como manual, apenas no Sandbox.</AlertDialogDescription></AlertDialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="space-y-1"><Label htmlFor="conta-manual-rotulo">Rótulo da conta</Label><Input id="conta-manual-rotulo" value={formContaManual.rotulo} onChange={(event) => setFormContaManual((old) => ({ ...old, rotulo: event.target.value }))} placeholder="Conta de homologação do escritório" /></div>
+            <div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label htmlFor="conta-manual-agencia">Agência</Label><Input id="conta-manual-agencia" inputMode="numeric" value={formContaManual.agencia} onChange={(event) => setFormContaManual((old) => ({ ...old, agencia: event.target.value }))} placeholder="Zeros à esquerda" /></div><div className="space-y-1"><Label htmlFor="conta-manual-numero">Número da conta</Label><Input id="conta-manual-numero" inputMode="numeric" value={formContaManual.numero} onChange={(event) => setFormContaManual((old) => ({ ...old, numero: event.target.value }))} placeholder="Sem hífen" /></div></div>
+            <div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label htmlFor="conta-manual-documento">Documento do beneficiário <span className="text-muted-foreground">(opcional)</span></Label><Input id="conta-manual-documento" inputMode="numeric" value={formContaManual.documentoBeneficiario} onChange={(event) => setFormContaManual((old) => ({ ...old, documentoBeneficiario: event.target.value }))} /></div><div className="space-y-1"><Label htmlFor="conta-manual-beneficiario">Titular <span className="text-muted-foreground">(opcional)</span></Label><Input id="conta-manual-beneficiario" value={formContaManual.nomeBeneficiario} onChange={(event) => setFormContaManual((old) => ({ ...old, nomeBeneficiario: event.target.value }))} /></div></div>
+            <div className="space-y-1"><Label htmlFor="conta-manual-confirmacao">Digite <strong>CADASTRAR</strong> para confirmar</Label><Input id="conta-manual-confirmacao" value={confirmacaoContaManual} onChange={(event) => setConfirmacaoContaManual(event.target.value)} placeholder="CADASTRAR" /></div>
+          </div>
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction disabled={confirmacaoContaManual !== "CADASTRAR" || !formContaManual.rotulo.trim() || !formContaManual.agencia.trim() || !formContaManual.numero.trim() || cadastrarContaManualMutation.isPending} onClick={(event) => { event.preventDefault(); cadastrarContaManualMutation.mutate({ ...formContaManual, documentoBeneficiario: formContaManual.documentoBeneficiario || undefined, nomeBeneficiario: formContaManual.nomeBeneficiario || undefined, confirmacao: "CADASTRAR" }); }}>{cadastrarContaManualMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Confirmar cadastro</AlertDialogAction></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={dialogHomologacaoOpen} onOpenChange={setDialogHomologacaoOpen}>
         <AlertDialogContent>

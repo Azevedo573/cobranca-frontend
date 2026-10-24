@@ -18,6 +18,8 @@ import {
   consultarContasRecebedorasBtg,
   getBtgV2ServerConfig,
   mascararNumeroConta,
+  normalizarContaManualSandbox,
+  validarCadastroManualSandbox,
 } from "../btg-v2/config";
 import { emitirBolePixV2 } from "../btg-v2/issuance";
 import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
@@ -70,6 +72,7 @@ function serializeConta(conta: {
   nomeBeneficiario: string | null;
   rotulo: string | null;
   ativo: number;
+  origemCadastro: "api" | "manual_sandbox";
   ultimaSincronizacaoEm: Date;
 }) {
   return {
@@ -83,6 +86,7 @@ function serializeConta(conta: {
     nomeBeneficiario: conta.nomeBeneficiario,
     rotulo: conta.rotulo,
     ativo: conta.ativo === 1,
+    origemCadastro: conta.origemCadastro,
     ultimaSincronizacaoEm: conta.ultimaSincronizacaoEm,
   };
 }
@@ -225,6 +229,7 @@ export const btgV2Router = router({
         await db.insert(btgContasRecebedoras).values({
           btgIntegracaoId: integracao.id,
           accountId: conta.accountId,
+          origemCadastro: "api",
           agencia: conta.agencia,
           numero: conta.numero,
           documentoBeneficiario: conta.documentoBeneficiario,
@@ -234,6 +239,7 @@ export const btgV2Router = router({
           ultimaSincronizacaoEm: now,
         }).onDuplicateKeyUpdate({
           set: {
+            origemCadastro: "api",
             agencia: conta.agencia,
             numero: conta.numero,
             documentoBeneficiario: conta.documentoBeneficiario,
@@ -260,7 +266,76 @@ export const btgV2Router = router({
     } catch (error) {
       throw toTrpcError(error);
     }
-  }),
+    }),
+
+  cadastrarContaManualSandbox: adminProcedure
+    .input(z.object({
+      rotulo: z.string().trim().min(3).max(255),
+      agencia: z.string().trim().min(1).max(30),
+      numero: z.string().trim().min(1).max(50),
+      documentoBeneficiario: z.string().trim().max(20).optional(),
+      nomeBeneficiario: z.string().trim().max(255).optional(),
+      confirmacao: z.literal("CADASTRAR"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const oauth = await getStatusOAuthBtg();
+        const { db, serverConfig, integracao } = await getOrCreateIntegracaoAtual();
+        validarCadastroManualSandbox({ ambiente: serverConfig.ambiente, oauthConectado: oauth.status === "conectado" });
+        const conta = normalizarContaManualSandbox(input);
+        const now = new Date();
+        await db.insert(btgContasRecebedoras).values({
+          btgIntegracaoId: integracao.id,
+          accountId: conta.accountId,
+          origemCadastro: "manual_sandbox",
+          agencia: conta.agencia,
+          numero: conta.numero,
+          documentoBeneficiario: conta.documentoBeneficiario,
+          nomeBeneficiario: conta.nomeBeneficiario,
+          rotulo: conta.rotulo,
+          ativo: 1,
+          ultimaSincronizacaoEm: now,
+        }).onDuplicateKeyUpdate({
+          set: {
+            origemCadastro: "manual_sandbox",
+            agencia: conta.agencia,
+            numero: conta.numero,
+            documentoBeneficiario: conta.documentoBeneficiario,
+            nomeBeneficiario: conta.nomeBeneficiario,
+            rotulo: conta.rotulo,
+            ativo: 1,
+            updatedAt: now,
+          },
+        });
+        const rows = await db.select().from(btgContasRecebedoras)
+          .where(and(
+            eq(btgContasRecebedoras.btgIntegracaoId, integracao.id),
+            eq(btgContasRecebedoras.accountId, conta.accountId),
+          ))
+          .limit(1);
+        const registrada = rows[0];
+        if (!registrada) throw new BtgV2ConfigurationError("Não foi possível registrar a conta manual no Sandbox.");
+
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "configuracao",
+          entityId: `btg-v2:${integracao.ambiente}`,
+          metadata: {
+            integracao: "btg-v2",
+            evento: "conta_recebedora_manual_cadastrada",
+            ambiente: "sandbox",
+            contaId: registrada.id,
+            agencia: conta.agencia,
+            contaFinal: conta.numero.slice(-4),
+          },
+          severity: "warning",
+        });
+        return serializeConta(registrada);
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
 
   vinculoCondominio: adminProcedure
     .input(z.object({ condominioId: z.number().int().positive() }))
