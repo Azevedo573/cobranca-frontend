@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
 import { formatarDataVencimento } from "@/lib/dateUtils";
+import { verificarElegibilidadeBolePixV2 } from "@/lib/btgV2Eligibility";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
 import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas";
@@ -158,6 +159,9 @@ export default function DevedorDetalhes() {
     { id: devedor?.condominioId! },
     { enabled: !!devedor?.condominioId }
   );
+  const { data: btgV2Painel } = trpc.btgV2.painel.useQuery(undefined, {
+    enabled: user?.role === "admin",
+  });
 
   const taxas: TaxasCondominio | null = useMemo(() => {
     if (!condominio) return null;
@@ -632,6 +636,7 @@ export default function DevedorDetalhes() {
                           limiteInicial={LIMITE_INICIAL}
                           onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                           modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                          bolepixSandboxHabilitado={btgV2Painel?.emissaoHabilitada === true}
                         />
                       </CardContent>
                     </Card>
@@ -656,6 +661,7 @@ export default function DevedorDetalhes() {
                           limiteInicial={parcelasAcordoAtivas.length}
                           onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                           modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                          bolepixSandboxHabilitado={btgV2Painel?.emissaoHabilitada === true}
                         />
                       </CardContent>
                     </Card>
@@ -707,6 +713,7 @@ export default function DevedorDetalhes() {
                         limiteInicial={LIMITE_INICIAL}
                         onEmitirBtg={(cob) => setBtgModalCobranca(cob)}
                         modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                        bolepixSandboxHabilitado={btgV2Painel?.emissaoHabilitada === true}
                       />
                     </CardContent>
                   </Card>
@@ -1103,7 +1110,7 @@ export default function DevedorDetalhes() {
 // ===== Componente interno: tabela de cobranças =====
 function CobrancasTabela({
   cobrancas, filtroStatus, mostrarTodas, setMostrarTodas, limiteInicial,
-  onEmitirBtg, modoBoleto
+  onEmitirBtg, modoBoleto, bolepixSandboxHabilitado
 }: {
   cobrancas: any[];
   filtroStatus: string;
@@ -1112,6 +1119,7 @@ function CobrancasTabela({
   limiteInicial: number;
   onEmitirBtg: (cob: any) => void;
   modoBoleto?: "cnab240" | "api_btg";
+  bolepixSandboxHabilitado?: boolean;
 }) {
   const cobFiltradas = filtroStatus === "todos" ? cobrancas : cobrancas.filter((c: any) => c.status === filtroStatus);
   const cobVisiveis = mostrarTodas ? cobFiltradas : cobFiltradas.slice(0, limiteInicial);
@@ -1188,6 +1196,7 @@ function CobrancasTabela({
                           acordo: "Acordo",
                         };
                         const temSnapshot = isParcela && cob.snapshotPrincipal != null;
+                        const elegibilidadeBolePix = verificarElegibilidadeBolePixV2(cob);
                         return (
                           <React.Fragment key={`${isParcela ? "p" : "c"}-${cob.id}`}>
                           <TableRow className={isParcela ? "bg-blue-50/40" : ""}>
@@ -1224,8 +1233,11 @@ function CobrancasTabela({
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {/* Boleto: apenas para parcelas de acordo */}
-                              {!isParcela ? (
+                              {bolepixSandboxHabilitado && elegibilidadeBolePix.elegivel ? (
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => onEmitirBtg(cob)}>
+                                  <QrCode className="h-3 w-3 mr-1" /> Emitir BolePix
+                                </Button>
+                              ) : !isParcela ? (
                                 <span className="text-xs text-muted-foreground">—</span>
                               ) : modoBoleto === "api_btg" ? (
                                 // Modo API BTG
