@@ -247,12 +247,12 @@ describe("parsearRetornoCNAB240", () => {
     expect(titulos[0].descricaoOcorrencia).toBe("Entrada Confirmada");
   });
 
-  it("deve marcar como processado para código 07 (liquidação parcial)", () => {
+  it("não deve marcar como processado o código 07 (liquidação parcial)", () => {
     const linhaP = gerarLinhaRetornoP("1000000004", "07", 75000);
     const linhaQ = gerarLinhaRetornoQ("22222222222", "ANA LIMA");
     const conteudo = [linhaP, linhaQ].join("\r\n") + "\r\n";
     const titulos = parsearRetornoCNAB240(conteudo);
-    expect(titulos[0].processado).toBe(true);
+    expect(titulos[0].processado).toBe(false);
     expect(titulos[0].descricaoOcorrencia).toBe("Liquidação Parcial");
   });
 
@@ -270,13 +270,13 @@ describe("parsearRetornoCNAB240", () => {
 describe("CODIGOS_LIQUIDACAO", () => {
   it("deve conter os códigos de liquidação efetiva", () => {
     expect(CODIGOS_LIQUIDACAO.has("06")).toBe(true); // Liquidação Normal
-    expect(CODIGOS_LIQUIDACAO.has("07")).toBe(true); // Liquidação Parcial
     expect(CODIGOS_LIQUIDACAO.has("15")).toBe(true); // Liquidação em Cartório
     expect(CODIGOS_LIQUIDACAO.has("17")).toBe(true); // Liquidação após Baixa
   });
 
   it("não deve conter códigos que não são liquidação", () => {
     expect(CODIGOS_LIQUIDACAO.has("02")).toBe(false); // Entrada Confirmada
+    expect(CODIGOS_LIQUIDACAO.has("07")).toBe(false); // Liquidação Parcial = revisão manual
     expect(CODIGOS_LIQUIDACAO.has("03")).toBe(false); // Entrada Rejeitada
     expect(CODIGOS_LIQUIDACAO.has("09")).toBe(false); // Baixa Automática
     expect(CODIGOS_LIQUIDACAO.has("10")).toBe(false); // Baixa Solicitada

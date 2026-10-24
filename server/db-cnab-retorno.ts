@@ -394,13 +394,18 @@ export function parseRetornoCNAB240(conteudo: string): RetornoArquivo {
  * Determina o novo status da cobrança com base no código de movimento/ocorrência do retorno.
  * Retorna null se o status não deve ser alterado.
  */
+export function isLiquidacaoParcialCNAB(codMovimento: string, codOcorrencia: string): boolean {
+  return codMovimento === "07" || codOcorrencia === "007";
+}
+
 export function determinarNovoStatus(
   codMovimento: string,
   codOcorrencia: string
 ): "pendente" | "em_cobranca" | "pago" | "cancelado" | null {
-  // Liquidação = pago
-  if (["06", "07"].includes(codMovimento)) return "pago";
-  if (["006", "007"].includes(codOcorrencia)) return "pago";
+  // Liquidação integral = pago. Liquidação parcial (07/007) é revisão manual.
+  if (isLiquidacaoParcialCNAB(codMovimento, codOcorrencia)) return null;
+  if (["06"].includes(codMovimento)) return "pago";
+  if (["006"].includes(codOcorrencia)) return "pago";
 
   // Baixa = cancelado
   if (["09", "10"].includes(codMovimento)) return "cancelado";

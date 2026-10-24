@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseRetornoCNAB240,
   determinarNovoStatus,
+  isLiquidacaoParcialCNAB,
   CODIGOS_MOVIMENTO,
 } from "./db-cnab-retorno";
 
@@ -77,8 +78,10 @@ describe("determinarNovoStatus", () => {
     expect(determinarNovoStatus("06", "006")).toBe("pago");
   });
 
-  it("deve retornar pago para código 07 (liquidação parcial)", () => {
-    expect(determinarNovoStatus("07", "007")).toBe("pago");
+  it("exige revisão manual para código 07 (liquidação parcial)", () => {
+    expect(determinarNovoStatus("07", "007")).toBeNull();
+    expect(isLiquidacaoParcialCNAB("07", "007")).toBe(true);
+    expect(isLiquidacaoParcialCNAB("06", "006")).toBe(false);
   });
 
   it("deve retornar cancelado para código 09 (baixa automática)", () => {

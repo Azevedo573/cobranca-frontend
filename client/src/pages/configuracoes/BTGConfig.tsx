@@ -142,6 +142,15 @@ export default function BTGConfig() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const habilitarProducaoMutation = trpc.btgV2.habilitarEmissaoProducao.useMutation({
+    onSuccess: () => {
+      toast.success("Emissão BolePix em Produção habilitada.");
+      setDialogHomologacaoOpen(false);
+      setConfirmacaoHomologacao("");
+      void refetch();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const oauthResult = new URLSearchParams(window.location.search).get("btgOAuth");
   useEffect(() => {
@@ -298,13 +307,13 @@ export default function BTGConfig() {
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Regras de homologação BolePix</CardTitle><CardDescription>Essas regras pertencem à integração v2 e não alteram a configuração CNAB nem os boletos legados.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="limite">Dias-limite após o vencimento</Label><Input id="limite" type="number" min={1} max={365} value={formRegras.diasLimitePagamento} onChange={(event) => setFormRegras((old) => ({ ...old, diasLimitePagamento: event.target.value }))} /></div><div className="space-y-2"><Label htmlFor="instrucoes">Descrição/instruções padrão</Label><Textarea id="instrucoes" rows={3} maxLength={300} value={formRegras.instrucoes} onChange={(event) => setFormRegras((old) => ({ ...old, instrucoes: event.target.value }))} /></div></div>
-              <Button variant="outline" onClick={() => salvarRegrasMutation.mutate({ diasLimitePagamento: Number(formRegras.diasLimitePagamento), instrucoes: formRegras.instrucoes || undefined })} disabled={!sandbox || salvarRegrasMutation.isPending}>{salvarRegrasMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salvar regras Sandbox</Button>
+              <Button variant="outline" onClick={() => salvarRegrasMutation.mutate({ diasLimitePagamento: Number(formRegras.diasLimitePagamento), instrucoes: formRegras.instrucoes || undefined })} disabled={salvarRegrasMutation.isPending}>{salvarRegrasMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salvar regras {sandbox ? "Sandbox" : "Produção"}</Button>
             </CardContent>
           </Card>
 
           <Card className={painel?.emissaoHabilitada ? "border-emerald-300" : "border-amber-300"}>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Controle de emissão</CardTitle><CardDescription>Liberação explícita, limitada ao Sandbox, para validar o fluxo de BolePix. Produção permanece bloqueada.</CardDescription></CardHeader>
-            <CardContent className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium">{painel?.emissaoHabilitada ? "Homologação habilitada" : "Homologação bloqueada"}</p><p className="text-xs text-muted-foreground">Última consulta de contas: {formatarData(painel?.integracao?.ultimaConsultaContasEm)}</p></div>{painel?.emissaoHabilitada ? <Button variant="destructive" onClick={() => desabilitarSandboxMutation.mutate()} disabled={desabilitarSandboxMutation.isPending}><Unplug className="h-4 w-4 mr-2" />Desabilitar</Button> : <Button onClick={() => setDialogHomologacaoOpen(true)} disabled={!painel?.prontoParaHomologacao || !sandbox}>Habilitar homologação</Button>}</CardContent>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Controle de emissão</CardTitle><CardDescription>{sandbox ? "Liberação explícita para validar o fluxo BolePix no Sandbox." : "Liberação explícita de Produção, após OAuth, conta oficial vinculada e webhook HMAC configurado."}</CardDescription></CardHeader>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium">{painel?.emissaoHabilitada ? (sandbox ? "Homologação habilitada" : "Produção habilitada") : "Emissão bloqueada"}</p><p className="text-xs text-muted-foreground">Última consulta de contas: {formatarData(painel?.integracao?.ultimaConsultaContasEm)}</p></div>{painel?.emissaoHabilitada ? <Button variant="destructive" onClick={() => sandbox && desabilitarSandboxMutation.mutate()} disabled={!sandbox || desabilitarSandboxMutation.isPending}><Unplug className="h-4 w-4 mr-2" />{sandbox ? "Desabilitar" : "Bloqueio via configuração"}</Button> : <Button onClick={() => setDialogHomologacaoOpen(true)} disabled={!painel?.prontoParaHomologacao}>{sandbox ? "Habilitar homologação" : "Liberar Produção"}</Button>}</CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Saúde do webhook v2</CardTitle><CardDescription>Últimas 20 entregas registradas por hash. O corpo do evento não é armazenado.</CardDescription></CardHeader>
@@ -328,9 +337,9 @@ export default function BTGConfig() {
 
       <AlertDialog open={dialogHomologacaoOpen} onOpenChange={setDialogHomologacaoOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Habilitar emissão BolePix no Sandbox?</AlertDialogTitle><AlertDialogDescription>Essa ação libera somente respostas estáticas do ambiente Sandbox. Não há emissão de cobrança real. Digite <strong>HOMOLOGAR</strong> para confirmar.</AlertDialogDescription></AlertDialogHeader>
-          <Input value={confirmacaoHomologacao} onChange={(event) => setConfirmacaoHomologacao(event.target.value)} placeholder="HOMOLOGAR" />
-          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction disabled={confirmacaoHomologacao !== "HOMOLOGAR" || habilitarSandboxMutation.isPending} onClick={(event) => { event.preventDefault(); habilitarSandboxMutation.mutate({ confirmacao: "HOMOLOGAR" }); }}>{habilitarSandboxMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Confirmar homologação</AlertDialogAction></AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>{sandbox ? "Habilitar emissão BolePix no Sandbox?" : "Liberar emissão BolePix em Produção?"}</AlertDialogTitle><AlertDialogDescription>{sandbox ? <>Essa ação libera somente respostas estáticas do ambiente Sandbox. Não há emissão de cobrança real. Digite <strong>HOMOLOGAR</strong> para confirmar.</> : <>Esta ação permite a emissão real somente após o servidor validar OAuth, conta oficial vinculada e segredo de webhook. Digite <strong>LIBERAR PRODUCAO</strong> para confirmar.</>}</AlertDialogDescription></AlertDialogHeader>
+          <Input value={confirmacaoHomologacao} onChange={(event) => setConfirmacaoHomologacao(event.target.value)} placeholder={sandbox ? "HOMOLOGAR" : "LIBERAR PRODUCAO"} />
+          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction disabled={sandbox ? confirmacaoHomologacao !== "HOMOLOGAR" || habilitarSandboxMutation.isPending : confirmacaoHomologacao !== "LIBERAR PRODUCAO" || habilitarProducaoMutation.isPending} onClick={(event) => { event.preventDefault(); if (sandbox) habilitarSandboxMutation.mutate({ confirmacao: "HOMOLOGAR" }); else habilitarProducaoMutation.mutate({ confirmacao: "LIBERAR PRODUCAO" }); }}>{(habilitarSandboxMutation.isPending || habilitarProducaoMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{sandbox ? "Confirmar homologação" : "Confirmar liberação"}</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

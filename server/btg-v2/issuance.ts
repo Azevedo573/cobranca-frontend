@@ -11,7 +11,7 @@ import {
 } from "../../drizzle/schema";
 import { criarBolePixBtgV2 } from "./client";
 import { montarPayloadBolePixV2 } from "./bolepix";
-import { BtgV2ConfigurationError, validarVinculoContaRecebedora } from "./config";
+import { BtgV2ConfigurationError, getBtgV2ServerConfig, validarVinculoContaRecebedora } from "./config";
 
 export type BtgV2OrigemTipo = "parcela_acordo";
 
@@ -159,7 +159,7 @@ export async function prepararEmissaoParcelasAcordoBtgV2(input: {
 export interface BtgV2ResultadoEmissaoParcelaAcordo {
   parcelaId: number;
   installmentNumber: number;
-  resultado: "simulada" | "ja_existia" | "falha";
+  resultado: "simulada" | "emitida" | "ja_existia" | "falha";
   mensagem: string;
   emissao?: BtgV2EmissaoResultado;
 }
@@ -176,6 +176,7 @@ export async function emitirParcelasAcordoBtgV2(input: {
     parcelas: preparacao.parcelas,
   });
   const resultados: BtgV2ResultadoEmissaoParcelaAcordo[] = [];
+  const ambiente = getBtgV2ServerConfig().ambiente;
 
   for (const parcela of selecionadas) {
     try {
@@ -183,8 +184,12 @@ export async function emitirParcelasAcordoBtgV2(input: {
       resultados.push({
         parcelaId: parcela.id!,
         installmentNumber: parcela.installmentNumber ?? 0,
-        resultado: emissao.jaExistia ? "ja_existia" : "simulada",
-        mensagem: emissao.jaExistia ? "Simulação já registrada para esta parcela." : "Resposta simulada do BTG Sandbox recebida.",
+        resultado: emissao.jaExistia ? "ja_existia" : ambiente === "sandbox" ? "simulada" : "emitida",
+        mensagem: emissao.jaExistia
+          ? "Emissão já registrada para esta parcela."
+          : ambiente === "sandbox"
+            ? "Resposta simulada do BTG Sandbox recebida."
+            : "Cobrança BolePix enviada ao BTG em Produção.",
         emissao,
       });
     } catch (error) {
@@ -238,12 +243,13 @@ export async function emitirBolePixV2(input: {
 }): Promise<BtgV2EmissaoResultado> {
   const { db, parcelaId } = input;
   const origemTipo: BtgV2OrigemTipo = "parcela_acordo";
+  const serverConfig = getBtgV2ServerConfig();
   const [integracao] = await db.select().from(btgIntegracoes)
-    .where(eq(btgIntegracoes.ambiente, "sandbox"))
+    .where(eq(btgIntegracoes.ambiente, serverConfig.ambiente))
     .limit(1);
 
   if (!integracao || integracao.ativo !== 1 || integracao.emissaoHabilitada !== 1) {
-    throw new BtgV2ConfigurationError("A emissão BolePix v2 não está habilitada para homologação.");
+    throw new BtgV2ConfigurationError("A emissão BolePix v2 não está habilitada para este ambiente.");
   }
 
   let origem: {

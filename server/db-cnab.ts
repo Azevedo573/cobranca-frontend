@@ -533,8 +533,8 @@ const OCORRENCIAS_CNAB: Record<string, string> = {
   "75": "Confirmação Recebimento Instrução Protesto Falimentar",
 };
 
-/** Códigos que indicam liquidação/pagamento efetivo */
-export const CODIGOS_LIQUIDACAO = new Set(["06", "07", "15", "17"]);
+/** Códigos que indicam liquidação integral automática. 07 exige revisão manual. */
+export const CODIGOS_LIQUIDACAO = new Set(["06", "15", "17"]);
 
 export function parsearRetornoCNAB240(conteudo: string): TituloRetorno[] {
   const linhas = conteudo

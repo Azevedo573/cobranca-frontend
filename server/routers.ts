@@ -3572,7 +3572,7 @@ export const appRouter = router({
         const condId = ctx.user.role === "admin"
           ? (input.condominioId ?? 0)
           : (ctx.user.condominioId ?? 0);
-        const { parseRetornoCNAB240, determinarNovoStatus } = await import("./db-cnab-retorno");
+        const { parseRetornoCNAB240, determinarNovoStatus, isLiquidacaoParcialCNAB } = await import("./db-cnab-retorno");
         const { criarRetornoCNAB } = await import("./db-cnab");
         const { gerarPixCopiaCola } = await import("./pix-emv");
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
@@ -3627,6 +3627,7 @@ export const appRouter = router({
           const nossoNumeroRaw = segmentoT.nossoNumero;
           const nossoNumero = nossoNumeroRaw.replace(/^0+/, '') || '0';
           const novoStatus = determinarNovoStatus(segmentoT.codMovimento, segmentoT.codOcorrencia);
+          const liquidacaoParcial = isLiquidacaoParcialCNAB(segmentoT.codMovimento, segmentoT.codOcorrencia);
           // Limitar ao máximo do MySQL INT para evitar overflow com arquivos externos
           const MAX_INT = 2147483647;
           const valorPago = Math.min(segmentoU.valorPago || 0, MAX_INT);
@@ -3654,7 +3655,10 @@ export const appRouter = router({
             cobrancaId = cobranca.id;
             statusAnterior = cobranca.status;
 
-            if (novoStatus && cobranca.status !== novoStatus) {
+            if (liquidacaoParcial) {
+              statusProcessamento = "erro";
+              observacao = "Liquidação parcial CNAB — revisão manual obrigatória; nenhuma baixa foi aplicada.";
+            } else if (novoStatus && cobranca.status !== novoStatus) {
               const updateData: Record<string, any> = { status: novoStatus };
               if (novoStatus === "pago") {
                 updateData.paidAt = dataCredito || dataOcorrencia || new Date();
@@ -3740,7 +3744,10 @@ export const appRouter = router({
                 });
               }
 
-              if (novoStatus === "pago" && parcela.status !== "pago") {
+              if (liquidacaoParcial) {
+                statusProcessamento = "erro";
+                observacao = "Liquidação parcial CNAB — revisão manual obrigatória; nenhuma baixa foi aplicada.";
+              } else if (novoStatus === "pago" && parcela.status !== "pago") {
                 const dataPag = dataCredito || dataOcorrencia || new Date();
                 await db.update(parcelasAcordo).set({
                   status: "pago",

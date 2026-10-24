@@ -146,9 +146,6 @@ export const btgV2Router = router({
     .mutation(async ({ input, ctx }) => {
       try {
         const { db, serverConfig, integracao } = await getOrCreateIntegracaoAtual();
-        if (serverConfig.ambiente !== "sandbox") {
-          throw new BtgV2ConfigurationError("As regras de produção ainda não podem ser alteradas pelo fluxo de homologação.");
-        }
         await db.update(btgIntegracoes).set({
           diasLimitePagamento: input.diasLimitePagamento,
           instrucoes: input.instrucoes || null,
@@ -217,6 +214,50 @@ export const btgV2Router = router({
       throw toTrpcError(error);
     }
   }),
+
+  habilitarEmissaoProducao: adminProcedure
+    .input(z.object({ confirmacao: z.literal("LIBERAR PRODUCAO") }))
+    .mutation(async ({ input: _input, ctx }) => {
+      try {
+        const oauth = await getStatusOAuthBtg();
+        const { db, serverConfig, integracao } = await getOrCreateIntegracaoAtual();
+        if (serverConfig.ambiente !== "producao") {
+          throw new BtgV2ConfigurationError("A liberação de Produção só pode ocorrer quando o servidor estiver configurado para Produção.");
+        }
+        if (oauth.status !== "conectado") {
+          throw new BtgV2ConfigurationError("Conecte a conta BTG de Produção antes de liberar emissões.");
+        }
+        if (!process.env.BTG_WEBHOOK_SECRET?.trim()) {
+          throw new BtgV2ConfigurationError("Configure o segredo HMAC do webhook BTG antes de liberar emissões de Produção.");
+        }
+        const [vinculoOficial] = await db.select({ id: btgContaRecebedoraCondominios.id })
+          .from(btgContaRecebedoraCondominios)
+          .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+          .where(and(
+            eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracao.id),
+            eq(btgContaRecebedoraCondominios.ativo, 1),
+            eq(btgContasRecebedoras.ativo, 1),
+            eq(btgContasRecebedoras.origemCadastro, "api"),
+          ))
+          .limit(1);
+        if (!vinculoOficial) {
+          throw new BtgV2ConfigurationError("Vincule ao menos uma conta oficial retornada pela API BTG antes de liberar Produção.");
+        }
+        await db.update(btgIntegracoes).set({ emissaoHabilitada: 1, updatedAt: new Date() })
+          .where(eq(btgIntegracoes.id, integracao.id));
+        await logAudit(ctx, {
+          action: "config_change",
+          entity: "configuracao",
+          entityId: `btg-v2:${integracao.ambiente}`,
+          metadata: { integracao: "btg-v2", evento: "emissao_producao_habilitada" },
+          severity: "warning",
+        });
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
 
   /** Consulta explícita da API Accounts; não é acionada no carregamento da página. */
   sincronizarContas: adminProcedure.mutation(async ({ ctx }) => {
@@ -426,10 +467,6 @@ export const btgV2Router = router({
     .input(z.object({ acordoId: z.number().int().positive() }))
     .query(async ({ input }) => {
       try {
-        const config = getBtgV2ServerConfig();
-        if (config.ambiente !== "sandbox") {
-          throw new BtgV2ConfigurationError("A emissão BolePix v2 está limitada ao Sandbox nesta fase de homologação.");
-        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
         return await prepararEmissaoParcelasAcordoBtgV2({ db, acordoId: input.acordoId });
@@ -447,16 +484,13 @@ export const btgV2Router = router({
     .mutation(async ({ input, ctx }) => {
       try {
         const config = getBtgV2ServerConfig();
-        if (config.ambiente !== "sandbox") {
-          throw new BtgV2ConfigurationError("A emissão BolePix v2 está limitada ao Sandbox nesta fase de homologação.");
-        }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
         const resultado = await emitirParcelasAcordoBtgV2({ db, ...input });
         const resumo = resultado.resultados.reduce((acumulado, item) => {
           acumulado[item.resultado] += 1;
           return acumulado;
-        }, { simulada: 0, ja_existia: 0, falha: 0 });
+        }, { simulada: 0, emitida: 0, ja_existia: 0, falha: 0 });
         await logAudit(ctx, {
           action: "generate_boleto",
           entity: "acordo",
@@ -465,7 +499,7 @@ export const btgV2Router = router({
             integracao: "btg-v2",
             instrumento: "bolepix",
             evento: "emissao_parcelas_acordo_solicitada",
-            ambiente: "sandbox",
+            ambiente: config.ambiente,
             parcelasSelecionadas: input.parcelaIds.length,
             ...resumo,
           },
@@ -545,8 +579,6 @@ export const btgV2Router = router({
     .input(z.object({ emissaoId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        const config = getBtgV2ServerConfig();
-        if (config.ambiente !== "sandbox") throw new BtgV2ConfigurationError("A conciliação v2 está limitada ao Sandbox nesta fase.");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
         const resultado = await conciliarEmissaoBolePixV2(db, input.emissaoId);
@@ -568,8 +600,6 @@ export const btgV2Router = router({
     .input(z.object({ condominioId: z.number().int().positive().optional() }).optional())
     .mutation(async ({ input, ctx }) => {
       try {
-        const config = getBtgV2ServerConfig();
-        if (config.ambiente !== "sandbox") throw new BtgV2ConfigurationError("A conciliação v2 está limitada ao Sandbox nesta fase.");
         const { db, integracao } = await getIntegracaoAtual();
         if (!integracao) return { processadas: 0, pagas: 0, erros: [] as string[] };
         const filters = [
@@ -610,8 +640,6 @@ export const btgV2Router = router({
     .input(z.object({ emissaoId: z.number().int().positive(), confirmacao: z.literal("CANCELAR") }))
     .mutation(async ({ input, ctx }) => {
       try {
-        const config = getBtgV2ServerConfig();
-        if (config.ambiente !== "sandbox") throw new BtgV2ConfigurationError("O cancelamento v2 está limitado ao Sandbox nesta fase.");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
         const resultado = await cancelarEmissaoBolePixV2(db, input.emissaoId);

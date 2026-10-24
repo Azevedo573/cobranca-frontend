@@ -48,7 +48,7 @@ export function BTGEnviarParcelasAcordoModal({ open, onOpenChange, acordoId, onS
     resultados: Array<{
       parcelaId: number;
       installmentNumber: number;
-      resultado: "simulada" | "ja_existia" | "falha";
+      resultado: "simulada" | "emitida" | "ja_existia" | "falha";
       mensagem: string;
     }>;
   } | null>(null);
@@ -82,11 +82,14 @@ export function BTGEnviarParcelasAcordoModal({ open, onOpenChange, acordoId, onS
       setResultado(retorno);
       setConfirmarOpen(false);
       const simuladas = retorno.resultados.filter((item) => item.resultado === "simulada").length;
+      const emitidas = retorno.resultados.filter((item) => item.resultado === "emitida").length;
       const falhas = retorno.resultados.filter((item) => item.resultado === "falha").length;
       toast[falhas > 0 ? "warning" : "success"](
         falhas > 0
-          ? `Simulação concluída com ${falhas} item(ns) que exigem atenção.`
-          : `${simuladas} parcela(s) simulada(s) no BTG Sandbox.`,
+          ? `Envio concluído com ${falhas} item(ns) que exigem atenção.`
+          : emitidas > 0
+            ? `${emitidas} parcela(s) emitida(s) no BTG.`
+            : `${simuladas} parcela(s) simulada(s) no BTG Sandbox.`,
       );
       await Promise.all([
         utils.acordos.getParcelas.invalidate({ acordoId }),
@@ -169,9 +172,9 @@ export function BTGEnviarParcelasAcordoModal({ open, onOpenChange, acordoId, onS
                       </div>
                       <Badge
                         variant={item.resultado === "falha" ? "destructive" : "outline"}
-                        className={item.resultado === "simulada" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : ""}
+                        className={["simulada", "emitida"].includes(item.resultado) ? "border-emerald-300 bg-emerald-50 text-emerald-700" : ""}
                       >
-                        {item.resultado === "simulada" ? "Simulada" : item.resultado === "ja_existia" ? "Já registrada" : "Falha"}
+                        {item.resultado === "simulada" ? "Simulada" : item.resultado === "emitida" ? "Emitida" : item.resultado === "ja_existia" ? "Já registrada" : "Falha"}
                       </Badge>
                     </div>
                   ))}
