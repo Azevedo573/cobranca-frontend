@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consolidarResultadoRemessaBtgV2, validarLoteUnicoCondominioBtgV2, validarSelecaoRemessaBtgV2 } from "./btg-v2/remessas";
+import { consolidarResultadoRemessaBtgV2, obterInsertIdBtgV2, validarLoteUnicoCondominioBtgV2, validarSelecaoRemessaBtgV2 } from "./btg-v2/remessas";
 
 describe("BTG v2 — consolidação de remessas", () => {
   it("marca uma remessa como processada quando todos os itens foram emitidos ou já existiam", () => {
@@ -40,5 +40,16 @@ describe("BTG v2 — consolidação de remessas", () => {
     }];
     expect(() => validarSelecaoRemessaBtgV2({ condominioId: 1, parcelaIds: [10], fila })).toThrow("não pode ser enviada");
     expect(() => validarSelecaoRemessaBtgV2({ condominioId: 1, parcelaIds: [11], fila })).toThrow("não pertencem ao condomínio");
+  });
+
+  it("reconhece insertId MySQL em retorno direto ou em tupla do driver", () => {
+    expect(obterInsertIdBtgV2({ insertId: 42 })).toBe(42);
+    expect(obterInsertIdBtgV2([{ insertId: 43 }, []])).toBe(43);
+    expect(obterInsertIdBtgV2([{ insertId: BigInt(44) }, []])).toBe(44);
+  });
+
+  it("retorna zero para resultado de insert sem identificador válido", () => {
+    expect(obterInsertIdBtgV2({ affectedRows: 1 })).toBe(0);
+    expect(obterInsertIdBtgV2([])).toBe(0);
   });
 });

@@ -28,6 +28,19 @@ export interface ResumoRemessaBtgV2 {
   valorTotalCentavos: number;
 }
 
+/**
+ * Drizzle/mysql2 pode devolver o cabeçalho da inserção diretamente ou como
+ * primeiro item da tupla [ResultSetHeader, campos]. Aceita os dois formatos
+ * sem assumir uma versão específica do driver.
+ */
+export function obterInsertIdBtgV2(resultado: unknown): number {
+  const cabecalho = Array.isArray(resultado) ? resultado[0] : resultado;
+  if (!cabecalho || typeof cabecalho !== "object" || !("insertId" in cabecalho)) return 0;
+  const bruto = (cabecalho as { insertId?: unknown }).insertId;
+  const id = typeof bruto === "bigint" ? Number(bruto) : Number(bruto);
+  return Number.isSafeInteger(id) && id > 0 ? id : 0;
+}
+
 /** Consolida o resultado persistível de uma execução de remessa sem reemitir títulos. */
 export function consolidarResultadoRemessaBtgV2(itens: ResultadoRemessaBtgV2[]): ResumoRemessaBtgV2 {
   const totalSelecionado = itens.length;

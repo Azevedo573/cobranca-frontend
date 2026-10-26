@@ -24,7 +24,7 @@ import {
   validarCadastroManualSandbox,
 } from "../btg-v2/config";
 import { emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2 } from "../btg-v2/issuance";
-import { executarRemessaBtgV2, listarFilaRemessaBtgV2, validarSelecaoRemessaBtgV2 } from "../btg-v2/remessas";
+import { executarRemessaBtgV2, listarFilaRemessaBtgV2, obterInsertIdBtgV2, validarSelecaoRemessaBtgV2 } from "../btg-v2/remessas";
 import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
 
 function toTrpcError(error: unknown): TRPCError {
@@ -545,16 +545,43 @@ export const btgV2Router = router({
           createdAt: now,
           updatedAt: now,
         });
-        const remessaId = Number((result as { insertId?: number })?.insertId ?? 0);
+        const remessaId = obterInsertIdBtgV2(result);
         if (!remessaId) throw new BtgV2ConfigurationError("Não foi possível registrar a remessa BTG antes do envio.");
 
-        await db.insert(btgRemessaItens).values(selecionadas.map((parcela) => ({
-          btgRemessaId: remessaId,
-          parcelaAcordoId: parcela.id,
-          installmentNumber: parcela.installmentNumber,
-          valorCentavos: parcela.amount,
-          resultado: "pendente" as const,
-        })));
+        try {
+          await db.insert(btgRemessaItens).values(selecionadas.map((parcela) => ({
+            btgRemessaId: remessaId,
+            parcelaAcordoId: parcela.id,
+            installmentNumber: parcela.installmentNumber,
+            valorCentavos: parcela.amount,
+            resultado: "pendente" as const,
+          })));
+        } catch (error) {
+          const mensagem = "Não foi possível preparar os itens da remessa antes do envio. Nenhuma cobrança foi enviada ao BTG.";
+          await db.update(btgRemessas).set({
+            status: "falha",
+            totalFalha: selecionadas.length,
+            erroResumo: mensagem,
+            finalizadaEm: new Date(),
+            updatedAt: new Date(),
+          }).where(and(eq(btgRemessas.id, remessaId), eq(btgRemessas.status, "rascunho")));
+          await logAudit(ctx, {
+            action: "generate_remessa",
+            entity: "remessa",
+            entityId: `btg-remessa:${remessaId}`,
+            condominioId: input.condominioId,
+            metadata: {
+              integracao: "btg-v2",
+              evento: "remessa_falhou_pre_envio",
+              remessaId,
+              totalSelecionado: selecionadas.length,
+            },
+            severity: "warning",
+            success: false,
+            errorMessage: mensagem,
+          });
+          throw new BtgV2ConfigurationError(mensagem);
+        }
 
         const resumo = await executarRemessaBtgV2({ db, remessaId, parcelas: selecionadas });
         await logAudit(ctx, {
