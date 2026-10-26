@@ -187,9 +187,93 @@ export default function BTGRemessas() {
 
     <AlertDialog open={confirmacaoAberta} onOpenChange={setConfirmacaoAberta}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{ambienteSandbox ? "Confirmar remessa de homologação?" : "Confirmar remessa BolePix em Produção?"}</AlertDialogTitle><AlertDialogDescription>{ambienteSandbox ? "O lote será registrado e enviado ao ambiente de homologação. O BTG pode devolver respostas estáticas." : "Esta operação envia cobranças reais ao BTG. O lote e cada item serão registrados para auditoria."} Digite <strong>ENVIAR REMESSA</strong> para confirmar.</AlertDialogDescription></AlertDialogHeader><Input value={confirmacao} onChange={(event) => setConfirmacao(event.target.value)} placeholder="ENVIAR REMESSA" /><AlertDialogFooter><AlertDialogCancel>Voltar</AlertDialogCancel><AlertDialogAction disabled={confirmacao !== "ENVIAR REMESSA" || criarRemessaMutation.isPending} onClick={(event) => { event.preventDefault(); if (!condominioNovoNumero) return; criarRemessaMutation.mutate({ condominioId: condominioNovoNumero, parcelaIds: Array.from(selecionadas), observacao: observacao || undefined, confirmacao: "ENVIAR REMESSA" }); }}>{criarRemessaMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar envio</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
 
-    <Sheet open={remessaDetalheId !== null} onOpenChange={(aberto) => !aberto && setRemessaDetalheId(null)}><SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-2xl"><SheetHeader className="border-b px-6 py-5 pr-12"><SheetTitle>Detalhe da remessa {detalhe.data ? `#${detalhe.data.remessa.id}` : ""}</SheetTitle><SheetDescription>{detalhe.data?.condominioNome || "Carregando histórico do lote..."}</SheetDescription></SheetHeader>{detalhe.isLoading ? <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : detalhe.data ? <div className="flex-1 overflow-y-auto p-6"><div className="grid grid-cols-3 gap-3"><Resumo label="Selecionadas" value={String(detalhe.data.remessa.totalSelecionado)} /><Resumo label="Emitidas" value={String(detalhe.data.remessa.totalEmitido)} tone="green" /><Resumo label="Falhas" value={String(detalhe.data.remessa.totalFalha)} tone={detalhe.data.remessa.totalFalha ? "red" : undefined} /></div>{detalhe.data.remessa.erroResumo && <Alert variant="destructive" className="mt-4"><CircleAlert className="h-4 w-4" /><AlertDescription>{detalhe.data.remessa.erroResumo}</AlertDescription></Alert>}<div className="mt-5 divide-y overflow-hidden rounded-lg border">{detalhe.data.itens.map((item) => <div key={item.id} className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium">{item.installmentNumber === 0 ? "Entrada" : `Parcela ${item.installmentNumber}`}</p><p className="mt-1 text-xs text-muted-foreground">{moeda(item.valorCentavos)} · {item.mensagem || "Aguardando processamento"}</p></div><Badge variant="outline" className={item.resultado === "falha" ? "border-red-300 bg-red-50 text-red-700" : item.resultado === "pendente" ? "" : "border-emerald-300 bg-emerald-50 text-emerald-700"}>{item.resultado === "ja_existia" ? "Já existente" : item.resultado}</Badge></div>{item.emissao && <div className="mt-3 flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={!item.emissao.btgCollectionId || conciliarItemMutation.isPending} onClick={() => conciliarItemMutation.mutate({ emissaoId: item.emissao!.id })}><RefreshCw className="mr-1 h-3.5 w-3.5" />Conciliar</Button>{item.emissao.pixCopiaECola && <Button size="sm" variant="outline" onClick={() => copiar(item.emissao!.pixCopiaECola!, "PIX Copia e Cola")}><QrCode className="mr-1 h-3.5 w-3.5" />Pix</Button>}{item.emissao.linhaDigitavel && <Button size="sm" variant="outline" onClick={() => copiar(item.emissao!.linhaDigitavel!, "Linha digitável")}><Copy className="mr-1 h-3.5 w-3.5" />Linha</Button>}{item.emissao.bankSlipUrl && <Button size="sm" variant="outline" asChild><a href={item.emissao.bankSlipUrl} target="_blank" rel="noreferrer"><FileText className="mr-1 h-3.5 w-3.5" />Boleto<ExternalLink className="ml-1 h-3 w-3" /></a></Button>}</div>}</div>)}</div></div> : null}</SheetContent></Sheet>
+    <Sheet open={remessaDetalheId !== null} onOpenChange={(aberto) => !aberto && setRemessaDetalheId(null)}>
+      <SheetContent side="right" className="w-full gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        {detalhe.isLoading ? (
+          <div className="flex flex-1 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
+        ) : detalhe.error ? (
+          <div className="p-6"><Alert variant="destructive"><CircleAlert className="h-4 w-4" /><AlertDescription>{detalhe.error.message}</AlertDescription></Alert></div>
+        ) : detalhe.data ? (() => {
+          const remessa = detalhe.data.remessa;
+          const status = STATUS_REMESSA[remessa.status] ?? { label: remessa.status, className: "" };
+          return <>
+            <SheetHeader className="border-b bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 pr-12">
+              <div className="flex flex-wrap items-center gap-2">
+                <SheetTitle className="text-lg">Remessa #{remessa.id}</SheetTitle>
+                <Badge variant="outline" className={status.className}>{status.label}</Badge>
+                <Badge variant="outline" className={ambienteSandbox ? "border-amber-300 bg-amber-50 text-amber-700" : "border-emerald-300 bg-emerald-50 text-emerald-700"}>{ambienteSandbox ? "Sandbox" : "Produção"}</Badge>
+              </div>
+              <SheetDescription>{detalhe.data.condominioNome} · criada em {dataHora(remessa.criadaEm)}</SheetDescription>
+            </SheetHeader>
+
+            <div className="flex-1 overflow-y-auto bg-muted/20 p-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <ResumoDetalhe label="Selecionadas" value={String(remessa.totalSelecionado)} />
+                <ResumoDetalhe label="Emitidas" value={String(remessa.totalEmitido)} tone="green" />
+                <ResumoDetalhe label="Falhas" value={String(remessa.totalFalha)} tone={remessa.totalFalha ? "red" : undefined} />
+                <ResumoDetalhe label="Valor do lote" value={moeda(remessa.valorTotalCentavos)} />
+              </div>
+
+              {remessa.erroResumo && <Alert variant="destructive" className="mt-4"><CircleAlert className="h-4 w-4" /><AlertDescription>{remessa.erroResumo}</AlertDescription></Alert>}
+
+              <section className="mt-5 overflow-hidden rounded-xl border bg-background shadow-sm">
+                <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-3"><Landmark className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold">Dados do lote</h2></div>
+                <div className="grid gap-x-6 gap-y-3 px-4 py-4 text-sm sm:grid-cols-2">
+                  <LinhaDetalhe label="Condomínio" value={detalhe.data.condominioNome} />
+                  <LinhaDetalhe label="Conta recebedora" value={detalhe.data.conta ? `${detalhe.data.conta.rotulo} · Ag. ${detalhe.data.conta.agencia} · ${detalhe.data.conta.numeroMascarado}` : "Conta não localizada"} />
+                  <LinhaDetalhe label="Início do envio" value={dataHora(remessa.iniciadaEm)} />
+                  <LinhaDetalhe label="Finalização" value={dataHora(remessa.finalizadaEm)} />
+                  {remessa.observacao && <div className="sm:col-span-2"><LinhaDetalhe label="Observação" value={remessa.observacao} /></div>}
+                </div>
+              </section>
+
+              <section className="mt-5">
+                <div className="mb-3 flex items-center justify-between"><div><h2 className="text-sm font-semibold">Itens da remessa</h2><p className="text-xs text-muted-foreground">Resultados persistidos localmente para cada parcela.</p></div><Badge variant="secondary">{detalhe.data.itens.length} item(ns)</Badge></div>
+                <div className="space-y-3">
+                  {detalhe.data.itens.map(({ item, emissao, parcela, acordo, devedor }) => {
+                    const falhou = item.resultado === "falha";
+                    const emitido = item.resultado === "emitida" || item.resultado === "ja_existia";
+                    const identificacaoDevedor = [devedor.name || "Devedor não informado", devedor.bloco && `Bl. ${devedor.bloco}`, devedor.unitNumber && `Un. ${devedor.unitNumber}`].filter(Boolean).join(" · ");
+                    return <article key={item.id} className="overflow-hidden rounded-xl border bg-background shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/20 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold">{item.installmentNumber === 0 ? "Entrada" : `Parcela ${item.installmentNumber}`} <span className="font-normal text-muted-foreground">· Acordo #{acordo.id}</span></p>
+                          <p className="mt-1 text-xs text-muted-foreground">{identificacaoDevedor}</p>
+                        </div>
+                        <div className="text-right"><p className="font-semibold">{moeda(item.valorCentavos)}</p><p className="text-xs text-muted-foreground">Vence em {data(parcela.dueDate)}</p></div>
+                      </div>
+
+                      <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className={falhou ? "border-red-300 bg-red-50 text-red-700" : emitido ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-slate-50 text-slate-700"}>{item.resultado === "ja_existia" ? "Já existente" : item.resultado}</Badge>
+                            <Badge variant="secondary" className="font-normal">Parcela: {parcela.status}</Badge>
+                            {emissao && <Badge variant="secondary" className="font-normal">BTG: {emissao.status}</Badge>}
+                          </div>
+                          <p className={`text-sm ${falhou ? "text-destructive" : "text-muted-foreground"}`}>{item.mensagem || (emitido ? "Emissão registrada com sucesso." : "Aguardando processamento.")}</p>
+                          {emissao?.btgCollectionId && <div className="rounded-lg border bg-muted/30 px-3 py-2"><p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Collection ID BTG</p><div className="mt-1 flex items-center gap-2"><code className="min-w-0 flex-1 truncate text-xs">{emissao.btgCollectionId}</code><Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copiar(emissao.btgCollectionId!, "Collection ID")} aria-label="Copiar Collection ID"><Copy className="h-3.5 w-3.5" /></Button></div></div>}
+                          {emissao && <p className="text-xs text-muted-foreground">Emissão: {dataHora(emissao.emitidaEm)}{emissao.nossoNumero ? ` · Nosso número: ${emissao.nossoNumero}` : ""}</p>}
+                        </div>
+
+                        {emissao && <div className="flex flex-wrap content-start gap-2 sm:w-32 sm:flex-col">
+                          <Button size="sm" variant="outline" disabled={!emissao.btgCollectionId || conciliarItemMutation.isPending} onClick={() => conciliarItemMutation.mutate({ emissaoId: emissao.id })}><RefreshCw className="mr-1 h-3.5 w-3.5" />Conciliar</Button>
+                          {emissao.pixCopiaECola && <Button size="sm" variant="outline" onClick={() => copiar(emissao.pixCopiaECola!, "PIX Copia e Cola")}><QrCode className="mr-1 h-3.5 w-3.5" />Copiar Pix</Button>}
+                          {emissao.linhaDigitavel && <Button size="sm" variant="outline" onClick={() => copiar(emissao.linhaDigitavel!, "Linha digitável")}><Copy className="mr-1 h-3.5 w-3.5" />Copiar linha</Button>}
+                          {emissao.bankSlipUrl && <Button size="sm" variant="outline" asChild><a href={emissao.bankSlipUrl} target="_blank" rel="noreferrer"><FileText className="mr-1 h-3.5 w-3.5" />Boleto<ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
+                        </div>}
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              </section>
+            </div>
+          </>;
+        })() : null}
+      </SheetContent>
+    </Sheet>
   </div>;
 }
 
 function Kpi({ label, value, tone }: { label: string; value: number; tone?: "blue" | "green" | "amber" | "red" }) { const cor = tone === "green" ? "text-emerald-700" : tone === "amber" ? "text-amber-700" : tone === "red" ? "text-red-700" : tone === "blue" ? "text-blue-700" : "text-foreground"; return <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-2xl font-bold ${cor}`}>{value}</p></CardContent></Card>; }
-function Resumo({ label, value, tone }: { label: string; value: string; tone?: "green" | "red" }) { return <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-xl font-bold ${tone === "green" ? "text-emerald-700" : tone === "red" ? "text-red-700" : ""}`}>{value}</p></div>; }
+function ResumoDetalhe({ label, value, tone }: { label: string; value: string; tone?: "green" | "red" }) { return <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-lg font-bold ${tone === "green" ? "text-emerald-700" : tone === "red" ? "text-red-700" : ""}`}>{value}</p></div>; }
+function LinhaDetalhe({ label, value }: { label: string; value: string }) { return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 break-words font-medium text-foreground">{value}</p></div>; }

@@ -6,6 +6,7 @@ import { logAudit } from "../audit";
 import { getBtgOAuthConfig, getStatusOAuthBtg } from "../btg-oauth";
 import { getDb } from "../db";
 import {
+  acordos,
   btgContaRecebedoraCondominios,
   btgContasRecebedoras,
   btgCobrancasEmitidas,
@@ -14,6 +15,8 @@ import {
   btgRemessas,
   btgWebhookEntregas,
   condominios,
+  devedores,
+  parcelasAcordo,
 } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
 import {
@@ -634,18 +637,61 @@ export const btgV2Router = router({
     .query(async ({ input }) => {
       const { db, integracao } = await getIntegracaoAtual();
       if (!integracao) throw new TRPCError({ code: "NOT_FOUND", message: "Remessa não encontrada." });
-      const [remessa] = await db.select({ remessa: btgRemessas, condominioNome: condominios.name })
+      const [registroRemessa] = await db.select({ remessa: btgRemessas, condominioNome: condominios.name })
         .from(btgRemessas)
         .innerJoin(condominios, eq(condominios.id, btgRemessas.condominioId))
         .where(and(eq(btgRemessas.id, input.remessaId), eq(btgRemessas.btgIntegracaoId, integracao.id)))
         .limit(1);
-      if (!remessa) throw new TRPCError({ code: "NOT_FOUND", message: "Remessa não encontrada." });
-      const itens = await db.select({ item: btgRemessaItens, emissao: btgCobrancasEmitidas })
+      if (!registroRemessa) throw new TRPCError({ code: "NOT_FOUND", message: "Remessa não encontrada." });
+
+      const [conta] = await db.select({
+        rotulo: btgContasRecebedoras.rotulo,
+        agencia: btgContasRecebedoras.agencia,
+        numero: btgContasRecebedoras.numero,
+        nomeBeneficiario: btgContasRecebedoras.nomeBeneficiario,
+      }).from(btgContasRecebedoras)
+        .where(and(
+          eq(btgContasRecebedoras.id, registroRemessa.remessa.btgContaRecebedoraId),
+          eq(btgContasRecebedoras.btgIntegracaoId, integracao.id),
+        ))
+        .limit(1);
+
+      const itens = await db.select({
+        item: btgRemessaItens,
+        emissao: btgCobrancasEmitidas,
+        parcela: {
+          id: parcelasAcordo.id,
+          dueDate: parcelasAcordo.dueDate,
+          status: parcelasAcordo.status,
+        },
+        acordo: {
+          id: acordos.id,
+          status: acordos.status,
+        },
+        devedor: {
+          id: devedores.id,
+          name: devedores.name,
+          bloco: devedores.bloco,
+          unitNumber: devedores.unitNumber,
+        },
+      })
         .from(btgRemessaItens)
         .leftJoin(btgCobrancasEmitidas, eq(btgCobrancasEmitidas.id, btgRemessaItens.btgCobrancaEmitidaId))
+        .innerJoin(parcelasAcordo, eq(parcelasAcordo.id, btgRemessaItens.parcelaAcordoId))
+        .innerJoin(acordos, eq(acordos.id, parcelasAcordo.acordoId))
+        .innerJoin(devedores, eq(devedores.id, acordos.devedorId))
         .where(eq(btgRemessaItens.btgRemessaId, input.remessaId))
         .orderBy(btgRemessaItens.installmentNumber);
-      return { ...remessa, itens: itens.map(({ item, emissao }) => ({ ...item, emissao })) };
+      return {
+        remessa: registroRemessa.remessa,
+        condominioNome: registroRemessa.condominioNome,
+        conta: conta ? {
+          rotulo: conta.rotulo || conta.nomeBeneficiario || "Conta BTG",
+          agencia: conta.agencia,
+          numeroMascarado: mascararNumeroConta(conta.numero),
+        } : null,
+        itens: itens.map(({ item, emissao, parcela, acordo, devedor }) => ({ item, emissao, parcela, acordo, devedor })),
+      };
     }),
 
   prepararEmissaoAcordo: adminProcedure
