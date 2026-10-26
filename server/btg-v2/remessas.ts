@@ -34,7 +34,10 @@ export interface ResumoRemessaBtgV2 {
  * sem assumir uma versão específica do driver.
  */
 export function obterInsertIdBtgV2(resultado: unknown): number {
-  const cabecalho = Array.isArray(resultado) ? resultado[0] : resultado;
+  let cabecalho = resultado;
+  while (Array.isArray(cabecalho) && cabecalho.length > 0) {
+    cabecalho = cabecalho[0];
+  }
   if (!cabecalho || typeof cabecalho !== "object" || !("insertId" in cabecalho)) return 0;
   const bruto = (cabecalho as { insertId?: unknown }).insertId;
   const id = typeof bruto === "bigint" ? Number(bruto) : Number(bruto);

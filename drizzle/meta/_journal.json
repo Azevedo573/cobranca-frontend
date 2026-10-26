@@ -666,6 +666,13 @@
       "when": 1792885823367,
       "tag": "0095_nasty_squadron_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "5",
+      "when": 1793019074305,
+      "tag": "0096_sour_pyro",
+      "breakpoints": true
     }
   ]
 }

@@ -32,9 +32,9 @@ Após o cabeçalho ser persistido, os itens devem ser registrados e o lote deve 
 
 A remessa #2 contém `totalSelecionado=1`, sem itens, sem emissão e sem auditoria de envio. O ponto imediatamente posterior ao insert do cabeçalho interpreta incorretamente o resultado MySQL de inserção em ambientes onde o `insertId` é devolvido dentro de uma tupla/array.
 
-# Causa Provável
+# Causa Confirmada
 
-A leitura de `insertId` considerava apenas o formato de objeto direto. Quando o driver retorna uma tupla, o identificador é interpretado como zero e a rotina é interrompida antes de inserir os itens.
+O driver MySQL retornou o resultado de insert no formato `[{ insertId: 60001 }, null]`. A leitura anterior considerava somente um objeto direto, interpretava o identificador como zero e interrompia a rotina antes de inserir os itens.
 
 # Impactos Identificados
 
@@ -44,7 +44,7 @@ A leitura de `insertId` considerava apenas o formato de objeto direto. Quando o 
 
 # Correção Proposta
 
-1. Extrair `insertId` de forma compatível com objetos e tuplas retornadas pelo driver MySQL.
+1. Extrair `insertId` de forma compatível com objetos, tuplas e tuplas aninhadas retornadas pelo driver MySQL.
 2. Tratar falha de gravação de itens antes do envio como falha terminal do lote, com mensagem segura, totais coerentes e auditoria.
 3. Cobrir ambos os formatos de retorno por testes unitários.
 4. Não reenviar automaticamente a remessa #2 nem emitir qualquer cobrança durante a correção.
@@ -63,11 +63,11 @@ A leitura de `insertId` considerava apenas o formato de objeto direto. Quando o 
 
 # Correção de Dados Existentes
 
-A remessa Sandbox #2 deve ser mantida. Após validação do código, poderá ser marcada como `falha` com motivo técnico seguro, sem exclusão e sem tentativa automática de emissão.
+As remessas Sandbox #2 e #30001 foram mantidas e marcadas como `falha` com motivo técnico seguro, sem exclusão, sem tentativa automática e sem emissão BTG.
 
 # Histórico e Auditoria
 
-A correção registra auditoria de falha pré-envio para novos casos. O lote histórico #2 permanece preservado como evidência do cenário de homologação.
+A correção registra auditoria de falha pré-envio para novos casos. Os lotes históricos #2 e #30001 permanecem preservados como evidência do cenário de homologação.
 
 # Plano de Testes
 
@@ -99,4 +99,4 @@ Reexecutar uma nova remessa Sandbox manualmente após testes internos e validar 
 
 # Próximos Passos
 
-Implementar a correção, validar testes e orientar uma nova tentativa manual sem reutilizar automaticamente o lote #2.
+Executar uma nova tentativa manual no Sandbox, sem reutilizar automaticamente os lotes #2 ou #30001.

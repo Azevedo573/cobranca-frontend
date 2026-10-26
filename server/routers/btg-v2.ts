@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { randomUUID } from "crypto";
 import { and, desc, eq, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { logAudit } from "../audit";
@@ -532,6 +533,7 @@ export const btgV2Router = router({
         const selecionadas = validarSelecaoRemessaBtgV2({ condominioId: input.condominioId, parcelaIds: input.parcelaIds, fila });
         const valorTotalCentavos = selecionadas.reduce((total, parcela) => total + parcela.amount, 0);
         const now = new Date();
+        const correlationId = randomUUID();
         const result = await db.insert(btgRemessas).values({
           btgIntegracaoId: integracao.id,
           btgContaRecebedoraId: contaVinculada.id,
@@ -540,12 +542,20 @@ export const btgV2Router = router({
           totalSelecionado: selecionadas.length,
           valorTotalCentavos,
           usuarioCriadorId: ctx.user.id,
+          correlationId,
           observacao: input.observacao || null,
           criadaEm: now,
           createdAt: now,
           updatedAt: now,
         });
-        const remessaId = obterInsertIdBtgV2(result);
+        let remessaId = obterInsertIdBtgV2(result);
+        if (!remessaId) {
+          const [registrada] = await db.select({ id: btgRemessas.id })
+            .from(btgRemessas)
+            .where(eq(btgRemessas.correlationId, correlationId))
+            .limit(1);
+          remessaId = registrada?.id ?? 0;
+        }
         if (!remessaId) throw new BtgV2ConfigurationError("Não foi possível registrar a remessa BTG antes do envio.");
 
         try {

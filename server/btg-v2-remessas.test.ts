@@ -46,6 +46,7 @@ describe("BTG v2 — consolidação de remessas", () => {
     expect(obterInsertIdBtgV2({ insertId: 42 })).toBe(42);
     expect(obterInsertIdBtgV2([{ insertId: 43 }, []])).toBe(43);
     expect(obterInsertIdBtgV2([{ insertId: BigInt(44) }, []])).toBe(44);
+    expect(obterInsertIdBtgV2([[{ insertId: 45 }, []], []])).toBe(45);
   });
 
   it("retorna zero para resultado de insert sem identificador válido", () => {

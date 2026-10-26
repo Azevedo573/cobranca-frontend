@@ -389,6 +389,9 @@ export const btgRemessas = mysqlTable("btgRemessas", {
   totalFalha: int("totalFalha").default(0).notNull(),
   valorTotalCentavos: int("valorTotalCentavos").default(0).notNull(),
   usuarioCriadorId: int("usuarioCriadorId").notNull(),
+  // Identificador técnico do comando de criação. Permite recuperar o lote
+  // correto mesmo quando o driver MySQL não expõe insertId no formato esperado.
+  correlationId: varchar("correlationId", { length: 64 }),
   observacao: varchar("observacao", { length: 500 }),
   erroResumo: varchar("erroResumo", { length: 500 }),
   criadaEm: timestamp("criadaEm").defaultNow().notNull(),
@@ -399,6 +402,7 @@ export const btgRemessas = mysqlTable("btgRemessas", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("btgRemessas_integracao_condominio_status_idx").on(table.btgIntegracaoId, table.condominioId, table.status, table.criadaEm),
+  uniqueIndex("btgRemessas_correlationId_unique").on(table.correlationId),
 ]);
 export type BtgRemessa = typeof btgRemessas.$inferSelect;
 export type InsertBtgRemessa = typeof btgRemessas.$inferInsert;
