@@ -1,0 +1,2 @@
+ALTER TABLE `btgCobrancasEmitidas` DROP INDEX `btgCobrancasEmitidas_integracao_collection_unique`;--> statement-breakpoint
+CREATE INDEX `btgCobrancasEmitidas_integracao_collection_idx` ON `btgCobrancasEmitidas` (`btgIntegracaoId`,`btgCollectionId`);

@@ -100,3 +100,9 @@ Reexecutar uma nova remessa Sandbox manualmente após testes internos e validar 
 # Próximos Passos
 
 Executar uma nova tentativa manual no Sandbox, sem reutilizar automaticamente os lotes #2 ou #30001.
+
+## Adendo — retorno estático do Sandbox
+
+Na tentativa posterior, o BTG Sandbox retornou o mesmo `collectionId` estático usado por uma emissão Sandbox anterior. A API respondeu com sucesso, mas a constraint única local de `collectionId` bloqueou a atualização do registro. A proteção contra duplicidade correta permanece nas chaves únicas de origem, `externalId` e `idempotencyKey`; o `collectionId` passa a ser somente indexado para permitir consulta e conciliação também no Sandbox.
+
+A remessa Sandbox #90001 foi reconciliada a partir da resposta já recebida: 1 item emitido e lote `processada`. Não foi realizada uma segunda chamada ao BTG.

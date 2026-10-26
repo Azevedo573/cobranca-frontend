@@ -448,7 +448,10 @@ export const btgCobrancasEmitidas = mysqlTable("btgCobrancasEmitidas", {
     .on(table.btgIntegracaoId, table.externalId),
   uniqueIndex("btgCobrancasEmitidas_integracao_idempotencyKey_unique")
     .on(table.btgIntegracaoId, table.idempotencyKey),
-  uniqueIndex("btgCobrancasEmitidas_integracao_collection_unique")
+  // O Sandbox pode reutilizar collectionId estático entre respostas. A
+  // idempotência é garantida por origem/externalId/idempotencyKey; aqui o ID
+  // do provedor serve apenas para consulta e conciliação.
+  index("btgCobrancasEmitidas_integracao_collection_idx")
     .on(table.btgIntegracaoId, table.btgCollectionId),
   index("btgCobrancasEmitidas_integracao_status_idx").on(table.btgIntegracaoId, table.status, table.dueDate),
   index("btgCobrancasEmitidas_remessa_idx").on(table.btgRemessaId),

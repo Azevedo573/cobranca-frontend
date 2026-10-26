@@ -31,4 +31,11 @@ describe("BTG v2 — proteção de emissão", () => {
       btgEmissaoV2Existente: true,
     })).toEqual({ elegivel: false, motivo: "Parcela já vinculada a uma remessa CNAB, boleto legado ou emissão BolePix" });
   });
+
+  it("mantém a idempotência por origem e ambiente, independentemente do identificador retornado pelo Sandbox", () => {
+    const primeiraOrigem = gerarIdempotencyKeyBtgV2(gerarExternalIdBtgV2("sandbox", "parcela_acordo", 10));
+    const segundaOrigem = gerarIdempotencyKeyBtgV2(gerarExternalIdBtgV2("sandbox", "parcela_acordo", 11));
+
+    expect(primeiraOrigem).not.toBe(segundaOrigem);
+  });
 });
