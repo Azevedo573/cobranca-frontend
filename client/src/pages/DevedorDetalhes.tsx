@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Link, useRoute, useLocation } from "wouter";
 import { format } from "date-fns";
 import { formatarDataVencimento } from "@/lib/dateUtils";
+import { agruparParcelasPorAcordo } from "@/lib/resumoAcordos";
 import { calcularValorDevido, calcularTotalMultiplasCobrancas, formatarMoeda, type TaxasCondominio } from "../../../shared/calculos";
 import { SimuladorAcordoMultiplo } from "@/components/SimuladorAcordoMultiplo";
 import { DashboardDevedorMetricas } from "@/components/DashboardDevedorMetricas";
@@ -150,6 +151,11 @@ export default function DevedorDetalhes() {
   const cobrancas = cobrancasData?.cobrancas ?? [];
   const parcelasAcordoAtivas = cobrancasData?.parcelasAcordo ?? [];
   const temAcordoAtivo = cobrancasData?.temAcordoAtivo ?? false;
+  const resumosAcordosAtivos = useMemo(
+    () => agruparParcelasPorAcordo(parcelasAcordoAtivas),
+    [parcelasAcordoAtivas],
+  );
+  const quantidadeItensVisuais = cobrancas.length + resumosAcordosAtivos.length;
 
   const { data: condominio } = trpc.condominios.getById.useQuery(
     { id: devedor?.condominioId! },
@@ -579,7 +585,7 @@ export default function DevedorDetalhes() {
             <Tabs defaultValue="cobrancas" className="w-full">
               <TabsList className="w-full mb-4 grid grid-cols-3">
                 <TabsTrigger value="cobrancas">
-                  Cobranças ({temAcordoAtivo ? parcelasAcordoAtivas.length : cobrancas.length})
+                  Cobranças ({quantidadeItensVisuais})
                   {temAcordoAtivo && <span className="ml-1.5 px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 rounded-full font-semibold">Acordo</span>}
                 </TabsTrigger>
                 <TabsTrigger value="historico">Histórico & Acordos</TabsTrigger>
@@ -637,18 +643,14 @@ export default function DevedorDetalhes() {
                         <div className="flex items-center gap-2">
                           <Handshake className="h-4 w-4 text-blue-600" />
                           <div>
-                            <CardTitle className="text-base text-blue-800">Parcelas do Acordo Ativo</CardTitle>
-                            <CardDescription>{parcelasAcordoAtivas.length} parcela(s) do acordo em andamento</CardDescription>
+                            <CardTitle className="text-base text-blue-800">Acordos Ativos</CardTitle>
+                            <CardDescription>{resumosAcordosAtivos.length} acordo(s) em andamento</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent>
-                        <CobrancasTabela
-                          cobrancas={parcelasAcordoAtivas}
-                          filtroStatus="todos"
-                          mostrarTodas={true}
-                          setMostrarTodas={() => {}}
-                          limiteInicial={parcelasAcordoAtivas.length}
+                        <ResumoAcordosAtivos
+                          parcelas={parcelasAcordoAtivas}
                           modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
                         />
                       </CardContent>
@@ -664,7 +666,7 @@ export default function DevedorDetalhes() {
                             <CardTitle>Cobranças</CardTitle>
                             <CardDescription>
                               {temAcordoAtivo
-                                ? `${parcelasAcordoAtivas.length} parcela(s) de acordo ativo`
+                                ? `${resumosAcordosAtivos.length} acordo(s) ativo(s)`
                                 : `Total: ${cobrancas.length} cobrança(s)`}
                             </CardDescription>
                           </div>
@@ -690,17 +692,24 @@ export default function DevedorDetalhes() {
                       {temAcordoAtivo && (
                         <div className="mb-3 flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
                           <Handshake className="h-4 w-4 text-blue-600 shrink-0" />
-                          <span>Todas as cobranças estão vinculadas a um <strong>acordo ativo</strong>. Abaixo são exibidas as parcelas do acordo.</span>
+                          <span>Todas as cobranças estão vinculadas a um <strong>acordo ativo</strong>. Abaixo, cada acordo aparece consolidado e as parcelas podem ser expandidas.</span>
                         </div>
                       )}
-                      <CobrancasTabela
-                        cobrancas={temAcordoAtivo ? parcelasAcordoAtivas : cobrancas}
-                        filtroStatus={filtroStatus}
-                        mostrarTodas={mostrarTodas}
-                        setMostrarTodas={setMostrarTodas}
-                        limiteInicial={LIMITE_INICIAL}
-                        modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
-                      />
+                      {temAcordoAtivo ? (
+                        <ResumoAcordosAtivos
+                          parcelas={parcelasAcordoAtivas}
+                          modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                        />
+                      ) : (
+                        <CobrancasTabela
+                          cobrancas={cobrancas}
+                          filtroStatus={filtroStatus}
+                          mostrarTodas={mostrarTodas}
+                          setMostrarTodas={setMostrarTodas}
+                          limiteInicial={LIMITE_INICIAL}
+                          modoBoleto={((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg"}
+                        />
+                      )}
                     </CardContent>
                   </Card>
                 )}
@@ -1075,6 +1084,145 @@ export default function DevedorDetalhes() {
           />
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ===== Componente interno: resumo expansível de acordos ativos =====
+function ResumoAcordosAtivos({
+  parcelas,
+  modoBoleto,
+}: {
+  parcelas: any[];
+  modoBoleto?: "cnab240" | "api_btg";
+}) {
+  const [acordosExpandidos, setAcordosExpandidos] = useState<Set<number>>(new Set());
+  const resumos = useMemo(() => agruparParcelasPorAcordo(parcelas), [parcelas]);
+
+  const alternarAcordo = (acordoId: number) => {
+    setAcordosExpandidos((anteriores) => {
+      const proximos = new Set(anteriores);
+      proximos.has(acordoId) ? proximos.delete(acordoId) : proximos.add(acordoId);
+      return proximos;
+    });
+  };
+
+  const statusResumo = {
+    pendente: { label: "Em andamento", classe: "bg-blue-100 text-blue-800 border-blue-200" },
+    atrasado: { label: "Com parcela em atraso", classe: "bg-red-100 text-red-800 border-red-200" },
+    pago: { label: "Quitado", classe: "bg-green-100 text-green-800 border-green-200" },
+    cancelado: { label: "Cancelado", classe: "bg-muted text-muted-foreground border-border" },
+  } as const;
+
+  if (resumos.length === 0) {
+    return <div className="text-center py-8 text-muted-foreground">Nenhum acordo ativo encontrado.</div>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Acordo</TableHead>
+            <TableHead>Progresso</TableHead>
+            <TableHead>Próximo vencimento</TableHead>
+            <TableHead>Total negociado</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {resumos.map((resumo) => {
+            const expandido = acordosExpandidos.has(resumo.acordoId);
+            const progresso = resumo.quantidadeParcelas > 0
+              ? (resumo.parcelasPagas / resumo.quantidadeParcelas) * 100
+              : 0;
+            const status = statusResumo[resumo.status];
+
+            return (
+              <React.Fragment key={resumo.acordoId}>
+                <TableRow className="bg-blue-50/40 hover:bg-blue-50/70 dark:bg-blue-950/10 dark:hover:bg-blue-950/20">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                        <Handshake className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">Acordo #{resumo.acordoId}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {resumo.quantidadeParcelas} parcela(s) · saldo em aberto {formatarMoeda(resumo.saldoEmAberto / 100)}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="min-w-28 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium">{resumo.parcelasPagas}/{resumo.quantidadeParcelas} pagas</span>
+                        <span className="text-muted-foreground">{Math.round(progresso)}%</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progresso}%` }} />
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {resumo.proximoVencimento
+                      ? formatarDataVencimento(resumo.proximoVencimento)
+                      : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="font-semibold">{formatarMoeda(resumo.totalNegociado / 100)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`text-xs ${status.classe}`}>{status.label}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => alternarAcordo(resumo.acordoId)}
+                        aria-expanded={expandido}
+                      >
+                        {expandido ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        {expandido ? "Ocultar parcelas" : "Ver parcelas"}
+                      </Button>
+                      <Button asChild size="sm" variant="ghost" className="gap-1.5">
+                        <Link href={`/acordos/${resumo.acordoId}`}>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Abrir acordo
+                        </Link>
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                {expandido && (
+                  <TableRow className="bg-blue-50/30 dark:bg-blue-950/10">
+                    <TableCell colSpan={6} className="p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">Parcelas do Acordo #{resumo.acordoId}</p>
+                          <p className="text-xs text-muted-foreground">Os boletos, linhas digitáveis e Pix permanecem disponíveis por parcela.</p>
+                        </div>
+                        <span className="text-xs font-medium text-muted-foreground">Saldo em aberto: {formatarMoeda(resumo.saldoEmAberto / 100)}</span>
+                      </div>
+                      <CobrancasTabela
+                        cobrancas={resumo.parcelas}
+                        filtroStatus="todos"
+                        mostrarTodas={true}
+                        setMostrarTodas={() => {}}
+                        limiteInicial={resumo.quantidadeParcelas}
+                        modoBoleto={modoBoleto}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }

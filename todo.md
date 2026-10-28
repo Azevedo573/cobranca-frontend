@@ -2846,3 +2846,8 @@
 - [x] Invalidar a lista unificada de cobranças após cadastro de nova dívida
 - [x] Atualizar métricas e visão consolidada do devedor sem recarregar a página
 - [x] Cobrir a política de atualização pós-cadastro com teste automatizado
+## Melhoria de UX — Acordos Consolidados no Detalhe do Devedor
+- [x] Exibir uma linha-resumo por acordo ativo, em vez de uma linha por parcela
+- [x] Mostrar total negociado, saldo, progresso e próximo vencimento por acordo
+- [x] Preservar parcelas, PDFs e Pix em expansão sob demanda
+- [x] Cobrir totais, progresso, status e ordenação com testes automatizados
