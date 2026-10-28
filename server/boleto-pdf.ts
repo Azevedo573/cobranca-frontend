@@ -144,6 +144,21 @@ function formatarValorCentavos(centavos: number): string {
   return String(centavos).padStart(10, "0");
 }
 
+/**
+ * Mantém o payload EMV do Pix íntegro e usa quebras apenas como recurso visual
+ * para o PDF. Espaços fazem parte de campos EMV e jamais podem ser removidos.
+ */
+export function formatarPixCopiaColaParaExibicao(payload: string, caracteresPorLinha = 32): string {
+  const codigo = payload.replace(/\r?\n/g, "").trim();
+  if (!codigo) return "";
+
+  const linhas: string[] = [];
+  for (let inicio = 0; inicio < codigo.length; inicio += caracteresPorLinha) {
+    linhas.push(codigo.slice(inicio, inicio + caracteresPorLinha));
+  }
+  return linhas.join("\n");
+}
+
 export function calcularCodigoBarras(d: DadosBoleto): string {
   const banco = d.banco.padStart(3, "0");
   const moeda = "9";
@@ -891,27 +906,22 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       const PIX_VERDE = "#32BCAD";
       const xPix = ML + wBarras + 12;
       const wPix = MR - xPix;
-      const QR_SIZE = alturaBarras + 20;
+      const QR_SIZE = alturaBarras + 28;
 
       doc.font(FONTE_BOLD).fontSize(8.5).fillColor(PIX_VERDE)
         .text("Pague com o PIX", xPix, y, { width: wPix - QR_SIZE - 6, lineBreak: false });
 
-      const pixInfoY = y + 12;
       const wPixInfo = wPix - QR_SIZE - 6;
-      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
-        .text("CNPJ:", xPix, pixInfoY, { width: wPixInfo, lineBreak: false });
-      doc.font(FONTE).fontSize(7).fillColor(PRETO)
-        .text(formatarCNPJ(dados.cnpjBeneficiario), xPix + 28, pixInfoY, { width: wPixInfo - 28, lineBreak: false });
-
-      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
-        .text("Vencimento:", xPix, pixInfoY + 11, { width: wPixInfo, lineBreak: false });
-      doc.font(FONTE).fontSize(7).fillColor(PRETO)
-        .text(formatarData(dados.dataVencimento), xPix + 50, pixInfoY + 11, { width: wPixInfo - 50, lineBreak: false });
-
-      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
-        .text("Valor:", xPix, pixInfoY + 22, { width: wPixInfo, lineBreak: false });
-      doc.font(FONTE_BOLD).fontSize(7).fillColor(PRETO)
-        .text(formatarValorReaisMoeda(dados.valor), xPix + 28, pixInfoY + 22, { width: wPixInfo - 28, lineBreak: false });
+      const pixInfoY = y + 12;
+      const codigoPixExibicao = formatarPixCopiaColaParaExibicao(dados.pixCopiaCola!, 28);
+      doc.font(FONTE).fontSize(5.8).fillColor(CINZA_LABEL)
+        .text("PIX COPIA E COLA", xPix, pixInfoY, { width: wPixInfo, lineBreak: false });
+      doc.font("Courier").fontSize(5.8).fillColor(PRETO)
+        .text(codigoPixExibicao, xPix, pixInfoY + 8, {
+          width: wPixInfo,
+          lineBreak: false,
+          lineGap: 1,
+        });
 
       const xQR = MR - QR_SIZE;
       doc.rect(xQR - 2, y - 2, QR_SIZE + 4, QR_SIZE + 4)

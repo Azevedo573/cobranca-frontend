@@ -190,3 +190,11 @@ Para o acordo `#1410001`, a medida segura é gerar manualmente um novo PDF corri
 # Próximos Passos
 
 Implementar a correção de PDF e UX sem migration e sem alterar dados existentes, criar testes dos dois títulos do acordo e apresentar os PDFs corrigidos para validação manual antes de qualquer deploy.
+
+## Complemento Implementado — Pix Copia e Cola
+
+- **Comportamento corrigido:** o quadro `Pague com o PIX` não mostra mais o CNPJ do beneficiário como se fosse informação de pagamento Pix.
+- **Nova regra:** o QR Code e o texto `PIX COPIA E COLA` usam o mesmo payload EMV de `pixCopiaCola`. O texto é quebrado somente para caber no PDF; espaços válidos do payload são preservados.
+- **Sem impacto financeiro:** valor, código de barras, linha digitável, nosso número, dados do acordo e integração bancária não foram alterados.
+- **Reversão:** restaurar somente o bloco visual da ficha de compensação; não há migration, alteração de dados ou reprocessamento.
+- **Validação:** teste automatizado preserva o payload completo e inspeção de PDF confirma a ausência de CNPJ dentro do quadro Pix.

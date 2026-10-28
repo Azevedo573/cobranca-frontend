@@ -2841,3 +2841,4 @@
 - [x] Manter a composição das cobranças originais como origem do acordo, sem alterar o título bancário
 - [x] Padronizar snapshots de novos acordos como memória histórica integral, sem rateio por parcela
 - [x] Validar com testes, build e cenário de entrada de R$ 50,00 para acordo de R$ 113,01
+- [x] Exibir Pix Copia e Cola no quadro de pagamento Pix, sem confundi-lo com o CNPJ do beneficiário

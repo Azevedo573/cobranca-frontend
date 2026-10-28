@@ -3,6 +3,7 @@ import {
   calcularCodigoBarras,
   calcularLinhaDigitavel,
   formatarLinhaDigitavel,
+  formatarPixCopiaColaParaExibicao,
   type DadosBoleto,
 } from "./boleto-pdf";
 
@@ -133,6 +134,21 @@ describe("formatarLinhaDigitavel", () => {
     const linha = calcularLinhaDigitavel(codigo);
     const formatada = formatarLinhaDigitavel(linha);
     expect(formatada.substring(0, 3)).toBe("208");
+  });
+});
+
+describe("formatarPixCopiaColaParaExibicao", () => {
+  it("mantém integralmente o payload Pix, inclusive espaços válidos, ao quebrá-lo para leitura no PDF", () => {
+    const payload = "00020126580014BR.GOV.BCB.PIX0136f1e62a0f-1a27-4bb5-8e4c-01f327c97626520400005303986540650.005802BR5920GOMES E SILVA ADVOCACIA6009RIO DE JANEIRO62070503***6304ABCD";
+    const exibicao = formatarPixCopiaColaParaExibicao(payload, 32);
+
+    expect(exibicao.replace(/\n/g, "")).toBe(payload);
+    expect(exibicao.split("\n").every((linha) => linha.length <= 32)).toBe(true);
+  });
+
+  it("remove apenas quebras técnicas sem alterar os espaços do payload", () => {
+    expect(formatarPixCopiaColaParaExibicao("  000201  2658\n0014BR  ", 8))
+      .toBe("000201  \n26580014\nBR");
   });
 });
 
