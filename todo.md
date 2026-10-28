@@ -2834,3 +2834,10 @@
 - [x] Normalizar metadados documentais sem baixar ou armazenar arquivo externo
 - [x] Exibir referências oficiais no detalhe de movimentação da timeline jurídica
 - [x] Testar a validação de URL oficial e a deduplicação de referências
+
+## Correção de Clareza — Boleto de Acordo
+- [x] Separar visualmente o valor exigível do boleto da base histórica da dívida
+- [x] Exibir resumo do acordo e plano de parcelas no recibo do pagador
+- [x] Manter a composição das cobranças originais como origem do acordo, sem alterar o título bancário
+- [x] Padronizar snapshots de novos acordos como memória histórica integral, sem rateio por parcela
+- [x] Validar com testes, build e cenário de entrada de R$ 50,00 para acordo de R$ 113,01
