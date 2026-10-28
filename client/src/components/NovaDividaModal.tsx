@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { atualizarConsultasAposCriarDivida } from "@/lib/atualizacaoDivida";
 import { toast } from "sonner";
 
 interface NovaDividaModalProps {
@@ -25,12 +26,16 @@ export function NovaDividaModal({ open, onOpenChange, devedorId, condominioId }:
   const utils = trpc.useUtils();
 
   const createMutation = trpc.cobrancas.create.useMutation({
-    onSuccess: () => {
-      toast.success("Dívida cadastrada com sucesso!");
-      utils.cobrancas.getByDevedor.invalidate({ devedorId });
-      utils.devedores.getById.invalidate({ id: devedorId });
+    onSuccess: async () => {
+      await atualizarConsultasAposCriarDivida(devedorId, {
+        cobrancasComAcordos: (id) => utils.cobrancas.getComAcordos.invalidate({ devedorId: id }),
+        cobrancasPorDevedor: (id) => utils.cobrancas.getByDevedor.invalidate({ devedorId: id }),
+        devedor: (id) => utils.devedores.getById.invalidate({ id }),
+        visao360: (id) => utils.devedores.visao360.invalidate({ id }),
+      });
       resetForm();
       onOpenChange(false);
+      toast.success("Dívida cadastrada e lista atualizada!");
     },
     onError: (error) => {
       toast.error("Erro ao cadastrar dívida: " + error.message);

@@ -2842,3 +2842,7 @@
 - [x] Padronizar snapshots de novos acordos como memória histórica integral, sem rateio por parcela
 - [x] Validar com testes, build e cenário de entrada de R$ 50,00 para acordo de R$ 113,01
 - [x] Exibir Pix Copia e Cola no quadro de pagamento Pix, sem confundi-lo com o CNPJ do beneficiário
+## Correção de Atualização — Nova Dívida no Detalhe do Devedor
+- [x] Invalidar a lista unificada de cobranças após cadastro de nova dívida
+- [x] Atualizar métricas e visão consolidada do devedor sem recarregar a página
+- [x] Cobrir a política de atualização pós-cadastro com teste automatizado
