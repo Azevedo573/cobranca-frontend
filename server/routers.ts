@@ -1471,6 +1471,10 @@ export const appRouter = router({
         const condominio = await getCondominioById(acordo.condominioId);
         if (!condominio) throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado" });
 
+        const planoParcelas = await db.select().from(parcelasAcordo)
+          .where(eq(parcelasAcordo.acordoId, acordo.id));
+        const { montarContextoBoletoAcordo } = await import("./boleto-acordo");
+
         const dataVencimento = parcela.dueDate ? new Date(parcela.dueDate) : new Date();
         const dataEmissao = new Date();
 
@@ -1502,6 +1506,25 @@ export const appRouter = router({
             descricao: `Parcela ${parcela.nossoNumero}`,
           }) || undefined;
         }
+
+        const itensHistoricosParaResumo = await getCobrancasComCalculosPorAcordo(acordo.id);
+        const valorOrigem = parcela.snapshotValorAtualizado ?? itensHistoricosParaResumo.reduce(
+          (total, item) => total + Math.round((item.breakdown.valorTotal || 0) * 100),
+          0,
+        );
+        const contextoAcordo = montarContextoBoletoAcordo({
+          acordoId: acordo.id,
+          valorOrigem,
+          totalNegociado: acordo.agreedAmount,
+          parcelaAtualId: parcela.id,
+          parcelas: planoParcelas.map((item) => ({
+            id: item.id,
+            installmentNumber: item.installmentNumber,
+            amount: item.amount,
+            dueDate: new Date(item.dueDate),
+            status: item.status,
+          })),
+        });
 
         const dados = {
           nomeBeneficiario: config.nomeBeneficiario || condominio.name,
@@ -1550,6 +1573,7 @@ export const appRouter = router({
               total: Math.round((c.breakdown.valorTotal || 0) * 100),
             }));
           })(),
+          contextoAcordo,
         };
 
         const pdfBuffer = await gerarBoletoPDF(dados);
@@ -1587,6 +1611,7 @@ export const appRouter = router({
       const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
       const { gerarPixCopiaCola } = await import("./pix-emv");
       const { storagePut } = await import("./storage");
+      const { montarContextoBoletoAcordo } = await import("./boleto-acordo");
 
       // Buscar acordo
       const acordoRows = await db.select().from(acordos).where(eq(acordos.id, input.acordoId)).limit(1);
@@ -1637,6 +1662,8 @@ export const appRouter = router({
         desconto: 0,
         total: Math.round((c.breakdown.valorTotal || 0) * 100),
       }));
+      const valorOrigemLote = parcelas.find((item) => item.snapshotValorAtualizado != null)?.snapshotValorAtualizado
+        ?? itensCobrancaLote.reduce((total, item) => total + item.total, 0);
 
       const boletos: Array<{ parcelaId: number; numeroParcela: number; url: string; linhaDigitavel: string; valor: number; vencimento: string }> = [];
 
@@ -1668,6 +1695,20 @@ export const appRouter = router({
           }) || undefined;
         }
 
+        const contextoAcordo = montarContextoBoletoAcordo({
+          acordoId: acordo.id,
+          valorOrigem: valorOrigemLote,
+          totalNegociado: acordo.agreedAmount,
+          parcelaAtualId: parcela.id,
+          parcelas: parcelas.map((item) => ({
+            id: item.id,
+            installmentNumber: item.installmentNumber,
+            amount: item.amount,
+            dueDate: new Date(item.dueDate),
+            status: item.status,
+          })),
+        });
+
         const dados = {
           nomeBeneficiario: config.nomeBeneficiario || condominio.name,
           cnpjBeneficiario: config.cnpjBeneficiario || condominio.cnpj || "",
@@ -1698,6 +1739,7 @@ export const appRouter = router({
           pixCopiaCola,
           credorTitulo: condominio.name,
           itensCobranca: itensCobrancaLote,
+          contextoAcordo,
         };
 
         const pdfBuffer = await gerarBoletoPDF(dados);

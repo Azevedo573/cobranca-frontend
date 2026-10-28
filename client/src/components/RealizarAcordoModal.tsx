@@ -31,6 +31,7 @@ import EnviarEmailModal from "@/components/EnviarEmailModal";
 import { CustasJudiciais } from "@/components/CustasJudiciais";
 import { BTGEnviarParcelasAcordoModal } from "@/components/BTGEnviarParcelasAcordoModal";
 import { calcularPlanoAcordo, formatarMoedaAcordo } from "@/../../shared/calculos-acordo";
+import { criarSnapshotBaseAcordo } from "@/../../shared/snapshot-acordo";
 import { format } from "date-fns";
 import { formatarDataVencimento } from "@/lib/dateUtils";
 
@@ -366,22 +367,22 @@ export function RealizarAcordoModal({
     const snapHonorarios = Math.round(titulosSelecionados.reduce((s, t) => s + t.honorario, 0) * 100);
     const snapValorAtualizado = Math.round(titulosSelecionados.reduce((s, t) => s + t.total, 0) * 100);
     const snapDescricao = titulosSelecionados.map((t) => t.titulo).join(" | ");
-
-    // Distribuir snapshot proporcionalmente entre as parcelas
-    const totalParcelas = plano.numeroParcelas;
-    const proporcaoPorParcela = 1 / totalParcelas;
+    const snapshotBaseAcordo = criarSnapshotBaseAcordo({
+      principal: snapPrincipal,
+      juros: snapJuros,
+      multa: snapMulta,
+      correcao: snapCorrecao,
+      honorarios: snapHonorarios,
+      valorAtualizado: snapValorAtualizado,
+      descricao: snapDescricao,
+    });
 
     // Parcela de entrada (installmentNumber = 0)
     const parcelaEntrada = temEntrada && parseFloat(valorEntrada || "0") > 0 ? [{
       installmentNumber: 0,
       amount: Math.round(parseFloat(valorEntrada) * 100),
       dueDate: new Date(dataVencimentoEntrada + "T12:00:00"),
-      snapshotPrincipal: Math.round(snapPrincipal * proporcaoPorParcela),
-      snapshotJuros: Math.round(snapJuros * proporcaoPorParcela),
-      snapshotMulta: Math.round(snapMulta * proporcaoPorParcela),
-      snapshotCorrecao: Math.round(snapCorrecao * proporcaoPorParcela),
-      snapshotHonorarios: Math.round(snapHonorarios * proporcaoPorParcela),
-      snapshotValorAtualizado: Math.round(snapValorAtualizado * proporcaoPorParcela),
+      ...snapshotBaseAcordo,
       snapshotDescricao: `Entrada — ${snapDescricao}`,
     }] : [];
 
@@ -399,17 +400,12 @@ export function RealizarAcordoModal({
       notes,
       parcelas: [
         ...parcelaEntrada,
-        ...plano.parcelas.map((p, idx) => ({
+        ...plano.parcelas.map((p) => ({
           installmentNumber: p.numeroParcela,
           amount: p.valor,
           dueDate: p.dataVencimento,
-          snapshotPrincipal: Math.round(snapPrincipal * proporcaoPorParcela),
-          snapshotJuros: Math.round(snapJuros * proporcaoPorParcela),
-          snapshotMulta: Math.round(snapMulta * proporcaoPorParcela),
-          snapshotCorrecao: Math.round(snapCorrecao * proporcaoPorParcela),
-          snapshotHonorarios: Math.round(snapHonorarios * proporcaoPorParcela),
-          snapshotValorAtualizado: Math.round(snapValorAtualizado * proporcaoPorParcela),
-          snapshotDescricao: idx === 0 ? snapDescricao : undefined,
+          ...snapshotBaseAcordo,
+          snapshotDescricao: `Parcela ${p.numeroParcela}/${plano.numeroParcelas} — ${snapDescricao}`,
         }))
       ],
     });

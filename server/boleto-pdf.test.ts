@@ -150,6 +150,25 @@ describe("Consistência código de barras e linha digitável", () => {
     expect(codigo1).not.toBe(codigo2);
   });
 
+  it("mantém o valor da parcela no código mesmo quando o contexto histórico do acordo é maior", () => {
+    const dadosEntrada = {
+      ...dadosTeste,
+      valor: 5000,
+      contextoAcordo: {
+        acordoId: 1410001,
+        referenciaParcelaAtual: "Entrada do Acordo #1410001",
+        valorDocumento: 5000,
+        valorOrigem: 11301,
+        totalNegociado: 11301,
+        saldoAposEstePagamento: 6301,
+        parcelas: [],
+      },
+    };
+    const codigo = calcularCodigoBarras(dadosEntrada);
+
+    expect(codigo.substring(9, 19)).toBe("0000005000");
+  });
+
   it("deve gerar códigos diferentes para datas de vencimento diferentes", () => {
     // Usar datas dentro da data base 1 (antes de 21/02/2025) para garantir diferença
     const dados1 = { ...dadosTeste, dataVencimento: new Date("2024-06-12T12:00:00.000Z") };

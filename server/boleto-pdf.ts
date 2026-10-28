@@ -30,6 +30,26 @@ export interface ItemCobranca {
   total: number;           // em centavos
 }
 
+export interface ParcelaPlanoBoletoAcordo {
+  id: number;
+  etapa: string;
+  valor: number;
+  vencimento: Date;
+  situacao: string;
+  documentoAtual: boolean;
+}
+
+/** Contexto informativo. Nenhum desses campos altera o título bancário. */
+export interface ContextoBoletoAcordoPdf {
+  acordoId: number;
+  referenciaParcelaAtual: string;
+  valorDocumento: number;
+  valorOrigem: number;
+  totalNegociado: number;
+  saldoAposEstePagamento: number;
+  parcelas: ParcelaPlanoBoletoAcordo[];
+}
+
 export interface DadosBoleto {
   // Beneficiário (cedente)
   nomeBeneficiario: string;
@@ -69,6 +89,8 @@ export interface DadosBoleto {
   pixCopiaCola?: string;
   // Composição da cobrança (opcional)
   itensCobranca?: ItemCobranca[];
+  // Contexto de acordo: somente para exibição no recibo do pagador
+  contextoAcordo?: ContextoBoletoAcordoPdf;
 }
 
 // ─── Cálculos FEBRABAN ────────────────────────────────────────────────────────
@@ -275,9 +297,11 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
 
     // ── Constantes de layout ──
     const PAGE_W = 595.28;
+    const PAGE_H = 841.89;
     const ML = 30;
     const MR = PAGE_W - 30;
     const W = MR - ML;
+    const MARGEM_INF = 30;
 
     const PRETO = "#000000";
     const CINZA_LABEL = "#666666";
@@ -418,6 +442,20 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     hLine(y, ML, MR, CINZA_BORDA, 0.8);
     y += 8;
 
+    const contextoAcordo = dados.contextoAcordo;
+    if (contextoAcordo) {
+      const H_DESTAQUE = 42;
+      doc.roundedRect(ML, y, W, H_DESTAQUE, 4).fillColor("#EAF2FF").fill();
+      doc.roundedRect(ML, y, W, H_DESTAQUE, 4).strokeColor("#7CA8E8").lineWidth(0.8).stroke();
+      doc.font(FONTE_BOLD).fontSize(7).fillColor(AZUL_BTG)
+        .text("VALOR EXIGÍVEL NESTE BOLETO", ML + 9, y + 7, { lineBreak: false });
+      doc.font(FONTE).fontSize(8).fillColor(PRETO)
+        .text(contextoAcordo.referenciaParcelaAtual, ML + 9, y + 20, { width: W - 165, lineBreak: false });
+      doc.font(FONTE_BOLD).fontSize(16).fillColor(AZUL_BTG)
+        .text(`R$ ${formatarValorReais(contextoAcordo.valorDocumento)}`, MR - 145, y + 13, { width: 135, align: "right", lineBreak: false });
+      y += H_DESTAQUE + 9;
+    }
+
     // ── Detalhes da fatura ──
     doc.font(FONTE_BOLD).fontSize(9).fillColor(PRETO)
       .text("Detalhes da fatura", ML, y, { lineBreak: false });
@@ -455,6 +493,84 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     hLine(y, ML, MR, CINZA_BORDA, 0.5);
     y += 6;
 
+    if (contextoAcordo) {
+      const H_RESUMO = 42;
+      const W_CARD = (W - 12) / 3;
+      const cards = [
+        { label: "Saldo de origem registrado", valor: contextoAcordo.valorOrigem },
+        { label: "Total negociado no acordo", valor: contextoAcordo.totalNegociado },
+        { label: "Saldo após este pagamento", valor: contextoAcordo.saldoAposEstePagamento },
+      ];
+
+      if (y + H_RESUMO + 28 > PAGE_H - MARGEM_INF) {
+        doc.addPage();
+        y = 18;
+      }
+
+      doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
+        .text("Resumo do acordo", ML, y, { lineBreak: false });
+      y += 12;
+      cards.forEach((card, index) => {
+        const x = ML + index * (W_CARD + 6);
+        doc.roundedRect(x, y, W_CARD, H_RESUMO, 3).fillColor("#F7F9FC").fill();
+        doc.roundedRect(x, y, W_CARD, H_RESUMO, 3).strokeColor("#C8D2E0").lineWidth(0.5).stroke();
+        doc.font(FONTE).fontSize(6.2).fillColor(CINZA_LABEL)
+          .text(card.label, x + 5, y + 6, { width: W_CARD - 10, lineBreak: false });
+        doc.font(FONTE_BOLD).fontSize(10).fillColor(PRETO)
+          .text(`R$ ${formatarValorReais(card.valor)}`, x + 5, y + 23, { width: W_CARD - 10, align: "right", lineBreak: false });
+      });
+      y += H_RESUMO + 10;
+
+      const H_PLANO_CAB = 14;
+      const H_PLANO_LINHA = 15;
+      const W_ETAPA = W * 0.29;
+      const W_VENC = W * 0.19;
+      const W_VALOR = W * 0.20;
+      const W_SITUACAO = W - W_ETAPA - W_VENC - W_VALOR;
+      const planoAltura = 12 + H_PLANO_CAB + contextoAcordo.parcelas.length * H_PLANO_LINHA + 6;
+      if (y + planoAltura > PAGE_H - MARGEM_INF) {
+        doc.addPage();
+        y = 18;
+      }
+
+      doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
+        .text("Plano de pagamento do acordo", ML, y, { lineBreak: false });
+      y += 12;
+      doc.rect(ML, y, W, H_PLANO_CAB).fillColor("#EDF1F5").fill();
+      const xEtapa = ML;
+      const xVencimento = xEtapa + W_ETAPA;
+      const xValor = xVencimento + W_VENC;
+      const xSituacao = xValor + W_VALOR;
+      [xVencimento, xValor, xSituacao].forEach((x) => vLine(x, y, y + H_PLANO_CAB, "#C8D2E0"));
+      [
+        ["Etapa", xEtapa, W_ETAPA, "left"],
+        ["Vencimento", xVencimento, W_VENC, "left"],
+        ["Valor negociado", xValor, W_VALOR, "right"],
+        ["Situação", xSituacao, W_SITUACAO, "right"],
+      ].forEach(([texto, x, largura, align]) => {
+        doc.font(FONTE_BOLD).fontSize(6.3).fillColor(PRETO)
+          .text(String(texto), Number(x) + 4, y + 4, { width: Number(largura) - 8, align: align as "left" | "right", lineBreak: false });
+      });
+      y += H_PLANO_CAB;
+
+      contextoAcordo.parcelas.forEach((parcelaPlano) => {
+        const corFundo = parcelaPlano.documentoAtual ? "#EAF2FF" : "#FFFFFF";
+        doc.rect(ML, y, W, H_PLANO_LINHA).fillColor(corFundo).fill();
+        hLine(y + H_PLANO_LINHA, ML, MR, "#C8D2E0", 0.3);
+        [xVencimento, xValor, xSituacao].forEach((x) => vLine(x, y, y + H_PLANO_LINHA, "#C8D2E0"));
+        doc.font(parcelaPlano.documentoAtual ? FONTE_BOLD : FONTE).fontSize(6.6).fillColor(PRETO)
+          .text(parcelaPlano.etapa, xEtapa + 4, y + 4, { width: W_ETAPA - 8, lineBreak: false });
+        doc.font(FONTE).fontSize(6.6).fillColor(PRETO)
+          .text(formatarData(parcelaPlano.vencimento), xVencimento + 4, y + 4, { width: W_VENC - 8, lineBreak: false });
+        doc.font(parcelaPlano.documentoAtual ? FONTE_BOLD : FONTE).fontSize(6.6).fillColor(PRETO)
+          .text(`R$ ${formatarValorReais(parcelaPlano.valor)}`, xValor + 4, y + 4, { width: W_VALOR - 8, align: "right", lineBreak: false });
+        doc.font(parcelaPlano.documentoAtual ? FONTE_BOLD : FONTE).fontSize(6.6).fillColor(parcelaPlano.documentoAtual ? AZUL_BTG : PRETO)
+          .text(parcelaPlano.situacao, xSituacao + 4, y + 4, { width: W_SITUACAO - 8, align: "right", lineBreak: false });
+        y += H_PLANO_LINHA;
+      });
+      y += 8;
+    }
+
     // ── Composição da cobrança ──
     // Constantes de layout da tabela
     const COL_TITULO = 80;
@@ -473,8 +589,6 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     const xTotalCol = xNum7 + COL_NUM;
     const TABLE_H = 14;
     const TABLE_FONT = 6.5;
-    const PAGE_H = 841.89; // A4 altura em pontos
-    const MARGEM_INF = 30; // margem inferior mínima antes de quebrar
     // Altura estimada da ficha de compensação (para garantir que caiba na última página)
     const FICHA_H_ESTIMADA = 320;
 
@@ -482,12 +596,23 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     const headers = ["Título", "Vencimento", "Vl. Orig.", "C. Monetária", "Multa", "Juros", "Honorário", "Vl. Desp.", "Desconto", "Total"];
     const headerXs = [xTituloCol, xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol];
     const headerWidths = [COL_TITULO, COL_VENC, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_NUM, COL_TOTAL];
+    const tituloComposicao = contextoAcordo
+      ? "Origem da dívida na formalização do acordo"
+      : "Composição da cobrança";
+    const avisoComposicao = contextoAcordo
+      ? "Esta composição explica a origem do acordo e não altera o valor deste boleto."
+      : undefined;
 
     /** Desenha o cabeçalho da tabela de composição na posição y atual e retorna o novo y */
     const desenharCabecalhoTabela = (yT: number): number => {
       doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
-        .text("Composição da cobrança", ML, yT);
+        .text(tituloComposicao, ML, yT);
       yT += 12;
+      if (avisoComposicao) {
+        doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
+          .text(avisoComposicao, ML, yT, { width: W, lineBreak: false });
+        yT += 10;
+      }
       doc.rect(ML, yT, W, TABLE_H).fillColor(CINZA_FUNDO).fill();
       hLine(yT, ML, MR, CINZA_BORDA, 0.5);
       hLine(yT + TABLE_H, ML, MR, CINZA_BORDA, 0.5);
@@ -533,7 +658,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
 
     // Verificar se o cabeçalho da tabela + pelo menos 2 linhas cabem na página atual;
     // se não couber, adicionar nova página antes de começar a tabela
-    if (y + 12 + TABLE_H * 3 > PAGE_H - MARGEM_INF) {
+    if (y + (avisoComposicao ? 22 : 12) + TABLE_H * 3 > PAGE_H - MARGEM_INF) {
       doc.addPage();
       y = 18;
     }
@@ -551,8 +676,13 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
         y = 18;
         // Repetir cabeçalho da tabela na nova página (com "(continuação)")
         doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
-          .text("Composição da cobrança (continuação)", ML, y);
+          .text(`${tituloComposicao} (continuação)`, ML, y);
         y += 12;
+        if (avisoComposicao) {
+          doc.font(FONTE).fontSize(6.5).fillColor(CINZA_LABEL)
+            .text(avisoComposicao, ML, y, { width: W, lineBreak: false });
+          y += 10;
+        }
         doc.rect(ML, y, W, TABLE_H).fillColor(CINZA_FUNDO).fill();
         hLine(y, ML, MR, CINZA_BORDA, 0.5);
         hLine(y + TABLE_H, ML, MR, CINZA_BORDA, 0.5);
@@ -581,9 +711,9 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     hLine(y + TABLE_H + 2, ML, MR, CINZA_BORDA, 0.8);
     colsVert.forEach(x => vLine(x, y, y + TABLE_H + 2, CINZA_BORDA));
     doc.font(FONTE_BOLD).fontSize(TABLE_FONT + 0.5).fillColor(PRETO)
-      .text("TOTAL", xTituloCol + 2, y + 4, { width: COL_TITULO - 4, lineBreak: false });
+      .text(contextoAcordo ? "SALDO DE ORIGEM" : "TOTAL", xTituloCol + 2, y + 4, { width: COL_TITULO - 4, lineBreak: false });
     doc.font(FONTE_BOLD).fontSize(TABLE_FONT + 0.5).fillColor(PRETO)
-      .text(`R$ ${formatarValorReais(dados.valor)}`, xTotalCol + 2, y + 4, { width: COL_TOTAL - 4, align: "right", lineBreak: false });
+      .text(`R$ ${formatarValorReais(contextoAcordo?.valorOrigem ?? dados.valor)}`, xTotalCol + 2, y + 4, { width: COL_TOTAL - 4, align: "right", lineBreak: false });
     y += TABLE_H + 2;
 
     y += 10;

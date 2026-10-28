@@ -1154,7 +1154,9 @@ function CobrancasTabela({
                           valorTotal: cob.amount / 100,
                         };
                         const descricao = isParcela
-                          ? `Parcela ${cob.installmentNumber}/${cob._acordo?.installments ?? "?"} — Acordo #${cob.acordoId}`
+                          ? cob.installmentNumber === 0
+                            ? `Entrada (0/${cob._acordo?.installments ?? "?"}) — Acordo #${cob.acordoId}`
+                            : `Parcela ${cob.installmentNumber}/${cob._acordo?.installments ?? "?"} — Acordo #${cob.acordoId}`
                           : (cob.description || "-");
                         const statusLabel: Record<string, string> = {
                           pendente: "Pendente",
@@ -1300,9 +1302,13 @@ function CobrancasTabela({
                           {temSnapshot && breakdownExpandido.has(cob.id) && (
                             <TableRow className="bg-blue-50/70 dark:bg-blue-950/20">
                               <TableCell colSpan={10} className="py-3 px-4">
+                                <div className="mb-3 flex items-center justify-between rounded-md border border-blue-200 bg-white px-3 py-2 dark:border-blue-900 dark:bg-background">
+                                  <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">Valor desta parcela</span>
+                                  <span className="text-base font-bold text-blue-800 dark:text-blue-200">{fmtCents(cob.amount)}</span>
+                                </div>
                                 <div className="flex items-center gap-1 mb-2">
                                   <Info className="h-3.5 w-3.5 text-blue-500" />
-                                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Snapshot do acordo — valores na data de fechamento</span>
+                                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Base consolidada do acordo na data de formalização</span>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                                   <div className="space-y-0.5">
@@ -1326,7 +1332,7 @@ function CobrancasTabela({
                                     <p className="text-sm font-semibold">{fmtCents(cob.snapshotHonorarios)}</p>
                                   </div>
                                   <div className="space-y-0.5">
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Valor Atualizado</p>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Saldo de Origem do Acordo</p>
                                     <p className="text-sm font-bold text-blue-700 dark:text-blue-400">{fmtCents(cob.snapshotValorAtualizado)}</p>
                                   </div>
                                   <div className="space-y-0.5">
