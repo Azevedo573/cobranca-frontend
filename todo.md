@@ -2851,3 +2851,11 @@
 - [x] Mostrar total negociado, saldo, progresso e próximo vencimento por acordo
 - [x] Preservar parcelas, PDFs e Pix em expansão sob demanda
 - [x] Cobrir totais, progresso, status e ordenação com testes automatizados
+
+## Correção de Documento — Acordos Longos
+- [x] Substituir a tabela integral de parcelas no boleto por resumo compacto do plano
+- [x] Preservar valor exigível, composição histórica e ficha de compensação do título
+- [x] Criar plano completo informativo, paginado e separado do boleto
+- [x] Exigir permissão de exportação e vínculo condominial para gerar o plano completo
+- [x] Disponibilizar o plano completo no detalhe do acordo com auditoria da exportação
+- [x] Validar cenário de entrada + 64 parcelas: boleto em 1 página e plano em 4 páginas

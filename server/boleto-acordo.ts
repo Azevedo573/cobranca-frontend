@@ -10,9 +10,11 @@ export interface ParcelaBoletoAcordo {
 
 export interface LinhaPlanoBoletoAcordo {
   id: number;
+  installmentNumber: number;
   etapa: string;
   valor: number;
   vencimento: Date;
+  status: StatusParcelaBoletoAcordo;
   situacao: string;
   documentoAtual: boolean;
 }
@@ -86,9 +88,11 @@ export function montarContextoBoletoAcordo(input: {
     saldoAposEstePagamento: Math.max(0, input.totalNegociado - valorJaConsiderado),
     parcelas: parcelasOrdenadas.map((parcela) => ({
       id: parcela.id,
+      installmentNumber: parcela.installmentNumber,
       etapa: rotuloEtapa(parcela, totalParcelasRegulares),
       valor: parcela.amount,
       vencimento: parcela.dueDate,
+      status: parcela.status,
       situacao: parcela.id === parcelaAtual.id ? "Este boleto" : rotuloSituacao(parcela),
       documentoAtual: parcela.id === parcelaAtual.id,
     })),

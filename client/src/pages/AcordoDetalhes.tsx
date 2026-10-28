@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ import { BTGEnviarParcelasAcordoModal } from "@/components/BTGEnviarParcelasAcor
 
 export default function AcordoDetalhes() {
   const { user } = useAuth();
+  const { can } = usePermissions();
   const [, params] = useRoute("/acordos/:id");
   const acordoId = Number(params?.id);
   const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola: string | null }>>({});
@@ -88,6 +90,15 @@ export default function AcordoDetalhes() {
       toast.success(`Relatório gerado para ${data.nomeEmissor}!`);
     },
     onError: (err) => toast.error('Erro ao gerar relatório: ' + err.message),
+  });
+
+  // Demonstrativo informativo: não emite boleto, não altera parcelas e não contém Pix.
+  const gerarPlanoCompletoMutation = trpc.acordos.gerarPlanoCompletoPDF.useMutation({
+    onSuccess: (data) => {
+      window.open(data.url, "_blank", "noopener,noreferrer");
+      toast.success(`Plano completo gerado com ${data.quantidadeParcelas} etapa(s).`);
+    },
+    onError: (err) => toast.error("Erro ao gerar plano completo: " + err.message),
   });
 
   // Derivar se o emissor é administradora/outro (não emissão própria)
@@ -247,6 +258,20 @@ export default function AcordoDetalhes() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {can("acordos", "exportar") && parcelas && parcelas.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => gerarPlanoCompletoMutation.mutate({ acordoId })}
+                  disabled={gerarPlanoCompletoMutation.isPending}
+                  title="Documento informativo com todas as parcelas; não é boleto."
+                >
+                  {gerarPlanoCompletoMutation.isPending
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Download className="mr-2 h-4 w-4" />}
+                  {gerarPlanoCompletoMutation.isPending ? "Gerando plano..." : "Plano completo (PDF)"}
+                </Button>
+              )}
               {isAdministradora && (
                 relatorioUrl ? (
                   <Button variant="outline" size="sm" onClick={() => window.open(relatorioUrl, "_blank")}>

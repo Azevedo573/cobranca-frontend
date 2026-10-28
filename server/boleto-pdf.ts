@@ -15,6 +15,7 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import QRCode from "qrcode";
+import { resumirPlanoBoletoAcordo } from "./plano-acordo-pdf";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -32,9 +33,11 @@ export interface ItemCobranca {
 
 export interface ParcelaPlanoBoletoAcordo {
   id: number;
+  installmentNumber: number;
   etapa: string;
   valor: number;
   vencimento: Date;
+  status: "pendente" | "pago" | "atrasado" | "cancelado";
   situacao: string;
   documentoAtual: boolean;
 }
@@ -536,14 +539,16 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       });
       y += H_RESUMO + 10;
 
-      const H_PLANO_CAB = 14;
-      const H_PLANO_LINHA = 15;
-      const W_ETAPA = W * 0.29;
-      const W_VENC = W * 0.19;
-      const W_VALOR = W * 0.20;
-      const W_SITUACAO = W - W_ETAPA - W_VENC - W_VALOR;
-      const planoAltura = 12 + H_PLANO_CAB + contextoAcordo.parcelas.length * H_PLANO_LINHA + 6;
-      if (y + planoAltura > PAGE_H - MARGEM_INF) {
+      const resumoPlano = resumirPlanoBoletoAcordo(contextoAcordo.parcelas.map((parcela) => ({
+        id: parcela.id,
+        installmentNumber: parcela.installmentNumber,
+        amount: parcela.valor,
+        dueDate: parcela.vencimento,
+        status: parcela.status,
+        paymentDate: parcela.status === "pago" ? parcela.vencimento : null,
+      })));
+      const H_PLANO_RESUMIDO = 58;
+      if (y + H_PLANO_RESUMIDO + 28 > PAGE_H - MARGEM_INF) {
         doc.addPage();
         y = 18;
       }
@@ -551,39 +556,28 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
         .text("Plano de pagamento do acordo", ML, y, { lineBreak: false });
       y += 12;
-      doc.rect(ML, y, W, H_PLANO_CAB).fillColor("#EDF1F5").fill();
-      const xEtapa = ML;
-      const xVencimento = xEtapa + W_ETAPA;
-      const xValor = xVencimento + W_VENC;
-      const xSituacao = xValor + W_VALOR;
-      [xVencimento, xValor, xSituacao].forEach((x) => vLine(x, y, y + H_PLANO_CAB, "#C8D2E0"));
-      [
-        ["Etapa", xEtapa, W_ETAPA, "left"],
-        ["Vencimento", xVencimento, W_VENC, "left"],
-        ["Valor negociado", xValor, W_VALOR, "right"],
-        ["Situação", xSituacao, W_SITUACAO, "right"],
-      ].forEach(([texto, x, largura, align]) => {
-        doc.font(FONTE_BOLD).fontSize(6.3).fillColor(PRETO)
-          .text(String(texto), Number(x) + 4, y + 4, { width: Number(largura) - 8, align: align as "left" | "right", lineBreak: false });
-      });
-      y += H_PLANO_CAB;
+      doc.roundedRect(ML, y, W, H_PLANO_RESUMIDO, 3).fillColor("#F7F9FC").fill();
+      doc.roundedRect(ML, y, W, H_PLANO_RESUMIDO, 3).strokeColor("#C8D2E0").lineWidth(0.5).stroke();
 
-      contextoAcordo.parcelas.forEach((parcelaPlano) => {
-        const corFundo = parcelaPlano.documentoAtual ? "#EAF2FF" : "#FFFFFF";
-        doc.rect(ML, y, W, H_PLANO_LINHA).fillColor(corFundo).fill();
-        hLine(y + H_PLANO_LINHA, ML, MR, "#C8D2E0", 0.3);
-        [xVencimento, xValor, xSituacao].forEach((x) => vLine(x, y, y + H_PLANO_LINHA, "#C8D2E0"));
-        doc.font(parcelaPlano.documentoAtual ? FONTE_BOLD : FONTE).fontSize(6.6).fillColor(PRETO)
-          .text(parcelaPlano.etapa, xEtapa + 4, y + 4, { width: W_ETAPA - 8, lineBreak: false });
-        doc.font(FONTE).fontSize(6.6).fillColor(PRETO)
-          .text(formatarData(parcelaPlano.vencimento), xVencimento + 4, y + 4, { width: W_VENC - 8, lineBreak: false });
-        doc.font(parcelaPlano.documentoAtual ? FONTE_BOLD : FONTE).fontSize(6.6).fillColor(PRETO)
-          .text(`R$ ${formatarValorReais(parcelaPlano.valor)}`, xValor + 4, y + 4, { width: W_VALOR - 8, align: "right", lineBreak: false });
-        doc.font(parcelaPlano.documentoAtual ? FONTE_BOLD : FONTE).fontSize(6.6).fillColor(parcelaPlano.documentoAtual ? AZUL_BTG : PRETO)
-          .text(parcelaPlano.situacao, xSituacao + 4, y + 4, { width: W_SITUACAO - 8, align: "right", lineBreak: false });
-        y += H_PLANO_LINHA;
-      });
-      y += 8;
+      const resumoEntrada = resumoPlano.entrada
+        ? `Entrada: R$ ${formatarValorReais(resumoPlano.entrada.valor)} em ${formatarData(resumoPlano.entrada.vencimento)}.`
+        : "Sem entrada registrada.";
+      const resumoParcelas = resumoPlano.quantidadeParcelasRegulares > 0
+        ? `${resumoPlano.quantidadeParcelasRegulares} parcela(s) regular(es) de R$ ${formatarValorReais(resumoPlano.valorMinimoParcela ?? 0)}${resumoPlano.valorMinimoParcela !== resumoPlano.valorMaximoParcela ? ` a R$ ${formatarValorReais(resumoPlano.valorMaximoParcela ?? 0)}` : ""}.`
+        : "Sem parcelas regulares.";
+
+      doc.font(FONTE).fontSize(7).fillColor(PRETO)
+        .text(`${resumoEntrada} ${resumoParcelas}`, ML + 8, y + 8, { width: W - 16, lineBreak: false });
+      doc.font(FONTE).fontSize(6.8).fillColor(CINZA_LABEL)
+        .text(
+          `Etapas: ${resumoPlano.quantidadeEtapas} · Quitadas: ${resumoPlano.parcelasQuitadas} · Em aberto: R$ ${formatarValorReais(resumoPlano.saldoEmAberto)}`,
+          ML + 8,
+          y + 23,
+          { width: W - 16, lineBreak: false },
+        );
+      doc.font(FONTE_BOLD).fontSize(6.8).fillColor(AZUL_BTG)
+        .text("Consulte o plano completo do acordo no sistema. Este resumo não altera o valor exigível deste boleto.", ML + 8, y + 39, { width: W - 16, lineBreak: false });
+      y += H_PLANO_RESUMIDO + 8;
     }
 
     // ── Composição da cobrança ──

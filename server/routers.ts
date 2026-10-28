@@ -1338,6 +1338,97 @@ export const appRouter = router({
       const { getParcelasByAcordo } = await import("./db-acordos");
       return await getParcelasByAcordo(input.acordoId);
     }),
+    /**
+     * Documento exclusivamente informativo. Não cria cobrança, não altera parcelas
+     * e não contém dados bancários de boleto, Pix ou linha digitável.
+     */
+    gerarPlanoCompletoPDF: requirePermission("acordos", "exportar")
+      .input(z.object({ acordoId: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => {
+        const { assertAcordoAcessivel } = await import("./tenant-guard");
+        await assertAcordoAcessivel(ctx.user, input.acordoId);
+
+        const { getAcordoById, getParcelasByAcordo } = await import("./db-acordos");
+        const { getDevedorById } = await import("./db-devedores");
+        const { getCondominioById } = await import("./db-condominios");
+        const { gerarPlanoCompletoAcordoPDF, resumirPlanoBoletoAcordo } = await import("./plano-acordo-pdf");
+        const { storagePut } = await import("./storage");
+
+        const acordo = await getAcordoById(input.acordoId);
+        if (!acordo) throw new TRPCError({ code: "NOT_FOUND", message: "Acordo não encontrado" });
+
+        const [devedor, condominio, parcelas] = await Promise.all([
+          getDevedorById(acordo.devedorId),
+          getCondominioById(acordo.condominioId),
+          getParcelasByAcordo(acordo.id),
+        ]);
+        if (!devedor || !condominio) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Dados vinculados ao acordo não encontrados" });
+        }
+        if (parcelas.length === 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "O acordo não possui parcelas para compor o plano" });
+        }
+
+        const parcelasPlano = parcelas.map((parcela) => ({
+          id: parcela.id,
+          installmentNumber: parcela.installmentNumber,
+          amount: parcela.amount,
+          dueDate: parcela.dueDate,
+          status: parcela.status,
+          paymentDate: parcela.paymentDate,
+        }));
+        const resumo = resumirPlanoBoletoAcordo(parcelasPlano);
+        const pdf = await gerarPlanoCompletoAcordoPDF({
+          acordo: {
+            id: acordo.id,
+            totalAmount: acordo.totalAmount,
+            agreedAmount: acordo.agreedAmount,
+            installments: acordo.installments,
+            paymentFrequency: acordo.paymentFrequency,
+            status: acordo.status,
+            valorPago: acordo.valorPago,
+            notes: acordo.notes,
+            createdAt: acordo.createdAt,
+          },
+          condominio: { name: condominio.name, cnpj: condominio.cnpj },
+          devedor: {
+            name: devedor.name,
+            unitNumber: devedor.unitNumber,
+            bloco: devedor.bloco,
+            cpfCnpj: devedor.cpfCnpj,
+          },
+          parcelas: parcelasPlano,
+        });
+
+        const timestamp = Date.now();
+        const fileName = `plano-completo-acordo-${acordo.id}-${timestamp}.pdf`;
+        const { url } = await storagePut(`planos-acordo/${fileName}`, pdf, "application/pdf");
+
+        await logAudit(ctx, {
+          action: "export",
+          entity: "acordo",
+          entityId: String(acordo.id),
+          entityLabel: `Plano completo do Acordo #${acordo.id}`,
+          condominioId: acordo.condominioId,
+          metadata: {
+            documento: "plano_completo_informativo",
+            quantidadeParcelas: parcelasPlano.length,
+            valorPlano: resumo.totalPlano,
+          },
+          severity: "info",
+        });
+
+        return {
+          acordoId: acordo.id,
+          url,
+          fileName,
+          mimeType: "application/pdf" as const,
+          quantidadeParcelas: parcelasPlano.length,
+          valorPlano: resumo.totalPlano,
+          valorPago: resumo.valorPago,
+          saldo: resumo.saldoEmAberto,
+        };
+      }),
     updateParcela: requirePermission("acordos", "editar").input(z.object({
       id: z.number(),
       paymentDate: z.date().optional(),
