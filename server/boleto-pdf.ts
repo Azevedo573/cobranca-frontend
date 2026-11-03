@@ -16,6 +16,7 @@ import path from "path";
 import fs from "fs";
 import QRCode from "qrcode";
 import { resumirPlanoBoletoAcordo } from "./plano-acordo-pdf";
+import { deveResumirOrigem, montarOrigemDividaAcordo, type OrigemDividaDocumento } from "./origem-divida-acordo";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,7 @@ export interface DadosBoleto {
   itensCobranca?: ItemCobranca[];
   // Contexto de acordo: somente para exibição no recibo do pagador
   contextoAcordo?: ContextoBoletoAcordoPdf;
+  origemDivida?: OrigemDividaDocumento;
 }
 
 // ─── Cálculos FEBRABAN ────────────────────────────────────────────────────────
@@ -461,6 +463,9 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     y += 8;
 
     const contextoAcordo = dados.contextoAcordo;
+    const origemDivida = contextoAcordo ? (dados.origemDivida ?? montarOrigemDividaAcordo(
+      (dados.itensCobranca ?? []).map((item, index) => ({ cobrancaId: index + 1, titulo: item.titulo, valorOriginal: item.valorOriginal, vencimento: item.vencimento })), [],
+    )) : undefined;
     if (contextoAcordo) {
       const H_DESTAQUE = 42;
       doc.roundedRect(ML, y, W, H_DESTAQUE, 4).fillColor("#EAF2FF").fill();
@@ -515,7 +520,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       const H_RESUMO = 42;
       const W_CARD = (W - 12) / 3;
       const cards = [
-        { label: "Saldo de origem registrado", valor: contextoAcordo.valorOrigem },
+        { label: "Base dos títulos na formalização", valor: origemDivida?.totalFechamento ?? null },
         { label: "Total negociado no acordo", valor: contextoAcordo.totalNegociado },
         { label: "Saldo após este pagamento", valor: contextoAcordo.saldoAposEstePagamento },
       ];
@@ -535,7 +540,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
         doc.font(FONTE).fontSize(6.2).fillColor(CINZA_LABEL)
           .text(card.label, x + 5, y + 6, { width: W_CARD - 10, lineBreak: false });
         doc.font(FONTE_BOLD).fontSize(10).fillColor(PRETO)
-          .text(`R$ ${formatarValorReais(card.valor)}`, x + 5, y + 23, { width: W_CARD - 10, align: "right", lineBreak: false });
+          .text(card.valor == null ? "Não disponível" : `R$ ${formatarValorReais(card.valor)}`, x + 5, y + 23, { width: W_CARD - 10, align: "right", lineBreak: false });
       });
       y += H_RESUMO + 10;
 
@@ -576,7 +581,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
           { width: W - 16, lineBreak: false },
         );
       doc.font(FONTE_BOLD).fontSize(6.8).fillColor(AZUL_BTG)
-        .text("Consulte o plano completo do acordo no sistema. Este resumo não altera o valor exigível deste boleto.", ML + 8, y + 39, { width: W - 16, lineBreak: false });
+        .text("Consulte o Demonstrativo completo do acordo. Este resumo não altera o valor exigível deste boleto.", ML + 8, y + 39, { width: W - 16, lineBreak: false });
       y += H_PLANO_RESUMIDO + 8;
     }
 
@@ -599,7 +604,10 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     const TABLE_H = 14;
     const TABLE_FONT = 6.5;
     // Altura estimada da ficha de compensação (para garantir que caiba na última página)
-    const FICHA_H_ESTIMADA = 320;
+    const pixAlturaTexto = dados.pixCopiaCola ? doc.font("Courier").fontSize(5.8)
+      .heightOfString(formatarPixCopiaColaParaExibicao(dados.pixCopiaCola, 28), { width: W * 0.45 - 90, lineGap: 1 }) + 20 : 0;
+    const FICHA_H_ESTIMADA = contextoAcordo ? [14, 36, 22, 26, 22, 22, 80, 38, 18, 8,
+      qrCodeBuffer ? Math.max(72, pixAlturaTexto) + 8 : 52, 12].reduce((s, h) => s + h, 0) : 320;
 
     const colsVert = [xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol];
     const headers = ["Título", "Vencimento", "Vl. Orig.", "C. Monetária", "Multa", "Juros", "Honorário", "Vl. Desp.", "Desconto", "Total"];
@@ -665,6 +673,73 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
         .text(fmtNum(item.total), xTotalCol + 2, textY, { width: COL_TOTAL - 4, align: "right", lineBreak: false });
     };
 
+    if (origemDivida) {
+      const fmtOrigem = (valor: number | null) => valor == null ? "Não disponível" : `R$ ${formatarValorReais(valor)}`;
+      const periodo = origemDivida.primeiroVencimento && origemDivida.ultimoVencimento
+        ? `${formatarData(origemDivida.primeiroVencimento)} a ${formatarData(origemDivida.ultimoVencimento)}` : "Não disponível";
+      const linhasResumo = [
+        `${origemDivida.quantidade} cobrança(s) incluída(s) · Vencimentos de origem: ${periodo}`,
+        `Principal preservado: ${fmtOrigem(origemDivida.principal)} · Correção: ${fmtOrigem(origemDivida.correcao)}`,
+        `Multa: ${fmtOrigem(origemDivida.multa)} · Juros: ${fmtOrigem(origemDivida.juros)} · Honorários: ${fmtOrigem(origemDivida.honorarios)}`,
+        `Base dos títulos na formalização: ${fmtOrigem(origemDivida.totalFechamento)} · Descontos: não discriminados no histórico.`,
+      ];
+      const aviso = "A origem explica o acordo e não altera o valor deste boleto. Dívidas e parcelas completas no Demonstrativo completo do acordo.";
+      const observacao = [...origemDivida.avisos, "Encargos exibidos de forma agregada, sem rateio por dívida."].join(" ");
+      doc.font(FONTE).fontSize(7);
+      const medir = (texto: string) => doc.heightOfString(texto, { width: W - 16, lineGap: 1 });
+      const alturasResumo = linhasResumo.map(medir);
+      const alturaAviso = medir(aviso);
+      const alturaObservacao = medir(observacao);
+      const H_QUADRO = 16 + alturasResumo.reduce((s, h) => s + h + 3, 0) + alturaAviso + alturaObservacao + 9;
+      const alturasLinhas = origemDivida.itens.map(item => {
+        doc.font(FONTE).fontSize(7);
+        return Math.max(22, doc.heightOfString(`#${item.cobrancaId} — ${item.titulo}`, { width: W - 190, lineGap: 1 }) + 10);
+      });
+      const alturaTabelaCompleta = 34 + alturasLinhas.reduce((s, h) => s + h, 0) + H_QUADRO + 8;
+      // Para poucos títulos, a composição inteira pode ocupar a segunda página
+      // junto da ficha. Não comprimir fonte nem dividir uma origem curta pela metade.
+      if (deveResumirOrigem(origemDivida.quantidade, alturaTabelaCompleta, PAGE_H - MARGEM_INF - y, FICHA_H_ESTIMADA)
+        && !deveResumirOrigem(origemDivida.quantidade, alturaTabelaCompleta, PAGE_H - MARGEM_INF - 18, FICHA_H_ESTIMADA)) {
+        doc.addPage();
+        y = 18;
+      }
+      const resumida = deveResumirOrigem(origemDivida.quantidade, alturaTabelaCompleta, PAGE_H - MARGEM_INF - y, FICHA_H_ESTIMADA);
+      const alturaOrigem = (resumida ? 16 : 34 + alturasLinhas.reduce((s, h) => s + h, 0)) + H_QUADRO + 8;
+      if (y + alturaOrigem > PAGE_H - MARGEM_INF) { doc.addPage(); y = 18; }
+      doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
+        .text(resumida ? "Resumo da origem do acordo — composição consolidada" : "Origem da dívida na formalização do acordo", ML, y, { lineBreak: false });
+      y += 16;
+      if (!resumida) {
+        const colunas = [
+          { x: ML, w: W - 180, titulo: "Cobrança de origem", align: "left" as const },
+          { x: MR - 180, w: 80, titulo: "Vencimento", align: "center" as const },
+          { x: MR - 100, w: 100, titulo: "Principal preservado", align: "right" as const },
+        ];
+        doc.rect(ML, y, W, 18).fillColor(CINZA_FUNDO).fill();
+        colunas.forEach(c => doc.font(FONTE_BOLD).fontSize(7).fillColor(PRETO).text(c.titulo, c.x + 4, y + 5, { width: c.w - 8, align: c.align, lineBreak: false }));
+        y += 18;
+        origemDivida.itens.forEach((item, index) => {
+          const h = alturasLinhas[index];
+          if (index % 2 === 1) doc.rect(ML, y, W, h).fillColor("#FAFAFA").fill();
+          hLine(y + h);
+          doc.font(FONTE).fontSize(7).fillColor(PRETO).text(`#${item.cobrancaId} — ${item.titulo}`, ML + 4, y + 5, { width: W - 190, lineGap: 1 });
+          doc.text(item.vencimento ? formatarData(item.vencimento) : "—", MR - 176, y + 5, { width: 72, align: "center", lineBreak: false });
+          doc.text(item.principal == null ? "—" : fmtOrigem(item.principal), MR - 96, y + 5, { width: 92, align: "right", lineBreak: false });
+          y += h;
+        });
+      }
+      doc.roundedRect(ML, y, W, H_QUADRO, 3).fillColor("#F7F9FC").fill();
+      doc.roundedRect(ML, y, W, H_QUADRO, 3).strokeColor("#C8D2E0").lineWidth(0.5).stroke();
+      let textoY = y + 8;
+      linhasResumo.forEach((texto, index) => {
+        doc.font(FONTE).fontSize(7).fillColor(PRETO).text(texto, ML + 8, textoY, { width: W - 16, lineGap: 1 });
+        textoY += alturasResumo[index] + 3;
+      });
+      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL).text(observacao, ML + 8, textoY, { width: W - 16, lineGap: 1 });
+      textoY += alturaObservacao + 3;
+      doc.font(FONTE).fontSize(7).fillColor(AZUL_BTG).text(aviso, ML + 8, textoY, { width: W - 16, lineGap: 1 });
+      y += H_QUADRO + 8;
+    } else {
     // Verificar se o cabeçalho da tabela + pelo menos 2 linhas cabem na página atual;
     // se não couber, adicionar nova página antes de começar a tabela
     if (y + (avisoComposicao ? 22 : 12) + TABLE_H * 3 > PAGE_H - MARGEM_INF) {
@@ -725,6 +800,11 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       .text(`R$ ${formatarValorReais(contextoAcordo?.valorOrigem ?? dados.valor)}`, xTotalCol + 2, y + 4, { width: COL_TOTAL - 4, align: "right", lineBreak: false });
     y += TABLE_H + 2;
 
+    }
+    if (contextoAcordo && y + 10 + FICHA_H_ESTIMADA > PAGE_H - MARGEM_INF) {
+      doc.addPage();
+      y = 18;
+    }
     y += 10;
 
     // ── Linha de corte entre recibo e ficha ──
@@ -922,7 +1002,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
         .strokeColor(PIX_VERDE).lineWidth(1).stroke();
       doc.image(qrCodeBuffer, xQR, y, { width: QR_SIZE, height: QR_SIZE });
 
-      y += QR_SIZE + 8;
+      y += (contextoAcordo ? Math.max(QR_SIZE, pixAlturaTexto) : QR_SIZE) + 8;
     } else {
       const escala = W / larguraTotal;
       let xBar = ML;

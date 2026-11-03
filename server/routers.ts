@@ -1352,15 +1352,17 @@ export const appRouter = router({
         const { getDevedorById } = await import("./db-devedores");
         const { getCondominioById } = await import("./db-condominios");
         const { gerarPlanoCompletoAcordoPDF, resumirPlanoBoletoAcordo } = await import("./plano-acordo-pdf");
+        const { carregarOrigemDividaAcordo } = await import("./origem-divida-acordo");
         const { storagePut } = await import("./storage");
 
         const acordo = await getAcordoById(input.acordoId);
         if (!acordo) throw new TRPCError({ code: "NOT_FOUND", message: "Acordo não encontrado" });
 
-        const [devedor, condominio, parcelas] = await Promise.all([
+        const [devedor, condominio, parcelas, origemDivida] = await Promise.all([
           getDevedorById(acordo.devedorId),
           getCondominioById(acordo.condominioId),
           getParcelasByAcordo(acordo.id),
+          carregarOrigemDividaAcordo(acordo.id),
         ]);
         if (!devedor || !condominio) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Dados vinculados ao acordo não encontrados" });
@@ -1398,20 +1400,22 @@ export const appRouter = router({
             cpfCnpj: devedor.cpfCnpj,
           },
           parcelas: parcelasPlano,
+          origemDivida,
         });
 
         const timestamp = Date.now();
-        const fileName = `plano-completo-acordo-${acordo.id}-${timestamp}.pdf`;
+        const fileName = `demonstrativo-completo-acordo-${acordo.id}-${timestamp}.pdf`;
         const { url } = await storagePut(`planos-acordo/${fileName}`, pdf, "application/pdf");
 
         await logAudit(ctx, {
           action: "export",
           entity: "acordo",
           entityId: String(acordo.id),
-          entityLabel: `Plano completo do Acordo #${acordo.id}`,
+          entityLabel: `Demonstrativo completo do Acordo #${acordo.id}`,
           condominioId: acordo.condominioId,
           metadata: {
-            documento: "plano_completo_informativo",
+            documento: "demonstrativo_completo_informativo",
+            quantidadeDividas: origemDivida.quantidade,
             quantidadeParcelas: parcelasPlano.length,
             valorPlano: resumo.totalPlano,
           },
@@ -1424,6 +1428,7 @@ export const appRouter = router({
           fileName,
           mimeType: "application/pdf" as const,
           quantidadeParcelas: parcelasPlano.length,
+          quantidadeDividas: origemDivida.quantidade,
           valorPlano: resumo.totalPlano,
           valorPago: resumo.valorPago,
           saldo: resumo.saldoEmAberto,
@@ -1524,7 +1529,7 @@ export const appRouter = router({
     // Gerar PDF do boleto para uma parcela de acordo
     gerarBoletoPDFParcela: protectedProcedure
       .input(z.object({ parcelaId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
@@ -1534,7 +1539,7 @@ export const appRouter = router({
         const { getDevedorById } = await import("./db-devedores");
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         const { getCondominioById } = await import("./db-condominios");
-        const { getCobrancasComCalculosPorAcordo } = await import("./db-cobrancas");
+        const { carregarOrigemDividaAcordo } = await import("./origem-divida-acordo");
         const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
         const { gerarPixCopiaCola } = await import("./pix-emv");
         const { storagePut } = await import("./storage");
@@ -1550,6 +1555,8 @@ export const appRouter = router({
         if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Parcela não encontrada" });
         const parcela = rows[0].parcelasAcordo;
         const acordo = rows[0].acordos;
+        const { assertAcordoAcessivel } = await import("./tenant-guard");
+        await assertAcordoAcessivel(ctx.user, acordo.id);
 
         if (!parcela.nossoNumero) throw new TRPCError({ code: "BAD_REQUEST", message: "Parcela sem nosso número — envie a remessa CNAB primeiro" });
 
@@ -1598,14 +1605,10 @@ export const appRouter = router({
           }) || undefined;
         }
 
-        const itensHistoricosParaResumo = await getCobrancasComCalculosPorAcordo(acordo.id);
-        const valorOrigem = parcela.snapshotValorAtualizado ?? itensHistoricosParaResumo.reduce(
-          (total, item) => total + Math.round((item.breakdown.valorTotal || 0) * 100),
-          0,
-        );
+        const origemDivida = await carregarOrigemDividaAcordo(acordo.id);
         const contextoAcordo = montarContextoBoletoAcordo({
           acordoId: acordo.id,
-          valorOrigem,
+          valorOrigem: origemDivida.totalFechamento ?? origemDivida.principal ?? 0,
           totalNegociado: acordo.agreedAmount,
           parcelaAtualId: parcela.id,
           parcelas: planoParcelas.map((item) => ({
@@ -1646,24 +1649,7 @@ export const appRouter = router({
           seuNumero: parcela.nossoNumero,
           pixCopiaCola,
           credorTitulo: condominio.name,
-          itensCobranca: await (async () => {
-            // Buscar as cobranças originais do acordo (via acordoCobrancas),
-            // independente do status atual (que já será "em_acordo")
-            const todasCobrancas = await getCobrancasComCalculosPorAcordo(acordo.id);
-            return todasCobrancas.map((c) => ({
-              titulo: c.tipoCobranca
-                ? c.tipoCobranca.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
-                : (c.description || "Condomínio"),
-              vencimento: c.dueDate ? new Date(c.dueDate) : new Date(),
-              valorOriginal: c.amount,
-              correcao: Math.round((c.breakdown.correcaoMonetaria || 0) * 100),
-              multa: Math.round((c.breakdown.multa || 0) * 100),
-              juros: Math.round((c.breakdown.juros || 0) * 100),
-              honorarios: Math.round((c.breakdown.honorarios || 0) * 100),
-              desconto: 0,
-              total: Math.round((c.breakdown.valorTotal || 0) * 100),
-            }));
-          })(),
+          origemDivida,
           contextoAcordo,
         };
 
@@ -1688,7 +1674,9 @@ export const appRouter = router({
     // Gerar boletos em lote para todas as parcelas de um acordo
     gerarBoletosLoteAcordo: requirePermission("acordos", "criar").input(z.object({
       acordoId: z.number(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
+      const { assertAcordoAcessivel } = await import("./tenant-guard");
+      await assertAcordoAcessivel(ctx.user, input.acordoId);
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
@@ -1698,7 +1686,7 @@ export const appRouter = router({
       const { getDevedorById } = await import("./db-devedores");
       const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
       const { getCondominioById } = await import("./db-condominios");
-      const { getCobrancasComCalculosPorAcordo } = await import("./db-cobrancas");
+      const { carregarOrigemDividaAcordo } = await import("./origem-divida-acordo");
       const { gerarBoletoPDF, calcularCodigoBarras, calcularLinhaDigitavel, formatarLinhaDigitavel } = await import("./boleto-pdf");
       const { gerarPixCopiaCola } = await import("./pix-emv");
       const { storagePut } = await import("./storage");
@@ -1737,24 +1725,9 @@ export const appRouter = router({
       const nomeSacado = devedor.name ||
         `${devedor.bloco ? `Bloco ${devedor.bloco} — ` : ""}Unidade ${devedor.unitNumber}`;
 
-      // Buscar as cobranças originais do acordo uma única vez (fora do loop) para a tabela de composição
-      // Usa getCobrancasComCalculosPorAcordo para buscar via acordoCobrancas, ignorando o filtro de status
-      const todasCobrancasDevedor = await getCobrancasComCalculosPorAcordo(acordo.id);
-      const itensCobrancaLote = todasCobrancasDevedor.map((c) => ({
-        titulo: c.tipoCobranca
-          ? c.tipoCobranca.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
-          : (c.description || "Condomínio"),
-        vencimento: c.dueDate ? new Date(c.dueDate) : new Date(),
-        valorOriginal: c.amount,
-        correcao: Math.round((c.breakdown.correcaoMonetaria || 0) * 100),
-        multa: Math.round((c.breakdown.multa || 0) * 100),
-        juros: Math.round((c.breakdown.juros || 0) * 100),
-        honorarios: Math.round((c.breakdown.honorarios || 0) * 100),
-        desconto: 0,
-        total: Math.round((c.breakdown.valorTotal || 0) * 100),
-      }));
-      const valorOrigemLote = parcelas.find((item) => item.snapshotValorAtualizado != null)?.snapshotValorAtualizado
-        ?? itensCobrancaLote.reduce((total, item) => total + item.total, 0);
+      // Mesma fonte documental da exportação e do boleto individual, sem recálculo.
+      const origemDivida = await carregarOrigemDividaAcordo(acordo.id);
+      const valorOrigemLote = origemDivida.totalFechamento ?? origemDivida.principal ?? 0;
 
       const boletos: Array<{ parcelaId: number; numeroParcela: number; url: string; linhaDigitavel: string; valor: number; vencimento: string }> = [];
 
@@ -1829,7 +1802,7 @@ export const appRouter = router({
           seuNumero: parcela.nossoNumero!,
           pixCopiaCola,
           credorTitulo: condominio.name,
-          itensCobranca: itensCobrancaLote,
+          origemDivida,
           contextoAcordo,
         };
 

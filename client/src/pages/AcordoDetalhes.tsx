@@ -96,9 +96,9 @@ export default function AcordoDetalhes() {
   const gerarPlanoCompletoMutation = trpc.acordos.gerarPlanoCompletoPDF.useMutation({
     onSuccess: (data) => {
       window.open(data.url, "_blank", "noopener,noreferrer");
-      toast.success(`Plano completo gerado com ${data.quantidadeParcelas} etapa(s).`);
+      toast.success(`Demonstrativo gerado com ${data.quantidadeDividas} dívida(s) de origem e ${data.quantidadeParcelas} etapa(s).`);
     },
-    onError: (err) => toast.error("Erro ao gerar plano completo: " + err.message),
+    onError: (err) => toast.error("Erro ao gerar demonstrativo: " + err.message),
   });
 
   // Derivar se o emissor é administradora/outro (não emissão própria)
@@ -264,12 +264,12 @@ export default function AcordoDetalhes() {
                   size="sm"
                   onClick={() => gerarPlanoCompletoMutation.mutate({ acordoId })}
                   disabled={gerarPlanoCompletoMutation.isPending}
-                  title="Documento informativo com todas as parcelas; não é boleto."
+                  title="Documento informativo com a origem das dívidas e todas as parcelas; não é boleto."
                 >
                   {gerarPlanoCompletoMutation.isPending
                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     : <Download className="mr-2 h-4 w-4" />}
-                  {gerarPlanoCompletoMutation.isPending ? "Gerando plano..." : "Plano completo (PDF)"}
+                  {gerarPlanoCompletoMutation.isPending ? "Gerando demonstrativo..." : "Demonstrativo completo (PDF)"}
                 </Button>
               )}
               {isAdministradora && (

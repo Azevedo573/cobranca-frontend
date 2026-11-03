@@ -2859,3 +2859,13 @@
 - [x] Exigir permissão de exportação e vínculo condominial para gerar o plano completo
 - [x] Disponibilizar o plano completo no detalhe do acordo com auditoria da exportação
 - [x] Validar cenário de entrada + 64 parcelas: boleto em 1 página e plano em 4 páginas
+
+## Melhoria Documental — Origem Resumida e Demonstrativo Completo (03/11/2026)
+- [x] Reutilizar valores preservados nos vínculos e snapshots agregados consistentes, sem recalcular encargos atuais
+- [x] Exibir composição completa de até cinco dívidas somente quando a altura medida comportar a ficha de compensação
+- [x] Resumir origens extensas com quantidade, período e composição histórica disponível, sinalizando ausências
+- [x] Preservar todas as dívidas e descrições extensas no demonstrativo, com paginação independente das parcelas
+- [x] Aplicar a mesma origem documental aos boletos individuais, lote e exportação protegida
+- [x] Atualizar botão para Demonstrativo completo (PDF) e auditar a quantidade de dívidas
+- [x] Testar preservação de valor, vencimento, Pix e título, exportação negada e múltiplos condomínios
+- [x] Validar PDFs sintéticos: boleto até duas páginas com 80 dívidas e 65 etapas; demonstrativo integral sem páginas vazias
