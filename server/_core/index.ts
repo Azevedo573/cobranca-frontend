@@ -44,7 +44,7 @@ async function startServer() {
     express.raw({ type: "application/json", limit: "1mb" }),
     webhookBtgV2Handler,
   );
-  // Até 50 MB binários (~67 MB base64), somente nesta mutation administrativa.
+  // Até 200 MB binários (~267 MB base64), somente nesta mutation administrativa.
   registrarParserDocumentosCondominio(app);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));

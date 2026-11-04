@@ -1,5 +1,5 @@
 import express, { type Express, type ErrorRequestHandler, type Request, type Response, type NextFunction } from "express";
-import { DOCUMENTO_CONDOMINIO_JSON_LIMIT, DOCUMENTO_CONDOMINIO_UPLOAD_PATH, DOCUMENTO_CONDOMINIO_PROCEDURE } from "../shared/documentos-condominio";
+import { DOCUMENTO_CONDOMINIO_JSON_LIMIT, DOCUMENTO_CONDOMINIO_UPLOAD_PATH, DOCUMENTO_CONDOMINIO_PROCEDURE, DOCUMENTO_CONDOMINIO_MAX_MB } from "../shared/documentos-condominio";
 import { UNAUTHED_ERR_MSG } from "../shared/const";
 import { createContext } from "./_core/context";
 
@@ -13,7 +13,7 @@ function responderErro(res: Response, status: number, code: string, message: str
 export function registrarParserDocumentosCondominio(app: Express) {
   const erroParser: ErrorRequestHandler = (error, _req, res, next) => {
     if (error?.type === "entity.too.large") {
-      responderErro(res, 413, "PAYLOAD_TOO_LARGE", "Documento muito grande para envio. Máximo 50 MB por PDF.");
+      responderErro(res, 413, "PAYLOAD_TOO_LARGE", `Documento muito grande para envio. Máximo ${DOCUMENTO_CONDOMINIO_MAX_MB} MB por PDF.`);
     } else if (error?.type === "entity.parse.failed") {
       responderErro(res, 400, "BAD_REQUEST", "Requisição de documento inválida.");
     } else next(error);

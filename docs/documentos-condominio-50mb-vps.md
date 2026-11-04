@@ -1,5 +1,7 @@
 # Convenção e Regimento até 50 MB — verificação da VPS
 
+> Referência histórica. Em04/11/2026 o usuário ampliou o limite para200 MB e solicitou progresso visual. Para a nova versão, consultar `documentos-condominio-200mb-vps.md`;80m não comporta o transporte de umPDF de200 MB.
+
 ## O que mudou no código
 
 Somente **Convenção Condominial** e **Regimento Interno**, em Documentos do Condomínio, passam de 16 MB para **50 MB por PDF** (50 × 1024 × 1024 bytes). Outros uploads mantêm seus limites.

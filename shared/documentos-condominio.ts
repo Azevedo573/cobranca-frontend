@@ -1,10 +1,10 @@
 // Limite binário por PDF; compartilhado entre clique, arraste e backend.
-export const DOCUMENTO_CONDOMINIO_MAX_MB = 50;
+export const DOCUMENTO_CONDOMINIO_MAX_MB = 200;
 export const DOCUMENTO_CONDOMINIO_MAX_BYTES = DOCUMENTO_CONDOMINIO_MAX_MB * 1024 * 1024;
 export const DOCUMENTO_CONDOMINIO_MAX_BASE64 = Math.ceil(DOCUMENTO_CONDOMINIO_MAX_BYTES / 3) * 4;
 export const DOCUMENTO_CONDOMINIO_PROCEDURE = "condominios.uploadDocumento";
 export const DOCUMENTO_CONDOMINIO_UPLOAD_PATH = `/api/trpc/${DOCUMENTO_CONDOMINIO_PROCEDURE}`;
-export const DOCUMENTO_CONDOMINIO_JSON_LIMIT = "80mb";
+export const DOCUMENTO_CONDOMINIO_JSON_LIMIT = "300mb";
 
 export function validarArquivoDocumentoCondominio(arquivo: { name: string; type: string; size: number }): string | null {
   const mime = arquivo.type.toLowerCase();

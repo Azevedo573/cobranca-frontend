@@ -66,7 +66,7 @@ describe("transporte isolado do upload administrativo", () => {
     expect((await post(`${DOCUMENTO_CONDOMINIO_UPLOAD_PATH}?batch=1`, "{}", "admin")).status).toBe(400);
     expect((await post(DOCUMENTO_CONDOMINIO_UPLOAD_PATH, "{}", "admin", "application/octet-stream")).status).toBe(400);
   });
-  it("recebe 50MB em base64 pelo cliente sem batch, com cookies, mantendo batching nas outras queries", async () => {
+  it("recebe 200MB em base64 pelo cliente sem batch, com cookies, mantendo batching nas outras queries", async () => {
     const originalFetch = globalThis.fetch;
     const requests: { url: string; credentials: unknown }[] = [];
     vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
@@ -89,7 +89,7 @@ describe("transporte isolado do upload administrativo", () => {
     } finally { vi.unstubAllGlobals(); }
   }, 30_000);
   it("outro caminho continua limitado a 50MB de JSON", async () => {
-    const response = await post("/outro-upload", JSON.stringify({ file: "A".repeat(DOCUMENTO_CONDOMINIO_MAX_BASE64) }), "admin");
+    const response = await post("/outro-upload", JSON.stringify({ file: "A".repeat(51 * 1024 * 1024) }), "admin");
     expect(response.status).toBe(413);
     expect((await response.json()).error).toBe("entity.too.large");
   }, 30_000);

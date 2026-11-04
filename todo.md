@@ -2885,3 +2885,15 @@
 - [x] Preservar URL anterior em falha de storage e auditar tipo/tamanho, sem conteúdo nos logs
 - [x] Validar 25 regressões específicas; suíte completa com 510 testes aprovados e 1 externo opt-in ignorado; TypeScript e build aprovados
 - [x] Documentar inspeção Nginx 80m e teste real de storage para futura atualização autorizada da VPS, sem executar deploy nesta tarefa
+
+## Melhoria — Documentos até 200 MB com Progresso Real (04/11/2026)
+- [x] Elevar Convenção e Regimento para 200 MB por PDF, com mensagens e limites binários/base64 compartilhados
+- [x] Reservar JSON de 300 MB somente no endpoint administrativo de documentos, preservando 50 MB globais e 1 MB bruto BTG
+- [x] Encapsular XHR no httpLink exclusivo com contexto por operação, cookies, abort, timeout e erros HTTP, sem reenvio automático
+- [x] Exibir nome, tamanho, percentual e etapas Preparar / Enviar / Salvar com progressos reais de leitura e transmissão
+- [x] Manter gravação indeterminada até resposta do servidor e apresentar sucesso ou erro sem falso 100% concluído
+- [x] Bloquear upload e submit concorrentes; liberar FileReader, listeners e variables base64 da mutation após término
+- [x] Validar tamanho exato de 200 MB e recusa de 200 MB + 1 byte, transporte HTTP local, contexto tRPC e renderização acessível
+- [x] Conferir visualmente o componente real em quatro fases sintéticas, sem upload externo nem dados reais
+- [x] Executar 40 testes específicos no conjunto de documentos; suíte completa com 525 aprovados / 1 externo ignorado; TypeScript e build aprovados
+- [x] Registrar roteiro VPS 300m, riscos de memória e homologação real pendente, sem deploy nesta implementação

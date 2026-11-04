@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import { DOCUMENTO_CONDOMINIO_MAX_MB, validarArquivoDocumentoCondominio } from "@shared/documentos-condominio";
+import { DocumentoUploadProgresso } from "@/components/DocumentoUploadProgresso";
+import { iniciarProgressoDocumento, atualizarProgressoDocumento, type EstadoProgressoDocumento, type EventoProgressoDocumento } from "@/lib/progressoDocumento";
 import {
   ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink,
   Scale, FileText, ToggleLeft, ToggleRight, AlertCircle, Settings2, Gavel,
@@ -274,6 +276,10 @@ export default function CondominioForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (documentoUploadEmAndamento.current) {
+      toast.info("Aguarde o envio do documento antes de salvar o cadastro.");
+      return;
+    }
 
     if (!formData.name.trim()) {
       toast.error("Nome do condomínio é obrigatório");
@@ -337,10 +343,31 @@ export default function CondominioForm() {
   const [dragOverConvencao, setDragOverConvencao] = useState(false);
   const [dragOverRegimento, setDragOverRegimento] = useState(false);
   const documentoUploadEmAndamento = useRef(false);
+  const documentoUploadTipo = useRef<"convencao" | "regimento" | null>(null);
+  const [progressoDocumentos, setProgressoDocumentos] = useState<Partial<Record<"convencao" | "regimento", EstadoProgressoDocumento>>>({});
+  const registrarProgresso = (tipo: "convencao" | "regimento", evento: EventoProgressoDocumento) => {
+    setProgressoDocumentos(anterior => {
+      const atual = anterior[tipo];
+      if (!atual) return anterior;
+      const atualizado = atualizarProgressoDocumento(atual, evento);
+      if (atualizado.fase === atual.fase && atualizado.percentual === atual.percentual && atualizado.erro === atual.erro) return anterior;
+      return { ...anterior, [tipo]: atualizado };
+    });
+  };
 
   const uploadDocMutation = trpc.condominios.uploadDocumento.useMutation({
+    gcTime: 0,
+    trpc: { context: { documentoUpload: {
+      onProgress: (event: { loaded: number; total: number; lengthComputable: boolean }) => {
+        if (documentoUploadTipo.current) registrarProgresso(documentoUploadTipo.current, { tipo: "transmissao", ...event });
+      },
+      onUploaded: () => {
+        if (documentoUploadTipo.current) registrarProgresso(documentoUploadTipo.current, { tipo: "transmitido" });
+      },
+    } } },
     onSuccess: (data, variables) => {
       documentoUploadEmAndamento.current = false;
+      registrarProgresso(variables.tipo, { tipo: "sucesso" });
       if (variables.tipo === "convencao") {
         setFormData(prev => ({ ...prev, juridicoConvencaoUrl: data.url }));
         setUploadingConvencao(false);
@@ -355,7 +382,13 @@ export default function CondominioForm() {
       documentoUploadEmAndamento.current = false;
       setUploadingConvencao(false);
       setUploadingRegimento(false);
+      if (documentoUploadTipo.current) registrarProgresso(documentoUploadTipo.current, { tipo: "erro", mensagem: error.message });
       toast.error("Erro ao enviar documento: " + error.message);
+    },
+    onSettled: () => {
+      documentoUploadTipo.current = null;
+      // Libera as variables base64 do observer/cache depois do término.
+      uploadDocMutation.reset();
     },
   });
 
@@ -371,21 +404,30 @@ export default function CondominioForm() {
     const erro = validarArquivoDocumentoCondominio(file);
     if (erro) { toast.error(erro); return; }
     documentoUploadEmAndamento.current = true;
+    documentoUploadTipo.current = tipo;
+    setProgressoDocumentos(anterior => ({ ...anterior, [tipo]: iniciarProgressoDocumento(file) }));
     if (tipo === "convencao") setUploadingConvencao(true);
     else setUploadingRegimento(true);
     const reader = new FileReader();
+    const liberarLeitor = () => { reader.onload = null; reader.onerror = null; reader.onabort = null; reader.onprogress = null; };
     const falhaLeitura = () => {
       documentoUploadEmAndamento.current = false;
+      documentoUploadTipo.current = null;
       setUploadingConvencao(false);
       setUploadingRegimento(false);
+      registrarProgresso(tipo, { tipo: "erro", mensagem: "Não foi possível ler o PDF. Selecione o arquivo novamente." });
+      liberarLeitor();
       toast.error("Não foi possível ler o PDF. Selecione o arquivo novamente.");
     };
     reader.onerror = falhaLeitura;
     reader.onabort = falhaLeitura;
+    reader.onprogress = event => registrarProgresso(tipo, { tipo: "leitura", loaded: event.loaded, total: event.total, lengthComputable: event.lengthComputable });
     reader.onload = () => {
       const result = reader.result;
       if (typeof result !== "string" || !result.includes(",")) { falhaLeitura(); return; }
       const base64 = result.slice(result.indexOf(",") + 1);
+      liberarLeitor();
+      registrarProgresso(tipo, { tipo: "iniciarEnvio" });
       uploadDocMutation.mutate({
         condominioId,
         tipo,
@@ -412,7 +454,7 @@ export default function CondominioForm() {
     if (file) enviarDocumento(tipo, file);
   };
 
-  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isSaving = createMutation.isPending || updateMutation.isPending || uploadingConvencao || uploadingRegimento;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -1399,6 +1441,7 @@ export default function CondominioForm() {
                               className="h-7 w-7 text-muted-foreground hover:text-destructive"
                               onClick={() => setFormData(prev => ({ ...prev, juridicoConvencaoUrl: "" }))}
                               title="Remover documento"
+                              disabled={uploadingConvencao || uploadingRegimento}
                             >
                               <X className="h-4 w-4" />
                             </Button>
@@ -1418,7 +1461,7 @@ export default function CondominioForm() {
                             onDrop={handleDrop("convencao")}
                           >
                             {uploadingConvencao ? (
-                              <><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Enviando...</span></>
+                              <span className="text-sm font-medium text-primary">Envio em andamento</span>
                             ) : dragOverConvencao ? (
                               <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
                             ) : (
@@ -1433,6 +1476,7 @@ export default function CondominioForm() {
                             />
                           </label>
                         )}
+                        {progressoDocumentos.convencao && <DocumentoUploadProgresso estado={progressoDocumentos.convencao} />}
                       </div>
 
                       {/* Regimento Interno */}
@@ -1459,6 +1503,7 @@ export default function CondominioForm() {
                               className="h-7 w-7 text-muted-foreground hover:text-destructive"
                               onClick={() => setFormData(prev => ({ ...prev, juridicoRegimentoUrl: "" }))}
                               title="Remover documento"
+                              disabled={uploadingConvencao || uploadingRegimento}
                             >
                               <X className="h-4 w-4" />
                             </Button>
@@ -1478,7 +1523,7 @@ export default function CondominioForm() {
                             onDrop={handleDrop("regimento")}
                           >
                             {uploadingRegimento ? (
-                              <><Loader2 className="h-6 w-6 animate-spin text-primary" /><span className="text-sm text-muted-foreground">Enviando...</span></>
+                              <span className="text-sm font-medium text-primary">Envio em andamento</span>
                             ) : dragOverRegimento ? (
                               <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
                             ) : (
@@ -1493,6 +1538,7 @@ export default function CondominioForm() {
                             />
                           </label>
                         )}
+                        {progressoDocumentos.regimento && <DocumentoUploadProgresso estado={progressoDocumentos.regimento} />}
                       </div>
                     </div>
                   </div>

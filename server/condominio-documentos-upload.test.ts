@@ -28,19 +28,19 @@ beforeEach(() => {
 });
 
 describe("documentos condominiais — limite e PDF", () => {
-  it("usa 50 MB inclusive e não depende do limite antigo de 16 MB", () => {
-    expect(DOCUMENTO_CONDOMINIO_MAX_BYTES).toBe(50 * 1024 * 1024);
-    for (const size of [17 * 1024 * 1024, DOCUMENTO_CONDOMINIO_MAX_BYTES]) {
+  it("usa 200 MB inclusive e preserva arquivos menores e acima de 50 MB", () => {
+    expect(DOCUMENTO_CONDOMINIO_MAX_BYTES).toBe(200 * 1024 * 1024);
+    for (const size of [17 * 1024 * 1024, 50 * 1024 * 1024, 51 * 1024 * 1024, DOCUMENTO_CONDOMINIO_MAX_BYTES]) {
       expect(validarArquivoDocumentoCondominio({ name: "CONVENCAO.PDF", type: "application/pdf", size })).toBeNull();
       expect(decodificarDocumentoCondominio(input(pdf(size))).length).toBe(size);
     }
-  });
-  it("recusa 50 MB + 1 byte no browser e na API mesmo com base64 de comprimento permitido", () => {
+  }, 30_000);
+  it("recusa 200 MB + 1 byte no browser e na API mesmo com base64 de comprimento permitido", () => {
     const arquivo = pdf(DOCUMENTO_CONDOMINIO_MAX_BYTES + 1);
     expect(arquivo.toString("base64").length).toBe(DOCUMENTO_CONDOMINIO_MAX_BASE64);
-    expect(validarArquivoDocumentoCondominio({ name: "regimento.pdf", type: "application/pdf", size: arquivo.length })).toContain("50 MB");
-    expect(() => decodificarDocumentoCondominio(input(arquivo))).toThrow(/50 MB/);
-  });
+    expect(validarArquivoDocumentoCondominio({ name: "regimento.pdf", type: "application/pdf", size: arquivo.length })).toContain("200 MB");
+    expect(() => decodificarDocumentoCondominio(input(arquivo))).toThrow(/200 MB/);
+  }, 30_000);
   it("valida nome, tipo e vazio igualmente para clique e arraste", () => {
     expect(validarArquivoDocumentoCondominio({ name: "regimento.PDF", type: "", size: 100 })).toBeNull();
     expect(validarArquivoDocumentoCondominio({ name: "regimento.PDF", type: "application/octet-stream", size: 100 })).toBeNull();
