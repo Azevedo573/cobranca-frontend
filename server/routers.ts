@@ -629,24 +629,54 @@ export const appRouter = router({
       fileBase64: z.string().min(1).max(DOCUMENTO_CONDOMINIO_MAX_BASE64),
       fileName: z.string().min(1).max(255),
       mimeType: z.string().max(100),
+      urlAtual: z.string().max(500).nullable().optional(),
     })).mutation(async ({ input, ctx }) => {
       const { storagePut } = await import("./storage");
       const { getCondominioById, updateCondominio } = await import("./db-condominios");
       const { decodificarDocumentoCondominio } = await import("./condominio-documentos-upload");
+      const { campoDocumentoCondominio, trocarUrlDocumentoCondominio } = await import("./condominio-documentos-persistencia");
       const buffer = decodificarDocumentoCondominio(input);
-      if (!await getCondominioById(input.condominioId)) {
+      const condominio = await getCondominioById(input.condominioId);
+      if (!condominio) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado." });
+      }
+      const field = campoDocumentoCondominio(input.tipo);
+      const urlAnterior = condominio[field] || null;
+      if (input.urlAtual !== undefined && urlAnterior !== input.urlAtual) {
+        throw new TRPCError({ code: "CONFLICT", message: "O documento foi alterado em outra sessão. Atualize a página antes de tentar novamente." });
       }
       const suffix = Math.random().toString(36).slice(2, 10);
       const fileKey = `condominios/${input.condominioId}/docs/${input.tipo}-${suffix}.pdf`;
       const { url } = await storagePut(fileKey, buffer, "application/pdf");
-      // Atualizar URL no condomínio
-      const field = input.tipo === "convencao" ? "juridicoConvencaoUrl" : "juridicoRegimentoUrl";
-      await updateCondominio(input.condominioId, { [field]: url });
+      // Compatibilidade com clientes anteriores; a nova tela informa a URL esperada.
+      if (input.urlAtual === undefined) await updateCondominio(input.condominioId, { [field]: url });
+      else await trocarUrlDocumentoCondominio(input.condominioId, input.tipo, input.urlAtual, url);
       await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(input.condominioId),
         condominioId: input.condominioId, severity: "info",
-        metadata: { tipoDocumento: input.tipo, tamanhoBytes: buffer.length } });
+        beforeData: { [field]: urlAnterior }, afterData: { [field]: url },
+        metadata: { tipoDocumento: input.tipo, tamanhoBytes: buffer.length,
+          operacaoDocumento: urlAnterior ? "substituir" : "enviar", arquivoFisicoPreservado: true } });
       return { url, fileName: input.fileName };
+    }),
+
+    removerDocumento: adminProcedure.input(z.object({
+      condominioId: z.number().int().positive(),
+      tipo: z.enum(["convencao", "regimento"]),
+      urlAtual: z.string().min(1).max(500),
+      confirmado: z.literal(true),
+    })).mutation(async ({ input, ctx }) => {
+      const { getCondominioById } = await import("./db-condominios");
+      const { campoDocumentoCondominio, trocarUrlDocumentoCondominio } = await import("./condominio-documentos-persistencia");
+      if (!await getCondominioById(input.condominioId)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado." });
+      }
+      const field = campoDocumentoCondominio(input.tipo);
+      const resultado = await trocarUrlDocumentoCondominio(input.condominioId, input.tipo, input.urlAtual, null);
+      await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(input.condominioId),
+        condominioId: input.condominioId, severity: "warning",
+        beforeData: { [field]: resultado.urlAnterior }, afterData: { [field]: null },
+        metadata: { tipoDocumento: input.tipo, operacaoDocumento: "excluir", arquivoFisicoPreservado: true } });
+      return { success: true, tipo: input.tipo, url: null };
     }),
   }),
   // Devedores

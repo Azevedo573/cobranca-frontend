@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import { DOCUMENTO_CONDOMINIO_MAX_MB, validarArquivoDocumentoCondominio } from "@shared/documentos-condominio";
-import { DocumentoUploadProgresso } from "@/components/DocumentoUploadProgresso";
+import { DocumentoCondominioCard } from "@/components/DocumentoCondominioCard";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { iniciarProgressoDocumento, atualizarProgressoDocumento, type EstadoProgressoDocumento, type EventoProgressoDocumento } from "@/lib/progressoDocumento";
 import {
   ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink,
   Scale, FileText, ToggleLeft, ToggleRight, AlertCircle, Settings2, Gavel,
-  MapPin, BookOpen, Briefcase, Upload, X, FileCheck, Loader2, Archive
+  MapPin, BookOpen, Briefcase, Loader2, Archive
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -190,9 +191,19 @@ export default function CondominioForm() {
   );
 
   const utils = trpc.useUtils();
+  const condominioCarregado = useRef<number | null>(null);
 
   useEffect(() => {
     if (condominio) {
+      // Atualizar um documento não deve descartar outros campos ainda não salvos.
+      if (condominioCarregado.current === condominio.id) {
+        setFormData(prev => ({ ...prev,
+          juridicoConvencaoUrl: condominio.juridicoConvencaoUrl || "",
+          juridicoRegimentoUrl: condominio.juridicoRegimentoUrl || "",
+        }));
+        return;
+      }
+      condominioCarregado.current = condominio.id;
       setFormData({
         name: condominio.name || "",
         cnpj: condominio.cnpj || "",
@@ -299,8 +310,9 @@ export default function CondominioForm() {
       juridicoVaraCompetente: formData.juridicoVaraCompetente || undefined,
       juridicoForoComarca: formData.juridicoForoComarca || undefined,
       juridicoTribunalEstado: formData.juridicoTribunalEstado || undefined,
-      juridicoConvencaoUrl: formData.juridicoConvencaoUrl || undefined,
-      juridicoRegimentoUrl: formData.juridicoRegimentoUrl || undefined,
+      // Documentos de um cadastro existente são persistidos nas ações próprias.
+      juridicoConvencaoUrl: isEdit ? undefined : formData.juridicoConvencaoUrl || undefined,
+      juridicoRegimentoUrl: isEdit ? undefined : formData.juridicoRegimentoUrl || undefined,
       juridicoObservacoes: formData.juridicoObservacoes || undefined,
       // Arquivamento
       statusCadastro: formData.statusCadastro || undefined,
@@ -340,8 +352,10 @@ export default function CondominioForm() {
   // Estados de upload de documentos jurídicos
   const [uploadingConvencao, setUploadingConvencao] = useState(false);
   const [uploadingRegimento, setUploadingRegimento] = useState(false);
-  const [dragOverConvencao, setDragOverConvencao] = useState(false);
-  const [dragOverRegimento, setDragOverRegimento] = useState(false);
+  const [acaoDocumento, setAcaoDocumento] = useState<{
+    tipo: "convencao" | "regimento"; operacao: "substituir" | "excluir";
+    urlAtual: string; arquivo?: File;
+  } | null>(null);
   const documentoUploadEmAndamento = useRef(false);
   const documentoUploadTipo = useRef<"convencao" | "regimento" | null>(null);
   const [progressoDocumentos, setProgressoDocumentos] = useState<Partial<Record<"convencao" | "regimento", EstadoProgressoDocumento>>>({});
@@ -354,6 +368,21 @@ export default function CondominioForm() {
       return { ...anterior, [tipo]: atualizado };
     });
   };
+  const atualizarUrlDocumento = (tipo: "convencao" | "regimento", url: string | null) => {
+    const campo = tipo === "convencao" ? "juridicoConvencaoUrl" : "juridicoRegimentoUrl";
+    setFormData(prev => ({ ...prev, [campo]: url || "" }));
+    if (condominioId) utils.condominios.getById.setData({ id: condominioId }, anterior => anterior ? { ...anterior, [campo]: url } : anterior);
+    void utils.condominios.list.invalidate();
+  };
+  const removerDocMutation = trpc.condominios.removerDocumento.useMutation({
+    onSuccess: (data) => {
+      atualizarUrlDocumento(data.tipo, null);
+      setProgressoDocumentos(prev => ({ ...prev, [data.tipo]: undefined }));
+      toast.success("Documento excluído do cadastro. O arquivo histórico foi preservado.");
+    },
+    onError: (error) => toast.error("Não foi possível excluir o documento: " + error.message),
+    onSettled: () => { documentoUploadEmAndamento.current = false; },
+  });
 
   const uploadDocMutation = trpc.condominios.uploadDocumento.useMutation({
     gcTime: 0,
@@ -368,15 +397,13 @@ export default function CondominioForm() {
     onSuccess: (data, variables) => {
       documentoUploadEmAndamento.current = false;
       registrarProgresso(variables.tipo, { tipo: "sucesso" });
+      atualizarUrlDocumento(variables.tipo, data.url);
       if (variables.tipo === "convencao") {
-        setFormData(prev => ({ ...prev, juridicoConvencaoUrl: data.url }));
         setUploadingConvencao(false);
-        toast.success(`Convenção Condominial enviada: ${data.fileName}`);
       } else {
-        setFormData(prev => ({ ...prev, juridicoRegimentoUrl: data.url }));
         setUploadingRegimento(false);
-        toast.success(`Regimento Interno enviado: ${data.fileName}`);
       }
+      toast.success(`Documento ${variables.urlAtual ? "substituído" : "enviado"}: ${data.fileName}`);
     },
     onError: (error) => {
       documentoUploadEmAndamento.current = false;
@@ -392,7 +419,7 @@ export default function CondominioForm() {
     },
   });
 
-  const enviarDocumento = (tipo: "convencao" | "regimento", file: File) => {
+  const enviarDocumento = (tipo: "convencao" | "regimento", file: File, urlAtual: string | null) => {
     if (documentoUploadEmAndamento.current) {
       toast.info("Aguarde o envio do documento atual antes de enviar outro.");
       return;
@@ -434,27 +461,37 @@ export default function CondominioForm() {
         fileBase64: base64,
         fileName: file.name,
         mimeType: "application/pdf",
+        urlAtual,
       });
     };
     try { reader.readAsDataURL(file); } catch { falhaLeitura(); }
   };
 
-  const handleUploadDoc = (tipo: "convencao" | "regimento") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (file) enviarDocumento(tipo, file);
+  const selecionarDocumento = (tipo: "convencao" | "regimento", file: File) => {
+    if (documentoUploadEmAndamento.current || createMutation.isPending || updateMutation.isPending) return;
+    const erro = validarArquivoDocumentoCondominio(file);
+    if (erro) { toast.error(erro); return; }
+    const urlAtual = tipo === "convencao" ? formData.juridicoConvencaoUrl : formData.juridicoRegimentoUrl;
+    if (urlAtual) setAcaoDocumento({ tipo, operacao: "substituir", arquivo: file, urlAtual });
+    else enviarDocumento(tipo, file, null);
+  };
+  const solicitarExclusao = (tipo: "convencao" | "regimento") => {
+    if (documentoUploadEmAndamento.current || createMutation.isPending || updateMutation.isPending) return;
+    const urlAtual = tipo === "convencao" ? formData.juridicoConvencaoUrl : formData.juridicoRegimentoUrl;
+    if (urlAtual) setAcaoDocumento({ tipo, operacao: "excluir", urlAtual });
+  };
+  const confirmarAcaoDocumento = () => {
+    if (!acaoDocumento || !condominioId || documentoUploadEmAndamento.current) return;
+    const acao = acaoDocumento;
+    setAcaoDocumento(null);
+    if (acao.operacao === "substituir" && acao.arquivo) enviarDocumento(acao.tipo, acao.arquivo, acao.urlAtual);
+    else if (acao.operacao === "excluir") {
+      documentoUploadEmAndamento.current = true;
+      removerDocMutation.mutate({ condominioId, tipo: acao.tipo, urlAtual: acao.urlAtual, confirmado: true });
+    }
   };
 
-  const handleDrop = (tipo: "convencao" | "regimento") => (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (tipo === "convencao") setDragOverConvencao(false);
-    else setDragOverRegimento(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) enviarDocumento(tipo, file);
-  };
-
-  const isSaving = createMutation.isPending || updateMutation.isPending || uploadingConvencao || uploadingRegimento;
+  const isSaving = createMutation.isPending || updateMutation.isPending || uploadingConvencao || uploadingRegimento || removerDocMutation.isPending;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -1417,129 +1454,20 @@ export default function CondominioForm() {
                       {!condominioId && <span className="ml-1 text-amber-600 font-medium">Salve o condomínio antes de enviar documentos.</span>}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Convenção Condominial */}
-                      <div className="space-y-2">
-                        <Label>Convenção Condominial</Label>
-                        {formData.juridicoConvencaoUrl ? (
-                          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3">
-                            <FileCheck className="h-5 w-5 text-green-600 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-green-700 dark:text-green-400 truncate">Documento enviado</p>
-                              <a
-                                href={formData.juridicoConvencaoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary hover:underline flex items-center gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" /> Visualizar PDF
-                              </a>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => setFormData(prev => ({ ...prev, juridicoConvencaoUrl: "" }))}
-                              title="Remover documento"
-                              disabled={uploadingConvencao || uploadingRegimento}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <label
-                            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-all ${
-                              !condominioId
-                                ? "border-muted-foreground/20 opacity-50 cursor-not-allowed"
-                                : dragOverConvencao
-                                  ? "border-primary bg-primary/10 scale-[1.02]"
-                                  : "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
-                            }`}
-                            onDragOver={(e) => { e.preventDefault(); if (condominioId) setDragOverConvencao(true); }}
-                            onDragEnter={(e) => { e.preventDefault(); if (condominioId) setDragOverConvencao(true); }}
-                            onDragLeave={() => setDragOverConvencao(false)}
-                            onDrop={handleDrop("convencao")}
-                          >
-                            {uploadingConvencao ? (
-                              <span className="text-sm font-medium text-primary">Envio em andamento</span>
-                            ) : dragOverConvencao ? (
-                              <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
-                            ) : (
-                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. {DOCUMENTO_CONDOMINIO_MAX_MB} MB</span></>
-                            )}
-                            <input
-                              type="file"
-                              accept=".pdf,application/pdf"
-                              className="hidden"
-                              disabled={!condominioId || uploadingConvencao || uploadingRegimento}
-                              onChange={handleUploadDoc("convencao")}
-                            />
-                          </label>
-                        )}
-                        {progressoDocumentos.convencao && <DocumentoUploadProgresso estado={progressoDocumentos.convencao} />}
-                      </div>
-
-                      {/* Regimento Interno */}
-                      <div className="space-y-2">
-                        <Label>Regimento Interno</Label>
-                        {formData.juridicoRegimentoUrl ? (
-                          <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3">
-                            <FileCheck className="h-5 w-5 text-green-600 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-green-700 dark:text-green-400 truncate">Documento enviado</p>
-                              <a
-                                href={formData.juridicoRegimentoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-primary hover:underline flex items-center gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" /> Visualizar PDF
-                              </a>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => setFormData(prev => ({ ...prev, juridicoRegimentoUrl: "" }))}
-                              title="Remover documento"
-                              disabled={uploadingConvencao || uploadingRegimento}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <label
-                            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer transition-all ${
-                              !condominioId
-                                ? "border-muted-foreground/20 opacity-50 cursor-not-allowed"
-                                : dragOverRegimento
-                                  ? "border-primary bg-primary/10 scale-[1.02]"
-                                  : "border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5"
-                            }`}
-                            onDragOver={(e) => { e.preventDefault(); if (condominioId) setDragOverRegimento(true); }}
-                            onDragEnter={(e) => { e.preventDefault(); if (condominioId) setDragOverRegimento(true); }}
-                            onDragLeave={() => setDragOverRegimento(false)}
-                            onDrop={handleDrop("regimento")}
-                          >
-                            {uploadingRegimento ? (
-                              <span className="text-sm font-medium text-primary">Envio em andamento</span>
-                            ) : dragOverRegimento ? (
-                              <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
-                            ) : (
-                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. {DOCUMENTO_CONDOMINIO_MAX_MB} MB</span></>
-                            )}
-                            <input
-                              type="file"
-                              accept=".pdf,application/pdf"
-                              className="hidden"
-                              disabled={!condominioId || uploadingConvencao || uploadingRegimento}
-                              onChange={handleUploadDoc("regimento")}
-                            />
-                          </label>
-                        )}
-                        {progressoDocumentos.regimento && <DocumentoUploadProgresso estado={progressoDocumentos.regimento} />}
-                      </div>
+                      {(["convencao", "regimento"] as const).map(tipo => (
+                        <DocumentoCondominioCard
+                          key={tipo}
+                          tipo={tipo}
+                          url={tipo === "convencao" ? formData.juridicoConvencaoUrl : formData.juridicoRegimentoUrl}
+                          canUpload={!!condominioId && user?.role === "admin"}
+                          disabled={isSaving || !!acaoDocumento || user?.role !== "admin"}
+                          uploading={tipo === "convencao" ? uploadingConvencao : uploadingRegimento}
+                          removing={removerDocMutation.isPending && removerDocMutation.variables?.tipo === tipo}
+                          progresso={progressoDocumentos[tipo]}
+                          onSelect={file => selecionarDocumento(tipo, file)}
+                          onRemove={() => solicitarExclusao(tipo)}
+                        />
+                      ))}
                     </div>
                   </div>
 
@@ -1590,6 +1518,32 @@ export default function CondominioForm() {
             </TabsContent>
           </Tabs>
         </form>
+        <AlertDialog open={!!acaoDocumento} onOpenChange={open => { if (!open) setAcaoDocumento(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{acaoDocumento?.operacao === "excluir" ? "Excluir documento do cadastro?" : "Substituir o PDF atual?"}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {acaoDocumento?.tipo === "convencao" ? "Convenção Condominial" : "Regimento Interno"} — {formData.name}.
+                {acaoDocumento?.operacao === "excluir"
+                  ? " O vínculo será retirado imediatamente, sem precisar salvar o cadastro. O arquivo histórico não será apagado do armazenamento; links antigos não serão revogados."
+                  : " O documento atual só será trocado depois que o novo PDF for enviado e salvo com sucesso. Se houver falha, o documento anterior será mantido."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {acaoDocumento?.operacao === "substituir" && acaoDocumento.arquivo && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                <p className="break-all font-medium">{acaoDocumento.arquivo.name}</p>
+                <p className="text-muted-foreground">{(acaoDocumento.arquivo.size / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB · PDF</p>
+              </div>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+              <AlertDialogAction type="button" onClick={confirmarAcaoDocumento}
+                className={acaoDocumento?.operacao === "excluir" ? "bg-destructive text-white hover:bg-destructive/90" : ""}>
+                {acaoDocumento?.operacao === "excluir" ? "Excluir documento" : "Confirmar substituição"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );

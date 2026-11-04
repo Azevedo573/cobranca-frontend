@@ -2897,3 +2897,16 @@
 - [x] Conferir visualmente o componente real em quatro fases sintéticas, sem upload externo nem dados reais
 - [x] Executar 40 testes específicos no conjunto de documentos; suíte completa com 525 aprovados / 1 externo ignorado; TypeScript e build aprovados
 - [x] Registrar roteiro VPS 300m, riscos de memória e homologação real pendente, sem deploy nesta implementação
+
+## Melhoria — Substituir e Excluir Documentos do Condomínio (04/11/2026)
+- [x] Exibir Visualizar PDF, Substituir PDF e Excluir documento para Convenção e Regimento
+- [x] Confirmar substituição com nome/tamanho e preservar URL anterior em cancelamento ou falha
+- [x] Confirmar retirada lógica do vínculo e persistir null imediatamente sem depender do submit geral
+- [x] Exigir administrador, condomínio existente, confirmação e URL esperada; bloquear conflito de outra sessão com lock transacional curto
+- [x] Preservar PDFs físicos históricos e auditar URLs anterior/nova sem conteúdo base64
+- [x] Manter limite de 200 MB e barra real de progresso; bloquear ações documentais e submit concorrentes
+- [x] Atualizar cache e estado documental sem perder outros campos ainda não salvos nem reenviar URL antiga no submit
+- [x] Validar 35 testes novos; suíte completa com 560 aprovados / 1 externo ignorado, TypeScript e build aprovados
+- [x] Conferir visualmente cartão real com dados sintéticos, sem ações em documentos reais
+
+Validação manual das ações no cadastro real e atualização da VPS permanecem pendentes; roteiro no registro da ocorrência. Nenhum deploy foi executado nesta melhoria.
