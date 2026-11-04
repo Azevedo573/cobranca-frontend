@@ -15,7 +15,6 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import QRCode from "qrcode";
-import { resumirPlanoBoletoAcordo } from "./plano-acordo-pdf";
 import { deveResumirOrigem, montarOrigemDividaAcordo, type OrigemDividaDocumento } from "./origem-divida-acordo";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -543,46 +542,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
           .text(card.valor == null ? "Não disponível" : `R$ ${formatarValorReais(card.valor)}`, x + 5, y + 23, { width: W_CARD - 10, align: "right", lineBreak: false });
       });
       y += H_RESUMO + 10;
-
-      const resumoPlano = resumirPlanoBoletoAcordo(contextoAcordo.parcelas.map((parcela) => ({
-        id: parcela.id,
-        installmentNumber: parcela.installmentNumber,
-        amount: parcela.valor,
-        dueDate: parcela.vencimento,
-        status: parcela.status,
-        paymentDate: parcela.status === "pago" ? parcela.vencimento : null,
-      })));
-      const H_PLANO_RESUMIDO = 58;
-      if (y + H_PLANO_RESUMIDO + 28 > PAGE_H - MARGEM_INF) {
-        doc.addPage();
-        y = 18;
-      }
-
-      doc.font(FONTE_BOLD).fontSize(8).fillColor(PRETO)
-        .text("Plano de pagamento do acordo", ML, y, { lineBreak: false });
-      y += 12;
-      doc.roundedRect(ML, y, W, H_PLANO_RESUMIDO, 3).fillColor("#F7F9FC").fill();
-      doc.roundedRect(ML, y, W, H_PLANO_RESUMIDO, 3).strokeColor("#C8D2E0").lineWidth(0.5).stroke();
-
-      const resumoEntrada = resumoPlano.entrada
-        ? `Entrada: R$ ${formatarValorReais(resumoPlano.entrada.valor)} em ${formatarData(resumoPlano.entrada.vencimento)}.`
-        : "Sem entrada registrada.";
-      const resumoParcelas = resumoPlano.quantidadeParcelasRegulares > 0
-        ? `${resumoPlano.quantidadeParcelasRegulares} parcela(s) regular(es) de R$ ${formatarValorReais(resumoPlano.valorMinimoParcela ?? 0)}${resumoPlano.valorMinimoParcela !== resumoPlano.valorMaximoParcela ? ` a R$ ${formatarValorReais(resumoPlano.valorMaximoParcela ?? 0)}` : ""}.`
-        : "Sem parcelas regulares.";
-
-      doc.font(FONTE).fontSize(7).fillColor(PRETO)
-        .text(`${resumoEntrada} ${resumoParcelas}`, ML + 8, y + 8, { width: W - 16, lineBreak: false });
-      doc.font(FONTE).fontSize(6.8).fillColor(CINZA_LABEL)
-        .text(
-          `Etapas: ${resumoPlano.quantidadeEtapas} · Quitadas: ${resumoPlano.parcelasQuitadas} · Em aberto: R$ ${formatarValorReais(resumoPlano.saldoEmAberto)}`,
-          ML + 8,
-          y + 23,
-          { width: W - 16, lineBreak: false },
-        );
-      doc.font(FONTE_BOLD).fontSize(6.8).fillColor(AZUL_BTG)
-        .text("Consulte o Demonstrativo completo do acordo. Este resumo não altera o valor exigível deste boleto.", ML + 8, y + 39, { width: W - 16, lineBreak: false });
-      y += H_PLANO_RESUMIDO + 8;
+      // O plano completo permanece no demonstrativo separado, não no boleto.
     }
 
     // ── Composição da cobrança ──

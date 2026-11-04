@@ -2869,3 +2869,9 @@
 - [x] Atualizar botão para Demonstrativo completo (PDF) e auditar a quantidade de dívidas
 - [x] Testar preservação de valor, vencimento, Pix e título, exportação negada e múltiplos condomínios
 - [x] Validar PDFs sintéticos: boleto até duas páginas com 80 dívidas e 65 etapas; demonstrativo integral sem páginas vazias
+
+## Ajuste Documental — Retirada do Plano do Boleto (04/11/2026)
+- [x] Remover o quadro Plano de pagamento do acordo, textos e espaço reservado, conforme pedido do usuário
+- [x] Preservar resumo do acordo, valor da parcela, origem adaptativa, Pix e ficha de compensação
+- [x] Manter todas as parcelas no demonstrativo completo separado, sem alteração de dados ou permissões
+- [x] Testar ausência do quadro em parcela única de R$ 202,66, entrada e acordo longo; 485 testes, TypeScript e build aprovados

@@ -73,6 +73,46 @@ describe("PDF de acordo com origem adaptativa", () => {
     expect(texto).toContain("Dívida sintética 2");
     expect(texto).toContain("Ficha de Compensação");
   });
+  it.skipIf(!temPoppler).each([
+    ["parcela única sem entrada", "unica"],
+    ["entrada de acordo", "entrada"],
+    ["acordo com 65 etapas", "longo"],
+  ])("retira somente o quadro do plano do boleto: %s", async (_nome, cenario) => {
+    const { dados } = fixture(cenario === "longo" ? 80 : 2);
+    if (cenario !== "longo") {
+      const parcelas = cenario === "entrada"
+        ? [{ id: 1, installmentNumber: 0, amount: 20266, dueDate: dados.dataVencimento, status: "pendente" as const },
+          { id: 2, installmentNumber: 1, amount: 20266, dueDate: dados.dataVencimento, status: "pendente" as const }]
+        : [{ id: 1, installmentNumber: 1, amount: 20266, dueDate: dados.dataVencimento, status: "pendente" as const }];
+      dados.valor = 20266;
+      dados.contextoAcordo = montarContextoBoletoAcordo({ acordoId: 1500001, parcelaAtualId: 1,
+        totalNegociado: parcelas.reduce((s, p) => s + p.amount, 0), parcelas });
+    }
+    const antes = structuredClone(dados);
+    const codigo = calcularCodigoBarras(dados);
+    const linha = calcularLinhaDigitavel(codigo);
+    const pdf = await gerarBoletoPDF(dados);
+    const texto = textoPdf(pdf);
+    for (const trecho of ["Plano de pagamento do acordo", "Sem entrada registrada.",
+      "parcela(s) regular(es)", "Etapas:", "Quitadas:", "Em aberto:",
+      "Este resumo não altera o valor exigível deste boleto."]) {
+      expect(texto).not.toContain(trecho);
+    }
+    expect(texto).toContain("Resumo do acordo");
+    expect(texto).toContain("Total negociado no acordo");
+    expect(texto).toContain("Saldo após este pagamento");
+    expect(texto).toContain(cenario === "longo"
+      ? "Resumo da origem do acordo — composição consolidada"
+      : "Origem da dívida na formalização do acordo");
+    expect(texto).toContain("Demonstrativo completo do acordo");
+    expect(texto).toContain("PIX COPIA E COLA");
+    expect(texto).toContain("Ficha de Compensação");
+    expect(texto).toContain(cenario === "longo" ? "50,00" : "202,66");
+    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(calcularCodigoBarras(dados)).toBe(codigo);
+    expect(calcularLinhaDigitavel(codigo)).toBe(linha);
+    expect(dados).toEqual(antes);
+  });
   it.skipIf(!temPoppler)("inclui todas as dívidas e parcelas no demonstrativo, sem Pix ou ficha bancária", async () => {
     const { inputPlano } = fixture();
     const pdf = await gerarPlanoCompletoAcordoPDF(inputPlano);

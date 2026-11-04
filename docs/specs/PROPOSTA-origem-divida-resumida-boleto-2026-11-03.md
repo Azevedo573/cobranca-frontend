@@ -14,7 +14,7 @@ O gerador de boleto já pagina a tabela de dívidas originais e repete seu cabe�
 
 Adotar composição adaptativa no boleto e ampliar o documento separado existente:
 
-1. **Boleto individual:** manter o valor exigível em destaque, o resumo do plano, o contexto histórico da origem e a ficha de compensação/Pix.
+1. **Boleto individual:** manter o valor exigível em destaque, os cartões de resumo do acordo, o contexto histórico da origem e a ficha de compensação/Pix. Por pedido do usuário em 04/11/2026, o quadro “Plano de pagamento do acordo” e sua nota foram removidos do boleto; as parcelas continuam no demonstrativo separado.
 2. **Origem curta:** mostrar a tabela detalhada apenas quando a quantidade e a altura disponível permitirem. Sugestão inicial: até cinco títulos, desde que caibam com a ficha bancária. O limite depende de validação de layout, não apenas do número de registros.
 3. **Origem extensa:** substituir a tabela integral por quadro consolidado contendo quantidade de cobranças, período de vencimentos de origem e composição financeira. Mostrar principal, encargos, descontos e total histórico somente quando esses dados forem confiáveis e compatíveis com o fechamento do acordo. Não preencher lacunas com valores inventados.
 4. **Demonstrativo completo do acordo:** evoluir o PDF informativo já existente para conter resumo do acordo, composição integral das dívidas de origem e plano completo de parcelas. As duas tabelas devem ter paginação própria e cabeçalhos repetidos.
@@ -50,7 +50,7 @@ Ao gerar um boleto de parcela, avaliar a quantidade de títulos e o espaço disp
 
 # Telas e Experiência do Usuário
 
-**Boleto:** destacar o valor da parcela; separar visualmente origem da dívida e plano de pagamento; informar quando a composição está resumida. Usar tipografia legível, em vez de reduzir a fonte para encaixar todas as linhas.
+**Boleto:** destacar o valor da parcela e separar visualmente o resumo do acordo da origem da dívida; informar quando a composição está resumida. Usar tipografia legível, em vez de reduzir a fonte para encaixar todas as linhas. O plano de pagamento é consultado no demonstrativo completo, sem quadro adicional no boleto.
 
 **Detalhe do acordo:** botão “Demonstrativo completo (PDF)”, preservando carregamento e mensagens de erro existentes. Mensagem sugerida de sucesso: “Demonstrativo gerado com as dívidas de origem e o plano de parcelas.”
 
