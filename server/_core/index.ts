@@ -12,6 +12,7 @@ import { alertasInadimplenciaHandler } from "../job-alertas-inadimplencia";
 import { alertasPrazosHandler } from "../job-alertas-prazos";
 import { doerjHandler, doerjTermosHandler } from "../job-doerj";
 import { registrarJobPJe } from "../job-pje";
+import { registrarParserDocumentosCondominio } from "../condominio-documentos-http";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -43,6 +44,8 @@ async function startServer() {
     express.raw({ type: "application/json", limit: "1mb" }),
     webhookBtgV2Handler,
   );
+  // Até 50 MB binários (~67 MB base64), somente nesta mutation administrativa.
+  registrarParserDocumentosCondominio(app);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));

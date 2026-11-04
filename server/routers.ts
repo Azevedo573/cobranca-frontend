@@ -1,4 +1,5 @@
 import { COOKIE_NAME } from "../shared/const";
+import { DOCUMENTO_CONDOMINIO_MAX_BASE64 } from "../shared/documentos-condominio";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
@@ -625,21 +626,26 @@ export const appRouter = router({
     uploadDocumento: adminProcedure.input(z.object({
       condominioId: z.number().int().positive(),
       tipo: z.enum(["convencao", "regimento"]),
-      fileBase64: z.string(),
-      fileName: z.string(),
-      mimeType: z.string(),
+      fileBase64: z.string().min(1).max(DOCUMENTO_CONDOMINIO_MAX_BASE64),
+      fileName: z.string().min(1).max(255),
+      mimeType: z.string().max(100),
     })).mutation(async ({ input, ctx }) => {
       const { storagePut } = await import("./storage");
-      const { updateCondominio } = await import("./db-condominios");
-      const buffer = Buffer.from(input.fileBase64, "base64");
-      const ext = input.fileName.split(".").pop() ?? "pdf";
+      const { getCondominioById, updateCondominio } = await import("./db-condominios");
+      const { decodificarDocumentoCondominio } = await import("./condominio-documentos-upload");
+      const buffer = decodificarDocumentoCondominio(input);
+      if (!await getCondominioById(input.condominioId)) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado." });
+      }
       const suffix = Math.random().toString(36).slice(2, 10);
-      const fileKey = `condominios/${input.condominioId}/docs/${input.tipo}-${suffix}.${ext}`;
-      const { url } = await storagePut(fileKey, buffer, input.mimeType);
+      const fileKey = `condominios/${input.condominioId}/docs/${input.tipo}-${suffix}.pdf`;
+      const { url } = await storagePut(fileKey, buffer, "application/pdf");
       // Atualizar URL no condomínio
       const field = input.tipo === "convencao" ? "juridicoConvencaoUrl" : "juridicoRegimentoUrl";
       await updateCondominio(input.condominioId, { [field]: url });
-      await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(input.condominioId), severity: "info" });
+      await logAudit(ctx, { action: "update", entity: "condominio", entityId: String(input.condominioId),
+        condominioId: input.condominioId, severity: "info",
+        metadata: { tipoDocumento: input.tipo, tamanhoBytes: buffer.length } });
       return { url, fileName: input.fileName };
     }),
   }),

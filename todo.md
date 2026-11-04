@@ -2875,3 +2875,13 @@
 - [x] Preservar resumo do acordo, valor da parcela, origem adaptativa, Pix e ficha de compensação
 - [x] Manter todas as parcelas no demonstrativo completo separado, sem alteração de dados ou permissões
 - [x] Testar ausência do quadro em parcela única de R$ 202,66, entrada e acordo longo; 485 testes, TypeScript e build aprovados
+
+## Ajuste Documental — Documentos do Condomínio até 50 MB (04/11/2026)
+- [x] Ampliar Convenção e Regimento para 50 MB por PDF, com textos e validações compartilhados no clique e arraste
+- [x] Validar base64, tamanho real e cabeçalho PDF no servidor antes do storage; exigir condomínio existente e manter administrador
+- [x] Isolar mutation de upload em httpLink individual e preservar batching/cookies dos demais módulos
+- [x] Reservar parser JSON autenticado de 80 MB apenas para o endpoint de documentos, mantendo limites globais e webhook bruto BTG
+- [x] Tratar falha/abort de FileReader e impedir uploads simultâneos no formulário
+- [x] Preservar URL anterior em falha de storage e auditar tipo/tamanho, sem conteúdo nos logs
+- [x] Validar 25 regressões específicas; suíte completa com 510 testes aprovados e 1 externo opt-in ignorado; TypeScript e build aprovados
+- [x] Documentar inspeção Nginx 80m e teste real de storage para futura atualização autorizada da VPS, sem executar deploy nesta tarefa

@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
+import { DOCUMENTO_CONDOMINIO_MAX_MB, validarArquivoDocumentoCondominio } from "@shared/documentos-condominio";
 import {
   ArrowLeft, Save, Building2, Receipt, Info, Lock, Crown, Users, ExternalLink,
   Scale, FileText, ToggleLeft, ToggleRight, AlertCircle, Settings2, Gavel,
   MapPin, BookOpen, Briefcase, Upload, X, FileCheck, Loader2, Archive
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
 
@@ -335,9 +336,11 @@ export default function CondominioForm() {
   const [uploadingRegimento, setUploadingRegimento] = useState(false);
   const [dragOverConvencao, setDragOverConvencao] = useState(false);
   const [dragOverRegimento, setDragOverRegimento] = useState(false);
+  const documentoUploadEmAndamento = useRef(false);
 
   const uploadDocMutation = trpc.condominios.uploadDocumento.useMutation({
     onSuccess: (data, variables) => {
+      documentoUploadEmAndamento.current = false;
       if (variables.tipo === "convencao") {
         setFormData(prev => ({ ...prev, juridicoConvencaoUrl: data.url }));
         setUploadingConvencao(false);
@@ -349,39 +352,55 @@ export default function CondominioForm() {
       }
     },
     onError: (error) => {
+      documentoUploadEmAndamento.current = false;
       setUploadingConvencao(false);
       setUploadingRegimento(false);
       toast.error("Erro ao enviar documento: " + error.message);
     },
   });
 
-  const handleUploadDoc = (tipo: "convencao" | "regimento") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const enviarDocumento = (tipo: "convencao" | "regimento", file: File) => {
+    if (documentoUploadEmAndamento.current) {
+      toast.info("Aguarde o envio do documento atual antes de enviar outro.");
+      return;
+    }
     if (!condominioId) {
       toast.error("Salve o condomínio primeiro antes de enviar documentos.");
       return;
     }
-    const maxSize = 16 * 1024 * 1024;
-    if (file.size > maxSize) {
-      toast.error("Arquivo muito grande. Máximo 16MB.");
-      return;
-    }
+    const erro = validarArquivoDocumentoCondominio(file);
+    if (erro) { toast.error(erro); return; }
+    documentoUploadEmAndamento.current = true;
     if (tipo === "convencao") setUploadingConvencao(true);
     else setUploadingRegimento(true);
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = (ev.target?.result as string).split(",")[1];
+    const falhaLeitura = () => {
+      documentoUploadEmAndamento.current = false;
+      setUploadingConvencao(false);
+      setUploadingRegimento(false);
+      toast.error("Não foi possível ler o PDF. Selecione o arquivo novamente.");
+    };
+    reader.onerror = falhaLeitura;
+    reader.onabort = falhaLeitura;
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string" || !result.includes(",")) { falhaLeitura(); return; }
+      const base64 = result.slice(result.indexOf(",") + 1);
       uploadDocMutation.mutate({
-        condominioId: condominioId!,
+        condominioId,
         tipo,
         fileBase64: base64,
         fileName: file.name,
-        mimeType: file.type || "application/pdf",
+        mimeType: "application/pdf",
       });
     };
-    reader.readAsDataURL(file);
+    try { reader.readAsDataURL(file); } catch { falhaLeitura(); }
+  };
+
+  const handleUploadDoc = (tipo: "convencao" | "regimento") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     e.target.value = "";
+    if (file) enviarDocumento(tipo, file);
   };
 
   const handleDrop = (tipo: "convencao" | "regimento") => (e: React.DragEvent<HTMLLabelElement>) => {
@@ -389,35 +408,8 @@ export default function CondominioForm() {
     e.stopPropagation();
     if (tipo === "convencao") setDragOverConvencao(false);
     else setDragOverRegimento(false);
-    if (!condominioId) {
-      toast.error("Salve o condomínio primeiro antes de enviar documentos.");
-      return;
-    }
     const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    if (file.type !== "application/pdf" && !file.name.endsWith(".pdf")) {
-      toast.error("Apenas arquivos PDF são aceitos.");
-      return;
-    }
-    const maxSize = 16 * 1024 * 1024;
-    if (file.size > maxSize) {
-      toast.error("Arquivo muito grande. Máximo 16MB.");
-      return;
-    }
-    if (tipo === "convencao") setUploadingConvencao(true);
-    else setUploadingRegimento(true);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const base64 = (ev.target?.result as string).split(",")[1];
-      uploadDocMutation.mutate({
-        condominioId: condominioId!,
-        tipo,
-        fileBase64: base64,
-        fileName: file.name,
-        mimeType: file.type || "application/pdf",
-      });
-    };
-    reader.readAsDataURL(file);
+    if (file) enviarDocumento(tipo, file);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -1379,7 +1371,7 @@ export default function CondominioForm() {
                       Documentos do Condomínio
                     </h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Envie os documentos legais do condomínio em PDF (máx. 16MB cada).
+                      Envie os documentos legais do condomínio em PDF (máx. {DOCUMENTO_CONDOMINIO_MAX_MB} MB cada).
                       {!condominioId && <span className="ml-1 text-amber-600 font-medium">Salve o condomínio antes de enviar documentos.</span>}
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1430,13 +1422,13 @@ export default function CondominioForm() {
                             ) : dragOverConvencao ? (
                               <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
                             ) : (
-                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
+                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. {DOCUMENTO_CONDOMINIO_MAX_MB} MB</span></>
                             )}
                             <input
                               type="file"
                               accept=".pdf,application/pdf"
                               className="hidden"
-                              disabled={!condominioId || uploadingConvencao}
+                              disabled={!condominioId || uploadingConvencao || uploadingRegimento}
                               onChange={handleUploadDoc("convencao")}
                             />
                           </label>
@@ -1490,13 +1482,13 @@ export default function CondominioForm() {
                             ) : dragOverRegimento ? (
                               <><Upload className="h-6 w-6 text-primary" /><span className="text-sm font-medium text-primary">Solte para enviar</span></>
                             ) : (
-                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. 16MB</span></>
+                              <><Upload className="h-6 w-6 text-muted-foreground" /><span className="text-sm text-muted-foreground">Clique ou arraste o PDF aqui</span><span className="text-xs text-muted-foreground/70">PDF, máx. {DOCUMENTO_CONDOMINIO_MAX_MB} MB</span></>
                             )}
                             <input
                               type="file"
                               accept=".pdf,application/pdf"
                               className="hidden"
-                              disabled={!condominioId || uploadingRegimento}
+                              disabled={!condominioId || uploadingConvencao || uploadingRegimento}
                               onChange={handleUploadDoc("regimento")}
                             />
                           </label>
