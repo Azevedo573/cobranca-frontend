@@ -2929,6 +2929,7 @@ Homologação funcional desta melhoria concluída. O teste externo de exatamente
 - [x] Validar 708 testes aprovados / 1 externo BTG opt-in ignorado, TypeScript e build aprovados
 - [x] Inspecionar Kanban real com quatro cartões fictícios e confirmar redirecionamento sem sessão para login-admin
 - [x] Documentar configuração, limites paginados, piloto e retorno seguro em docs/central-trabalho-juridico-piloto.md
+- [x] Validar independência de nomes/e-mails/credenciais fixos: três regressões de identidade e gestão explícita; configuração pessoal adiada pelo usuário
 - [ ] Configurar profissionais/carteiras/equipe de piloto escolhidos pelo usuário e homologar com gestora, advogado e estagiário
 
 Implementação técnica concluída no desenvolvimento. Sem deploy na VPS, integração Trello, novas automações ou mudanças no financeiro, BTG, processos e prazos judiciais. Revisão opcional desabilitada por padrão. Política de encerramento de demanda com tarefas abertas não alterada. O piloto humano não foi substituído por testes mockados ou inspeção visual sintética.

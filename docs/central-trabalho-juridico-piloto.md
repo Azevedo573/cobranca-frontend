@@ -66,6 +66,24 @@ O inventário inicial encontrou 25 demandas, todas com condomínio, e nenhuma ta
 
 Nenhum perfil existente recebeu o novo módulo automaticamente. A carteira é verificada mesmo para tarefa própria. Permissões e vínculos são consultados novamente em cada requisição. Contexto herdado de tarefa não concede anexos, financeiro nem edição da demanda. Reatribuição remove o acesso do executor anterior, salvo outro vínculo atual independente.
 
+## Credenciais de login e permissões de trabalho
+
+Em 05/11/2026, o usuário optou por ajustar as credenciais dos profissionais posteriormente. A implementação não depende de escolher uma pessoa ou de fixar seus dados no código. Login e senha autenticam a conta; perfil, equipe e carteira autorizam cada operação. A identidade persistente utilizada nas tarefas é o ID do usuário.
+
+| Configuração | Efeito |
+| --- | --- |
+| Login, e-mail ou senha | Identifica/autentica a conta; não concede gestão ou carteira |
+| Perfil jurídico de execução | Permite as ações configuradas sobre tarefas autorizadas |
+| Permissões de gestão + vínculo como gestor | Permite acompanhar e delegar atividades da equipe, dentro da carteira |
+| Carteira de condomínios | Restringe os casos acessíveis, inclusive tarefas próprias |
+| Conta inativa/excluída ou permissão revogada | Recusa o acesso na próxima verificação do servidor |
+
+Para trocar nome/e-mail/senha de um profissional, utilizar a mesma conta existente quando for a mesma pessoa. Criar outra conta gera outra identidade; não transfere tarefas nem deve ser usado para dar a outra pessoa acesso ao histórico de um profissional. Trocar de responsável exige reatribuição auditada. Nomes nos eventos antigos permanecem como snapshots do momento do evento.
+
+Sem um gestor e carteiras configurados, o sistema não inventa uma equipe para viabilizar testes. Nenhuma senha, perfil, papel, carteira ou responsabilidade de usuário real foi alterada por esta validação. O piloto humano segue pendente, mas não bloqueia a implementação genérica por permissões.
+
+Validação adicional de 05/11/2026: três regressões novas demonstram independência de nome/e-mail/credencial, recusa de papel administrativo desatualizado na sessão e distinção de gestor/membro mesmo com perfil idêntico. 90 testes específicos aprovados; suíte completa com 711 aprovados e um externo BTG opt-in ignorado. TypeScript e build aprovados. As únicas alterações adicionais são testes e documentação; sem mudanças de banco, autenticação ou concessões reais de acesso.
+
 # Integrações e Automações
 
 Notificações são registros internos gerados junto da atribuição, entrega e devolução. A consulta aplica a autorização atual da tarefa e não amplia os direitos de quem recebeu o aviso. Não há e-mail, WhatsApp, timers ou chamadas externas nesta evolução.

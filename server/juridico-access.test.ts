@@ -86,6 +86,34 @@ describe("juridico-access — perfil e identidade consultados novamente", () => 
     banco([[{ ...usuario, role: "colaborador" }], base, [{ equipeId: 7, gestor: 0 }]]);
     expect(await getJuridicoScope({ ...ator, role: "colaborador" })).toMatchObject({ equipeIds: [7], canManage: false });
   });
+  it("nome, e-mail e credencial de login diferentes não modificam o escopo da mesma conta", async () => {
+    const memberships = [{ equipeId: 7, gestor: 1 }];
+    const permissions = [...base, ...gerenciais];
+    banco([[{ ...usuario, name: "Nome anterior fictício", email: "antes@example.invalid", passwordHash: "hash-ficticio-anterior" }], permissions, memberships]);
+    const antes = await getJuridicoScope(ator);
+    banco([[{ ...usuario, name: "Nome atual fictício", email: "depois@example.invalid", passwordHash: "hash-ficticio-atual" }], permissions, memberships]);
+    const depois = await getJuridicoScope(ator);
+    expect(depois).toEqual(antes);
+    expect(depois.actor).toEqual({ id: ator.id, role: ator.role, condominioId: ator.condominioId });
+    expect(depois.actor).not.toHaveProperty("email");
+    expect(depois.actor).not.toHaveProperty("passwordHash");
+  });
+  it("nomes e papel administrativo alegados na sessão não concedem gestão sem vínculo atual", async () => {
+    const sessaoAntiga = { ...ator, role: "admin", name: "Gestora", email: "gerente@example.invalid" };
+    banco(scopeRows([], [{ equipeId: 7, gestor: 0 }], [...base, ...gerenciais]));
+    expect(await getJuridicoScope(sessaoAntiga)).toMatchObject({ actor: ator, admin: false, canManage: false, canCreate: false, canEdit: false, canApprove: false });
+  });
+  it("duas contas com o mesmo perfil só recebem gestão quando possuem vínculo gerencial explícito", async () => {
+    banco(scopeRows([], [{ equipeId: 7, gestor: 1 }], [...base, ...gerenciais]));
+    const gestor = await getJuridicoScope(ator);
+    const outro = { ...ator, id: 30 };
+    banco([[{ ...usuario, id: outro.id }], [...base, ...gerenciais], [{ equipeId: 7, gestor: 0 }]]);
+    const membro = await getJuridicoScope(outro);
+    expect(gestor.canManage).toBe(true);
+    expect(membro.canManage).toBe(false);
+    expect(membro.gestorEquipeIds).toEqual([]);
+    expect(membro.equipeIds).toEqual([7]);
+  });
 });
 
 describe("juridico-access — acesso direto a demandas e tarefas", () => {
