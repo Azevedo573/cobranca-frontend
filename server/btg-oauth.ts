@@ -69,7 +69,23 @@ function getEncryptionKey(value: string): Buffer {
   return key;
 }
 
+/**
+ * Controla Accounts no próximo consentimento explícito, sem alterar tokens ou
+ * escopos já armazenados. Ausente preserva o comportamento em ambos os ambientes.
+ */
+export function consultaContasBtgHabilitada(): boolean {
+  const value = process.env.BTG_ACCOUNTS_ENABLED;
+  if (value === undefined || value === "true") return true;
+  if (value === "false") return false;
+
+  throw new BtgOAuthError(
+    "CONFIG_INVALID",
+    "BTG_ACCOUNTS_ENABLED deve ser true ou false, ou estar ausente para manter a consulta de contas habilitada.",
+  );
+}
+
 export function getBtgOAuthConfig(): BtgOAuthConfig {
+  const consultaContasHabilitada = consultaContasBtgHabilitada();
   const ambiente: BtgOAuthEnvironment = process.env.BTG_SANDBOX === "true" ? "sandbox" : "producao";
   const clientId = process.env.BTG_CLIENT_ID?.trim();
   const clientSecret = process.env.BTG_CLIENT_SECRET?.trim();
@@ -115,7 +131,7 @@ export function getBtgOAuthConfig(): BtgOAuthConfig {
     scopes: [
       "openid",
       "brn:btg:empresas:banking:collections",
-      "empresas.btgpactual.com/accounts.readonly",
+      ...(consultaContasHabilitada ? ["empresas.btgpactual.com/accounts.readonly"] : []),
     ],
   };
 }
@@ -431,11 +447,13 @@ export async function obterAccessTokenBtg(): Promise<string> {
 export async function getStatusOAuthBtg(): Promise<{
   ambiente: BtgOAuthEnvironment;
   configuracaoCompleta: boolean;
+  consultaContasHabilitada: boolean;
   redirectUri: string | null;
   status: "nao_configurado" | "nao_conectado" | BtgTokenStatus;
   tokenExpiresAt: Date | null;
   companyIdMasked: string | null;
 }> {
+  const consultaContasHabilitada = consultaContasBtgHabilitada();
   const ambiente: BtgOAuthEnvironment = process.env.BTG_SANDBOX === "true" ? "sandbox" : "producao";
   const configHasRequiredValues = Boolean(
     process.env.BTG_CLIENT_ID?.trim()
@@ -449,6 +467,7 @@ export async function getStatusOAuthBtg(): Promise<{
     return {
       ambiente,
       configuracaoCompleta: false,
+      consultaContasHabilitada,
       redirectUri: process.env.BTG_REDIRECT_URI?.trim() || null,
       status: "nao_configurado",
       tokenExpiresAt: null,
@@ -462,6 +481,7 @@ export async function getStatusOAuthBtg(): Promise<{
     return {
       ambiente,
       configuracaoCompleta: true,
+      consultaContasHabilitada,
       redirectUri: config.redirectUri,
       status: "nao_conectado",
       tokenExpiresAt: null,
@@ -477,6 +497,7 @@ export async function getStatusOAuthBtg(): Promise<{
   return {
     ambiente: config.ambiente,
     configuracaoCompleta: true,
+    consultaContasHabilitada,
     redirectUri: config.redirectUri,
     status: token?.status ?? "nao_conectado",
     tokenExpiresAt: token?.tokenExpiresAt ?? null,

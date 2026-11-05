@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { and, desc, eq, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { logAudit } from "../audit";
-import { getBtgOAuthConfig, getStatusOAuthBtg } from "../btg-oauth";
+import { consultaContasBtgHabilitada, getBtgOAuthConfig, getStatusOAuthBtg } from "../btg-oauth";
 import { getDb } from "../db";
 import {
   acordos,
@@ -25,9 +25,14 @@ import {
   getBtgV2ServerConfig,
   mascararNumeroConta,
   normalizarContaManualSandbox,
+  normalizarContaManualProducao,
   validarCadastroManualSandbox,
+  validarCadastroManualProducao,
+  validarContaRecebedoraParaAmbiente,
+  validarIntegracaoRuntimeBtg,
 } from "../btg-v2/config";
-import { emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2 } from "../btg-v2/issuance";
+import { auditarContaBtgTransacional, bloquearIntegracaoBtg } from "../btg-v2/manual-producao";
+import { emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2, validarContaVinculadaAtualBtgV2 } from "../btg-v2/issuance";
 import { executarRemessaBtgV2, listarFilaRemessaBtgV2, obterInsertIdBtgV2, validarSelecaoRemessaBtgV2 } from "../btg-v2/remessas";
 import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
 
@@ -49,6 +54,7 @@ async function getIntegracaoAtual() {
   const rows = await db.select().from(btgIntegracoes)
     .where(eq(btgIntegracoes.ambiente, serverConfig.ambiente))
     .limit(1);
+  if (rows[0]) validarIntegracaoRuntimeBtg(rows[0], serverConfig);
   return { db, serverConfig, integracao: rows[0] ?? null };
 }
 
@@ -66,6 +72,7 @@ async function getOrCreateIntegracaoAtual() {
     .where(eq(btgIntegracoes.ambiente, serverConfig.ambiente))
     .limit(1);
   if (!rows[0]) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Não foi possível preparar a integração BTG." });
+  validarIntegracaoRuntimeBtg(rows[0], serverConfig);
 
   return { db, serverConfig, integracao: rows[0] };
 }
@@ -79,7 +86,9 @@ function serializeConta(conta: {
   nomeBeneficiario: string | null;
   rotulo: string | null;
   ativo: number;
-  origemCadastro: "api" | "manual_sandbox";
+  origemCadastro: "api" | "manual_sandbox" | "manual_producao";
+  confirmadoPorId: number | null;
+  confirmadoEm: Date | null;
   ultimaSincronizacaoEm: Date;
 }) {
   return {
@@ -94,6 +103,8 @@ function serializeConta(conta: {
     rotulo: conta.rotulo,
     ativo: conta.ativo === 1,
     origemCadastro: conta.origemCadastro,
+    confirmadoPorId: conta.confirmadoPorId,
+    confirmadoEm: conta.confirmadoEm,
     ultimaSincronizacaoEm: conta.ultimaSincronizacaoEm,
   };
 }
@@ -227,7 +238,7 @@ export const btgV2Router = router({
     .mutation(async ({ input: _input, ctx }) => {
       try {
         const oauth = await getStatusOAuthBtg();
-        const { db, serverConfig, integracao } = await getOrCreateIntegracaoAtual();
+        const serverConfig = getBtgV2ServerConfig();
         if (serverConfig.ambiente !== "producao") {
           throw new BtgV2ConfigurationError("A liberação de Produção só pode ocorrer quando o servidor estiver configurado para Produção.");
         }
@@ -237,27 +248,31 @@ export const btgV2Router = router({
         if (!process.env.BTG_WEBHOOK_SECRET?.trim()) {
           throw new BtgV2ConfigurationError("Configure o segredo HMAC do webhook BTG antes de liberar emissões de Produção.");
         }
-        const [vinculoOficial] = await db.select({ id: btgContaRecebedoraCondominios.id })
-          .from(btgContaRecebedoraCondominios)
-          .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
-          .where(and(
-            eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracao.id),
-            eq(btgContaRecebedoraCondominios.ativo, 1),
-            eq(btgContasRecebedoras.ativo, 1),
-            eq(btgContasRecebedoras.origemCadastro, "api"),
-          ))
-          .limit(1);
-        if (!vinculoOficial) {
-          throw new BtgV2ConfigurationError("Vincule ao menos uma conta oficial retornada pela API BTG antes de liberar Produção.");
-        }
-        await db.update(btgIntegracoes).set({ emissaoHabilitada: 1, updatedAt: new Date() })
-          .where(eq(btgIntegracoes.id, integracao.id));
-        await logAudit(ctx, {
-          action: "config_change",
-          entity: "configuracao",
-          entityId: `btg-v2:${integracao.ambiente}`,
-          metadata: { integracao: "btg-v2", evento: "emissao_producao_habilitada" },
-          severity: "warning",
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+        await db.transaction(async tx => {
+          const integracao = await bloquearIntegracaoBtg(tx, serverConfig);
+          const vinculadas = await tx.select({ conta: btgContasRecebedoras })
+            .from(btgContaRecebedoraCondominios)
+            .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+            .where(and(eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracao.id),
+              eq(btgContaRecebedoraCondominios.ativo, 1), eq(btgContasRecebedoras.ativo, 1))).for("update");
+          const elegivel = vinculadas.find(({ conta }) => {
+            try {
+              validarContaRecebedoraParaAmbiente({ conta, integracao, serverConfig });
+              return true;
+            } catch (error) {
+              if (!(error instanceof BtgV2ConfigurationError)) throw error;
+              return false;
+            }
+          });
+          if (!elegivel) throw new BtgV2ConfigurationError("Vincule ao menos uma conta API elegível ou manual de Produção confirmada e consistente com o CNPJ atual antes de liberar Produção.");
+          const habilitadaAntes = integracao.emissaoHabilitada === 1;
+          await tx.update(btgIntegracoes).set({ emissaoHabilitada: 1, updatedAt: new Date() })
+            .where(eq(btgIntegracoes.id, integracao.id));
+          await auditarContaBtgTransacional(tx, ctx, { evento: "emissao_producao_habilitada", ambiente: integracao.ambiente,
+            integracaoId: integracao.id, contaId: elegivel.conta.id,
+            beforeData: { emissaoHabilitada: habilitadaAntes }, afterData: { emissaoHabilitada: true } });
         });
         return { success: true };
       } catch (error) {
@@ -269,9 +284,39 @@ export const btgV2Router = router({
   /** Consulta explícita da API Accounts; não é acionada no carregamento da página. */
   sincronizarContas: adminProcedure.mutation(async ({ ctx }) => {
     try {
-      const { db, integracao } = await getOrCreateIntegracaoAtual();
+      if (!consultaContasBtgHabilitada()) throw new BtgV2ConfigurationError("A consulta Accounts BTG está desativada. Utilize o cadastro manual de conta; OAuth Collections continua obrigatório para emissão.");
+      const { db, integracao, serverConfig } = await getOrCreateIntegracaoAtual();
       const contas = await consultarContasRecebedorasBtg();
       const now = new Date();
+
+      if (serverConfig.ambiente === "producao") {
+        await db.transaction(async tx => {
+          const atual = await bloquearIntegracaoBtg(tx, serverConfig);
+          for (const conta of contas) {
+            validarContaRecebedoraParaAmbiente({ conta: { ...conta, btgIntegracaoId: atual.id, ativo: 1, origemCadastro: "api" }, integracao: atual, serverConfig });
+            const [existente] = await tx.select().from(btgContasRecebedoras).where(and(
+              eq(btgContasRecebedoras.btgIntegracaoId, atual.id), eq(btgContasRecebedoras.accountId, conta.accountId),
+            )).limit(1).for("update");
+            if (existente) {
+              if (existente.origemCadastro !== "api") throw new BtgV2ConfigurationError("A consulta oficial não pode reclassificar uma conta manual existente.");
+              const alterouDados = existente.agencia !== conta.agencia || existente.numero !== conta.numero ||
+                existente.documentoBeneficiario !== conta.documentoBeneficiario || existente.nomeBeneficiario !== conta.nomeBeneficiario;
+              if (alterouDados) {
+                const [usada] = await tx.select({ id: btgCobrancasEmitidas.id }).from(btgCobrancasEmitidas)
+                  .where(eq(btgCobrancasEmitidas.btgContaRecebedoraId, existente.id)).limit(1);
+                if (usada) throw new BtgV2ConfigurationError("A conta oficial já foi utilizada em emissão e seus dados bancários não podem ser sobrescritos. Revise o cadastro e o vínculo futuro.");
+              }
+              await tx.update(btgContasRecebedoras).set({ ...conta, ativo: 1, ultimaSincronizacaoEm: now, updatedAt: now }).where(eq(btgContasRecebedoras.id, existente.id));
+            } else {
+              await tx.insert(btgContasRecebedoras).values({ ...conta, btgIntegracaoId: atual.id, origemCadastro: "api", rotulo: conta.nomeBeneficiario, ativo: 1, ultimaSincronizacaoEm: now });
+            }
+          }
+          await tx.update(btgIntegracoes).set({ ultimaConsultaContasEm: now, updatedAt: now }).where(eq(btgIntegracoes.id, atual.id));
+          await auditarContaBtgTransacional(tx, ctx, { evento: "contas_sincronizadas", ambiente: atual.ambiente,
+            integracaoId: atual.id, metadata: { quantidade: contas.length, accountIds: contas.map(conta => conta.accountId) } });
+        });
+        return { success: true, quantidade: contas.length };
+      }
 
       for (const conta of contas) {
         await db.insert(btgContasRecebedoras).values({
@@ -385,6 +430,63 @@ export const btgV2Router = router({
       }
     }),
 
+  cadastrarContaManualProducao: adminProcedure
+    .input(z.object({
+      rotulo: z.string().trim().min(3).max(255),
+      agencia: z.string().trim().min(1).max(30),
+      numero: z.string().trim().min(1).max(50),
+      documentoBeneficiario: z.string().trim().min(14).max(18),
+      nomeBeneficiario: z.string().trim().min(1).max(255),
+      dadosConferidos: z.literal(true),
+      confirmacao: z.literal("CADASTRAR CONTA PRODUCAO"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const config = getBtgV2ServerConfig();
+        const oauth = await getStatusOAuthBtg();
+        validarCadastroManualProducao({ ambiente: config.ambiente, oauthConectado: oauth.status === "conectado" });
+        const conta = normalizarContaManualProducao(input, config.companyId);
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
+        return await db.transaction(async tx => {
+          const integracao = await bloquearIntegracaoBtg(tx, config, true);
+          if (integracao.ativo !== 1) throw new BtgV2ConfigurationError("A integração BTG selecionada não está ativa.");
+          const [existente] = await tx.select().from(btgContasRecebedoras).where(and(
+            eq(btgContasRecebedoras.btgIntegracaoId, integracao.id),
+            eq(btgContasRecebedoras.accountId, conta.accountId),
+          )).limit(1).for("update");
+          // Registros de Produção são imutáveis, inclusive antes do primeiro uso.
+          // Uma repetição idêntica é idempotente; alterações exigem outro cadastro bancário.
+          if (existente) {
+            validarContaRecebedoraParaAmbiente({ conta: existente, integracao, serverConfig: config });
+            if (existente.agencia !== conta.agencia || existente.numero !== conta.numero ||
+                existente.documentoBeneficiario !== conta.documentoBeneficiario || existente.nomeBeneficiario !== conta.nomeBeneficiario ||
+                existente.rotulo !== conta.rotulo) {
+              throw new BtgV2ConfigurationError("A conta manual já cadastrada é imutável. Não sobrescreva dados de contas usadas em emissão; cadastre outra conta e altere explicitamente o vínculo futuro.");
+            }
+            return serializeConta(existente);
+          }
+          const now = new Date();
+          await tx.insert(btgContasRecebedoras).values({ ...conta, btgIntegracaoId: integracao.id,
+            ativo: 1, confirmadoPorId: ctx.user.id, confirmadoEm: now, ultimaSincronizacaoEm: now });
+          const [registrada] = await tx.select().from(btgContasRecebedoras).where(and(
+            eq(btgContasRecebedoras.btgIntegracaoId, integracao.id), eq(btgContasRecebedoras.accountId, conta.accountId),
+          )).limit(1);
+          if (!registrada) throw new BtgV2ConfigurationError("Não foi possível registrar a conta manual de Produção.");
+          await auditarContaBtgTransacional(tx, ctx, {
+            evento: "conta_recebedora_manual_producao_confirmada", ambiente: "producao", integracaoId: integracao.id, contaId: registrada.id,
+            afterData: { ...serializeConta(registrada), confirmadoEm: now.toISOString() },
+            metadata: { origemCadastro: "manual_producao", accountIdInterno: conta.accountId,
+              dadosConferidos: true, confirmacao: input.confirmacao, confirmadoPorId: ctx.user.id, confirmadoEm: now.toISOString(), validadaPelaApi: false },
+          });
+          return serializeConta(registrada);
+        });
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw toTrpcError(error);
+      }
+    }),
+
   vinculoCondominio: adminProcedure
     .input(z.object({ condominioId: z.number().int().positive() }))
     .query(async ({ input }) => {
@@ -421,46 +523,31 @@ export const btgV2Router = router({
     }))
     .mutation(async ({ input, ctx }) => {
       try {
-        const { db, integracao } = await getOrCreateIntegracaoAtual();
+        const { db, serverConfig } = await getOrCreateIntegracaoAtual();
         const [condominio] = await db.select({ id: condominios.id, name: condominios.name })
           .from(condominios)
           .where(eq(condominios.id, input.condominioId))
           .limit(1);
         if (!condominio) throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio não encontrado." });
 
-        const [conta] = await db.select().from(btgContasRecebedoras)
-          .where(and(
-            eq(btgContasRecebedoras.id, input.contaRecebedoraId),
-            eq(btgContasRecebedoras.btgIntegracaoId, integracao.id),
-            eq(btgContasRecebedoras.ativo, 1),
-          ))
-          .limit(1);
-        if (!conta) {
-          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "A conta selecionada não está disponível nesta integração BTG." });
-        }
-
-        await db.insert(btgContaRecebedoraCondominios).values({
-          btgIntegracaoId: integracao.id,
-          condominioId: input.condominioId,
-          btgContaRecebedoraId: conta.id,
-          ativo: 1,
-        }).onDuplicateKeyUpdate({
-          set: { btgContaRecebedoraId: conta.id, ativo: 1, updatedAt: new Date() },
-        });
-
-        await logAudit(ctx, {
-          action: "config_change",
-          entity: "condominio",
-          entityId: String(condominio.id),
-          entityLabel: condominio.name,
-          condominioId: condominio.id,
-          metadata: {
-            integracao: "btg-v2",
-            evento: "conta_recebedora_vinculada",
-            ambiente: integracao.ambiente,
-            contaId: conta.id,
-            accountId: conta.accountId,
-          },
+        await db.transaction(async tx => {
+          const integracao = await bloquearIntegracaoBtg(tx, serverConfig);
+          const [conta] = await tx.select().from(btgContasRecebedoras)
+            .where(and(eq(btgContasRecebedoras.id, input.contaRecebedoraId), eq(btgContasRecebedoras.btgIntegracaoId, integracao.id)))
+            .limit(1).for("update");
+          if (!conta) throw new BtgV2ConfigurationError("A conta selecionada não está disponível nesta integração BTG.");
+          validarContaRecebedoraParaAmbiente({ conta, integracao, serverConfig });
+          const [anterior] = await tx.select().from(btgContaRecebedoraCondominios).where(and(
+            eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracao.id), eq(btgContaRecebedoraCondominios.condominioId, input.condominioId),
+          )).limit(1).for("update");
+          await tx.insert(btgContaRecebedoraCondominios).values({ btgIntegracaoId: integracao.id,
+            condominioId: input.condominioId, btgContaRecebedoraId: conta.id, ativo: 1,
+          }).onDuplicateKeyUpdate({ set: { btgContaRecebedoraId: conta.id, ativo: 1, updatedAt: new Date() } });
+          await auditarContaBtgTransacional(tx, ctx, { evento: "conta_recebedora_vinculada", ambiente: integracao.ambiente,
+            integracaoId: integracao.id, contaId: conta.id, condominioId: condominio.id,
+            beforeData: anterior ? { contaId: anterior.btgContaRecebedoraId, ativo: anterior.ativo === 1 } : null,
+            afterData: { contaId: conta.id, ativo: true, origemCadastro: conta.origemCadastro },
+            metadata: { accountId: conta.accountId } });
         });
 
         return { success: true };
@@ -491,6 +578,7 @@ export const btgV2Router = router({
             eq(btgContasRecebedoras.ativo, 1),
           ))
           .limit(1);
+        if (contaVinculada) await validarContaVinculadaAtualBtgV2({ db, condominioId: input.condominioId });
         const parcelas = await listarFilaRemessaBtgV2({ db, condominioId: input.condominioId, btgIntegracaoId: integracao.id });
         return {
           conta: contaVinculada ? {
@@ -531,6 +619,7 @@ export const btgV2Router = router({
           ))
           .limit(1);
         if (!contaVinculada) throw new BtgV2ConfigurationError("Vincule uma conta recebedora BTG ativa a este condomínio antes de enviar a remessa.");
+        await validarContaVinculadaAtualBtgV2({ db, condominioId: input.condominioId, paraEmissao: true });
 
         const fila = await listarFilaRemessaBtgV2({ db, condominioId: input.condominioId, btgIntegracaoId: integracao.id });
         const selecionadas = validarSelecaoRemessaBtgV2({ condominioId: input.condominioId, parcelaIds: input.parcelaIds, fila });

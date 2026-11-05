@@ -2933,3 +2933,18 @@ Homologação funcional desta melhoria concluída. O teste externo de exatamente
 - [ ] Configurar profissionais/carteiras/equipe de piloto escolhidos pelo usuário e homologar com gestora, advogado e estagiário
 
 Implementação técnica concluída no desenvolvimento. Sem deploy na VPS, integração Trello, novas automações ou mudanças no financeiro, BTG, processos e prazos judiciais. Revisão opcional desabilitada por padrão. Política de encerramento de demanda com tarefas abertas não alterada. O piloto humano não foi substituído por testes mockados ou inspeção visual sintética.
+
+## Evolução — Conta BTG manual em Produção (05/11/2026)
+- [x] Aprovar exceção administrativa para conta manual de Produção, distinta de manual_sandbox e api
+- [x] Acrescentar origem e confirmação nullable em migration 0099, revisada/aplicada exclusivamente no desenvolvimento
+- [x] Implementar opção OAuth BTG_ACCOUNTS_ENABLED=false sem modificar tokens existentes e com testes de compatibilidade
+- [x] Criar provisionador exclusivo da tabela BTG com --check, confirmação obrigatória, repetição segura e testes sem migrations gerais
+- [x] Implementar cadastro admin/OAuth/CNPJ/declaração/confirmacão com auditoria transacional/rollback, conta imutável e sem chamada bancária ou ativação automática
+- [x] Revalidar conta/ambiente/CNPJ na liberação, vínculo, prévia, reserva e antes do POST, preservando webhook/idempotência/CNAB
+- [x] Habilitar formulário de Produção e corrigir rótulos/estados da tela BTG, com confirmação e origem visível
+- [x] Validar projeto completo: 856 testes aprovados/1 externo opt-in ignorado, TypeScript/build e inspeção visual sintética
+- [x] Validar entrega BTG seletiva sobre 85a610a6: 705 testes aprovados/1 externo opt-in ignorado, TypeScript/build; sem Central Jurídica/0098/metadados agregados/segredos
+- [x] Atualizar manual/checklist e preparar checkpoint de desenvolvimento sem publicar
+- [ ] Implantar na VPS e homologar cadastro/vínculo/webhook/primeira cobrança real — somente em etapa posterior autorizada
+
+Não há contas reais cadastradas ou remessas enviadas por esta evolução no desenvolvimento. Credenciais de Produção foram configuradas pelo próprio usuário na VPS; valores não foram enviados ao chat. Ajustes de schema/code no sandbox não significam implantação na VPS. A cobrança real permanece dependente da etapa operacional e revisão humana.

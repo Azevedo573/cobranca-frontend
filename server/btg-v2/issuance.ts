@@ -11,7 +11,9 @@ import {
 } from "../../drizzle/schema";
 import { criarBolePixBtgV2 } from "./client";
 import { montarPayloadBolePixV2 } from "./bolepix";
-import { BtgV2ConfigurationError, getBtgV2ServerConfig, validarVinculoContaRecebedora } from "./config";
+import { BtgV2ConfigurationError, getBtgV2ServerConfig, validarVinculoContaRecebedora, validarContaRecebedoraParaAmbiente, validarIntegracaoRuntimeBtg } from "./config";
+import { getStatusOAuthBtg } from "../btg-oauth";
+import { bloquearIntegracaoBtg } from "./manual-producao";
 
 export type BtgV2OrigemTipo = "parcela_acordo";
 
@@ -126,6 +128,31 @@ export interface BtgV2ParcelaAcordoParaEmissao extends ParcelaAcordoBtgV2Elegibi
   motivoBloqueio: string | null;
 }
 
+export async function validarContaVinculadaAtualBtgV2(input: { db: Pick<Db, "select">; condominioId: number; paraEmissao?: boolean }) {
+  const serverConfig = getBtgV2ServerConfig();
+  const [integracao] = await input.db.select().from(btgIntegracoes)
+    .where(eq(btgIntegracoes.ambiente, serverConfig.ambiente)).limit(1);
+  if (!integracao) throw new BtgV2ConfigurationError("Configure a integração BTG antes de utilizar uma conta recebedora.");
+  validarIntegracaoRuntimeBtg(integracao, serverConfig);
+  const [accountRow] = await input.db.select({ vinculoAtivo: btgContaRecebedoraCondominios.ativo, conta: btgContasRecebedoras })
+    .from(btgContaRecebedoraCondominios)
+    .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+    .where(and(eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracao.id), eq(btgContaRecebedoraCondominios.condominioId, input.condominioId))).limit(1);
+  validarVinculoContaRecebedora({ condominioId: input.condominioId, integracaoAtiva: integracao.ativo === 1,
+    vinculoAtivo: accountRow?.vinculoAtivo === 1 && accountRow?.conta.ativo === 1, conta: accountRow?.conta ?? null });
+  if (!accountRow) throw new BtgV2ConfigurationError("A conta recebedora não foi encontrada.");
+  validarContaRecebedoraParaAmbiente({ conta: accountRow.conta, integracao, serverConfig });
+  if (input.paraEmissao) {
+    if (integracao.emissaoHabilitada !== 1) throw new BtgV2ConfigurationError("A emissão BolePix v2 não está habilitada para este ambiente.");
+    const oauth = await getStatusOAuthBtg();
+    if (oauth.status !== "conectado") throw new BtgV2ConfigurationError("Conecte a conta BTG antes de emitir cobranças.");
+    if (serverConfig.ambiente === "producao" && !process.env.BTG_WEBHOOK_SECRET?.trim()) {
+      throw new BtgV2ConfigurationError("Configure o segredo HMAC do webhook BTG antes de emitir em Produção.");
+    }
+  }
+  return { integracao, accountRow, serverConfig };
+}
+
 export async function prepararEmissaoParcelasAcordoBtgV2(input: {
   db: Db;
   acordoId: number;
@@ -133,6 +160,7 @@ export async function prepararEmissaoParcelasAcordoBtgV2(input: {
   const [acordo] = await input.db.select().from(acordos).where(eq(acordos.id, input.acordoId)).limit(1);
   if (!acordo) throw new BtgV2ConfigurationError("Acordo não encontrado.");
   validarAcordoAtivoBtgV2(acordo.status);
+  await validarContaVinculadaAtualBtgV2({ db: input.db, condominioId: acordo.condominioId });
 
   const parcelas = await input.db.select().from(parcelasAcordo)
     .where(eq(parcelasAcordo.acordoId, acordo.id));
@@ -227,7 +255,7 @@ function isDuplicate(error: unknown): boolean {
   return /duplicate|unique|1062/i.test(message);
 }
 
-async function findExisting(db: Db, integracaoId: number, origemTipo: BtgV2OrigemTipo, origemId: number) {
+async function findExisting(db: Pick<Db, "select">, integracaoId: number, origemTipo: BtgV2OrigemTipo, origemId: number) {
   const rows = await db.select().from(btgCobrancasEmitidas)
     .where(and(
       eq(btgCobrancasEmitidas.btgIntegracaoId, integracaoId),
@@ -254,6 +282,7 @@ export async function emitirBolePixV2(input: {
   if (!integracao || integracao.ativo !== 1 || integracao.emissaoHabilitada !== 1) {
     throw new BtgV2ConfigurationError("A emissão BolePix v2 não está habilitada para este ambiente.");
   }
+  validarIntegracaoRuntimeBtg(integracao, serverConfig);
 
   let origem: {
     condominioId: number;
@@ -309,35 +338,61 @@ export async function emitirBolePixV2(input: {
     } : null,
   });
   if (!accountRow) throw new BtgV2ConfigurationError("A conta recebedora não foi encontrada.");
-
-  const existingBeforeReserve = await findExisting(db, integracao.id, origemTipo, parcelaId);
-  if (existingBeforeReserve) return toResult(existingBeforeReserve, true);
+  validarContaRecebedoraParaAmbiente({ conta: accountRow.conta, integracao, serverConfig });
+  const oauth = await getStatusOAuthBtg();
+  if (oauth.status !== "conectado") throw new BtgV2ConfigurationError("Conecte a conta BTG antes de emitir cobranças.");
+  if (serverConfig.ambiente === "producao" && !process.env.BTG_WEBHOOK_SECRET?.trim()) {
+    throw new BtgV2ConfigurationError("Configure o segredo HMAC do webhook BTG antes de emitir em Produção.");
+  }
 
   const externalId = gerarExternalIdBtgV2(integracao.ambiente, origemTipo, parcelaId);
   const idempotencyKey = gerarIdempotencyKeyBtgV2(externalId);
   const now = new Date();
 
+  let reservada: { row: typeof btgCobrancasEmitidas.$inferSelect; jaExistia: boolean };
   try {
-    await db.insert(btgCobrancasEmitidas).values({
-      btgIntegracaoId: integracao.id,
-      btgContaRecebedoraId: accountRow.conta.id,
-      btgRemessaId: btgRemessaId ?? null,
-      condominioId: origem.condominioId,
-      origemTipo,
-      origemId: parcelaId,
-      revisao: 1,
-      instrumento: "bolepix",
-      externalId,
-      idempotencyKey,
-      status: "reservada",
-      amount: origem.amount,
-      dueDate: origem.dueDate,
-      agenciaRecebedora: accountRow.conta.agencia,
-      contaRecebedora: accountRow.conta.numero,
-      documentoBeneficiario: accountRow.conta.documentoBeneficiario,
-      nomeBeneficiario: accountRow.conta.nomeBeneficiario,
-      createdAt: now,
-      updatedAt: now,
+    reservada = await db.transaction(async tx => {
+      const atual = await bloquearIntegracaoBtg(tx, getBtgV2ServerConfig());
+      if (atual.id !== integracao.id) throw new BtgV2ConfigurationError("O ambiente da integração foi alterado; revise a emissão.");
+      if (atual.emissaoHabilitada !== 1) throw new BtgV2ConfigurationError("A emissão BolePix v2 não está habilitada para este ambiente.");
+      const [vinculada] = await tx.select({ vinculoAtivo: btgContaRecebedoraCondominios.ativo, conta: btgContasRecebedoras })
+        .from(btgContaRecebedoraCondominios)
+        .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+        .where(and(eq(btgContaRecebedoraCondominios.btgIntegracaoId, atual.id), eq(btgContaRecebedoraCondominios.condominioId, origem.condominioId)))
+        .limit(1).for("update");
+      if (!vinculada || vinculada.vinculoAtivo !== 1) throw new BtgV2ConfigurationError("O vínculo da conta foi alterado; revise a emissão.");
+      validarContaRecebedoraParaAmbiente({ conta: vinculada.conta, integracao: atual, serverConfig: getBtgV2ServerConfig() });
+      if (vinculada.conta.id !== accountRow.conta.id || vinculada.conta.agencia !== accountRow.conta.agencia ||
+          vinculada.conta.numero !== accountRow.conta.numero || vinculada.conta.documentoBeneficiario !== accountRow.conta.documentoBeneficiario ||
+          vinculada.conta.nomeBeneficiario !== accountRow.conta.nomeBeneficiario) {
+        throw new BtgV2ConfigurationError("A conta recebedora foi alterada durante a preparação; revise a emissão.");
+      }
+      const existente = await findExisting(tx, atual.id, origemTipo, parcelaId);
+      if (existente) return { row: existente, jaExistia: true };
+      await tx.insert(btgCobrancasEmitidas).values({
+        btgIntegracaoId: integracao.id,
+        btgContaRecebedoraId: accountRow.conta.id,
+        btgRemessaId: btgRemessaId ?? null,
+        condominioId: origem.condominioId,
+        origemTipo,
+        origemId: parcelaId,
+        revisao: 1,
+        instrumento: "bolepix",
+        externalId,
+        idempotencyKey,
+        status: "reservada",
+        amount: origem.amount,
+        dueDate: origem.dueDate,
+        agenciaRecebedora: accountRow.conta.agencia,
+        contaRecebedora: accountRow.conta.numero,
+        documentoBeneficiario: accountRow.conta.documentoBeneficiario,
+        nomeBeneficiario: accountRow.conta.nomeBeneficiario,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const row = await findExisting(tx, atual.id, origemTipo, parcelaId);
+      if (!row) throw new BtgV2ConfigurationError("Não foi possível reservar a emissão BolePix.");
+      return { row, jaExistia: false };
     });
   } catch (error) {
     if (!isDuplicate(error)) throw error;
@@ -346,8 +401,17 @@ export async function emitirBolePixV2(input: {
     throw error;
   }
 
-  const reserva = await findExisting(db, integracao.id, origemTipo, parcelaId);
-  if (!reserva) throw new BtgV2ConfigurationError("Não foi possível reservar a emissão BolePix.");
+  if (reservada.jaExistia) return toResult(reservada.row, true);
+  const reserva = reservada.row;
+
+  // Nova leitura antes do POST: o runtime pode ter mudado durante a reserva.
+  // Se invalidada, a reserva permanece e nunca gera um retry bancário automático.
+  const antesDoEnvio = await validarContaVinculadaAtualBtgV2({ db, condominioId: origem.condominioId, paraEmissao: true });
+  if (antesDoEnvio.integracao.id !== integracao.id || antesDoEnvio.accountRow.conta.id !== accountRow.conta.id ||
+      antesDoEnvio.accountRow.conta.agencia !== reserva.agenciaRecebedora || antesDoEnvio.accountRow.conta.numero !== reserva.contaRecebedora ||
+      antesDoEnvio.accountRow.conta.documentoBeneficiario !== reserva.documentoBeneficiario || antesDoEnvio.accountRow.conta.nomeBeneficiario !== reserva.nomeBeneficiario) {
+    throw new BtgV2ConfigurationError("A conta recebedora foi alterada depois da reserva; nenhum envio foi realizado. Revise a emissão reservada.");
+  }
 
   await db.update(btgCobrancasEmitidas)
     .set({ status: "enviando", updatedAt: new Date() })

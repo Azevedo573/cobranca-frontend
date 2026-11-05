@@ -56,3 +56,7 @@ Vitest cobre normalização, validação de agência/conta, criação de identif
 ## Open Questions
 
 Nenhuma para a implementação Sandbox. A confirmação da conta pela API Banking Accounts permanece dependente de habilitação do BTG e é requisito separado para Produção.
+
+## Evolução aprovada em 05/11/2026
+
+O usuário aprovou uma exceção independente para cadastro `manual_producao`, descrita em `SPEC-btg-conta-manual-producao.md`. Esta especificação continua regulando exclusivamente `manual_sandbox`: não converter nem promover essas contas a Produção. A exceção requer confirmação administrativa, CNPJ do escritório, OAuth, vínculo e liberação de emissão/webhook separados; não representa validação pela API.

@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { getBtgOAuthConfig, obterAccessTokenBtg } from "../btg-oauth";
+import { consultaContasBtgHabilitada, getBtgOAuthConfig, obterAccessTokenBtg } from "../btg-oauth";
 
 export type BtgV2Ambiente = "sandbox" | "producao";
 
@@ -101,6 +101,132 @@ export function validarCadastroManualSandbox(input: {
   }
 }
 
+/** Aceita somente CNPJ numérico, com ou sem a formatação oficial, e verifica os dois DVs. */
+export function normalizarCnpjBtg(valor: string): string {
+  const texto = valor.trim();
+  if (!/^\d{14}$/.test(texto) && !/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(texto)) {
+    throw new BtgV2ConfigurationError("Informe um CNPJ válido do escritório titular da integração.");
+  }
+  const cnpj = texto.replace(/\D/g, "");
+  const digito = (base: string) => {
+    let peso = base.length - 7;
+    const soma = base.split("").reduce((total, numero) => {
+      const resultado = total + Number(numero) * peso;
+      peso = peso === 2 ? 9 : peso - 1;
+      return resultado;
+    }, 0);
+    const resto = soma % 11;
+    return resto < 2 ? "0" : String(11 - resto);
+  };
+  if (/^(\d)\1{13}$/.test(cnpj) || digito(cnpj.slice(0, 12)) !== cnpj[12] || digito(cnpj.slice(0, 13)) !== cnpj[13]) {
+    throw new BtgV2ConfigurationError("O CNPJ informado é inválido; confira os dígitos verificadores.");
+  }
+  return cnpj;
+}
+
+export function normalizarContaManualProducao(input: {
+  rotulo: string;
+  agencia: string;
+  numero: string;
+  documentoBeneficiario: string;
+  nomeBeneficiario: string;
+}, companyId: string): BtgContaRecebedoraNormalizada & { origemCadastro: "manual_producao"; rotulo: string } {
+  const rotulo = input.rotulo.trim();
+  const nomeBeneficiario = input.nomeBeneficiario.trim();
+  if (rotulo.length < 3 || rotulo.length > 255) {
+    throw new BtgV2ConfigurationError("O rótulo da conta manual deve ter entre 3 e 255 caracteres.");
+  }
+  if (!nomeBeneficiario || nomeBeneficiario.length > 255) {
+    throw new BtgV2ConfigurationError("O nome do beneficiário é obrigatório e deve ter até 255 caracteres.");
+  }
+  const agencia = somenteDigitosObrigatorio(input.agencia, "agência");
+  const numero = somenteDigitosObrigatorio(input.numero, "conta");
+  if (agencia.length > 30 || numero.length > 50) {
+    throw new BtgV2ConfigurationError("A agência ou a conta excede o tamanho permitido.");
+  }
+  const documentoBeneficiario = normalizarCnpjBtg(input.documentoBeneficiario);
+  if (documentoBeneficiario !== normalizarCnpjBtg(companyId)) {
+    throw new BtgV2ConfigurationError("O CNPJ da conta deve ser o do escritório titular da integração.");
+  }
+  const seed = `producao|${documentoBeneficiario}|${agencia}|${numero}`;
+  const accountId = `manual-producao:${createHash("sha256").update(seed).digest("hex").slice(0, 48)}`;
+  return { accountId, origemCadastro: "manual_producao", rotulo, agencia, numero, documentoBeneficiario, nomeBeneficiario };
+}
+
+export function validarCadastroManualProducao(input: { ambiente: BtgV2Ambiente; oauthConectado: boolean }): void {
+  if (input.ambiente !== "producao") {
+    throw new BtgV2ConfigurationError("O cadastro manual de Produção exige o servidor configurado para Produção.");
+  }
+  if (!input.oauthConectado) {
+    throw new BtgV2ConfigurationError("Conecte a conta BTG de Produção antes de cadastrar uma conta manual.");
+  }
+}
+
+export interface BtgIntegracaoParaValidacao {
+  id: number;
+  ambiente: BtgV2Ambiente;
+  companyId: string;
+  ativo: number;
+}
+
+export interface BtgContaParaValidacao extends BtgContaRecebedoraNormalizada {
+  btgIntegracaoId: number;
+  ativo: number;
+  origemCadastro: string;
+  confirmadoPorId?: number | null;
+  confirmadoEm?: Date | null;
+}
+
+export function validarIntegracaoRuntimeBtg(integracao: BtgIntegracaoParaValidacao, serverConfig: BtgV2ServerConfig): void {
+  if (integracao.ambiente !== serverConfig.ambiente) {
+    throw new BtgV2ConfigurationError("A integração BTG pertence a outro ambiente.");
+  }
+  const companyId = serverConfig.ambiente === "producao" ? normalizarCnpjBtg(integracao.companyId) : digits(integracao.companyId);
+  const companyIdAtual = serverConfig.ambiente === "producao" ? normalizarCnpjBtg(serverConfig.companyId) : digits(serverConfig.companyId);
+  if (!companyId || companyId !== companyIdAtual) {
+    throw new BtgV2ConfigurationError("O CNPJ da integração BTG diverge do CNPJ configurado atualmente. Revise a integração; contas antigas não serão migradas automaticamente.");
+  }
+}
+
+/** Guarda autoritativa: usar no vínculo, prévia, liberação e antes de reservar/enviar. */
+export function validarContaRecebedoraParaAmbiente(input: {
+  conta: BtgContaParaValidacao;
+  integracao: BtgIntegracaoParaValidacao;
+  serverConfig: BtgV2ServerConfig;
+}): void {
+  const { conta, integracao, serverConfig } = input;
+  validarIntegracaoRuntimeBtg(integracao, serverConfig);
+  if (integracao.ativo !== 1 || conta.ativo !== 1 || conta.btgIntegracaoId !== integracao.id) {
+    throw new BtgV2ConfigurationError("A conta selecionada não está ativa ou não pertence à integração BTG atual.");
+  }
+  if (conta.origemCadastro === "api") {
+    if (/^manual[-:]/i.test(conta.accountId)) {
+      throw new BtgV2ConfigurationError("Um identificador interno manual não pode representar uma conta oficial BTG.");
+    }
+    // Contas API legadas sem documento não têm titularidade inferida. Se informado, nunca ignorar divergência.
+    if (serverConfig.ambiente === "producao" && conta.documentoBeneficiario !== null &&
+        normalizarCnpjBtg(conta.documentoBeneficiario) !== normalizarCnpjBtg(serverConfig.companyId)) {
+      throw new BtgV2ConfigurationError("O CNPJ da conta API diverge do escritório titular da integração.");
+    }
+    return;
+  }
+  if (serverConfig.ambiente === "sandbox" && conta.origemCadastro === "manual_sandbox" && conta.accountId.startsWith("manual-sandbox:")) return;
+  if (serverConfig.ambiente !== "producao" || conta.origemCadastro !== "manual_producao") {
+    throw new BtgV2ConfigurationError("A origem da conta não é elegível neste ambiente BTG; contas manuais Sandbox nunca são aceitas em Produção.");
+  }
+  if (!Number.isInteger(conta.confirmadoPorId) || (conta.confirmadoPorId ?? 0) <= 0 ||
+      !(conta.confirmadoEm instanceof Date) || Number.isNaN(conta.confirmadoEm.getTime())) {
+    throw new BtgV2ConfigurationError("A conta manual de Produção exige confirmação administrativa com usuário e data.");
+  }
+  const normalizada = normalizarContaManualProducao({
+    rotulo: "Conta recebedora", agencia: conta.agencia, numero: conta.numero,
+    documentoBeneficiario: conta.documentoBeneficiario ?? "", nomeBeneficiario: conta.nomeBeneficiario ?? "",
+  }, serverConfig.companyId);
+  if (conta.accountId !== normalizada.accountId) {
+    throw new BtgV2ConfigurationError("O identificador interno da conta manual de Produção não corresponde aos dados confirmados.");
+  }
+}
+
 function getFirstString(record: BtgAccountApiRecord, keys: string[]): string | null {
   for (const key of keys) {
     const value = stringValue(record[key]);
@@ -136,6 +262,9 @@ export function normalizarContaRecebedoraBtg(record: BtgAccountApiRecord): BtgCo
 
   if (!accountId) {
     throw new BtgV2ConfigurationError("A API do BTG não retornou o identificador da conta.");
+  }
+  if (/^manual[-:]/i.test(accountId)) {
+    throw new BtgV2ConfigurationError("A API BTG retornou um identificador reservado para contas manuais internas.");
   }
   if (!agencia || !numero) {
     throw new BtgV2ConfigurationError("A conta retornada pelo BTG não trouxe agência e número válidos.");
@@ -173,6 +302,9 @@ export function validarVinculoContaRecebedora(input: {
 export async function consultarContasRecebedorasBtg(
   fetchImpl: typeof fetch = fetch,
 ): Promise<BtgContaRecebedoraNormalizada[]> {
+  if (!consultaContasBtgHabilitada()) {
+    throw new BtgV2ConfigurationError("A consulta Accounts BTG está desativada no servidor. Utilize o cadastro manual de conta no ambiente correspondente; OAuth Collections continua obrigatório para emissão.");
+  }
   const config = getBtgV2ServerConfig();
   const accessToken = await obterAccessTokenBtg();
   const headers: Record<string, string> = {

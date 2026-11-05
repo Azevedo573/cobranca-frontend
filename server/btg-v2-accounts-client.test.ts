@@ -8,6 +8,7 @@ const { configMock, accessTokenMock } = vi.hoisted(() => ({
 vi.mock("./btg-oauth", () => ({
   getBtgOAuthConfig: configMock,
   obterAccessTokenBtg: accessTokenMock,
+  consultaContasBtgHabilitada: () => true,
 }));
 
 import { consultarContasRecebedorasBtg } from "./btg-v2/config";
