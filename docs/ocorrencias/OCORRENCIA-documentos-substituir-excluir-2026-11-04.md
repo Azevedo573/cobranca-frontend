@@ -38,13 +38,19 @@ Tipo, condomínio, usuário, operação, URL anterior/nova e tamanho do upload q
 
 A suíte completa terminou com 560 testes aprovados e 1 teste externo opt-in ignorado (67 arquivos aprovados, 1 ignorado). Não houve falhas. Relatórios locais: `/home/ubuntu/validacoes-documentos-acoes/testes-completos.log` e `build.log` na mesma pasta.
 
-## Sem alterações externas
+## Implantação e homologação na VPS — 05/11/2026
 
-Nenhuma migration, dependência, ajuste de Nginx/PM2, deploy ou exclusão física. Cobranças, acordos, BTG, valores e permissões de outros módulos não foram alterados.
+Na implementação em desenvolvimento não houve migration, dependência, ajuste de Nginx/PM2, deploy ou exclusão física. Posteriormente, com autorização do usuário, o código foi atualizado na VPS para `0720d6a32f60115e83034d522b9323d4f53667bd` por fast-forward.
 
-## Validação manual pendente
+Backup confirmado em `/var/backups/cobranca/deploy-documentos-2026-11-05-075810`, com código anterior e build. Os logs enviados confirmaram TypeScript e build aprovados, leitura do `dist` pelo usuário `cobranca`, reinício do PM2, aplicação online e HTTP 200 local e via HTTPS. Nenhuma migration foi necessária e as configurações de Nginx e memória do PM2 foram preservadas.
 
-Depois da atualização autorizada da VPS, usar apenas documentos de teste:
+Em 05/11/2026 às 08:42, o usuário confirmou: **“Substituir e excluir funcionaram”**. O objetivo funcional desta melhoria foi validado em produção. Não é necessário novo deploy para as ações documentais.
+
+Cobranças, acordos, BTG, valores e permissões de outros módulos não foram alterados. O registro desta confirmação é somente documental; nenhum documento real foi manipulado pelo agente.
+
+## Roteiro de verificação complementar
+
+Substituição e exclusão foram confirmadas pelo usuário. Os cenários abaixo permanecem como referência para regressão; a confirmação geral não comprova individualmente auditoria, conflito entre sessões ou retenção de campos não salvos:
 
 1. Abrir um condomínio com PDF cadastrado e clicar Substituir PDF.
 2. Selecionar PDF pequeno; cancelar e conferir que o antigo permanece.

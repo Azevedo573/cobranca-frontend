@@ -2909,4 +2909,7 @@
 - [x] Validar 35 testes novos; suíte completa com 560 aprovados / 1 externo ignorado, TypeScript e build aprovados
 - [x] Conferir visualmente cartão real com dados sintéticos, sem ações em documentos reais
 
-Validação manual das ações no cadastro real e atualização da VPS permanecem pendentes; roteiro no registro da ocorrência. Nenhum deploy foi executado nesta melhoria.
+- [x] Atualizar VPS para 0720d6a3 com backup, TypeScript/build aprovados, permissões do dist e HTTP 200 local/HTTPS em 05/11/2026
+- [x] Validar ações em produção: usuário confirmou em 05/11/2026 que Substituir e Excluir funcionaram
+
+Homologação funcional desta melhoria concluída. O teste externo de exatamente 200 MB continua separado e pendente; cenários complementares de auditoria e concorrência seguem como referência no registro da ocorrência.
