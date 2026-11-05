@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { TRPCError } from "@trpc/server";
 import { eq, desc, asc, and, gte, lte, inArray, sql } from "drizzle-orm";
 import {
   demandas,
@@ -8,6 +9,13 @@ import {
   assembleias,
   condominios,
   users,
+  tarefasDemanda,
+  juridicoEquipes,
+  juridicoEquipeMembros,
+  profiles,
+  profilePermissions,
+  devedores,
+  cobrancas,
 } from "../drizzle/schema";
 
 // ─── Colunas Kanban ───────────────────────────────────────────────────────────
@@ -46,7 +54,7 @@ export async function getColunaEntrada() {
   const [col] = await db
     .select()
     .from(colunasDemanda)
-    .where(eq(colunasDemanda.tipo, "entrada"))
+    .where(and(eq(colunasDemanda.tipo, "entrada"), sql`${colunasDemanda.userId} IS NULL`))
     .orderBy(asc(colunasDemanda.ordem))
     .limit(1);
   return col ?? null;
@@ -59,7 +67,7 @@ export async function getColunaSaida() {
   const [col] = await db
     .select()
     .from(colunasDemanda)
-    .where(eq(colunasDemanda.tipo, "saida"))
+    .where(and(eq(colunasDemanda.tipo, "saida"), sql`${colunasDemanda.userId} IS NULL`))
     .orderBy(asc(colunasDemanda.ordem))
     .limit(1);
   return col ?? null;
@@ -113,58 +121,41 @@ export async function updateColunaDemanda(
   return db.update(colunasDemanda).set(data).where(eq(colunasDemanda.id, id));
 }
 
-export async function deleteColunaDemanda(id: number, userId: number) {
+export async function deleteColunaDemanda(id: number, userId: number, autorizar: (id: number) => Promise<void>) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  const [col] = await db
-    .select()
-    .from(colunasDemanda)
-    .where(eq(colunasDemanda.id, id))
-    .limit(1);
-  if (!col) throw new Error("Coluna não encontrada");
-  if (col.tipo === "entrada" || col.tipo === "saida") {
-    throw new Error("Não é possível excluir as colunas fixas do sistema (Demandas Recebidas e Demandas Resolvidas)");
-  }
-  // Só o dono da coluna pode excluir
-  if (col.userId !== userId) {
-    throw new Error("Você não tem permissão para excluir esta coluna");
-  }
-  // Mover demandas desta coluna para a coluna de entrada antes de excluir
-  const colunaEntrada = await getColunaEntrada();
-  if (colunaEntrada) {
-    await db
-      .update(demandas)
-      .set({ colunaId: colunaEntrada.id })
-      .where(eq(demandas.colunaId, id));
-  }
-  return db.delete(colunasDemanda).where(eq(colunasDemanda.id, id));
+  return db.transaction(async tx => {
+    const [col] = await tx.select().from(colunasDemanda).where(eq(colunasDemanda.id, id)).limit(1).for("update");
+    if (!col || col.userId !== userId) throw new TRPCError({ code: "NOT_FOUND", message: "Coluna não encontrada" });
+    if (col.tipo !== "intermediaria") throw new TRPCError({ code: "FORBIDDEN", message: "Colunas fixas não podem ser excluídas" });
+    const casos = await tx.select().from(demandas).where(eq(demandas.colunaId, id)).orderBy(asc(demandas.id)).for("update");
+    for (const caso of casos) await autorizar(caso.id);
+    const [entrada] = await tx.select().from(colunasDemanda)
+      .where(and(eq(colunasDemanda.tipo, "entrada"), sql`${colunasDemanda.userId} IS NULL`)).limit(1);
+    if (casos.length && !entrada) throw new TRPCError({ code: "CONFLICT", message: "Coluna de entrada não configurada" });
+    for (const caso of casos) await tx.update(demandas).set({ colunaId: entrada!.id }).where(eq(demandas.id, caso.id));
+    return tx.delete(colunasDemanda).where(eq(colunasDemanda.id, id));
+  });
 }
 
 export async function reordenarColunas(colunaIds: number[], userId: number) {
+  if (!colunaIds.length || colunaIds.length > 100 || new Set(colunaIds).size !== colunaIds.length) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Seleção de colunas inválida" });
+  }
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  // Busca as colunas do usuário (fixas globais + intermediárias pessoais)
-  const todasColunas = await getColunasDemanda(userId);
-  const colunaEntrada = todasColunas.find(c => c.tipo === "entrada");
-  const colunaSaida = todasColunas.find(c => c.tipo === "saida");
-  // Filtra apenas as colunas intermediárias do usuário na lista de reordenação
-  const idsIntermedios = colunaIds.filter(id => {
-    const col = todasColunas.find(c => c.id === id);
-    return col?.tipo === "intermediaria" && col.userId === userId;
+  return db.transaction(async tx => {
+    const colunas = await tx.select().from(colunasDemanda).where(inArray(colunasDemanda.id, colunaIds)).orderBy(asc(colunasDemanda.id)).for("update");
+    for (const id of colunaIds) {
+      const col = colunas.find(c => c.id === id);
+      if (!col || !((col.userId === userId && col.tipo === "intermediaria") || (col.userId === null && ["entrada", "saida"].includes(col.tipo)))) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Coluna fora das preferências pessoais" });
+      }
+    }
+    const pessoais = colunaIds.filter(id => colunas.find(col => col.id === id)?.tipo === "intermediaria");
+    // Não altera a ordem das colunas globais para todos os demais usuários.
+    for (const [index, id] of Array.from(pessoais.entries())) await tx.update(colunasDemanda).set({ ordem: index + 1 }).where(eq(colunasDemanda.id, id));
   });
-  // Entrada sempre na ordem 0, intermediárias a partir de 1, saída por último
-  if (colunaEntrada) {
-    await db.update(colunasDemanda).set({ ordem: 0 }).where(eq(colunasDemanda.id, colunaEntrada.id));
-  }
-  for (let i = 0; i < idsIntermedios.length; i++) {
-    await db
-      .update(colunasDemanda)
-      .set({ ordem: i + 1 })
-      .where(eq(colunasDemanda.id, idsIntermedios[i]));
-  }
-  if (colunaSaida) {
-    await db.update(colunasDemanda).set({ ordem: idsIntermedios.length + 1 }).where(eq(colunasDemanda.id, colunaSaida.id));
-  }
 }
 
 export async function migrarColunasPadrao() {
@@ -283,6 +274,7 @@ async function gerarNumeroDemanda(): Promise<string> {
 
 export async function createDemanda(data: {
   condominioId?: number | null;
+  equipeId?: number | null;
   colunaId: number;
   solicitante?: string;
   solicitanteTipo?: string;
@@ -293,17 +285,19 @@ export async function createDemanda(data: {
   prioridade?: "baixa" | "media" | "alta" | "urgente";
   prazo?: Date | null;
   responsavelId?: number | null;
-  responsavelNome?: string;
+  responsavelNome?: string | null;
   devedorId?: number | null;
   cobrancaId?: number | null;
   criadoPorId?: number;
 }) {
-  const db = await getDb();
-  if (!db) throw new Error("DB unavailable");
+  const connection = await getDb();
+  if (!connection) throw new Error("DB unavailable");
+  return connection.transaction(async db => {
   const numero = await gerarNumeroDemanda();
   const result = await db.insert(demandas).values({
     numero,
     condominioId: data.condominioId ?? null,
+    equipeId: data.equipeId ?? null,
     colunaId: data.colunaId,
     solicitante: data.solicitante,
     solicitanteTipo: data.solicitanteTipo,
@@ -329,32 +323,28 @@ export async function createDemanda(data: {
     });
   }
   return { insertId, numero };
+  });
 }
 
-export async function getDemandas(filters?: {
+export async function getDemandas(filters: {
   condominioId?: number;
   colunaId?: number;
   responsavelId?: number;
-  /** Controle de visibilidade: se role=user, só retorna demandas atribuídas ao viewerUserId */
-  viewerRole?: string;
-  viewerUserId?: number;
+  /** Predicado gerado por demandaScopeCondition com escopo fresco. */
+  scopeCondition: import("drizzle-orm").SQL;
 }) {
   const db = await getDb();
   if (!db) return [];
-  const conditions: any[] = [];
+  const conditions: any[] = [filters.scopeCondition];
   if (filters?.condominioId) conditions.push(eq(demandas.condominioId, filters.condominioId));
   if (filters?.colunaId) conditions.push(eq(demandas.colunaId, filters.colunaId));
   if (filters?.responsavelId) conditions.push(eq(demandas.responsavelId, filters.responsavelId));
-  // Advogados e colaboradores só vêem as demandas atribuídas a eles
-  const rolesRestritos = ["advogado", "colaborador", "user"];
-  if (rolesRestritos.includes(filters?.viewerRole ?? "") && filters?.viewerUserId) {
-    conditions.push(eq(demandas.responsavelId, filters.viewerUserId));
-  }
   const query = db
     .select({
       id: demandas.id,
       numero: demandas.numero,
       condominioId: demandas.condominioId,
+      equipeId: demandas.equipeId,
       condominioNome: condominios.name,
       colunaId: demandas.colunaId,
       solicitante: demandas.solicitante,
@@ -375,6 +365,8 @@ export async function getDemandas(filters?: {
       unidadeDevedor: demandas.unidadeDevedor,
       qtdCobrancas: demandas.qtdCobrancas,
       criadoPorId: demandas.criadoPorId,
+      status: demandas.status,
+      resolvidoEm: demandas.resolvidoEm,
       ordemColuna: demandas.ordemColuna,
       createdAt: demandas.createdAt,
       updatedAt: demandas.updatedAt,
@@ -388,10 +380,7 @@ export async function getDemandas(filters?: {
   return query;
 }
 
-export async function getDemandaById(
-  id: number,
-  viewer?: { role: string; userId: number }
-) {
+export async function getDemandaById(id: number) {
   const db = await getDb();
   if (!db) return null;
   const rows = await db
@@ -399,6 +388,7 @@ export async function getDemandaById(
       id: demandas.id,
       numero: demandas.numero,
       condominioId: demandas.condominioId,
+      equipeId: demandas.equipeId,
       condominioNome: condominios.name,
       colunaId: demandas.colunaId,
       solicitante: demandas.solicitante,
@@ -427,11 +417,6 @@ export async function getDemandaById(
     .where(eq(demandas.id, id))
     .limit(1);
   const row = rows[0] ?? null;
-  // Advogados e colaboradores só podem ver demandas atribuídas a eles
-  const rolesRestritosById = ["advogado", "colaborador", "user"];
-  if (row && rolesRestritosById.includes(viewer?.role ?? "") && row.responsavelId !== viewer?.userId) {
-    return null; // acesso negado
-  }
   return row;
 }
 
@@ -450,6 +435,7 @@ export async function updateDemanda(
     responsavelId: number | null;
     responsavelNome: string | null;
     condominioId: number | null;
+    equipeId: number | null;
   }>
 ) {
   const db = await getDb();
@@ -457,60 +443,147 @@ export async function updateDemanda(
   return db.update(demandas).set(data as any).where(eq(demandas.id, id));
 }
 
-/**
- * Reordena demandas dentro de uma coluna (drag-and-drop estilo Trello).
- * Recebe a lista ordenada de IDs e atualiza o campo ordemColuna de cada um.
- */
-export async function reordenarDemandas(ids: number[]) {
+type DemandaAtual = typeof demandas.$inferSelect;
+type DemandaOperacao = { id: number; esperada: DemandaAtual; data: Record<string, any> };
+
+export async function getColunaDemanda(id: number) {
   const db = await getDb();
-  if (!db) throw new Error("DB unavailable");
-  await Promise.all(
-    ids.map((id, index) =>
-      db.update(demandas).set({ ordemColuna: index }).where(eq(demandas.id, id))
-    )
-  );
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  const [coluna] = await db.select().from(colunasDemanda).where(eq(colunasDemanda.id, id)).limit(1);
+  return coluna ?? null;
 }
 
-export async function moverDemanda(
-  id: number,
-  novaColunaId: number,
-  novaOrdem?: number,
-  usuarioId?: number,
-  usuarioNome?: string
-) {
-  const db = await getDb();
-  if (!db) throw new Error("DB unavailable");
-  const [coluna] = await db
-    .select()
-    .from(colunasDemanda)
-    .where(eq(colunasDemanda.id, novaColunaId))
-    .limit(1);
-  // Se a coluna de destino é do tipo saida, marca a demanda como concluída
-  const updateData: any = { colunaId: novaColunaId, ordemColuna: novaOrdem ?? 0 };
-  if (coluna?.tipo === "saida") {
-    updateData.status = "concluida";
-    updateData.resolvidoEm = new Date();
+export async function assertColunaDemandaAccess(id: number, userId: number, admin = false) {
+  const coluna = await getColunaDemanda(id);
+  if (!coluna || (!admin && !(coluna.userId === userId && coluna.tipo === "intermediaria") &&
+      !(coluna.userId === null && ["entrada", "saida"].includes(coluna.tipo)))) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Coluna não encontrada" });
   }
-  await db.update(demandas).set(updateData).where(eq(demandas.id, id));
-  const tipoEvento = coluna?.tipo === "saida" ? "conclusao" : "movimentacao";
-  const descricaoEvento = coluna?.tipo === "saida"
-    ? `Demanda concluída e movida para "${coluna.nome}"`
-    : `Movida para "${coluna?.nome ?? "nova coluna"}"`;
-  await db.insert(timelineDemanda).values({
-    demandaId: id,
-    tipo: tipoEvento,
-    descricao: descricaoEvento,
-    usuarioId,
-    usuarioNome,
+  return coluna;
+}
+
+export async function assertEquipeDemandaAtiva(equipeId: number) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  const [equipe] = await db.select({ id: juridicoEquipes.id }).from(juridicoEquipes)
+    .where(and(eq(juridicoEquipes.id, equipeId), eq(juridicoEquipes.isActive, 1))).limit(1);
+  if (!equipe) throw new TRPCError({ code: "BAD_REQUEST", message: "Equipe inexistente ou inativa" });
+}
+
+export async function assertTrocaEquipeSemTarefas(demandaId: number) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  const [tarefa] = await db.select({ id: tarefasDemanda.id }).from(tarefasDemanda).where(eq(tarefasDemanda.demandaId, demandaId)).limit(1);
+  if (tarefa) throw new TRPCError({ code: "CONFLICT", message: "Demandas com tarefas exigem alteração de contexto pelo fluxo dedicado" });
+}
+
+export async function getNomeActorDemanda(userId: number) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  const [usuario] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
+  return usuario?.name ?? undefined;
+}
+
+/** Referências financeiras são verificadas por tenant, sem modificar seus valores. */
+export async function validarVinculosDemanda(data: { condominioId?: number | null; devedorId?: number | null; cobrancaId?: number | null }) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  if (data.devedorId) {
+    const [devedor] = await db.select({ condominioId: devedores.condominioId }).from(devedores).where(eq(devedores.id, data.devedorId)).limit(1);
+    if (!devedor || devedor.condominioId !== data.condominioId) throw new TRPCError({ code: "NOT_FOUND", message: "Devedor fora do condomínio da demanda" });
+  }
+  if (data.cobrancaId) {
+    const [cobranca] = await db.select({ condominioId: cobrancas.condominioId, devedorId: cobrancas.devedorId }).from(cobrancas).where(eq(cobrancas.id, data.cobrancaId)).limit(1);
+    if (!cobranca || cobranca.condominioId !== data.condominioId || (data.devedorId && cobranca.devedorId !== data.devedorId)) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Cobrança fora do contexto da demanda" });
+    }
+  }
+}
+
+export function assertEstadoDemandaAtual(atual: DemandaAtual | undefined, esperada: DemandaAtual) {
+  if (!atual) throw new TRPCError({ code: "NOT_FOUND", message: "Demanda não encontrada" });
+  // A tabela legada não possui versão inteira. Compara snapshot sob FOR UPDATE;
+  // updatedAt isolado tem precisão insuficiente para duas alterações no mesmo segundo.
+  for (const chave of Object.keys(esperada) as (keyof DemandaAtual)[]) {
+    const normalize = (valor: unknown) => valor instanceof Date ? valor.getTime() : valor;
+    if (normalize(atual[chave]) !== normalize(esperada[chave])) {
+      throw new TRPCError({ code: "CONFLICT", message: "A demanda foi alterada. Atualize a tela e tente novamente" });
+    }
+  }
+}
+
+/** A seleção inteira é travada e validada antes da primeira escrita. */
+export async function executarDemandasAtomico(operacoes: DemandaOperacao[], actor: { id: number }, revalidar?: () => Promise<void>) {
+  if (!operacoes.length || operacoes.length > 200 || new Set(operacoes.map(op => op.id)).size !== operacoes.length) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Seleção inválida" });
+  }
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  return db.transaction(async tx => {
+    const ids = operacoes.map(op => op.id).sort((a, b) => a - b);
+    const atuais = await tx.select().from(demandas).where(inArray(demandas.id, ids)).orderBy(asc(demandas.id)).for("update");
+    for (const op of operacoes) assertEstadoDemandaAtual(atuais.find(row => row.id === op.id), op.esperada);
+    if (revalidar) await revalidar();
+    for (const op of operacoes) {
+      if ((op.data.equipeId !== undefined && op.data.equipeId !== op.esperada.equipeId) ||
+          (op.data.condominioId !== undefined && op.data.condominioId !== op.esperada.condominioId)) {
+        const [tarefa] = await tx.select({ id: tarefasDemanda.id }).from(tarefasDemanda).where(eq(tarefasDemanda.demandaId, op.id)).limit(1).for("update");
+        if (tarefa) throw new TRPCError({ code: "CONFLICT", message: "Demandas com tarefas exigem alteração de contexto pelo fluxo dedicado" });
+      }
+    }
+    const [usuario] = await tx.select({ name: users.name }).from(users).where(eq(users.id, actor.id)).limit(1);
+    const colunas = new Map<number, typeof colunasDemanda.$inferSelect>();
+    for (const op of operacoes) {
+      if (op.data.colunaId !== undefined) {
+        const [coluna] = await tx.select().from(colunasDemanda).where(eq(colunasDemanda.id, op.data.colunaId)).limit(1).for("update");
+        if (!coluna) throw new TRPCError({ code: "NOT_FOUND", message: "Coluna não encontrada" });
+        colunas.set(coluna.id, coluna);
+      }
+    }
+    for (const op of operacoes) {
+      const data = { ...op.data };
+      const coluna = data.colunaId === undefined ? undefined : colunas.get(data.colunaId);
+      if (coluna?.tipo === "saida") {
+        data.status = "concluida";
+        data.resolvidoEm = new Date();
+      }
+      await tx.update(demandas).set(data).where(eq(demandas.id, op.id));
+      let tipo: typeof timelineDemanda.$inferInsert.tipo = "outro";
+      let descricao = "Dados da demanda atualizados";
+      if (data.responsavelId !== undefined && data.responsavelId !== op.esperada.responsavelId) {
+        tipo = "atribuicao"; descricao = `Responsável alterado para ${data.responsavelNome ?? "não atribuído"}`;
+      } else if (coluna) {
+        tipo = coluna.tipo === "saida" ? "conclusao" : "movimentacao";
+        descricao = coluna.tipo === "saida" ? `Demanda concluída e movida para "${coluna.nome}"` : `Movida para "${coluna.nome}"`;
+      } else if (Object.keys(data).length === 1 && data.ordemColuna !== undefined) {
+        tipo = "movimentacao"; descricao = "Ordem da demanda alterada";
+      }
+      await tx.insert(timelineDemanda).values({ demandaId: op.id, tipo, descricao, usuarioId: actor.id, usuarioNome: usuario?.name ?? undefined });
+    }
   });
 }
 
-export async function deleteDemanda(id: number) {
+export async function contarTarefasAbertasDemanda(demandaId: number) {
   const db = await getDb();
-  if (!db) throw new Error("DB unavailable");
-  await db.delete(timelineDemanda).where(eq(timelineDemanda.demandaId, id));
-  await db.delete(anexosDemanda).where(eq(anexosDemanda.demandaId, id));
-  return db.delete(demandas).where(eq(demandas.id, id));
+  if (!db) return 0;
+  const [row] = await db.select({ total: sql<number>`COUNT(*)` }).from(tarefasDemanda)
+    .where(and(eq(tarefasDemanda.demandaId, demandaId), sql`${tarefasDemanda.status} NOT IN ('concluida', 'cancelada')`));
+  return Number(row?.total ?? 0);
+}
+
+export async function deleteDemanda(id: number, actor: { id: number }, esperada: DemandaAtual, revalidar?: () => Promise<void>) {
+  const db = await getDb();
+  if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+  return db.transaction(async tx => {
+    const [atual] = await tx.select().from(demandas).where(eq(demandas.id, id)).limit(1).for("update");
+    assertEstadoDemandaAtual(atual, esperada);
+    if (revalidar) await revalidar();
+    const [tarefa] = await tx.select({ id: tarefasDemanda.id }).from(tarefasDemanda).where(eq(tarefasDemanda.demandaId, id)).limit(1).for("update");
+    if (tarefa) throw new TRPCError({ code: "CONFLICT", message: "Demandas com tarefas não podem ser excluídas. Preserve o histórico das atividades" });
+    const [usuario] = await tx.select({ name: users.name }).from(users).where(eq(users.id, actor.id)).limit(1);
+    await tx.update(demandas).set({ status: "cancelada" }).where(eq(demandas.id, id));
+    await tx.insert(timelineDemanda).values({ demandaId: id, tipo: "cancelamento", descricao: "Demanda cancelada em vez de excluída, preservando histórico e anexos", usuarioId: actor.id, usuarioNome: usuario?.name ?? undefined });
+  });
 }
 
 // ─── Timeline ─────────────────────────────────────────────────────────────────
@@ -662,106 +735,67 @@ export async function deleteAssembleia(id: number) {
 
 // ─── Dashboard Jurídico ───────────────────────────────────────────────────────
 
-export async function getDashboardJuridico() {
+export async function getDashboardJuridico(scopeCondition: import("drizzle-orm").SQL, admin = false) {
   const db = await getDb();
   if (!db) return null;
-
-  const porColuna = await db
-    .select({
-      colunaId: demandas.colunaId,
-      colunaNome: colunasDemanda.nome,
-      colunaIcone: colunasDemanda.icone,
-      cor: colunasDemanda.cor,
-      total: sql<number>`COUNT(*)`,
-    })
-    .from(demandas)
-    .leftJoin(colunasDemanda, eq(demandas.colunaId, colunasDemanda.id))
-    .groupBy(demandas.colunaId, colunasDemanda.nome, colunasDemanda.icone, colunasDemanda.cor);
-
-  const porPrioridade = await db
-    .select({
-      prioridade: demandas.prioridade,
-      total: sql<number>`COUNT(*)`,
-    })
-    .from(demandas)
-    .groupBy(demandas.prioridade);
-
-  const porCanal = await db
-    .select({
-      canal: demandas.canal,
-      total: sql<number>`COUNT(*)`,
-    })
-    .from(demandas)
-    .groupBy(demandas.canal);
-
-  const porResponsavel = await db
-    .select({
-      responsavelNome: demandas.responsavelNome,
-      responsavelId: demandas.responsavelId,
-      total: sql<number>`COUNT(*)`,
-    })
-    .from(demandas)
-    .groupBy(demandas.responsavelNome, demandas.responsavelId)
-    .orderBy(desc(sql`COUNT(*)`))
-    .limit(10);
-
-  // Demandas em atraso
-  const [atrasadas] = await db
-    .select({ total: sql<number>`COUNT(*)` })
-    .from(demandas)
-    .where(
-      and(
-        sql`${demandas.prazo} IS NOT NULL`,
-        lte(demandas.prazo, new Date())
-      )
-    );
-
-  // Assembleias do mês
-  const inicioMes = new Date();
-  inicioMes.setDate(1);
-  inicioMes.setHours(0, 0, 0, 0);
-  const fimMes = new Date(inicioMes.getFullYear(), inicioMes.getMonth() + 1, 0, 23, 59, 59);
-
-  const [assembleiasMes] = await db
-    .select({ total: sql<number>`COUNT(*)` })
-    .from(assembleias)
-    .where(and(gte(assembleias.data, inicioMes), lte(assembleias.data, fimMes)));
-
-  const [horasAssembleias] = await db
-    .select({ total: sql<number>`SUM(${assembleias.horasGastas})` })
-    .from(assembleias)
-    .where(eq(assembleias.status, "realizada"));
-
-  return {
-    porColuna,
-    porPrioridade,
-    porCanal,
-    porResponsavel,
-    demandasAtrasadas: atrasadas?.total ?? 0,
-    assembleiasMes: assembleiasMes?.total ?? 0,
-    horasTotaisAssembleias: Number(horasAssembleias?.total ?? 0),
+  const rows = await getDemandas({ scopeCondition });
+  const colunaIds = Array.from(new Set(rows.map(row => row.colunaId)));
+  const colunas = colunaIds.length ? await db.select().from(colunasDemanda).where(inArray(colunasDemanda.id, colunaIds)) : [];
+  const agrupar = <T>(key: (row: typeof rows[number]) => T) => {
+    const groups = new Map<T, number>();
+    for (const row of rows) groups.set(key(row), (groups.get(key(row)) ?? 0) + 1);
+    return groups;
   };
+  const porColuna = Array.from(agrupar(row => row.colunaId)).map(([colunaId, total]) => {
+    const coluna = colunas.find(col => col.id === colunaId);
+    return { colunaId, colunaNome: coluna?.nome ?? null, colunaIcone: coluna?.icone ?? null, cor: coluna?.cor ?? null, total };
+  });
+  const porPrioridade = Array.from(agrupar(row => row.prioridade)).map(([prioridade, total]) => ({ prioridade, total }));
+  const porCanal = Array.from(agrupar(row => row.canal)).map(([canal, total]) => ({ canal, total }));
+  const porResponsavel = Array.from(agrupar(row => row.responsavelId)).map(([responsavelId, total]) => ({
+    responsavelId, responsavelNome: rows.find(row => row.responsavelId === responsavelId)?.responsavelNome ?? null, total,
+  })).sort((a, b) => b.total - a.total).slice(0, 10);
+  let assembleiasMes = 0;
+  let horasTotaisAssembleias = 0;
+  // As métricas de outro módulo continuam exclusivamente administrativas.
+  if (admin) {
+    const inicio = new Date(); inicio.setDate(1); inicio.setHours(0, 0, 0, 0);
+    const fim = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 0, 23, 59, 59);
+    const [mes] = await db.select({ total: sql<number>`COUNT(*)` }).from(assembleias).where(and(gte(assembleias.data, inicio), lte(assembleias.data, fim)));
+    const [horas] = await db.select({ total: sql<number>`SUM(${assembleias.horasGastas})` }).from(assembleias).where(eq(assembleias.status, "realizada"));
+    assembleiasMes = Number(mes?.total ?? 0); horasTotaisAssembleias = Number(horas?.total ?? 0);
+  }
+  return { porColuna, porPrioridade, porCanal, porResponsavel,
+    demandasAtrasadas: rows.filter(row => row.prazo && row.prazo <= new Date()).length,
+    assembleiasMes, horasTotaisAssembleias, metricasAssembleiasDisponiveis: admin };
 }
 
-// ─── Advogados ────────────────────────────────────────────────────────────────
-
-/**
- * Retorna todos os usuários com role "advogado" e isActive=1.
- * Usado para popular selects de responsável nas demandas e assembleias.
- */
-export async function getAdvogados() {
+/** Profissionais atuais do perfil jurídico; nenhum email, hash ou segredo. */
+export async function getAdvogados(scope: { admin: boolean; actorId: number; equipeIds: number[]; condominioIds: number[]; somenteProprio?: boolean }) {
   const db = await getDb();
   if (!db) return [];
-  return db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      isActive: users.isActive,
-    })
-    .from(users)
-    .where(and(eq(users.role, "advogado"), eq(users.isActive, 1)))
-    .orderBy(asc(users.name));
+  const conditions = [eq(users.isActive, 1), eq(users.isDeleted, 0),
+    sql`(${users.role} = 'admin' OR (${users.role} IN ('advogado', 'colaborador') AND EXISTS (
+      SELECT 1 FROM ${profiles} INNER JOIN ${profilePermissions} ON ${profilePermissions.profileId} = ${profiles.id}
+      WHERE ${profiles.id} = ${users.profileId} AND ${profilePermissions.modulo} = 'juridico_demandas'
+        AND ${profilePermissions.acao} = 'visualizar' AND ${profilePermissions.permitido} = 1)))`];
+  if (scope.somenteProprio || (!scope.admin && !scope.equipeIds.length)) conditions.push(eq(users.id, scope.actorId));
+  else if (scope.equipeIds.length) conditions.push(sql`EXISTS (
+    SELECT 1 FROM ${juridicoEquipeMembros} INNER JOIN ${juridicoEquipes} ON ${juridicoEquipes.id} = ${juridicoEquipeMembros.equipeId}
+    WHERE ${juridicoEquipeMembros.userId} = ${users.id} AND ${juridicoEquipeMembros.isActive} = 1
+      AND ${juridicoEquipes.isActive} = 1 AND ${inArray(juridicoEquipeMembros.equipeId, scope.equipeIds)})`);
+  const candidatos = await db.select({ id: users.id, name: users.name, role: users.role, condominioId: users.condominioId })
+    .from(users).where(and(...conditions)).orderBy(asc(users.name));
+  const { getCondominiosAtivosDoUsuario } = await import("./tenant-guard");
+  const elegiveis = [];
+  for (const usuario of candidatos) {
+    if (usuario.role !== "admin") {
+      const carteiras = await getCondominiosAtivosDoUsuario(usuario);
+      if (!scope.condominioIds.some(id => carteiras.includes(id)) && !(scope.admin && !scope.condominioIds.length)) continue;
+    }
+    elegiveis.push({ id: usuario.id, name: usuario.name, role: usuario.role });
+  }
+  return elegiveis;
 }
 
 // ─── Integração Jurídico ↔ Cobrança ──────────────────────────────────────────
@@ -783,8 +817,9 @@ export async function escalarParaJuridico(params: {
   criadoPorId: number;
   criadoPorNome?: string;
 }) {
-  const db = await getDb();
-  if (!db) throw new Error("DB unavailable");
+  const connection = await getDb();
+  if (!connection) throw new Error("DB unavailable");
+  return connection.transaction(async db => {
 
   // Buscar a primeira coluna do kanban (menor ordem)
   const [primeiraColuna] = await db
@@ -841,6 +876,7 @@ export async function escalarParaJuridico(params: {
   });
 
   return { demandaId, numero };
+  });
 }
 
 /**
@@ -900,6 +936,7 @@ export async function listarDemandasConsolidadas(filtroAdvogadoId?: number) {
       id: demandas.id,
       numero: demandas.numero,
       condominioId: demandas.condominioId,
+      equipeId: demandas.equipeId,
       condominioNome: condominios.name,
       colunaId: demandas.colunaId,
       solicitante: demandas.solicitante,
@@ -920,6 +957,8 @@ export async function listarDemandasConsolidadas(filtroAdvogadoId?: number) {
       unidadeDevedor: demandas.unidadeDevedor,
       qtdCobrancas: demandas.qtdCobrancas,
       criadoPorId: demandas.criadoPorId,
+      status: demandas.status,
+      resolvidoEm: demandas.resolvidoEm,
       ordemColuna: demandas.ordemColuna,
       createdAt: demandas.createdAt,
       updatedAt: demandas.updatedAt,
@@ -952,7 +991,7 @@ export async function listarAdvogadosComDemandas() {
     .selectDistinct({
       id: users.id,
       name: users.name,
-      email: users.email,
+      role: users.role,
     })
     .from(users)
     .innerJoin(colunasDemanda, eq(colunasDemanda.userId, users.id))

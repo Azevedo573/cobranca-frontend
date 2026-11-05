@@ -148,7 +148,7 @@ const menuGroups: MenuGroup[] = [
         items: [
           { label: "Central de Demandas", href: "/admin/juridico", icon: FileText, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
           { label: "Kanban de Demandas", href: "/admin/juridico/kanban", icon: Kanban, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_demandas" },
-          { label: "Minhas Tarefas", href: "/minhas-tarefas", icon: ListTodo, roles: ["admin", "colaborador", "advogado", "sindico", "cobrador"] },
+          { label: "Central de Trabalho", href: "/minhas-tarefas", icon: ListTodo, roles: ["admin", "colaborador", "advogado", "sindico", "cobrador"], rbacModulo: "juridico_demandas" },
           { label: "Assembleias", href: "/admin/juridico/assembleias", icon: Calendar, roles: ["admin", "colaborador", "advogado"], rbacModulo: "juridico_assembleias" },
         ],
       },
@@ -462,7 +462,7 @@ export default function Sidebar() {
             .filter((group) => group.roles.includes(user.role))
             .filter((group) => !group.modulo || modulosEfetivos.includes(group.modulo))
             // Para colaborador: filtrar grupos pelo módulo RBAC
-            .filter((group) => !group.modulo || colaboradorPodeVer(group.modulo))
+            .filter((group) => !group.modulo || (group.modulo === "juridico" ? group.subGroups?.some((sg) => sg.rbacModulo && colaboradorPodeVer(sg.rbacModulo)) : colaboradorPodeVer(group.modulo)))
             .map((group) => {
               const GroupIcon = group.icon;
               const isOpen = openGroups[group.label] ?? false;

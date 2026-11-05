@@ -17,6 +17,8 @@ import { processosRouter, prazosRouter } from "./routers/processos";
 import { mniRouter } from "./routers/mni";
 import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
 import { tarefasDemandaRouter } from "./routers/tarefas-demanda";
+import { juridicoEquipesRouter } from "./routers/juridico-equipes";
+import { getJuridicoScope, assertDemandaAccess, assertResponsavelElegivel, demandaScopeCondition } from "./juridico-access";
 import { doerjMonitoramentosRouter } from "./routers/doerj-monitoramentos";
 import { pjePublicacoesRouter } from "./routers/pje-publicacoes";
 import { tjrjRouter } from "./routers/tjrj";
@@ -24,6 +26,64 @@ import { operacionalRouter } from "./routers/operacional";
 import { listHeartbeatJobs } from "./_core/heartbeat";
 import { parse as parseCookieHeader } from "cookie";
 import { canAttemptLogin, getRequestIp, recordLoginAttempt } from "./login-rate-limit";
+// Helpers locais: identidade e permissões sempre obtidas pelos guards frescos.
+type DemandaScope = Awaited<ReturnType<typeof getJuridicoScope>>;
+
+export function redigirContextoDemanda<T extends Record<string, any>>(demanda: T, acessoCompleto: boolean, gerencia: boolean) {
+  return {
+    ...demanda,
+    ...(!acessoCompleto ? {
+      devedorId: null, cobrancaId: null, valorDivida: null, nomeDevedor: null,
+      cpfDevedor: null, unidadeDevedor: null, qtdCobrancas: null,
+    } : {}),
+    acessoCompleto, gerencia,
+  };
+}
+
+export function assertDemandaTenant(scope: DemandaScope, condominioId?: number | null) {
+  if (!scope.admin && (!condominioId || !scope.condominioIds.includes(condominioId))) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Condomínio fora do escopo jurídico" });
+  }
+}
+
+function demandaTargetUser(scope: DemandaScope, targetUserId?: number) {
+  if (targetUserId && targetUserId !== scope.actor.id && !scope.admin) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Preferências pessoais não podem ser alteradas por outro usuário" });
+  }
+  return targetUserId ?? scope.actor.id;
+}
+
+export async function validarAtribuicaoDemanda(actor: Parameters<typeof getJuridicoScope>[0], scope: DemandaScope,
+  atual: { equipeId?: number | null; condominioId?: number | null; responsavelId?: number | null } | null,
+  proposta: { equipeId?: number | null; condominioId?: number | null; responsavelId?: number | null }, acao: "criar" | "editar" = "editar") {
+  const equipeId = proposta.equipeId !== undefined ? proposta.equipeId : atual?.equipeId ?? null;
+  const condominioId = proposta.condominioId !== undefined ? proposta.condominioId : atual?.condominioId ?? null;
+  const responsavelId = proposta.responsavelId !== undefined ? proposta.responsavelId : atual?.responsavelId ?? null;
+  assertDemandaTenant(scope, condominioId);
+  const mudaEquipe = proposta.equipeId !== undefined && equipeId !== (atual?.equipeId ?? null);
+  const mudaResponsavel = proposta.responsavelId !== undefined && responsavelId !== (atual?.responsavelId ?? null);
+  if (!scope.admin && (mudaEquipe || (mudaResponsavel && (responsavelId !== scope.actor.id || (atual?.responsavelId != null && atual.responsavelId !== scope.actor.id))))) {
+    if (!scope.canManage || !(acao === "criar" ? scope.canCreate : scope.canEdit) || !equipeId || !scope.gestorEquipeIds.includes(equipeId) ||
+        (atual?.equipeId != null && !scope.gestorEquipeIds.includes(atual.equipeId))) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Reatribuição exige gestão explícita da equipe atual e de destino" });
+    }
+  }
+  if (equipeId != null && (mudaEquipe || !atual)) {
+    const { assertEquipeDemandaAtiva } = await import("./db-demandas");
+    await assertEquipeDemandaAtiva(equipeId);
+    if (!scope.admin && (!scope.canManage || !(acao === "criar" ? scope.canCreate : scope.canEdit) || !scope.gestorEquipeIds.includes(equipeId))) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Somente administrador ou gestor da equipe pode atribuir a equipe ao caso" });
+    }
+  }
+  if (responsavelId != null && (proposta.responsavelId !== undefined || mudaEquipe || proposta.condominioId !== undefined)) {
+    const responsavel = await assertResponsavelElegivel(actor, { ...(atual ?? {}), equipeId, condominioId } as any, responsavelId);
+    return { responsavelId, responsavelNome: responsavel.name ?? null };
+  }
+  if (proposta.responsavelId === null) return { responsavelId: null, responsavelNome: null };
+  // Nome livre legado jamais é alterado por input do cliente.
+  return {};
+}
+
 export const appRouter = router({
 
   system: systemRouter,
@@ -35,6 +95,7 @@ export const appRouter = router({
   prazos: prazosRouter,
   mni: mniRouter,
   juridicoCondominios: juridicoCondominiosRouter,
+  juridicoEquipes: juridicoEquipesRouter,
   operacional: operacionalRouter,
   auth: router({
     me: publicProcedure.query(opts => {
@@ -7537,257 +7598,250 @@ export const appRouter = router({
     seedColunas: protectedProcedure
       .input(z.object({ targetUserId: z.number().int().positive().optional() }).optional())
       .mutation(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user, "criar");
         const { seedColunasPadrao } = await import("./db-demandas");
-        // Admin pode fazer seed para outro usuário
-        const targetId = (ctx.user.role === "admin" && input?.targetUserId) ? input.targetUserId : ctx.user.id;
-        await seedColunasPadrao(targetId);
+        await seedColunasPadrao(demandaTargetUser(scope, input?.targetUserId));
         return { success: true };
       }),
     getColunas: protectedProcedure
       .input(z.object({ targetUserId: z.number().int().positive().optional() }).optional())
       .query(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user);
         const { getColunasDemanda } = await import("./db-demandas");
-        // Admin pode ver colunas de outro usuário
-        const targetId = (ctx.user.role === "admin" && input?.targetUserId) ? input.targetUserId : ctx.user.id;
-        return getColunasDemanda(targetId);
+        return getColunasDemanda(demandaTargetUser(scope, input?.targetUserId));
       }),
-    getColunaEntrada: protectedProcedure.query(async () => {
+    getColunaEntrada: protectedProcedure.query(async ({ ctx }) => {
+      await getJuridicoScope(ctx.user);
       const { getColunaEntrada } = await import("./db-demandas");
       return getColunaEntrada();
     }),
     createColuna: protectedProcedure
-      .input(z.object({
-        nome: z.string().min(1).max(100),
-        icone: z.string().optional(),
-        cor: z.string().optional(),
-        targetUserId: z.number().int().positive().optional(),
-      }))
+      .input(z.object({ nome: z.string().min(1).max(100), icone: z.string().optional(), cor: z.string().optional(), targetUserId: z.number().int().positive().optional() }))
       .mutation(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user, "criar");
         const { createColunaDemanda } = await import("./db-demandas");
         const { targetUserId, ...data } = input;
-        const targetId = (ctx.user.role === "admin" && targetUserId) ? targetUserId : ctx.user.id;
-        await createColunaDemanda({ ...data, userId: targetId });
+        await createColunaDemanda({ ...data, userId: demandaTargetUser(scope, targetUserId) });
         return { success: true };
       }),
     updateColuna: protectedProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        nome: z.string().min(1).max(100).optional(),
-        icone: z.string().optional(),
-        cor: z.string().optional(),
-        targetUserId: z.number().int().positive().optional(),
-      }))
+      .input(z.object({ id: z.number().int().positive(), nome: z.string().min(1).max(100).optional(), icone: z.string().optional(), cor: z.string().optional(), targetUserId: z.number().int().positive().optional() }))
       .mutation(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user, "editar");
         const { updateColunaDemanda } = await import("./db-demandas");
         const { id, targetUserId, ...data } = input;
-        const targetId = (ctx.user.role === "admin" && targetUserId) ? targetUserId : ctx.user.id;
-        await updateColunaDemanda(id, targetId, data);
+        await updateColunaDemanda(id, demandaTargetUser(scope, targetUserId), data);
         return { success: true };
       }),
     deleteColuna: protectedProcedure
-      .input(z.object({
-        id: z.number().int().positive(),
-        targetUserId: z.number().int().positive().optional(),
-      }))
+      .input(z.object({ id: z.number().int().positive(), targetUserId: z.number().int().positive().optional() }))
       .mutation(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user, "editar");
         const { deleteColunaDemanda } = await import("./db-demandas");
-        const targetId = (ctx.user.role === "admin" && input.targetUserId) ? input.targetUserId : ctx.user.id;
-        await deleteColunaDemanda(input.id, targetId);
+        await deleteColunaDemanda(input.id, demandaTargetUser(scope, input.targetUserId), async id => {
+          await assertDemandaAccess(ctx.user, id, "editar");
+        });
         return { success: true };
       }),
     reordenarColunas: protectedProcedure
-      .input(z.object({
-        colunaIds: z.array(z.number().int().positive()),
-        targetUserId: z.number().int().positive().optional(),
-      }))
+      .input(z.object({ colunaIds: z.array(z.number().int().positive()).min(1).max(100), targetUserId: z.number().int().positive().optional() }))
       .mutation(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user, "editar");
         const { reordenarColunas } = await import("./db-demandas");
-        const targetId = (ctx.user.role === "admin" && input.targetUserId) ? input.targetUserId : ctx.user.id;
-        await reordenarColunas(input.colunaIds, targetId);
+        await reordenarColunas(input.colunaIds, demandaTargetUser(scope, input.targetUserId));
         return { success: true };
       }),
     listar: protectedProcedure
-      .input(z.object({
-        condominioId: z.number().int().positive().optional(),
-        colunaId: z.number().int().positive().optional(),
-        responsavelId: z.number().int().positive().optional(),
-      }).optional())
+      .input(z.object({ condominioId: z.number().int().positive().optional(), colunaId: z.number().int().positive().optional(), responsavelId: z.number().int().positive().optional() }).optional())
       .query(async ({ input, ctx }) => {
-        const { getDemandas } = await import("./db-demandas");
-        return getDemandas({
-          ...input,
-          viewerRole: ctx.user.role,
-          viewerUserId: ctx.user.id,
-        });
+        const scope = await getJuridicoScope(ctx.user);
+        if (input?.condominioId) assertDemandaTenant(scope, input.condominioId);
+        const { getDemandas, assertColunaDemandaAccess } = await import("./db-demandas");
+        if (input?.colunaId) await assertColunaDemandaAccess(input.colunaId, scope.actor.id, scope.admin);
+        const rows = await getDemandas({ ...input, scopeCondition: demandaScopeCondition(scope, true) });
+        // Recheck each case: task context never turns into document/financial access.
+        return Promise.all(rows.map(async row => {
+          const access = await assertDemandaAccess(ctx.user, row.id, "visualizar", true);
+          return redigirContextoDemanda(row, access.acessoCompleto, access.gerencia);
+        }));
       }),
     getById: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .query(async ({ input, ctx }) => {
+        const access = await assertDemandaAccess(ctx.user, input.id, "visualizar", true);
         const { getDemandaById } = await import("./db-demandas");
-        return getDemandaById(input.id, { role: ctx.user.role, userId: ctx.user.id });
+        const row = await getDemandaById(input.id);
+        if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Demanda não encontrada" });
+        return redigirContextoDemanda(row, access.acessoCompleto, access.gerencia);
       }),
     create: protectedProcedure
       .input(z.object({
-        condominioId: z.number().int().positive().optional().nullable(),
-        colunaId: z.number().int().positive().optional(), // se omitido, usa a coluna de entrada automaticamente
-        solicitante: z.string().optional(),
-        solicitanteTipo: z.string().optional(),
+        condominioId: z.number().int().positive().optional().nullable(), equipeId: z.number().int().positive().optional().nullable(),
+        colunaId: z.number().int().positive().optional(), solicitante: z.string().optional(), solicitanteTipo: z.string().optional(),
         canal: z.enum(["whatsapp", "email", "portal", "telefone", "presencial", "assembleia", "processo_interno", "manual"]),
-        assunto: z.string().min(1).max(255),
-        descricao: z.string().optional(),
+        assunto: z.string().min(1).max(255), descricao: z.string().optional(),
         tipo: z.enum(["parecer", "convencao", "assembleia", "multa", "notificacao", "contratos", "cobranca_judicial", "processo", "audiencia", "execucao", "acompanhamento", "documentacao", "relatorio", "cadastro", "outro"]),
-        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
-        prazo: z.string().optional().nullable(),
-        responsavelId: z.number().int().positive().optional().nullable(),
-        responsavelNome: z.string().optional(),
-        devedorId: z.number().int().positive().optional().nullable(),
-        cobrancaId: z.number().int().positive().optional().nullable(),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(), prazo: z.string().optional().nullable(),
+        responsavelId: z.number().int().positive().optional().nullable(), responsavelNome: z.string().optional(),
+        devedorId: z.number().int().positive().optional().nullable(), cobrancaId: z.number().int().positive().optional().nullable(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { createDemanda, getColunaEntrada } = await import("./db-demandas");
-        // Toda nova demanda entra automaticamente na coluna de entrada
-        let colunaId = input.colunaId;
-        if (!colunaId) {
-          const colunaEntrada = await getColunaEntrada();
-          if (!colunaEntrada) throw new Error("Coluna de entrada n\u00e3o configurada. Execute a migra\u00e7\u00e3o de colunas.");
-          colunaId = colunaEntrada.id;
-        }
-        const result = await createDemanda({
-          ...input,
-          colunaId,
-          prazo: input.prazo ? new Date(input.prazo) : null,
-          criadoPorId: ctx.user.id,
-        });
-        return result;
+        const scope = await getJuridicoScope(ctx.user, "criar");
+        assertDemandaTenant(scope, input.condominioId);
+        const { createDemanda, getColunaEntrada, assertColunaDemandaAccess, validarVinculosDemanda } = await import("./db-demandas");
+        const atribuido = await validarAtribuicaoDemanda(ctx.user, scope, null, input, "criar");
+        await validarVinculosDemanda(input);
+        const colunaId = input.colunaId ?? (await getColunaEntrada())?.id;
+        if (!colunaId) throw new TRPCError({ code: "BAD_REQUEST", message: "Coluna de entrada não configurada" });
+        await assertColunaDemandaAccess(colunaId, scope.actor.id, scope.admin);
+        const { responsavelNome: _ignorado, ...data } = input;
+        return createDemanda({ ...data, ...atribuido, colunaId, prazo: input.prazo ? new Date(input.prazo) : null, criadoPorId: scope.actor.id });
       }),
     update: protectedProcedure
       .input(z.object({
-        id: z.number().int().positive(),
-        colunaId: z.number().int().positive().optional(),
-        solicitante: z.string().optional(),
-        solicitanteTipo: z.string().optional(),
+        id: z.number().int().positive(), colunaId: z.number().int().positive().optional(),
+        solicitante: z.string().optional(), solicitanteTipo: z.string().optional(),
         canal: z.enum(["whatsapp", "email", "portal", "telefone", "presencial", "assembleia", "processo_interno", "manual"]).optional(),
-        assunto: z.string().min(1).max(255).optional(),
-        descricao: z.string().optional(),
+        assunto: z.string().min(1).max(255).optional(), descricao: z.string().optional(),
         tipo: z.enum(["parecer", "convencao", "assembleia", "multa", "notificacao", "contratos", "cobranca_judicial", "processo", "audiencia", "execucao", "acompanhamento", "documentacao", "relatorio", "cadastro", "outro"]).optional(),
-        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
-        prazo: z.string().optional().nullable(),
-        responsavelId: z.number().int().positive().optional().nullable(),
-        responsavelNome: z.string().optional().nullable(),
-        condominioId: z.number().int().positive().optional().nullable(),
+        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(), prazo: z.string().optional().nullable(),
+        responsavelId: z.number().int().positive().optional().nullable(), responsavelNome: z.string().optional().nullable(),
+        condominioId: z.number().int().positive().optional().nullable(), equipeId: z.number().int().positive().optional().nullable(),
       }))
-      .mutation(async ({ input }) => {
-        const { updateDemanda, getDemandaById, getColunaEntrada } = await import("./db-demandas");
-        const { id, prazo, ...rest } = input;
-
-        // Se o responsável está sendo alterado, verificar se a coluna atual é intermediária
-        // de outro usuário. Se for, mover para a coluna de entrada ("Demandas Novas").
-        let colunaIdFinal = rest.colunaId;
-        if (rest.responsavelId !== undefined) {
-          // Buscar a demanda atual para saber a coluna
-          const demandaAtual = await getDemandaById(id, { role: "admin", userId: 0 });
-          if (demandaAtual && !colunaIdFinal) {
-            // Verificar se a coluna atual é intermediária de outro usuário
-            const { getDb } = await import("./db");
-            const { colunasDemanda } = await import("../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
-            const db = await getDb();
-            if (db) {
-              const [colunaAtual] = await db
-                .select()
-                .from(colunasDemanda)
-                .where(eq(colunasDemanda.id, demandaAtual.colunaId))
-                .limit(1);
-              // Se é coluna intermediária (pessoal de algum advogado), mover para entrada
-              if (colunaAtual?.tipo === "intermediaria") {
-                const colunaEntrada = await getColunaEntrada();
-                if (colunaEntrada) {
-                  colunaIdFinal = colunaEntrada.id;
-                }
-              }
-            }
-          }
+      .mutation(async ({ input, ctx }) => {
+        const access = await assertDemandaAccess(ctx.user, input.id, "editar");
+        const { executarDemandasAtomico, assertColunaDemandaAccess, getColunaEntrada, getColunaDemanda, validarVinculosDemanda } = await import("./db-demandas");
+        const { id, prazo, responsavelNome: _ignorado, ...rest } = input;
+        if ((rest.equipeId !== undefined && rest.equipeId !== access.demanda.equipeId) ||
+            (rest.condominioId !== undefined && rest.condominioId !== access.demanda.condominioId)) {
+          const { assertTrocaEquipeSemTarefas } = await import("./db-demandas");
+          await assertTrocaEquipeSemTarefas(id);
         }
-
-        await updateDemanda(id, {
-          ...rest,
-          ...(colunaIdFinal !== undefined ? { colunaId: colunaIdFinal } : {}),
+        const atribuido = await validarAtribuicaoDemanda(ctx.user, access.scope, access.demanda, rest);
+        const condominioId = rest.condominioId !== undefined ? rest.condominioId : access.demanda.condominioId;
+        if (rest.condominioId !== undefined) await validarVinculosDemanda({ condominioId, devedorId: access.demanda.devedorId, cobrancaId: access.demanda.cobrancaId });
+        let colunaId = rest.colunaId;
+        if (rest.responsavelId !== undefined && rest.responsavelId !== access.demanda.responsavelId && colunaId === undefined) {
+          const atual = await getColunaDemanda(access.demanda.colunaId);
+          if (atual?.tipo === "intermediaria") colunaId = (await getColunaEntrada())?.id;
+        }
+        if (colunaId !== undefined) await assertColunaDemandaAccess(colunaId, access.scope.actor.id, access.scope.admin);
+        await executarDemandasAtomico([{ id, esperada: access.demanda, data: {
+          ...rest, ...atribuido, ...(colunaId !== undefined ? { colunaId } : {}),
           ...(prazo !== undefined ? { prazo: prazo ? new Date(prazo) : null } : {}),
+        } }], access.scope.actor, async () => {
+          const fresh = await assertDemandaAccess(ctx.user, id, "editar");
+          await validarAtribuicaoDemanda(ctx.user, fresh.scope, fresh.demanda, rest);
+          if (colunaId !== undefined) await assertColunaDemandaAccess(colunaId, fresh.scope.actor.id, fresh.scope.admin);
+          if (rest.condominioId !== undefined) await validarVinculosDemanda({ condominioId, devedorId: fresh.demanda.devedorId, cobrancaId: fresh.demanda.cobrancaId });
         });
         return { success: true };
       }),
     mover: protectedProcedure
+      .input(z.object({ id: z.number().int().positive(), novaColunaId: z.number().int().positive(), novaOrdem: z.number().int().min(0).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        const access = await assertDemandaAccess(ctx.user, input.id, "editar");
+        const { executarDemandasAtomico, assertColunaDemandaAccess, contarTarefasAbertasDemanda } = await import("./db-demandas");
+        await assertColunaDemandaAccess(input.novaColunaId, access.scope.actor.id, access.scope.admin);
+        await executarDemandasAtomico([{ id: input.id, esperada: access.demanda, data: { colunaId: input.novaColunaId, ordemColuna: input.novaOrdem ?? 0 } }], access.scope.actor,
+          async () => {
+            const fresh = await assertDemandaAccess(ctx.user, input.id, "editar");
+            await assertColunaDemandaAccess(input.novaColunaId, fresh.scope.actor.id, fresh.scope.admin);
+          });
+        return { success: true, tarefasAbertas: await contarTarefasAbertasDemanda(input.id) };
+      }),
+    acaoEmLote: protectedProcedure
       .input(z.object({
-        id: z.number().int().positive(),
-        novaColunaId: z.number().int().positive(),
-        novaOrdem: z.number().int().min(0).optional(),
+        ids: z.array(z.number().int().positive()).min(1).max(100), acao: z.enum(["reatribuir", "mover_coluna", "alterar_prioridade"]),
+        responsavelId: z.number().int().positive().optional().nullable(), responsavelNome: z.string().optional().nullable(),
+        colunaId: z.number().int().positive().optional(), prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { moverDemanda } = await import("./db-demandas");
-        await moverDemanda(input.id, input.novaColunaId, input.novaOrdem, ctx.user.id, ctx.user.name ?? undefined);
-        return { success: true };
-      }),
-    acaoEmLote: adminProcedure
-      .input(z.object({
-        ids: z.array(z.number().int().positive()),
-        acao: z.enum(["reatribuir", "mover_coluna", "alterar_prioridade"]),
-        responsavelId: z.number().int().positive().optional().nullable(),
-        responsavelNome: z.string().optional().nullable(),
-        colunaId: z.number().int().positive().optional(),
-        prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
-      }))
-      .mutation(async ({ input }) => {
-        const { updateDemanda } = await import("./db-demandas");
-        const updates: Record<string, any> = {};
-        if (input.acao === "reatribuir") {
-          updates.responsavelId = input.responsavelId ?? null;
-          updates.responsavelNome = input.responsavelNome ?? null;
-        } else if (input.acao === "mover_coluna" && input.colunaId) {
-          updates.colunaId = input.colunaId;
-        } else if (input.acao === "alterar_prioridade" && input.prioridade) {
-          updates.prioridade = input.prioridade;
+        if (new Set(input.ids).size !== input.ids.length) throw new TRPCError({ code: "BAD_REQUEST", message: "IDs duplicados" });
+        if ((input.acao === "reatribuir" && input.responsavelId === undefined) || (input.acao === "mover_coluna" && !input.colunaId) || (input.acao === "alterar_prioridade" && !input.prioridade)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o destino da ação em lote" });
         }
-        await Promise.all(input.ids.map(id => updateDemanda(id, updates)));
+        const { executarDemandasAtomico, assertColunaDemandaAccess, getColunaDemanda, getColunaEntrada } = await import("./db-demandas");
+        const operacoes: Parameters<typeof executarDemandasAtomico>[0] = [];
+        let autor;
+        // All selections, destinations and executors checked before the first write.
+        for (const id of input.ids) {
+          const access = await assertDemandaAccess(ctx.user, id, "editar");
+          autor = access.scope.actor;
+          if (!access.scope.admin && !access.gerencia) throw new TRPCError({ code: "FORBIDDEN", message: "Ação em lote exige gestão da equipe" });
+          const data: Record<string, any> = {};
+          if (input.acao === "reatribuir") {
+            Object.assign(data, await validarAtribuicaoDemanda(ctx.user, access.scope, access.demanda, { responsavelId: input.responsavelId }));
+            if (input.responsavelId !== access.demanda.responsavelId && (await getColunaDemanda(access.demanda.colunaId))?.tipo === "intermediaria") {
+              data.colunaId = (await getColunaEntrada())?.id;
+            }
+          } else if (input.acao === "mover_coluna") {
+            await assertColunaDemandaAccess(input.colunaId!, access.scope.actor.id, access.scope.admin);
+            data.colunaId = input.colunaId;
+          } else data.prioridade = input.prioridade;
+          operacoes.push({ id, esperada: access.demanda, data });
+        }
+        await executarDemandasAtomico(operacoes, autor!, async () => {
+          for (const id of input.ids) {
+            const fresh = await assertDemandaAccess(ctx.user, id, "editar");
+            if (!fresh.scope.admin && !fresh.gerencia) throw new TRPCError({ code: "FORBIDDEN", message: "Gestão revogada" });
+            if (input.acao === "reatribuir") await validarAtribuicaoDemanda(ctx.user, fresh.scope, fresh.demanda, { responsavelId: input.responsavelId });
+            const coluna = operacoes.find(op => op.id === id)?.data.colunaId;
+            if (coluna !== undefined) await assertColunaDemandaAccess(coluna, fresh.scope.actor.id, fresh.scope.admin);
+          }
+        });
         return { atualizadas: input.ids.length };
       }),
-
     reordenarDemandas: protectedProcedure
-      .input(z.object({
-        ids: z.array(z.number().int().positive()),
-      }))
-      .mutation(async ({ input }) => {
-        const { reordenarDemandas } = await import("./db-demandas");
-        await reordenarDemandas(input.ids);
+      .input(z.object({ ids: z.array(z.number().int().positive()).min(1).max(200) }))
+      .mutation(async ({ input, ctx }) => {
+        if (new Set(input.ids).size !== input.ids.length) throw new TRPCError({ code: "BAD_REQUEST", message: "IDs duplicados" });
+        const { executarDemandasAtomico, assertColunaDemandaAccess } = await import("./db-demandas");
+        const operacoes = [];
+        let colunaId: number | undefined;
+        let autor;
+        for (const [index, id] of Array.from(input.ids.entries())) {
+          const access = await assertDemandaAccess(ctx.user, id, "editar");
+          autor = access.scope.actor;
+          if (colunaId !== undefined && colunaId !== access.demanda.colunaId) throw new TRPCError({ code: "BAD_REQUEST", message: "Reordene uma coluna por vez" });
+          colunaId = access.demanda.colunaId;
+          await assertColunaDemandaAccess(colunaId, access.scope.actor.id, access.scope.admin);
+          operacoes.push({ id, esperada: access.demanda, data: { ordemColuna: index } });
+        }
+        await executarDemandasAtomico(operacoes, autor!, async () => {
+          for (const id of input.ids) {
+            const fresh = await assertDemandaAccess(ctx.user, id, "editar");
+            await assertColunaDemandaAccess(fresh.demanda.colunaId, fresh.scope.actor.id, fresh.scope.admin);
+          }
+        });
         return { success: true };
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const access = await assertDemandaAccess(ctx.user, input.id, "excluir");
         const { deleteDemanda } = await import("./db-demandas");
-        await deleteDemanda(input.id);
-        return { success: true };
+        await deleteDemanda(input.id, access.scope.actor, access.demanda, async () => { await assertDemandaAccess(ctx.user, input.id, "excluir"); });
+        return { success: true, cancelada: true };
       }),
     getTimeline: protectedProcedure
       .input(z.object({ demandaId: z.number().int().positive() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const access = await assertDemandaAccess(ctx.user, input.demandaId, "visualizar", true);
         const { getTimelineDemanda } = await import("./db-demandas");
-        return getTimelineDemanda(input.demandaId);
+        const rows = await getTimelineDemanda(input.demandaId);
+        return access.acessoCompleto ? rows : rows.filter(row => row.tipo === "comentario" && row.usuarioId === access.scope.actor.id);
       }),
     addComentario: protectedProcedure
-      .input(z.object({
-        demandaId: z.number().int().positive(),
-        descricao: z.string().min(1),
-        tipo: z.enum(["criacao", "atribuicao", "movimentacao", "comentario", "anexo", "email", "whatsapp", "conclusao", "cancelamento", "outro"]).default("comentario"),
-      }))
+      .input(z.object({ demandaId: z.number().int().positive(), descricao: z.string().trim().min(1).max(20000), tipo: z.enum(["comentario", "whatsapp", "email", "outro"]).default("comentario") }))
       .mutation(async ({ input, ctx }) => {
-        const { addTimelineEvento } = await import("./db-demandas");
-        await addTimelineEvento({
-          demandaId: input.demandaId,
-          tipo: input.tipo,
-          descricao: input.descricao,
-          usuarioId: ctx.user.id,
-          usuarioNome: ctx.user.name ?? undefined,
-        });
+        const access = await assertDemandaAccess(ctx.user, input.demandaId, "visualizar", true);
+        if (!access.acessoCompleto && input.tipo !== "comentario") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Contexto de tarefa permite somente comentário" });
+        }
+        const { addTimelineEvento, getNomeActorDemanda } = await import("./db-demandas");
+        await addTimelineEvento({ demandaId: input.demandaId, tipo: input.tipo, descricao: input.descricao,
+          usuarioId: access.scope.actor.id, usuarioNome: await getNomeActorDemanda(access.scope.actor.id) });
         return { success: true };
       }),
     listarAssembleias: protectedProcedure
@@ -7857,21 +7911,37 @@ export const appRouter = router({
         await deleteAssembleia(input.id);
         return { success: true };
       }),
-    dashboard: protectedProcedure.query(async () => {
+    dashboard: protectedProcedure.query(async ({ ctx }) => {
+      const scope = await getJuridicoScope(ctx.user);
       const { getDashboardJuridico } = await import("./db-demandas");
-      return getDashboardJuridico();
+      return getDashboardJuridico(demandaScopeCondition(scope, true), scope.admin);
     }),
     // Listar todos os usuários com role "advogado" para usar como responsáveis
-    getAdvogados: protectedProcedure.query(async () => {
-      const { getAdvogados } = await import("./db-demandas");
-      return getAdvogados();
-    }),
+    getAdvogados: protectedProcedure
+      .input(z.object({ demandaId: z.number().int().positive().optional(), equipeId: z.number().int().positive().optional(), condominioId: z.number().int().positive().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user);
+        const { getAdvogados } = await import("./db-demandas");
+        let equipeId = input?.equipeId;
+        let condominioId = input?.condominioId;
+        if (input?.demandaId) {
+          const access = await assertDemandaAccess(ctx.user, input.demandaId);
+          equipeId = access.demanda.equipeId ?? undefined;
+          condominioId = access.demanda.condominioId ?? undefined;
+        }
+        if (condominioId) assertDemandaTenant(scope, condominioId);
+        if (!scope.admin && equipeId && !scope.equipeIds.includes(equipeId) && !scope.gestorEquipeIds.includes(equipeId)) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Equipe fora do escopo" });
+        }
+        return getAdvogados({ admin: scope.admin, somenteProprio: !!input?.demandaId && !equipeId, actorId: scope.actor.id, equipeIds: equipeId ? [equipeId] : Array.from(new Set([...scope.equipeIds, ...scope.gestorEquipeIds])), condominioIds: condominioId ? [condominioId] : scope.condominioIds });
+      }),
 
     // ── Visão Consolidada do Administrador ───────────────────────────────────
     listarDemandasConsolidadas: protectedProcedure
       .input(z.object({ filtroAdvogadoId: z.number().int().positive().optional() }).optional())
       .query(async ({ input, ctx }) => {
-        if (ctx.user.role !== "admin") {
+        const scope = await getJuridicoScope(ctx.user);
+        if (!scope.admin) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem acessar a visão consolidada" });
         }
         const { listarDemandasConsolidadas } = await import("./db-demandas");
@@ -7880,7 +7950,8 @@ export const appRouter = router({
 
     listarAdvogadosComDemandas: protectedProcedure
       .query(async ({ ctx }) => {
-        if (ctx.user.role !== "admin") {
+        const scope = await getJuridicoScope(ctx.user);
+        if (!scope.admin) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem acessar esta lista" });
         }
         const { listarAdvogadosComDemandas } = await import("./db-demandas");
@@ -7901,18 +7972,22 @@ export const appRouter = router({
         prioridade: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { escalarParaJuridico } = await import("./db-demandas");
+        const scope = await getJuridicoScope(ctx.user, "criar");
+        assertDemandaTenant(scope, input.condominioId);
+        const { escalarParaJuridico, validarVinculosDemanda, getNomeActorDemanda } = await import("./db-demandas");
+        await validarVinculosDemanda(input);
         const result = await escalarParaJuridico({
           ...input,
-          criadoPorId: ctx.user.id,
-          criadoPorNome: ctx.user.name ?? undefined,
+          criadoPorId: scope.actor.id,
+          criadoPorNome: await getNomeActorDemanda(scope.actor.id),
         });
         return { demandaId: result.demandaId, numero: result.numero };
       }),
         // Obter dados do devedor vinculado a uma demanda
     getCobrancasVinculadas: protectedProcedure
       .input(z.object({ demandaId: z.number().int().positive() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        await assertDemandaAccess(ctx.user, input.demandaId);
         const { getCobrancasVinculadas } = await import("./db-demandas");
         return getCobrancasVinculadas(input.demandaId);
       }),
@@ -7920,7 +7995,9 @@ export const appRouter = router({
     // ── Anexos de Demandas ────────────────────────────────────────────────────
     getAnexos: protectedProcedure
       .input(z.object({ demandaId: z.number().int().positive() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const access = await assertDemandaAccess(ctx.user, input.demandaId);
+        if (!access.acessoCompleto) throw new TRPCError({ code: "NOT_FOUND", message: "Demanda não encontrada" });
         const db = await getDb();
         if (!db) return [];
         const { anexosDemanda } = await import("../drizzle/schema");
@@ -7939,9 +8016,12 @@ export const appRouter = router({
         tamanho: z.number().int().positive(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const access = await assertDemandaAccess(ctx.user, input.demandaId, "editar");
+        if (!access.acessoCompleto) throw new TRPCError({ code: "NOT_FOUND", message: "Demanda não encontrada" });
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
         const { storagePut } = await import("./storage");
+        const { getNomeActorDemanda } = await import("./db-demandas");
         const { anexosDemanda } = await import("../drizzle/schema");
         const buffer = Buffer.from(input.fileBase64, "base64");
         const ext = input.fileName.split(".").pop() ?? "bin";
@@ -7955,8 +8035,8 @@ export const appRouter = router({
           url,
           mimeType: input.mimeType,
           tamanho: input.tamanho,
-          uploadadoPorId: ctx.user.id,
-          uploadadoPorNome: ctx.user.name ?? ctx.user.email ?? undefined,
+          uploadadoPorId: access.scope.actor.id,
+          uploadadoPorNome: await getNomeActorDemanda(access.scope.actor.id),
         });
         return { id: (result as any).insertId, url, nome: input.fileName };
       }),
@@ -7970,7 +8050,9 @@ export const appRouter = router({
         const { eq } = await import("drizzle-orm");
         const [anexo] = await db.select().from(anexosDemanda).where(eq(anexosDemanda.id, input.id));
         if (!anexo) throw new TRPCError({ code: "NOT_FOUND", message: "Anexo não encontrado" });
-        if (ctx.user.role !== "admin" && anexo.uploadadoPorId !== ctx.user.id) {
+        const access = await assertDemandaAccess(ctx.user, anexo.demandaId, "editar");
+        if (!access.acessoCompleto) throw new TRPCError({ code: "NOT_FOUND", message: "Demanda não encontrada" });
+        if (!access.scope.admin && !access.gerencia && anexo.uploadadoPorId !== access.scope.actor.id) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para excluir este anexo" });
         }
         await db.delete(anexosDemanda).where(eq(anexosDemanda.id, input.id));
@@ -7980,7 +8062,9 @@ export const appRouter = router({
     // Produtividade por advogado (admin only) — para o Dashboard Jurídico Unificado
     produtividadeAdvogados: adminProcedure
       .input(z.object({ mes: z.number().int().min(1).max(12).optional(), ano: z.number().int().optional() }).optional())
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const scope = await getJuridicoScope(ctx.user);
+        if (!scope.admin) throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores" });
         const db = await getDb();
         if (!db) return [];
         const { demandas, prazosJuridicos, processosJudiciais, users } = await import("../drizzle/schema");

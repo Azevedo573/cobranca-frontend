@@ -22,6 +22,7 @@ export const MODULOS = [
   { id: "juridico_processos",  label: "Processos Judiciais",   grupo: "Jurídico" },
   { id: "juridico_prazos",      label: "Prazos Jurídicos",       grupo: "Jurídico" },
   { id: "juridico_demandas",    label: "Central de Demandas",   grupo: "Jurídico" },
+  { id: "juridico_equipe",      label: "Gestão da Equipe Jurídica", grupo: "Jurídico" },
   { id: "juridico_assembleias", label: "Assembleias",            grupo: "Jurídico" },
   { id: "juridico_intimacoes",  label: "Central de Intimações",  grupo: "Jurídico" },
   { id: "juridico_publicacoes", label: "Publicações Jurídicas",   grupo: "Jurídico" },

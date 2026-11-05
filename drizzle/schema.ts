@@ -1411,6 +1411,7 @@ export const demandas = mysqlTable("demandas", {
   id: int("id").autoincrement().primaryKey(),
   numero: varchar("numero", { length: 20 }).notNull().unique(), // ex: #1258
   condominioId: int("condominioId"),
+  equipeId: int("equipeId"), // Vínculo explícito; NULL preserva a carteira legada.
   colunaId: int("colunaId").notNull(), // FK para colunasDemanda.id
   // Solicitante
   solicitante: varchar("solicitante", { length: 255 }),
@@ -1837,14 +1838,27 @@ export const tarefasDemanda = mysqlTable("tarefasDemanda", {
   descricao: text("descricao"),
   responsavelId: int("responsavelId"),
   responsavelNome: varchar("responsavelNome", { length: 255 }),
-  status: mysqlEnum("statusTarefa", ["pendente", "em_andamento", "concluida"]).default("pendente").notNull(),
+  status: mysqlEnum("statusTarefa", ["pendente", "em_andamento", "concluida", "em_revisao", "cancelada"]).default("pendente").notNull(),
   prioridade: mysqlEnum("prioridadeTarefa", ["baixa", "media", "alta"]).default("media").notNull(),
   prazo: timestamp("prazo"),
+  exigeRevisao: int("exigeRevisao").default(0).notNull(),
+  bloqueada: int("bloqueada").default(0).notNull(),
+  motivoBloqueio: text("motivoBloqueio"),
+  entrega: text("entrega"),
+  iniciadaEm: timestamp("iniciadaEm"),
+  entregueEm: timestamp("entregueEm"),
+  concluidaEm: timestamp("concluidaEm"),
+  aprovadaEm: timestamp("aprovadaEm"),
+  aprovadoPorId: int("aprovadoPorId"),
+  versao: int("versao").default(1).notNull(),
   criadoPorId: int("criadoPorId"),
   criadoPorNome: varchar("criadoPorNome", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("tarefasDemanda_responsavel_status_idx").on(table.responsavelId, table.status),
+  index("tarefasDemanda_demanda_idx").on(table.demandaId),
+]);
 export type TarefaDemanda = typeof tarefasDemanda.$inferSelect;
 export type InsertTarefaDemanda = typeof tarefasDemanda.$inferInsert;
 
@@ -1855,10 +1869,53 @@ export const tarefaComentarios = mysqlTable("tarefaComentarios", {
   texto: text("texto").notNull(),
   autorId: int("autorId"),
   autorNome: varchar("autorNome", { length: 255 }),
+  oculto: int("oculto").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type TarefaComentario = typeof tarefaComentarios.$inferSelect;
 export type InsertTarefaComentario = typeof tarefaComentarios.$inferInsert;
+
+export const juridicoEquipes = mysqlTable("juridicoEquipes", {
+  id: int("id").autoincrement().primaryKey(),
+  nome: varchar("nome", { length: 120 }).notNull(),
+  isActive: int("isActive").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const juridicoEquipeMembros = mysqlTable("juridicoEquipeMembros", {
+  id: int("id").autoincrement().primaryKey(),
+  equipeId: int("equipeId").notNull(),
+  userId: int("userId").notNull(),
+  gestor: int("gestor").default(0).notNull(),
+  isActive: int("isActive").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("juridicoEquipeMembros_equipe_user_unique").on(table.equipeId, table.userId),
+  index("juridicoEquipeMembros_user_active_idx").on(table.userId, table.isActive),
+]);
+
+export const tarefaEventos = mysqlTable("tarefaEventos", {
+  id: int("id").autoincrement().primaryKey(),
+  tarefaId: int("tarefaId").notNull(),
+  tipo: varchar("tipo", { length: 60 }).notNull(),
+  descricao: text("descricao").notNull(),
+  antesJson: text("antesJson"),
+  depoisJson: text("depoisJson"),
+  usuarioId: int("usuarioId").notNull(),
+  usuarioNome: varchar("usuarioNome", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [index("tarefaEventos_tarefa_data_idx").on(table.tarefaId, table.createdAt)]);
+
+export const tarefaNotificacoes = mysqlTable("tarefaNotificacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  tarefaId: int("tarefaId").notNull(),
+  userId: int("userId").notNull(),
+  tipo: varchar("tipo", { length: 60 }).notNull(),
+  lida: int("lida").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [index("tarefaNotificacoes_user_lida_idx").on(table.userId, table.lida)]);
 
 // ─── Monitoramento DOERJ ──────────────────────────────────────────────────────
 // Publicações encontradas no Diário Oficial do Estado do RJ por nome do advogado

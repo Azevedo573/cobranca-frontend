@@ -40,9 +40,10 @@ vi.mock("drizzle-orm", () => ({
 // ─── Testes ───────────────────────────────────────────────────────────────────
 
 describe("MODULOS e ACOES", () => {
-  it("deve exportar os 23 módulos atualmente disponíveis", async () => {
+  it("deve exportar os 24 módulos, incluindo a gestão explícita da equipe jurídica", async () => {
     const { MODULOS } = await import("./db-profiles");
-    expect(MODULOS).toHaveLength(23);
+    expect(MODULOS).toHaveLength(24);
+    expect(MODULOS).toContainEqual({ id: "juridico_equipe", label: "Gestão da Equipe Jurídica", grupo: "Jurídico" });
   });
 
   it("deve exportar 6 ações", async () => {

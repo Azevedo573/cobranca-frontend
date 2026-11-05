@@ -1,248 +1,160 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { and, asc, eq } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
+import { tarefaComentarios, users, type TarefaDemanda, type User } from "../../drizzle/schema";
+import { TAREFA_ACOES, TAREFA_PRAZO_FILTROS, TAREFA_PRIORIDADES, TAREFA_STATUS, type TarefaAcao } from "../../shared/juridico-tarefas";
+import { assertDemandaAccess, assertTarefaAccess } from "../juridico-access";
+import { alterarTarefa, criarTarefa, listarResponsaveis, nomeUsuario, responsavelServidor,
+  revisoresNotificaveis, tarefaCapacidades, tarefasDb, type TarefaAccess } from "../juridico-tarefas";
+import { acaoParaStatus, exigirGestao, transicaoTarefa } from "../juridico-tarefas-transicoes";
+import { consultarCentral, consultarNotificacoes, contarDemandas, detalheTarefa, historicoTarefa,
+  lerNotificacao, listarDaDemanda, totalCentral } from "../juridico-tarefas-consultas";
+
+const id = z.number().int().positive();
+const versao = z.number().int().positive().optional();
+const texto = z.string().trim().max(10000).optional();
+const data = z.string().refine(value => value.length > 0 && !Number.isNaN(new Date(value).getTime()), "Data inválida.");
+const flag = z.union([z.boolean(), z.literal(0), z.literal(1)]).transform(value => value === true || value === 1 ? 1 : 0);
+const paginacao = { limit: z.number().int().min(1).max(200).default(100), offset: z.number().int().min(0).default(0) };
+const filtros = {
+  status: z.enum([...TAREFA_STATUS, "todas"]).default("todas"),
+  prioridade: z.enum([...TAREFA_PRIORIDADES, "todas"]).default("todas"),
+  condominioId: id.optional(), demandaId: id.optional(), prazo: z.enum(TAREFA_PRAZO_FILTROS).default("todas"),
+};
+const mutationOk = { ok: true as const };
+
+async function notificacaoDaAcao(acao: TarefaAcao, access: TarefaAccess, tarefa: TarefaDemanda) {
+  if (acao === "entregar") return { notificacaoTipo: "entrega", destinatarios: (await revisoresNotificaveis(access.demanda)).filter(id => id !== tarefa.responsavelId) };
+  if (acao === "devolver") return { notificacaoTipo: "devolucao", destinatarios: tarefa.responsavelId == null ? [] : [tarefa.responsavelId] };
+  return {};
+}
+async function executar(actor: User, input: { id: number; acao: TarefaAcao; texto?: string; versao?: number }) {
+  return alterarTarefa(actor, input.id, input.versao, async (_tx, tarefa, access) => {
+    const patch = transicaoTarefa(tarefa, input.acao, tarefaCapacidades(access), input.texto);
+    return { patch, tipo: input.acao, descricao: input.texto?.trim() || `Ação: ${input.acao}.`, resultado: mutationOk,
+      ...await notificacaoDaAcao(input.acao, access, tarefa) };
+  }, input.acao === "aprovar" || input.acao === "devolver" ? "aprovar" : "editar");
+}
 
 export const tarefasDemandaRouter = router({
-  // ─── Listar tarefas de uma demanda ─────────────────────────────────────────
-  listar: protectedProcedure
-    .input(z.object({ demandaId: z.number().int().positive() }))
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return [];
-      const { tarefasDemanda } = await import("../../drizzle/schema");
-      const { eq, asc } = await import("drizzle-orm");
-      return db
-        .select()
-        .from(tarefasDemanda)
-        .where(eq(tarefasDemanda.demandaId, input.demandaId))
-        .orderBy(asc(tarefasDemanda.createdAt));
+  listar: protectedProcedure.input(z.object({ demandaId: id }))
+    .query(({ ctx, input }) => listarDaDemanda(ctx.user, input.demandaId)),
+  contadores: protectedProcedure.input(z.object({ demandaId: id })).query(async ({ ctx, input }) => {
+    await assertDemandaAccess(ctx.user, input.demandaId, "visualizar", true);
+    const [row] = await contarDemandas(ctx.user, [input.demandaId]);
+    if (!row) return { total: 0, concluidas: 0, pendentes: 0, emRevisao: 0, bloqueadas: 0 };
+    const { demandaId: _id, ...result } = row;
+    return result;
+  }),
+  contadoresLote: protectedProcedure.input(z.object({ demandaIds: z.array(id).max(200) }))
+    .query(({ ctx, input }) => contarDemandas(ctx.user, input.demandaIds)),
+  getById: protectedProcedure.input(z.object({ id })).query(({ ctx, input }) => detalheTarefa(ctx.user, input.id)),
+  minhasTarefas: protectedProcedure.input(z.object(filtros).optional())
+    .query(({ ctx, input }) => consultarCentral(ctx.user, input ?? {}, false)),
+  listarEquipe: protectedProcedure.input(z.object({ ...filtros, responsavelId: id.optional(), ...paginacao }).optional())
+    .query(async ({ ctx, input }) => {
+      const options = input ?? { limit: 100, offset: 0, status: "todas" as const };
+      const tarefas = await consultarCentral(ctx.user, options, true);
+      const total = await totalCentral(ctx.user, options);
+      return { tarefas, total, limit: options.limit, offset: options.offset };
     }),
-
-  // ─── Contadores por demanda (para o card do Kanban) ────────────────────────
-  contadores: protectedProcedure
-    .input(z.object({ demandaId: z.number().int().positive() }))
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return { total: 0, concluidas: 0, pendentes: 0 };
-      const { tarefasDemanda } = await import("../../drizzle/schema");
-      const { eq, sql } = await import("drizzle-orm");
-      const [row] = await db
-        .select({
-          total: sql<number>`COUNT(*)`,
-          concluidas: sql<number>`SUM(CASE WHEN ${tarefasDemanda.status} = 'concluida' THEN 1 ELSE 0 END)`,
-        })
-        .from(tarefasDemanda)
-        .where(eq(tarefasDemanda.demandaId, input.demandaId));
-      const total = Number(row?.total ?? 0);
-      const concluidas = Number(row?.concluidas ?? 0);
-      return { total, concluidas, pendentes: total - concluidas };
-    }),
-
-  // ─── Contadores em lote (para múltiplos cards do Kanban) ───────────────────
-  contadoresLote: protectedProcedure
-    .input(z.object({ demandaIds: z.array(z.number().int().positive()).max(200) }))
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db || input.demandaIds.length === 0) return [];
-      const { tarefasDemanda } = await import("../../drizzle/schema");
-      const { inArray, sql } = await import("drizzle-orm");
-      const rows = await db
-        .select({
-          demandaId: tarefasDemanda.demandaId,
-          total: sql<number>`COUNT(*)`,
-          concluidas: sql<number>`SUM(CASE WHEN ${tarefasDemanda.status} = 'concluida' THEN 1 ELSE 0 END)`,
-        })
-        .from(tarefasDemanda)
-        .where(inArray(tarefasDemanda.demandaId, input.demandaIds))
-        .groupBy(tarefasDemanda.demandaId);
-      return rows.map((r: { demandaId: number; total: number; concluidas: number }) => ({
-        demandaId: r.demandaId,
-        total: Number(r.total ?? 0),
-        concluidas: Number(r.concluidas ?? 0),
-      }));
-    }),
-
-  // ─── Criar tarefa ──────────────────────────────────────────────────────────
-  create: protectedProcedure
-    .input(z.object({
-      demandaId: z.number().int().positive(),
-      titulo: z.string().min(1).max(255),
-      descricao: z.string().optional(),
-      responsavelId: z.number().int().positive().optional(),
-      responsavelNome: z.string().max(255).optional(),
-      prioridade: z.enum(["baixa", "media", "alta"]).default("media"),
-      prazo: z.string().optional(), // ISO string
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-      const { tarefasDemanda } = await import("../../drizzle/schema");
-      const prazo = input.prazo ? new Date(input.prazo) : null;
-      const [result] = await db.insert(tarefasDemanda).values({
-        demandaId: input.demandaId,
-        titulo: input.titulo,
-        descricao: input.descricao ?? null,
-        responsavelId: input.responsavelId ?? null,
-        responsavelNome: input.responsavelNome ?? null,
-        status: "pendente",
-        prioridade: input.prioridade,
-        prazo: prazo ?? undefined,
-        criadoPorId: ctx.user.id,
-        criadoPorNome: ctx.user.name ?? ctx.user.email ?? undefined,
-      });
-      return { id: (result as any).insertId };
-    }),
-
-  // ─── Atualizar tarefa ──────────────────────────────────────────────────────
-  update: protectedProcedure
-    .input(z.object({
-      id: z.number().int().positive(),
-      titulo: z.string().min(1).max(255).optional(),
-      descricao: z.string().nullable().optional(),
-      responsavelId: z.number().int().positive().nullable().optional(),
-      responsavelNome: z.string().max(255).nullable().optional(),
-      status: z.enum(["pendente", "em_andamento", "concluida"]).optional(),
-      prioridade: z.enum(["baixa", "media", "alta"]).optional(),
-      prazo: z.string().nullable().optional(), // ISO string ou null
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-      const { tarefasDemanda } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const { id, prazo: prazoStr, ...rest } = input;
-      const updateData: Record<string, unknown> = { ...rest };
-      if (prazoStr !== undefined) {
-        updateData.prazo = prazoStr ? new Date(prazoStr) : null;
+  create: protectedProcedure.input(z.object({ demandaId: id, titulo: z.string().trim().min(1).max(255),
+    descricao: z.string().max(10000).optional(), responsavelId: id.optional(), responsavelNome: z.string().max(255).optional(),
+    prioridade: z.enum(TAREFA_PRIORIDADES).default("media"), prazo: data.optional(), exigeRevisao: flag.default(0),
+  })).mutation(({ ctx, input }) => criarTarefa(ctx.user, input)),
+  update: protectedProcedure.input(z.object({ id, titulo: z.string().trim().min(1).max(255).optional(),
+    descricao: z.string().max(10000).nullable().optional(), responsavelId: id.nullable().optional(),
+    responsavelNome: z.string().max(255).nullable().optional(), status: z.enum(TAREFA_STATUS).optional(),
+    prioridade: z.enum(TAREFA_PRIORIDADES).optional(), prazo: data.nullable().optional(), exigeRevisao: flag.optional(), texto, versao,
+  })).mutation(async ({ ctx, input }) => {
+    // Status antigo que equivale a revisão usa permissão aprovar, não a edição gerencial.
+    const snapshot = await assertTarefaAccess(ctx.user, input.id, "visualizar");
+    const acao = input.status === undefined ? null : acaoParaStatus(snapshot.tarefa, input.status);
+    const permissao = acao === "aprovar" || acao === "devolver" ? "aprovar" as const : "editar" as const;
+    return alterarTarefa(ctx.user, input.id, input.versao ?? snapshot.tarefa.versao, async (_tx, tarefa, access) => {
+      if (tarefa.status === "cancelada" && acao !== "reabrir") throw new TRPCError({ code: "BAD_REQUEST", message: "Reabra a tarefa cancelada antes de editar." });
+      const cap = tarefaCapacidades(access);
+      const gerenciamento = input.responsavelId !== undefined || input.responsavelNome !== undefined ||
+        input.prazo !== undefined || input.prioridade !== undefined || input.exigeRevisao !== undefined;
+      if (gerenciamento) exigirGestao(cap);
+      const campos = input.titulo !== undefined || input.descricao !== undefined || gerenciamento;
+      if (campos && cap.gerencia && !cap.canEdit) exigirGestao(cap);
+      if (tarefa.status === "em_revisao" && (input.exigeRevisao !== undefined || input.responsavelId !== undefined)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Aprove ou devolva a entrega antes de alterar revisão ou responsável." });
       }
-      await db.update(tarefasDemanda).set(updateData).where(eq(tarefasDemanda.id, id));
-      return { ok: true };
-    }),
-
-  // ─── Excluir tarefa ────────────────────────────────────────────────────────
-  delete: protectedProcedure
-    .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-      const { tarefasDemanda, tarefaComentarios } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const [tarefa] = await db.select().from(tarefasDemanda).where(eq(tarefasDemanda.id, input.id));
-      if (!tarefa) throw new TRPCError({ code: "NOT_FOUND", message: "Tarefa não encontrada" });
-      if (ctx.user.role !== "admin" && tarefa.criadoPorId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para excluir esta tarefa" });
+      const patch: Partial<TarefaDemanda> = {};
+      if (input.titulo !== undefined) patch.titulo = input.titulo;
+      if (input.descricao !== undefined) patch.descricao = input.descricao;
+      if (input.prioridade !== undefined) patch.prioridade = input.prioridade;
+      if (input.prazo !== undefined) patch.prazo = input.prazo ? new Date(input.prazo) : null;
+      if (input.exigeRevisao !== undefined) {
+        if (tarefa.status === "concluida") throw new TRPCError({ code: "BAD_REQUEST", message: "Reabra a tarefa para mudar a política de revisão." });
+        patch.exigeRevisao = input.exigeRevisao;
       }
-      // Excluir comentários antes
-      await db.delete(tarefaComentarios).where(eq(tarefaComentarios.tarefaId, input.id));
-      await db.delete(tarefasDemanda).where(eq(tarefasDemanda.id, input.id));
-      return { ok: true };
-    }),
-
-  // ─── Listar comentários de uma tarefa ──────────────────────────────────────
-  getComentarios: protectedProcedure
-    .input(z.object({ tarefaId: z.number().int().positive() }))
-    .query(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return [];
-      const { tarefaComentarios } = await import("../../drizzle/schema");
-      const { eq, asc } = await import("drizzle-orm");
-      return db
-        .select()
-        .from(tarefaComentarios)
-        .where(eq(tarefaComentarios.tarefaId, input.tarefaId))
-        .orderBy(asc(tarefaComentarios.createdAt));
-    }),
-
-  // ─── Adicionar comentário a uma tarefa ─────────────────────────────────────
-  addComentario: protectedProcedure
-    .input(z.object({
-      tarefaId: z.number().int().positive(),
-      texto: z.string().min(1).max(2000),
-    }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-      const { tarefaComentarios } = await import("../../drizzle/schema");
-      const [result] = await db.insert(tarefaComentarios).values({
-        tarefaId: input.tarefaId,
-        texto: input.texto,
-        autorId: ctx.user.id,
-        autorNome: ctx.user.name ?? ctx.user.email ?? undefined,
-      });
-      return { id: (result as any).insertId };
-    }),
-
-  // ─── Excluir comentário ────────────────────────────────────────────────────
-  deleteComentario: protectedProcedure
-    .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-      const { tarefaComentarios } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const [comentario] = await db.select().from(tarefaComentarios).where(eq(tarefaComentarios.id, input.id));
-      if (!comentario) throw new TRPCError({ code: "NOT_FOUND", message: "Comentário não encontrado" });
-      if (ctx.user.role !== "admin" && comentario.autorId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para excluir este comentário" });
+      if (input.responsavelId !== undefined) Object.assign(patch, input.responsavelId == null ?
+        { responsavelId: null, responsavelNome: null } : await responsavelServidor(access.scope.actor, access.demanda, input.responsavelId));
+      // Não confiar no nome informado; nomes livres legados são atualizados somente junto do ID elegível.
+      let command: TarefaAcao | null = null;
+      if (input.status !== undefined) {
+        command = acaoParaStatus(tarefa, input.status);
+        if (command) Object.assign(patch, transicaoTarefa({ ...tarefa, ...patch }, command, cap, input.texto));
       }
-      await db.delete(tarefaComentarios).where(eq(tarefaComentarios.id, input.id));
-      return { ok: true };
+      if (!Object.keys(patch).length) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhuma alteração válida informada." });
+      const reatribuida = patch.responsavelId !== undefined && patch.responsavelId !== tarefa.responsavelId;
+      const notification = reatribuida ? { notificacaoTipo: "atribuicao", destinatarios: patch.responsavelId == null ? [] : [patch.responsavelId] } :
+        command ? await notificacaoDaAcao(command, access, tarefa) : {};
+      return { patch, tipo: reatribuida ? "reatribuicao" : command ?? "alteracao", descricao: input.texto?.trim() || "Tarefa atualizada.",
+        resultado: mutationOk, ...notification };
+    }, permissao);
+  }),
+  comando: protectedProcedure.input(z.object({ id, acao: z.enum(TAREFA_ACOES), texto, versao }))
+    .mutation(({ ctx, input }) => executar(ctx.user, input)),
+  moverStatus: protectedProcedure.input(z.object({ id, status: z.enum(TAREFA_STATUS), texto, versao }))
+    .mutation(async ({ ctx, input }) => {
+      const access = await assertTarefaAccess(ctx.user, input.id, "visualizar");
+      const acao = acaoParaStatus(access.tarefa, input.status);
+      if (!acao) {
+        // Revalidação e CAS mesmo se o drag não altera o estado.
+        return alterarTarefa(ctx.user, input.id, input.versao ?? access.tarefa.versao, async () => ({ tipo: "alteracao", descricao: "Estado mantido.", resultado: mutationOk }));
+      }
+      return executar(ctx.user, { ...input, versao: input.versao ?? access.tarefa.versao, acao });
     }),
-
-  // ─── Minhas Tarefas (tarefas atribuídas ao usuário logado) ────────────────────────────────────────
-  minhasTarefas: protectedProcedure
-    .input(z.object({
-      status: z.enum(["pendente", "em_andamento", "concluida", "todas"]).default("todas"),
-      prioridade: z.enum(["baixa", "media", "alta", "todas"]).default("todas"),
-    }))
-    .query(async ({ input, ctx }) => {
-      const db = await getDb();
-      if (!db) return [];
-      const { tarefasDemanda, demandas: juridicoDemandas } = await import("../../drizzle/schema");
-      const { eq, and } = await import("drizzle-orm");
-
-      const conditions: any[] = [eq(tarefasDemanda.responsavelId, ctx.user.id)];
-      if (input.status !== "todas") conditions.push(eq(tarefasDemanda.status, input.status as any));
-      if (input.prioridade !== "todas") conditions.push(eq(tarefasDemanda.prioridade, input.prioridade as any));
-
-      const rows = await db
-        .select({
-          id: tarefasDemanda.id,
-          demandaId: tarefasDemanda.demandaId,
-          titulo: tarefasDemanda.titulo,
-          descricao: tarefasDemanda.descricao,
-          status: tarefasDemanda.status,
-          prioridade: tarefasDemanda.prioridade,
-          prazo: tarefasDemanda.prazo,
-          criadoPorNome: tarefasDemanda.criadoPorNome,
-          createdAt: tarefasDemanda.createdAt,
-          updatedAt: tarefasDemanda.updatedAt,
-          // dados da demanda
-          demandaNumero: juridicoDemandas.numero,
-          demandaAssunto: juridicoDemandas.assunto,
-          demandaCondominioId: juridicoDemandas.condominioId,
-        })
-        .from(tarefasDemanda)
-        .leftJoin(juridicoDemandas, eq(tarefasDemanda.demandaId, juridicoDemandas.id))
-        .where(and(...conditions))
-        .orderBy(tarefasDemanda.createdAt);
-
-      return rows;
-    }),
-
-  // ─── Mover status rapidamente (para drag-and-drop do Kanban) ───────────────────────────
-  moverStatus: protectedProcedure
-    .input(z.object({
-      id: z.number().int().positive(),
-      status: z.enum(["pendente", "em_andamento", "concluida"]),
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
-      const { tarefasDemanda } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      await db.update(tarefasDemanda).set({ status: input.status }).where(eq(tarefasDemanda.id, input.id));
-      return { ok: true };
-    }),
+  delete: protectedProcedure.input(z.object({ id, texto, versao }))
+    .mutation(({ ctx, input }) => executar(ctx.user, { ...input, acao: "cancelar" })),
+  getComentarios: protectedProcedure.input(z.object({ tarefaId: id })).query(async ({ ctx, input }) => {
+    await assertTarefaAccess(ctx.user, input.tarefaId, "visualizar");
+    const db = await tarefasDb();
+    return db.select().from(tarefaComentarios).where(and(eq(tarefaComentarios.tarefaId, input.tarefaId), eq(tarefaComentarios.oculto, 0)))
+      .orderBy(asc(tarefaComentarios.createdAt), asc(tarefaComentarios.id));
+  }),
+  addComentario: protectedProcedure.input(z.object({ tarefaId: id, texto: z.string().trim().min(1).max(2000), versao }))
+    .mutation(({ ctx, input }) => alterarTarefa(ctx.user, input.tarefaId, input.versao, async (tx, tarefa, access) => {
+      if (tarefa.status === "cancelada") throw new TRPCError({ code: "BAD_REQUEST", message: "Reabra a tarefa cancelada antes de comentar." });
+      const [autor] = await tx.select().from(users).where(eq(users.id, access.scope.actor.id)).limit(1);
+      const [result] = await tx.insert(tarefaComentarios).values({ tarefaId: input.tarefaId, texto: input.texto,
+        autorId: access.scope.actor.id, autorNome: autor ? nomeUsuario(autor) : "Usuário", oculto: 0 });
+      return { tipo: "comentario", descricao: "Comentário adicionado.", resultado: { id: result.insertId },
+        eventoAntes: null, eventoDepois: { comentarioId: result.insertId } };
+    })),
+  deleteComentario: protectedProcedure.input(z.object({ id, versao })).mutation(async ({ ctx, input }) => {
+    const db = await tarefasDb();
+    const [comentario] = await db.select().from(tarefaComentarios).where(eq(tarefaComentarios.id, input.id)).limit(1);
+    if (!comentario) throw new TRPCError({ code: "NOT_FOUND", message: "Comentário não encontrado." });
+    return alterarTarefa(ctx.user, comentario.tarefaId, input.versao, async (tx, _tarefa, access) => {
+      const [atual] = await tx.select().from(tarefaComentarios).where(eq(tarefaComentarios.id, input.id)).limit(1).for("update");
+      if (!atual || atual.oculto) throw new TRPCError({ code: "NOT_FOUND", message: "Comentário não encontrado." });
+      if (atual.autorId !== access.scope.actor.id) exigirGestao(tarefaCapacidades(access));
+      await tx.update(tarefaComentarios).set({ oculto: 1 }).where(eq(tarefaComentarios.id, input.id));
+      return { tipo: "comentario_oculto", descricao: "Comentário ocultado; registro preservado.", resultado: mutationOk,
+        eventoAntes: { comentarioId: atual.id, oculto: 0 }, eventoDepois: { comentarioId: atual.id, oculto: 1 } };
+    });
+  }),
+  getHistorico: protectedProcedure.input(z.object({ tarefaId: id, ...paginacao }))
+    .query(({ ctx, input }) => historicoTarefa(ctx.user, input.tarefaId, input.limit, input.offset)),
+  responsaveisElegiveis: protectedProcedure.input(z.object({ demandaId: id }))
+    .query(({ ctx, input }) => listarResponsaveis(ctx.user, input.demandaId)),
+  notificacoes: protectedProcedure.input(z.object({ somenteNaoLidas: z.boolean().default(false), ...paginacao }).optional())
+    .query(({ ctx, input }) => consultarNotificacoes(ctx.user, input ?? { somenteNaoLidas: false, limit: 100, offset: 0 })),
+  marcarNotificacaoLida: protectedProcedure.input(z.object({ id })).mutation(({ ctx, input }) => lerNotificacao(ctx.user, input.id)),
 });

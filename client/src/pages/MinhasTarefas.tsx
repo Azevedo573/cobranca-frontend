@@ -1,419 +1,569 @@
-import { useState, useMemo } from "react";
-import { Link } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ListTodo, Kanban, AlertTriangle, Calendar, User, Building2,
-  ExternalLink, CheckCircle2, Circle, Clock, ChevronDown, ChevronRight,
-  Send, Trash2,
+  ListTodo,
+  Kanban,
+  Plus,
+  Settings2,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import { CampoSelect } from "@/components/juridico/CampoSelect";
+import { TarefaColecao } from "@/components/juridico/TarefaCards";
+import { TarefaPainel } from "@/components/juridico/TarefaPainel";
+import { TarefaFormDialog } from "@/components/juridico/TarefaFormDialog";
+import { EquipeConfigDialog } from "@/components/juridico/EquipeConfigDialog";
+import {
+  ESTADOS,
+  STATUS_LABEL,
+  PRIORIDADE_LABEL,
+  PERIODO_LABEL,
+  POLLING_TRABALHO,
+  filtrarTarefas,
+  indicadoresTarefas,
+  type EstadoTarefa,
+  type Prioridade,
+  type Periodo,
+  type TarefaTrabalho,
+} from "@/components/juridico/trabalho";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pendente:     { label: "Pendente",     color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200" },
-  em_andamento: { label: "Em Andamento", color: "text-blue-700",   bg: "bg-blue-50 border-blue-200" },
-  concluida:    { label: "Concluída",    color: "text-green-700",  bg: "bg-green-50 border-green-200" },
-};
-
-const PRIORIDADE_CONFIG: Record<string, { label: string; color: string }> = {
-  baixa: { label: "Baixa", color: "bg-slate-100 text-slate-600 border-slate-200" },
-  media: { label: "Média", color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
-  alta:  { label: "Alta",  color: "bg-red-100 text-red-700 border-red-200" },
-};
-
-function formatDate(d: string | Date | null | undefined) {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function formatDateTime(d: string | Date | null | undefined) {
-  if (!d) return "";
-  return new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-function isAtrasada(prazo: string | Date | null | undefined, status: string) {
-  if (!prazo || status === "concluida") return false;
-  return new Date(prazo) < new Date();
-}
-
-// ─── Card de Tarefa ───────────────────────────────────────────────────────────
-
-function TarefaCard({ tarefa, onStatusChange }: { tarefa: any; onStatusChange: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const [novoComentario, setNovoComentario] = useState("");
-  const utils = trpc.useUtils();
-
-  const { data: comentarios = [], refetch: refetchComentarios } = trpc.juridicoDemandas.tarefas.getComentarios.useQuery(
-    { tarefaId: tarefa.id },
-    { enabled: expanded }
-  );
-
-  const moverMutation = trpc.juridicoDemandas.tarefas.moverStatus.useMutation({
-    onSuccess: () => {
-      onStatusChange();
-      utils.juridicoDemandas.tarefas.minhasTarefas.invalidate();
-      toast.success("Status atualizado");
-    },
-    onError: (e) => toast.error(e.message),
+export default function MinhasTarefas() {
+  const { user } = useAuth();
+  const [aba, setAba] = useState<"minhas" | "equipe">("minhas");
+  const [visao, setVisao] = useState<"lista" | "kanban">("lista");
+  const [periodo, setPeriodo] = useState<Periodo>("todas");
+  const [status, setStatus] = useState<EstadoTarefa | "todas">("todas");
+  const [prioridade, setPrioridade] = useState<Prioridade | "todas">("todas");
+  const [condominioId, setCondominioId] = useState("");
+  const [demandaId, setDemandaId] = useState("");
+  const [responsavelId, setResponsavelId] = useState("");
+  const [busca, setBusca] = useState("");
+  const [offset, setOffset] = useState(0);
+  const limite = 100;
+  const [tarefaId, setTarefaId] = useState<number | null>(null);
+  const [criando, setCriando] = useState(false);
+  const [configurando, setConfigurando] = useState(false);
+  const juridico =
+    !!user && ["admin", "advogado", "colaborador"].includes(user.role);
+  const permissoes = trpc.juridicoEquipes.minhas.useQuery(undefined, {
+    ...POLLING_TRABALHO,
+    enabled: juridico,
   });
-
-  const addComentarioMutation = trpc.juridicoDemandas.tarefas.addComentario.useMutation({
-    onSuccess: () => {
-      refetchComentarios();
-      setNovoComentario("");
-      toast.success("Comentário adicionado");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const deleteComentarioMutation = trpc.juridicoDemandas.tarefas.deleteComentario.useMutation({
-    onSuccess: () => refetchComentarios(),
-    onError: (e) => toast.error(e.message),
-  });
-
-  const statusCfg = STATUS_CONFIG[tarefa.status] ?? STATUS_CONFIG.pendente;
-  const prioCfg = PRIORIDADE_CONFIG[tarefa.prioridade] ?? PRIORIDADE_CONFIG.media;
-  const atrasada = isAtrasada(tarefa.prazo, tarefa.status);
-
-  const handleToggle = () => {
-    const next = tarefa.status === "concluida" ? "pendente" : tarefa.status === "pendente" ? "em_andamento" : "concluida";
-    moverMutation.mutate({ id: tarefa.id, status: next });
+  const canManage = !permissoes.isError && !!permissoes.data?.canManage;
+  const equipe = aba === "equipe" && canManage;
+  const input = {
+    status,
+    prioridade,
+    condominioId: condominioId ? Number(condominioId) : undefined,
+    demandaId: demandaId ? Number(demandaId) : undefined,
   };
-
+  const minhas = trpc.juridicoDemandas.tarefas.minhasTarefas.useQuery(input, {
+    ...POLLING_TRABALHO,
+    enabled: juridico && !equipe && !!permissoes.data && !permissoes.isError,
+  });
+  const daEquipe = trpc.juridicoDemandas.tarefas.listarEquipe.useQuery(
+    {
+      ...input,
+      limit: limite,
+      offset,
+      responsavelId:
+        responsavelId && responsavelId !== "sem"
+          ? Number(responsavelId)
+          : undefined,
+    },
+    { ...POLLING_TRABALHO, enabled: equipe }
+  );
+  // Não usar placeholderData/keepPreviousData nem uma cópia local dos cartões.
+  const query = equipe ? daEquipe : minhas;
+  const rows = useMemo(
+    () =>
+      query.isError || permissoes.isError
+        ? []
+        : ((equipe
+            ? (daEquipe.data?.tarefas ?? [])
+            : (minhas.data ?? [])) as TarefaTrabalho[]),
+    [equipe, daEquipe.data, minhas.data, query.isError, permissoes.isError]
+  );
+  const filtradas = useMemo(
+    () =>
+      filtrarTarefas(rows, {
+        periodo,
+        status,
+        prioridade,
+        condominioId,
+        demandaId,
+        responsavelId: equipe ? responsavelId : "",
+        busca,
+      }),
+    [
+      rows,
+      periodo,
+      status,
+      prioridade,
+      condominioId,
+      demandaId,
+      responsavelId,
+      equipe,
+      busca,
+    ]
+  );
+  const indicadores = indicadoresTarefas(filtradas);
+  const condominios = Array.from(
+    new Map(
+      rows
+        .filter(t => t.demandaCondominioId)
+        .map(t => [
+          String(t.demandaCondominioId),
+          t.demandaCondominioNome || `Condomínio #${t.demandaCondominioId}`,
+        ])
+    ).entries()
+  );
+  const demandas = Array.from(
+    new Map(
+      rows.map(t => [
+        String(t.demandaId),
+        `${t.demandaNumero || `#${t.demandaId}`} · ${t.demandaAssunto || "Demanda"}`,
+      ])
+    ).entries()
+  );
+  const pessoas = Array.from(
+    new Map(
+      rows
+        .filter(t => t.responsavelId)
+        .map(t => [
+          String(t.responsavelId),
+          t.responsavelNome || `Usuário #${t.responsavelId}`,
+        ])
+    ).entries()
+  );
+  useEffect(() => {
+    if (!canManage) setAba("minhas");
+  }, [canManage]);
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const saved = localStorage.getItem(`juridico-visao-${user.id}`);
+      if (saved === "lista" || saved === "kanban") setVisao(saved);
+    } catch {
+      /* armazenamento opcional */
+    }
+  }, [user?.id]);
+  const mudarVisao = (v: "lista" | "kanban") => {
+    setVisao(v);
+    try {
+      localStorage.setItem(`juridico-visao-${user?.id}`, v);
+    } catch {
+      /* armazenamento opcional */
+    }
+  };
+  const limpar = () => {
+    setStatus("todas");
+    setPrioridade("todas");
+    setCondominioId("");
+    setDemandaId("");
+    setResponsavelId("");
+    setPeriodo("todas");
+    setBusca("");
+    setOffset(0);
+  };
+  const erro = permissoes.error || query.error;
+  const carregando = permissoes.isLoading || query.isLoading;
   return (
-    <div className={`border rounded-lg overflow-hidden bg-card transition-all ${tarefa.status === "concluida" ? "opacity-60" : ""}`}>
-      <div className="p-3 flex items-start gap-2">
-        {/* Toggle de status */}
-        <button
-          className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-green-600 transition-colors"
-          onClick={handleToggle}
-          disabled={moverMutation.isPending}
-          title="Avançar status"
-        >
-          {tarefa.status === "concluida"
-            ? <CheckCircle2 className="h-5 w-5 text-green-600" />
-            : tarefa.status === "em_andamento"
-              ? <Clock className="h-5 w-5 text-blue-500" />
-              : <Circle className="h-5 w-5" />
-          }
-        </button>
-
-        <div className="flex-1 min-w-0">
-          {/* Título e badges */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={`text-sm font-medium ${tarefa.status === "concluida" ? "line-through text-muted-foreground" : ""}`}>
-              {tarefa.titulo}
-            </span>
-            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${prioCfg.color}`}>
-              {prioCfg.label}
-            </Badge>
-            {atrasada && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-50 text-red-600 border-red-200">
-                <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />Atrasada
-              </Badge>
-            )}
-          </div>
-
-          {/* Metadados */}
-          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-            {tarefa.prazo && (
-              <span className={`flex items-center gap-1 ${atrasada ? "text-red-500" : ""}`}>
-                <Calendar className="h-3 w-3" />Prazo: {formatDate(tarefa.prazo)}
-              </span>
-            )}
-            {tarefa.criadoPorNome && (
-              <span className="flex items-center gap-1">
-                <User className="h-3 w-3" />Criado por: {tarefa.criadoPorNome}
-              </span>
-            )}
-          </div>
-
-          {/* Demanda vinculada */}
-          {tarefa.demandaNumero && (
-            <Link href={`/admin/juridico/demandas/${tarefa.demandaId}`}>
-              <a className="mt-1.5 flex items-center gap-1 text-xs text-primary hover:underline">
-                <Building2 className="h-3 w-3" />
-                {tarefa.demandaNumero} — {tarefa.demandaAssunto}
-    
-                <ExternalLink className="h-2.5 w-2.5 ml-0.5" />
-              </a>
-            </Link>
+    <div className="min-h-full bg-slate-50/60 p-4 md:p-6 space-y-5">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900 md:text-2xl">
+            <ListTodo className="h-6 w-6 text-indigo-600" />
+            Central de Trabalho Jurídico
+          </h1>
+          <p className="mt-1 text-sm text-slate-600">
+            Uma tarefa, um histórico. Seu trabalho diário no contexto das
+            demandas.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {user?.role === "admin" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfigurando(true)}
+            >
+              <Settings2 className="mr-1.5 h-4 w-4" />
+              Configurar equipe
+            </Button>
+          )}
+          {!permissoes.isError && permissoes.data?.canCreate && (
+            <Button
+              size="sm"
+              className="bg-indigo-600 hover:bg-indigo-700"
+              onClick={() => setCriando(true)}
+            >
+              <Plus className="mr-1.5 h-4 w-4" />
+              Nova tarefa
+            </Button>
           )}
         </div>
-
-        {/* Botão expandir */}
-        <button
-          className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => setExpanded(v => !v)}
+      </header>
+      {!juridico ? (
+        <div
+          role="status"
+          className="rounded-xl border border-slate-200 bg-white p-6"
         >
-          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </button>
-      </div>
-
-      {/* Área expandida — descrição + comentários */}
-      {expanded && (
-        <div className="border-t bg-muted/20 p-3 space-y-3">
-          {tarefa.descricao && (
-            <p className="text-sm text-foreground/80 whitespace-pre-wrap">{tarefa.descricao}</p>
-          )}
-
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">
-              Observações / Comentários ({(comentarios as any[]).length})
-            </p>
-            {(comentarios as any[]).map((c: any) => (
-              <div key={c.id} className="flex gap-2 group">
-                <div className="flex-1 bg-background border rounded p-2 text-sm">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium">{c.autorNome ?? "Sistema"}</span>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(c.createdAt)}</span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-foreground/80">{c.texto}</p>
-                </div>
-                <Button
-                  variant="ghost" size="icon"
-                  className="h-7 w-7 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 flex-shrink-0"
-                  onClick={() => deleteComentarioMutation.mutate({ id: c.id })}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-            <div className="flex gap-2">
-              <Textarea
-                placeholder="Adicionar observação..."
-                rows={2}
-                className="text-sm"
-                value={novoComentario}
-                onChange={e => setNovoComentario(e.target.value)}
-              />
-              <Button
-                size="sm" className="self-end"
-                disabled={!novoComentario.trim() || addComentarioMutation.isPending}
-                onClick={() => addComentarioMutation.mutate({ tarefaId: tarefa.id, texto: novoComentario })}
+          <h2 className="font-semibold text-slate-800">
+            Central disponível aos perfis jurídicos autorizados
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Este perfil não tem uma carteira de tarefas jurídicas. Solicite ao
+            administrador um perfil e os vínculos necessários, se sua função
+            exigir esse acesso.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Tabs
+              value={equipe ? "equipe" : "minhas"}
+              onValueChange={v => {
+                setAba(v as "minhas" | "equipe");
+                setOffset(0);
+                setResponsavelId("");
+              }}
+            >
+              <TabsList>
+                <TabsTrigger value="minhas">Minhas Tarefas</TabsTrigger>
+                {canManage && <TabsTrigger value="equipe">Equipe</TabsTrigger>}
+              </TabsList>
+            </Tabs>
+            <div className="flex items-center gap-2">
+              <div
+                className="flex rounded-lg border border-slate-200 bg-white p-0.5"
+                aria-label="Visualização"
               >
-                <Send className="h-3.5 w-3.5" />
+                {(["lista", "kanban"] as const).map(v => (
+                  <Button
+                    key={v}
+                    size="sm"
+                    variant={visao === v ? "secondary" : "ghost"}
+                    aria-pressed={visao === v}
+                    onClick={() => mudarVisao(v)}
+                  >
+                    {v === "lista" ? (
+                      <ListTodo className="mr-1 h-4 w-4" />
+                    ) : (
+                      <Kanban className="mr-1 h-4 w-4" />
+                    )}
+                    {v === "lista" ? "Lista" : "Kanban"}
+                  </Button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Atualizar tarefas e permissões"
+                disabled={query.isFetching}
+                onClick={() => {
+                  permissoes.refetch();
+                  query.refetch();
+                }}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${query.isFetching ? "animate-spin" : ""}`}
+                />
               </Button>
             </div>
           </div>
-        </div>
+          {!permissoes.isError &&
+            permissoes.data &&
+            permissoes.data.equipes.length === 0 &&
+            user?.role !== "admin" && (
+              <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <p>
+                  Você ainda não está vinculado a uma equipe jurídica. Suas
+                  tarefas legadas autorizadas continuam disponíveis. Delegação e
+                  visão da equipe exigem configuração explícita pelo
+                  administrador.
+                </p>
+              </div>
+            )}
+          {equipe && (
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[
+                ["Sem responsável", indicadores.semResponsavel],
+                ["Atrasadas", indicadores.atrasadas],
+                ["Vencem hoje", indicadores.hoje],
+                ["Em revisão", indicadores.revisao],
+              ].map(([label, valor]) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-slate-200 bg-white p-3"
+                >
+                  <p className="text-xs text-slate-500">{label}</p>
+                  <p className="mt-1 text-2xl font-semibold text-slate-800">
+                    {valor}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+          <section
+            aria-label="Filtros de tarefas"
+            className="rounded-xl border border-slate-200 bg-white p-3 space-y-3"
+          >
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(PERIODO_LABEL).map(([v, l]) => (
+                <Button
+                  key={v}
+                  variant={periodo === v ? "secondary" : "ghost"}
+                  size="sm"
+                  aria-pressed={periodo === v}
+                  onClick={() => {
+                    setPeriodo(v as Periodo);
+                    setOffset(0);
+                  }}
+                >
+                  {l}
+                </Button>
+              ))}
+              <p className="self-center text-[11px] text-slate-500 ml-auto">
+                Prazos internos · 7 dias inclui hoje
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+              <CampoSelect
+                label="Estado"
+                value={status}
+                onChange={v => {
+                  setStatus(v as EstadoTarefa | "todas");
+                  setOffset(0);
+                }}
+              >
+                <option value="todas">Todos os estados ativos</option>
+                {[...ESTADOS, "cancelada" as const].map(s => (
+                  <option key={s} value={s}>
+                    {s === "cancelada"
+                      ? "Canceladas (histórico)"
+                      : STATUS_LABEL[s]}
+                  </option>
+                ))}
+              </CampoSelect>
+              <CampoSelect
+                label="Prioridade"
+                value={prioridade}
+                onChange={v => {
+                  setPrioridade(v as Prioridade | "todas");
+                  setOffset(0);
+                }}
+              >
+                <option value="todas">Todas</option>
+                {Object.entries(PRIORIDADE_LABEL).map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </CampoSelect>
+              <CampoSelect
+                label="Condomínio"
+                value={condominioId}
+                onChange={v => {
+                  setCondominioId(v);
+                  setOffset(0);
+                }}
+              >
+                <option value="">Todos autorizados</option>
+                {condominios.map(([id, nome]) => (
+                  <option key={id} value={id}>
+                    {nome}
+                  </option>
+                ))}
+                {condominioId &&
+                  !condominios.some(([id]) => id === condominioId) && (
+                    <option value={condominioId}>
+                      Condomínio selecionado #{condominioId}
+                    </option>
+                  )}
+              </CampoSelect>
+              <CampoSelect
+                label="Demanda"
+                value={demandaId}
+                onChange={v => {
+                  setDemandaId(v);
+                  setOffset(0);
+                }}
+              >
+                <option value="">Todas autorizadas</option>
+                {demandas.map(([id, nome]) => (
+                  <option key={id} value={id}>
+                    {nome}
+                  </option>
+                ))}
+                {demandaId && !demandas.some(([id]) => id === demandaId) && (
+                  <option value={demandaId}>
+                    Demanda selecionada #{demandaId}
+                  </option>
+                )}
+              </CampoSelect>
+              {equipe && (
+                <CampoSelect
+                  label="Responsável"
+                  value={responsavelId}
+                  onChange={v => {
+                    setResponsavelId(v);
+                    setOffset(0);
+                  }}
+                >
+                  <option value="">Todos da equipe autorizada</option>
+                  <option value="sem">Sem responsável (página)</option>
+                  {pessoas.map(([id, nome]) => (
+                    <option key={id} value={id}>
+                      {nome}
+                    </option>
+                  ))}
+                  {responsavelId &&
+                    responsavelId !== "sem" &&
+                    !pessoas.some(([id]) => id === responsavelId) && (
+                      <option value={responsavelId}>
+                        Responsável selecionado #{responsavelId}
+                      </option>
+                    )}
+                </CampoSelect>
+              )}
+              <label className="block space-y-1 text-xs font-medium text-slate-600">
+                Buscar tarefa
+                <Input
+                  value={busca}
+                  onChange={e => {
+                    setBusca(e.target.value);
+                    setOffset(0);
+                  }}
+                  placeholder="Título ou contexto"
+                  className="h-9"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">
+                {filtradas.length} tarefa(s) visível(is).{" "}
+                {equipe
+                  ? "Contadores, busca e atalhos de prazo consideram somente esta página filtrada, não a equipe inteira."
+                  : "Contadores e atalhos consideram os filtros atuais."}
+              </p>
+              <Button variant="ghost" size="sm" onClick={limpar}>
+                Limpar filtros
+              </Button>
+            </div>
+          </section>
+          {erro ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800"
+            >
+              <p>{erro.message}</p>
+              <p className="mt-1 text-xs">
+                Verifique suas permissões e vínculos. Nenhum dado do filtro
+                anterior é exibido.
+              </p>
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  permissoes.refetch();
+                  query.refetch();
+                }}
+              >
+                Tentar novamente
+              </Button>
+            </div>
+          ) : carregando ? (
+            <div
+              className="rounded-xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500"
+              role="status"
+            >
+              Carregando tarefas autorizadas…
+            </div>
+          ) : (
+            <>
+              {!filtradas.length && (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+                  <ListTodo className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                  <h2 className="text-sm font-semibold text-slate-800">
+                    Nenhuma tarefa neste recorte
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Altere os filtros ou aguarde uma atribuição. Nenhum cartão
+                    anterior foi mantido.
+                  </p>
+                </div>
+              )}
+              {(filtradas.length > 0 || visao === "kanban") && (
+                <TarefaColecao
+                  tarefas={filtradas}
+                  visao={visao}
+                  onOpen={setTarefaId}
+                />
+              )}
+            </>
+          )}
+          {equipe && !erro && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Página {Math.floor(offset / limite) + 1} ·{" "}
+                {daEquipe.data?.total ?? 0} registros no filtro do servidor
+                (antes dos atalhos de prazo, busca e sem responsável).
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!offset || query.isFetching}
+                  onClick={() => setOffset(v => Math.max(0, v - limite))}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    query.isFetching ||
+                    offset + limite >= (daEquipe.data?.total ?? 0)
+                  }
+                  onClick={() => setOffset(v => v + limite)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
+          <p className="text-[11px] text-slate-500">
+            Atualização automática a cada 30 segundos em primeiro plano.
+            Quantidade de tarefas não mede esforço ou qualidade. Para mudar o
+            estado, abra o cartão e use os comandos acessíveis por teclado.
+          </p>
+        </>
+      )}
+      {tarefaId != null && (
+        <TarefaPainel
+          key={tarefaId}
+          tarefaId={tarefaId}
+          onClose={() => setTarefaId(null)}
+        />
+      )}
+      {criando && (
+        <TarefaFormDialog
+          open
+          onOpenChange={setCriando}
+          canManage={canManage && !!permissoes.data?.canCreate}
+          onCreated={setTarefaId}
+        />
+      )}
+      {configurando && user?.role === "admin" && (
+        <EquipeConfigDialog onClose={() => setConfigurando(false)} />
       )}
     </div>
-  );
-}
-
-// ─── Coluna do Kanban ─────────────────────────────────────────────────────────
-
-function KanbanColuna({
-  status, tarefas, onStatusChange,
-}: {
-  status: "pendente" | "em_andamento" | "concluida";
-  tarefas: any[];
-  onStatusChange: () => void;
-}) {
-  const cfg = STATUS_CONFIG[status];
-  const moverMutation = trpc.juridicoDemandas.tarefas.moverStatus.useMutation({
-    onSuccess: onStatusChange,
-    onError: (e) => toast.error(e.message),
-  });
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const id = Number(e.dataTransfer.getData("tarefaId"));
-    if (id) moverMutation.mutate({ id, status });
-  };
-
-  return (
-    <div
-      className="flex-1 min-w-0 flex flex-col gap-2"
-      onDragOver={e => e.preventDefault()}
-      onDrop={handleDrop}
-    >
-      {/* Cabeçalho da coluna */}
-      <div className={`flex items-center justify-between px-3 py-2 rounded-lg border ${cfg.bg}`}>
-        <span className={`text-xs font-semibold uppercase tracking-wide ${cfg.color}`}>{cfg.label}</span>
-        <span className={`text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center ${cfg.color} bg-white border`}>
-          {tarefas.length}
-        </span>
-      </div>
-
-      {/* Cards */}
-      <div className="flex flex-col gap-2 min-h-[120px]">
-        {tarefas.length === 0 ? (
-          <div className="border-2 border-dashed rounded-lg p-4 text-center text-xs text-muted-foreground">
-            Arraste tarefas aqui
-          </div>
-        ) : (
-          tarefas.map(t => (
-            <div
-              key={t.id}
-              draggable
-              onDragStart={e => e.dataTransfer.setData("tarefaId", String(t.id))}
-              className="cursor-grab active:cursor-grabbing"
-            >
-              <TarefaCard tarefa={t} onStatusChange={onStatusChange} />
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Página Principal ─────────────────────────────────────────────────────────
-
-export default function MinhasTarefas() {
-  const [visao, setVisao] = useState<"lista" | "kanban">("kanban");
-  const [filtroPrioridade, setFiltroPrioridade] = useState("todas");
-  const [filtroStatus, setFiltroStatus] = useState("todas");
-
-  const { data: tarefas = [], refetch, isLoading } = trpc.juridicoDemandas.tarefas.minhasTarefas.useQuery({
-    status: "todas",
-    prioridade: "todas",
-  });
-
-  const lista = tarefas as any[];
-
-  // Filtros client-side para não re-buscar a cada mudança de filtro
-  const filtradas = useMemo(() => lista.filter(t => {
-    if (filtroStatus !== "todas" && t.status !== filtroStatus) return false;
-    if (filtroPrioridade !== "todas" && t.prioridade !== filtroPrioridade) return false;
-    return true;
-  }), [lista, filtroStatus, filtroPrioridade]);
-
-  const pendentes = filtradas.filter(t => t.status === "pendente");
-  const emAndamento = filtradas.filter(t => t.status === "em_andamento");
-  const concluidas = filtradas.filter(t => t.status === "concluida");
-
-  const totalAtrasadas = lista.filter(t => isAtrasada(t.prazo, t.status)).length;
-
-  return (
-    <DashboardLayout>
-      <div className="p-6 space-y-5">
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <ListTodo className="h-6 w-6 text-primary" />
-              Minhas Tarefas
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Tarefas atribuídas a você — {lista.length} no total
-              {totalAtrasadas > 0 && (
-                <span className="ml-2 text-red-500 font-medium">
-                  · {totalAtrasadas} atrasada{totalAtrasadas !== 1 ? "s" : ""}
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Toggle lista/kanban */}
-            <div className="flex border rounded-lg overflow-hidden">
-              <button
-                className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors ${visao === "lista" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                onClick={() => setVisao("lista")}
-              >
-                <ListTodo className="h-3.5 w-3.5" />Lista
-              </button>
-              <button
-                className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors ${visao === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                onClick={() => setVisao("kanban")}
-              >
-                <Kanban className="h-3.5 w-3.5" />Kanban
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Filtros */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-            <SelectTrigger className="h-8 w-44 text-xs">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todos os status</SelectItem>
-              <SelectItem value="pendente">Pendente</SelectItem>
-              <SelectItem value="em_andamento">Em Andamento</SelectItem>
-              <SelectItem value="concluida">Concluída</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filtroPrioridade} onValueChange={setFiltroPrioridade}>
-            <SelectTrigger className="h-8 w-44 text-xs">
-              <SelectValue placeholder="Prioridade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas as prioridades</SelectItem>
-              <SelectItem value="alta">Alta</SelectItem>
-              <SelectItem value="media">Média</SelectItem>
-              <SelectItem value="baixa">Baixa</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            Atualizar
-          </Button>
-        </div>
-
-        {/* Conteúdo */}
-        {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">Carregando tarefas...</div>
-        ) : filtradas.length === 0 ? (
-          <div className="text-center py-16">
-            <ListTodo className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-30" />
-            <p className="text-muted-foreground">Nenhuma tarefa atribuída a você</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Quando alguém delegar uma tarefa para você, ela aparecerá aqui.
-            </p>
-          </div>
-        ) : visao === "lista" ? (
-          /* ── VISÃO LISTA ── */
-          <div className="space-y-5">
-            {pendentes.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-yellow-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <Circle className="h-3 w-3" />Pendentes ({pendentes.length})
-                </p>
-                <div className="space-y-2">
-                  {pendentes.map(t => <TarefaCard key={t.id} tarefa={t} onStatusChange={refetch} />)}
-                </div>
-              </div>
-            )}
-            {emAndamento.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <Clock className="h-3 w-3" />Em Andamento ({emAndamento.length})
-                </p>
-                <div className="space-y-2">
-                  {emAndamento.map(t => <TarefaCard key={t.id} tarefa={t} onStatusChange={refetch} />)}
-                </div>
-              </div>
-            )}
-            {concluidas.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3 w-3" />Concluídas ({concluidas.length})
-                </p>
-                <div className="space-y-2">
-                  {concluidas.map(t => <TarefaCard key={t.id} tarefa={t} onStatusChange={refetch} />)}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          /* ── VISÃO KANBAN ── */
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            <KanbanColuna status="pendente"     tarefas={pendentes}    onStatusChange={refetch} />
-            <KanbanColuna status="em_andamento" tarefas={emAndamento}  onStatusChange={refetch} />
-            <KanbanColuna status="concluida"    tarefas={concluidas}   onStatusChange={refetch} />
-          </div>
-        )}
-      </div>
-    </DashboardLayout>
   );
 }

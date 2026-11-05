@@ -902,18 +902,16 @@ export default function KanbanDemandas() {
     }
   }, [colunasRaw]);
 
-  const { data: demandasRaw = [], isLoading, refetch: refetchDemandas } = trpc.juridicoDemandas.listar.useQuery(
+  const { data: demandasRaw, isLoading, refetch: refetchDemandas } = trpc.juridicoDemandas.listar.useQuery(
     filtroAdvogadoId ? { responsavelId: filtroAdvogadoId } : undefined
   );
 
   // Estado local das demandas para reordenamento otimista
   const [demandasOrdem, setDemandasOrdem] = useState<any[]>([]);
-  const demandas = demandasOrdem.length > 0 ? demandasOrdem : (demandasRaw as any[]);
+  const demandas = !demandasRaw?.length ? [] : demandasOrdem.length > 0 ? demandasOrdem : (demandasRaw as any[]);
 
   React.useEffect(() => {
-    if ((demandasRaw as any[]).length > 0) {
-      setDemandasOrdem(demandasRaw as any[]);
-    }
+    setDemandasOrdem((demandasRaw ?? []) as any[]);
   }, [demandasRaw]);
 
   const moverMutation = trpc.juridicoDemandas.mover.useMutation({

@@ -2913,3 +2913,22 @@
 - [x] Validar ações em produção: usuário confirmou em 05/11/2026 que Substituir e Excluir funcionaram
 
 Homologação funcional desta melhoria concluída. O teste externo de exatamente 200 MB continua separado e pendente; cenários complementares de auditoria e concorrência seguem como referência no registro da ocorrência.
+
+## Evolução — Central de Trabalho Jurídico (05/11/2026)
+- [x] Implementar uma única tarefa com as visões Minhas Tarefas / Equipe e demanda obrigatória
+- [x] Cadastrar equipes/membros/gestores explicitamente e acrescentar juridico_equipe sem auto-grant
+- [x] Verificar identidade, perfil fresco, equipe e carteira multi-condomínio em cada request
+- [x] Proteger demandas, contexto mínimo, timeline, anexos, contadores e lotes sem efeito parcial fora de escopo
+- [x] Implementar execução, entrega, revisão opcional, impedimento, cancelamento e reabertura com histórico
+- [x] Impedir autoaprovação e preservar comentários ocultados e notificações internas autorizadas
+- [x] Usar locks demanda → tarefa e controle de versão/snapshot para alterações concorrentes
+- [x] Integrar cartões, painel e formulário na central e na demanda, corrigindo rota singular do caso
+- [x] Configurar equipe e vínculo de demanda na central administrativa, sem promover gestora a admin
+- [x] Limpar filtros vazios/erros e invalidar visões relacionadas, com polling 30s em primeiro plano
+- [x] Aplicar exclusivamente a migração aditiva 0098 no desenvolvimento, sem dados automáticos de equipe/tarefa
+- [x] Validar 708 testes aprovados / 1 externo BTG opt-in ignorado, TypeScript e build aprovados
+- [x] Inspecionar Kanban real com quatro cartões fictícios e confirmar redirecionamento sem sessão para login-admin
+- [x] Documentar configuração, limites paginados, piloto e retorno seguro em docs/central-trabalho-juridico-piloto.md
+- [ ] Configurar profissionais/carteiras/equipe de piloto escolhidos pelo usuário e homologar com gestora, advogado e estagiário
+
+Implementação técnica concluída no desenvolvimento. Sem deploy na VPS, integração Trello, novas automações ou mudanças no financeiro, BTG, processos e prazos judiciais. Revisão opcional desabilitada por padrão. Política de encerramento de demanda com tarefas abertas não alterada. O piloto humano não foi substituído por testes mockados ou inspeção visual sintética.

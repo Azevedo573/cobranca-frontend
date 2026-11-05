@@ -597,8 +597,12 @@ export default function DemandaDetalhes() {
               <div className="group">
                 <Label className="text-xs text-muted-foreground">Responsável</Label>
                 <Select
-                  value={d.responsavelNome || ""}
-                  onValueChange={v => handleUpdate("responsavelNome", v)}
+                  value={d.responsavelId ? String(d.responsavelId) : "__none__"}
+                  onValueChange={v => {
+                    const responsavelId = v === "__none__" ? null : Number(v);
+                    const responsavel = advogados.find(adv => adv.id === responsavelId);
+                    updateMutation.mutate({ id: demandaId, responsavelId, responsavelNome: responsavel?.name ?? null });
+                  }}
                 >
                   <SelectTrigger className="mt-0.5 h-8 text-sm">
                     <SelectValue placeholder="Selecione um advogado..." />
@@ -606,7 +610,7 @@ export default function DemandaDetalhes() {
                   <SelectContent>
                     <SelectItem value="__none__">Nenhum</SelectItem>
                     {advogados.map(adv => (
-                      <SelectItem key={adv.id} value={adv.name ?? "__none__"}>{adv.name ?? "(sem nome)"}</SelectItem>
+                      <SelectItem key={adv.id} value={String(adv.id)}>{adv.name ?? "(sem nome)"}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

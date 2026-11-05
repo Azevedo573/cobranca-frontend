@@ -28,6 +28,7 @@ export type Modulo =
   | "juridico_processos"
   | "juridico_prazos"
   | "juridico_demandas"
+  | "juridico_equipe"
   | "juridico_assembleias"
   | "juridico_intimacoes"
   | "juridico_publicacoes"
