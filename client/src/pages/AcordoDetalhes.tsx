@@ -41,6 +41,8 @@ import { toast } from "sonner";
 import { HistoricoConsolidacoes } from "@/components/HistoricoConsolidacoes";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import { BTGEnviarParcelasAcordoModal } from "@/components/BTGEnviarParcelasAcordoModal";
+import { caminhoCnabAcordo } from "@/lib/btgCanaisUI";
+import { SituacaoCanalParcela } from "@/components/btg/CanaisUI";
 
 export default function AcordoDetalhes() {
   const { user } = useAuth();
@@ -80,7 +82,12 @@ export default function AcordoDetalhes() {
     { id: acordo?.condominioId ?? 0 },
     { enabled: !!acordo?.condominioId }
   );
-  const modoBoleto = ((condominio as any)?.modoBoleto || "cnab240") as "cnab240" | "api_btg";
+  const situacaoBancaria = trpc.btgCanais.situacaoAcordo.useQuery(
+    { acordoId }, { enabled: !!acordoId && user?.role === "admin" },
+  );
+  const emissoesBancarias = trpc.btgV2.listarEmissoes.useQuery(
+    { condominioId: acordo?.condominioId }, { enabled: !!acordo?.condominioId && user?.role === "admin" },
+  );
 
   // Mutation para gerar relatório para administradora
   const gerarRelatorioMutation = trpc.acordos.gerarRelatorioAdministradora.useMutation({
@@ -288,9 +295,14 @@ export default function AcordoDetalhes() {
                 <FileText className="mr-2 h-4 w-4" /> Gerar documento
               </Button>
               {acordo.status === "ativo" && user?.role === "admin" && (
-                <Button size="sm" className="bg-blue-600 shadow-sm hover:bg-blue-700" onClick={() => setBtgAcordoOpen(true)}>
-                  <Send className="mr-2 h-4 w-4" /> Enviar parcelas ao BTG
-                </Button>
+                <>
+                  <Button size="sm" onClick={() => setBtgAcordoOpen(true)}>
+                    <Send className="mr-2 h-4 w-4" /> Enviar ao BTG pela API
+                  </Button>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={caminhoCnabAcordo(acordo.id, acordo.condominioId)}><FileText className="mr-2 h-4 w-4" />Gerar remessa CNAB</Link>
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -318,7 +330,7 @@ export default function AcordoDetalhes() {
               <CardContent className="p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-blue-700">BolePix BTG</p>
                 <p className="mt-2 text-sm font-semibold text-blue-950">{acordo.status === "ativo" ? "Pronto para revisão" : "Acordo não elegível"}</p>
-                <p className="mt-1 text-xs text-blue-800">Sandbox · envio controlado</p>
+                <p className="mt-1 text-xs text-blue-800">API principal · CNAB alternativo · revisão obrigatória</p>
               </CardContent>
             </Card>
           </div>
@@ -444,6 +456,8 @@ export default function AcordoDetalhes() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {situacaoBancaria.isLoading && user?.role === "admin" && <p role="status" className="mb-3 text-sm text-muted-foreground">Carregando situação dos canais bancários...</p>}
+            {situacaoBancaria.error && <p role="alert" className="mb-3 text-sm text-destructive">Não foi possível carregar a situação bancária: {situacaoBancaria.error.message}</p>}
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -496,8 +510,15 @@ export default function AcordoDetalhes() {
                         <TableCell>{getStatusBadge(parcela.status)}</TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            {modoBoleto === "api_btg" ? (
-                              /* ── Modo BTG API ── */
+                            <SituacaoCanalParcela parcela={{ ...parcela, ...situacaoBancaria.data?.find((p) => p.parcelaId === parcela.id) }} />
+                            {emissoesBancarias.data?.filter((e) => e.origemTipo === "parcela_acordo" && e.origemId === parcela.id).map((e) => <div key={e.id} className="flex flex-wrap gap-1">
+                              <Badge variant="outline" className="text-xs">API BTG v2 · {e.status}</Badge>
+                              {e.bankSlipUrl && <Button size="sm" variant="outline" className="h-7 text-xs" asChild><a href={e.bankSlipUrl} target="_blank" rel="noreferrer">Boleto API<ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
+                              {e.linhaDigitavel && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={async () => { await navigator.clipboard.writeText(e.linhaDigitavel!); toast.success("Linha digitável copiada."); }}>Copiar linha</Button>}
+                              {e.pixCopiaECola && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={async () => { await navigator.clipboard.writeText(e.pixCopiaECola!); toast.success("Pix copiado."); }}>Copiar Pix</Button>}
+                            </div>)}
+                            {(parcela as any).btgBankSlipUrl ? (
+                              /* Evidência de título legado; preferência do condomínio não redefine canal. */
                               (parcela as any).btgBankSlipUrl ? (
                                 <div className="flex flex-col gap-1">
                                   <Button
@@ -553,7 +574,7 @@ export default function AcordoDetalhes() {
                                 {!(parcela as any).statusRemessa && !((parcela as any).nossoNumero) && (
                                   <span className="text-xs text-muted-foreground italic">Aguardando remessa</span>
                                 )}
-                                {(parcela as any).nossoNumero && (
+                                {(parcela as any).nossoNumero && ((parcela as any).nossoNumeroOrigem !== "reserva_local" || (parcela as any).remessaId || ((parcela as any).statusRemessa && (parcela as any).statusRemessa !== "nao_enviado")) && (parcela as any).canalBancario !== "api_btg_v2" && !situacaoBancaria.data?.some((p) => p.parcelaId === parcela.id && p.canalBancario === "api_btg_v2") && (
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     {!boletoParcelas[parcela.id] ? (
                                       <Button

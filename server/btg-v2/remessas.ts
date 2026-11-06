@@ -1,14 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import {
   acordos,
-  btgCobrancasEmitidas,
   btgRemessaItens,
   btgRemessas,
   devedores,
   parcelasAcordo,
 } from "../../drizzle/schema";
 import { BtgV2ConfigurationError } from "./config";
-import { avaliarElegibilidadeParcelaAcordoBtgV2, emitirBolePixV2 } from "./issuance";
+import { consultarParcelasComEmissaoV2Btg, emitirBolePixV2, prepararEstadoCanalParcelaBtgV2 } from "./issuance";
 
 export type ResultadoItemRemessaBtgV2 = "emitida" | "ja_existia" | "falha";
 export type StatusRemessaBtgV2 = "rascunho" | "enviando" | "processada" | "processada_parcialmente" | "falha" | "cancelada";
@@ -79,6 +78,12 @@ export interface ParcelaFilaRemessaBtgV2 {
   devedorCpfCnpj: string | null;
   elegivel: boolean;
   motivoBloqueio: string | null;
+  nossoNumero?: string | null;
+  nossoNumeroOrigem?: ReturnType<typeof prepararEstadoCanalParcelaBtgV2>["nossoNumeroOrigem"];
+  canalBancario?: ReturnType<typeof prepararEstadoCanalParcelaBtgV2>["canalBancario"];
+  btgEmissaoV2Existente?: boolean;
+  codigo?: ReturnType<typeof prepararEstadoCanalParcelaBtgV2>["codigo"];
+  podeConfirmarReserva?: boolean;
 }
 
 /** Lista parcelas de acordos ativos de um único condomínio, com os mesmos bloqueios da emissão individual. */
@@ -88,21 +93,13 @@ export async function listarFilaRemessaBtgV2(input: { db: Db; condominioId: numb
     acordoStatus: acordos.status,
     devedorNome: devedores.name,
     devedorCpfCnpj: devedores.cpfCnpj,
-    emissaoId: btgCobrancasEmitidas.id,
   }).from(parcelasAcordo)
     .innerJoin(acordos, eq(acordos.id, parcelasAcordo.acordoId))
     .innerJoin(devedores, eq(devedores.id, acordos.devedorId))
-    .leftJoin(btgCobrancasEmitidas, and(
-      eq(btgCobrancasEmitidas.btgIntegracaoId, input.btgIntegracaoId),
-      eq(btgCobrancasEmitidas.origemTipo, "parcela_acordo"),
-      eq(btgCobrancasEmitidas.origemId, parcelasAcordo.id),
-    ))
-    .where(eq(acordos.condominioId, input.condominioId));
+    .where(and(eq(acordos.condominioId, input.condominioId), eq(devedores.condominioId, input.condominioId)));
+  const comEmissao = await consultarParcelasComEmissaoV2Btg(input.db, rows.map(row => row.parcela.id));
 
-  return rows.map(({ parcela, acordoStatus, devedorNome, devedorCpfCnpj, emissaoId }) => {
-    const avaliacao = acordoStatus === "ativo"
-      ? avaliarElegibilidadeParcelaAcordoBtgV2({ ...parcela, btgEmissaoV2Existente: Boolean(emissaoId) })
-      : { elegivel: false, motivo: "Acordo não está ativo" };
+  return rows.map(({ parcela, acordoStatus, devedorNome, devedorCpfCnpj }) => {
     return {
       id: parcela.id,
       acordoId: parcela.acordoId,
@@ -112,8 +109,8 @@ export async function listarFilaRemessaBtgV2(input: { db: Db; condominioId: numb
       status: parcela.status,
       devedorNome,
       devedorCpfCnpj,
-      elegivel: avaliacao.elegivel,
-      motivoBloqueio: avaliacao.motivo,
+      nossoNumero: parcela.nossoNumero,
+      ...prepararEstadoCanalParcelaBtgV2(parcela, comEmissao.has(parcela.id), acordoStatus),
     };
   }).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime() || a.acordoId - b.acordoId || a.installmentNumber - b.installmentNumber);
 }
@@ -141,6 +138,8 @@ export async function executarRemessaBtgV2(input: {
   parcelas: Array<Pick<ParcelaFilaRemessaBtgV2, "id" | "installmentNumber" | "amount">>;
 }): Promise<ResumoRemessaBtgV2> {
   const now = new Date();
+  const [remessa] = await input.db.select().from(btgRemessas).where(eq(btgRemessas.id, input.remessaId)).limit(1);
+  if (!remessa || remessa.status !== "rascunho") throw new BtgV2ConfigurationError("A remessa não está disponível para iniciar um novo envio.");
   await input.db.update(btgRemessas)
     .set({ status: "enviando", iniciadaEm: now, updatedAt: now })
     .where(and(eq(btgRemessas.id, input.remessaId), eq(btgRemessas.status, "rascunho")));
@@ -149,7 +148,8 @@ export async function executarRemessaBtgV2(input: {
   const erros: string[] = [];
   for (const parcela of input.parcelas) {
     try {
-      const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id, btgRemessaId: input.remessaId });
+      const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id, btgRemessaId: input.remessaId,
+        condominioIdEsperado: remessa.condominioId, valorCentavosEsperado: parcela.amount });
       const resultado: ResultadoItemRemessaBtgV2 = emissao.jaExistia ? "ja_existia" : "emitida";
       const mensagem = emissao.jaExistia ? "Emissão já existente, vinculada ao lote." : "Cobrança enviada ao BTG.";
       await input.db.update(btgRemessaItens).set({

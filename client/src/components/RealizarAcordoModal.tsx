@@ -34,9 +34,9 @@ import { calcularPlanoAcordo, formatarMoedaAcordo } from "@/../../shared/calculo
 import { criarSnapshotBaseAcordo } from "@/../../shared/snapshot-acordo";
 import { format } from "date-fns";
 import { formatarDataVencimento } from "@/lib/dateUtils";
-
+import { Link } from "wouter";
+import { caminhoCnabAcordo } from "@/lib/btgCanaisUI";
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-
 interface CobrancaInput {
   id: number;
   tipoCobranca: string;
@@ -340,7 +340,7 @@ export function RealizarAcordoModal({
   // ── Criar acordo ───────────────────────────────────────────────────────────
   const createAcordoMutation = trpc.acordos.create.useMutation({
     onSuccess: (data) => {
-      toast.success("Acordo criado com sucesso!");
+      toast.success("Acordo criado. Nenhuma cobrança foi enviada ao banco; revise o canal e as parcelas antes do envio.");
       setAcordoCriadoId((data as any)?.id ?? null);
       onAcordoCriado?.();
     },
@@ -1194,16 +1194,18 @@ export function RealizarAcordoModal({
             </Button>
 
             {user?.role === "admin" && (
+              <>
               <Button
-                variant="outline"
-                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+                className="gap-2"
                 onClick={() => setBtgAcordoOpen(true)}
                 disabled={!acordoCriadoId}
-                title={!acordoCriadoId ? "Finalize o acordo primeiro" : "Selecionar parcelas para simular no BTG Sandbox"}
+                title={!acordoCriadoId ? "Finalize o acordo primeiro" : "Revisar parcelas para envio API BTG v2"}
               >
                 <Send className="h-4 w-4" />
-                Enviar parcelas ao BTG
+                Enviar ao BTG pela API
               </Button>
+              {acordoCriadoId && <Button variant="outline" className="gap-2" asChild><Link href={caminhoCnabAcordo(acordoCriadoId, condominioId)}><FileText className="h-4 w-4" />Gerar remessa CNAB</Link></Button>}
+              </>
             )}
 
             {/* Email Boleto/Termo */}

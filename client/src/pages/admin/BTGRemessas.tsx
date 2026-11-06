@@ -1,13 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,26 +30,93 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
-import { CheckCircle2, CircleAlert, ClipboardList, Copy, ExternalLink, FileText, Landmark, Loader2, Plus, QrCode, RefreshCw, Send, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  ClipboardList,
+  Copy,
+  ExternalLink,
+  FileText,
+  Landmark,
+  Loader2,
+  Plus,
+  QrCode,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+} from "lucide-react";
+import { Link } from "wouter";
+import { preservarSelecaoElegivel, selecionavelApi } from "@/lib/btgCanaisUI";
+import { invalidarCanaisBtg } from "@/lib/invalidarCanaisBtg";
+import {
+  AcaoRevisarReserva,
+  ConfirmarReservaLocalDialog,
+  SituacaoCanalParcela,
+} from "@/components/btg/CanaisUI";
+import { useConfirmarReservaLocal } from "@/components/btg/useConfirmarReservaLocal";
 
 const STATUS_REMESSA: Record<string, { label: string; className: string }> = {
-  rascunho: { label: "Rascunho", className: "border-slate-300 bg-slate-50 text-slate-700" },
-  enviando: { label: "Enviando", className: "border-blue-300 bg-blue-50 text-blue-700" },
-  processada: { label: "Processada", className: "border-emerald-300 bg-emerald-50 text-emerald-700" },
-  processada_parcialmente: { label: "Parcial", className: "border-amber-300 bg-amber-50 text-amber-700" },
+  rascunho: {
+    label: "Rascunho",
+    className: "border-slate-300 bg-slate-50 text-slate-700",
+  },
+  enviando: {
+    label: "Enviando",
+    className: "border-blue-300 bg-blue-50 text-blue-700",
+  },
+  processada: {
+    label: "Processada",
+    className: "border-emerald-300 bg-emerald-50 text-emerald-700",
+  },
+  processada_parcialmente: {
+    label: "Parcial",
+    className: "border-amber-300 bg-amber-50 text-amber-700",
+  },
   falha: { label: "Falha", className: "border-red-300 bg-red-50 text-red-700" },
-  cancelada: { label: "Cancelada", className: "border-red-300 bg-red-50 text-red-700" },
+  cancelada: {
+    label: "Cancelada",
+    className: "border-red-300 bg-red-50 text-red-700",
+  },
 };
 
-const moeda = (centavos: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(centavos / 100);
-const dataHora = (valor: Date | string | null | undefined) => valor ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(valor)) : "—";
-const data = (valor: Date | string | null | undefined) => valor ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(valor)) : "—";
+const moeda = (centavos: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    centavos / 100
+  );
+const dataHora = (valor: Date | string | null | undefined) =>
+  valor
+    ? new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      }).format(new Date(valor))
+    : "—";
+const data = (valor: Date | string | null | undefined) =>
+  valor
+    ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
+        new Date(valor)
+      )
+    : "—";
 
 export default function BTGRemessas() {
   const utils = trpc.useUtils();
+  const reserva = useConfirmarReservaLocal();
   const [condominioId, setCondominioId] = useState<string>("todos");
   const [condominioNovoId, setCondominioNovoId] = useState<string>("");
   const [sheetNovoAberto, setSheetNovoAberto] = useState(false);
@@ -47,33 +126,49 @@ export default function BTGRemessas() {
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [remessaDetalheId, setRemessaDetalheId] = useState<number | null>(null);
 
-  const condominioFiltroId = condominioId === "todos" ? undefined : Number(condominioId);
-  const condominioNovoNumero = condominioNovoId ? Number(condominioNovoId) : null;
-  const { data: painel } = trpc.btgV2.painel.useQuery();
+  const condominioFiltroId =
+    condominioId === "todos" ? undefined : Number(condominioId);
+  const condominioNovoNumero = condominioNovoId
+    ? Number(condominioNovoId)
+    : null;
+  const { data: painel, error: erroPainel, isLoading: carregandoPainel } = trpc.btgV2.painel.useQuery();
   const { data: condominios } = trpc.condominios.list.useQuery();
-  const { data: remessas, refetch: refetchRemessas, isLoading: carregandoRemessas } = trpc.btgV2.listarRemessas.useQuery(
-    condominioFiltroId ? { condominioId: condominioFiltroId } : undefined,
+  const {
+    data: remessas,
+    refetch: refetchRemessas,
+    isLoading: carregandoRemessas,
+    error: erroRemessas,
+  } = trpc.btgV2.listarRemessas.useQuery(
+    condominioFiltroId ? { condominioId: condominioFiltroId } : undefined
   );
   const fila = trpc.btgV2.filaRemessa.useQuery(
     { condominioId: condominioNovoNumero ?? 0 },
-    { enabled: Boolean(condominioNovoNumero && sheetNovoAberto) },
+    { enabled: Boolean(condominioNovoNumero && sheetNovoAberto) }
   );
   const detalhe = trpc.btgV2.detalheRemessa.useQuery(
     { remessaId: remessaDetalheId ?? 0 },
-    { enabled: Boolean(remessaDetalheId) },
+    { enabled: Boolean(remessaDetalheId) }
   );
 
   useEffect(() => {
     if (!fila.data) return;
-    setSelecionadas(new Set(fila.data.parcelas.filter((parcela) => parcela.elegivel).map((parcela) => parcela.id)));
+    setSelecionadas(anterior =>
+      preservarSelecaoElegivel(
+        anterior,
+        fila.data.parcelas.map(p => ({
+          id: p.id,
+          elegivel: selecionavelApi(p),
+        }))
+      )
+    );
   }, [fila.data]);
 
   const criarRemessaMutation = trpc.btgV2.criarEEnviarRemessa.useMutation({
-    onSuccess: async (resultado) => {
+    onSuccess: async resultado => {
       toast[resultado.totalFalha ? "warning" : "success"](
         resultado.totalFalha
           ? `Remessa #${resultado.id} finalizada com ${resultado.totalFalha} item(ns) para revisão.`
-          : `Remessa #${resultado.id} enviada com sucesso.`,
+          : `Remessa #${resultado.id} enviada com sucesso.`
       );
       setConfirmacaoAberta(false);
       setSheetNovoAberto(false);
@@ -81,199 +176,1009 @@ export default function BTGRemessas() {
       setObservacao("");
       setSelecionadas(new Set());
       setRemessaDetalheId(resultado.id);
-      await Promise.all([refetchRemessas(), detalhe.refetch(), utils.btgV2.listarEmissoes.invalidate()]);
+      await invalidarCanaisBtg(utils);
     },
-    onError: (error) => { setConfirmacaoAberta(false); toast.error(error.message); },
+    onError: async error => {
+      setConfirmacaoAberta(false);
+      toast.error(
+        `${error.message} Revise a situação atual; não haverá fallback para CNAB.`
+      );
+      await invalidarCanaisBtg(utils);
+    },
   });
   const conciliarPendentesMutation = trpc.btgV2.conciliarPendentes.useMutation({
-    onSuccess: async (resultado) => {
-      toast[resultado.erros.length ? "warning" : "success"](`${resultado.processadas} cobrança(s) consultada(s); ${resultado.pagas} baixa(s) aplicada(s).`);
-      await Promise.all([refetchRemessas(), detalhe.refetch(), utils.btgV2.listarEmissoes.invalidate()]);
+    onSuccess: async resultado => {
+      toast[resultado.erros.length ? "warning" : "success"](
+        `${resultado.processadas} cobrança(s) consultada(s); ${resultado.pagas} baixa(s) aplicada(s).`
+      );
+      await invalidarCanaisBtg(utils);
     },
-    onError: (error) => toast.error(error.message),
+    onError: error => toast.error(error.message),
   });
   const conciliarItemMutation = trpc.btgV2.conciliarEmissao.useMutation({
-    onSuccess: async (resultado) => {
-      toast.success(resultado.pagamentoAplicado ? "Pagamento conciliado e baixa registrada." : `Status atualizado: ${resultado.statusAtual}.`);
-      await detalhe.refetch();
+    onSuccess: async resultado => {
+      toast.success(
+        resultado.pagamentoAplicado
+          ? "Pagamento conciliado e baixa registrada."
+          : `Status atualizado: ${resultado.statusAtual}.`
+      );
+      await invalidarCanaisBtg(utils);
     },
-    onError: (error) => toast.error(error.message),
+    onError: error => toast.error(error.message),
   });
 
-  const parcelasElegiveis = useMemo(() => fila.data?.parcelas.filter((parcela) => parcela.elegivel) ?? [], [fila.data]);
-  const totalSelecionado = useMemo(() => fila.data?.parcelas.filter((parcela) => selecionadas.has(parcela.id)).reduce((total, parcela) => total + parcela.amount, 0) ?? 0, [fila.data, selecionadas]);
-  const todasSelecionadas = parcelasElegiveis.length > 0 && parcelasElegiveis.every((parcela) => selecionadas.has(parcela.id));
+  const parcelasElegiveis = useMemo(
+    () => fila.data?.parcelas.filter(selecionavelApi) ?? [],
+    [fila.data]
+  );
+  const totalSelecionado = useMemo(
+    () =>
+      parcelasElegiveis
+        .filter(parcela => selecionadas.has(parcela.id))
+        .reduce((total, parcela) => total + parcela.amount, 0),
+    [parcelasElegiveis, selecionadas]
+  );
+  const ocupado =
+    criarRemessaMutation.isPending || reserva.dialogProps.pendente;
+  const selecaoValida =
+    selecionadas.size > 0 &&
+    selecionadas.size <= 50 &&
+    parcelasElegiveis.filter(p => selecionadas.has(p.id)).length ===
+      selecionadas.size;
+  const todasSelecionadas =
+    parcelasElegiveis.length > 0 &&
+    parcelasElegiveis.every(parcela => selecionadas.has(parcela.id));
   const resumo = useMemo(() => {
-    const base = { rascunho: 0, enviando: 0, processada: 0, processada_parcialmente: 0, falha: 0 };
+    const base = {
+      rascunho: 0,
+      enviando: 0,
+      processada: 0,
+      processada_parcialmente: 0,
+      falha: 0,
+    };
     for (const remessa of remessas ?? []) {
-      if (remessa.status in base) base[remessa.status as keyof typeof base] += 1;
+      if (remessa.status in base)
+        base[remessa.status as keyof typeof base] += 1;
     }
     return base;
   }, [remessas]);
-  const ambienteSandbox = painel?.oauth?.ambiente === "sandbox";
+  const ambiente = painel?.integracao?.ambiente ?? painel?.oauth?.ambiente;
+  const ambienteSandbox = ambiente === "sandbox";
+  const ambienteRotulo = ambienteSandbox ? "SANDBOX" : ambiente === "producao" ? "PRODUÇÃO" : "AMBIENTE NÃO CONFIRMADO";
 
-  const alternarParcela = (id: number, marcado: boolean) => setSelecionadas((anterior) => {
-    const proxima = new Set(anterior);
-    marcado ? proxima.add(id) : proxima.delete(id);
-    return proxima;
-  });
+  const alternarParcela = (id: number, marcado: boolean) => {
+    if (ocupado || !parcelasElegiveis.some(p => p.id === id)) return;
+    setSelecionadas(anterior => {
+      const proxima = new Set(anterior);
+      marcado ? proxima.add(id) : proxima.delete(id);
+      return proxima;
+    });
+  };
   const abrirNovaRemessa = () => {
     setCondominioNovoId("");
     setObservacao("");
     setSelecionadas(new Set());
     setSheetNovoAberto(true);
   };
-  const copiar = (valor: string, rotulo: string) => { void navigator.clipboard.writeText(valor); toast.success(`${rotulo} copiado.`); };
+  const copiar = async (valor: string, rotulo: string) => {
+    try {
+      await navigator.clipboard.writeText(valor);
+      toast.success(`${rotulo} copiado.`);
+    } catch {
+      toast.error(`Não foi possível copiar ${rotulo}.`);
+    }
+  };
 
-  return <div className="space-y-6">
-    <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex items-start gap-3">
-        <div className="rounded-xl bg-primary/10 p-3"><Landmark className="h-7 w-7 text-primary" /></div>
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">Remessas BTG</h1>
-            <Badge variant="outline" className={ambienteSandbox ? "border-amber-400 bg-amber-50 text-amber-700" : "border-emerald-400 bg-emerald-50 text-emerald-700"}>{ambienteSandbox ? "SANDBOX" : "PRODUÇÃO"}</Badge>
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-primary/10 p-3">
+            <Landmark className="h-7 w-7 text-primary" />
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Emissões BolePix v2 por lote. As remessas CNAB 240 permanecem em operação separada.</p>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => conciliarPendentesMutation.mutate(condominioFiltroId ? { condominioId: condominioFiltroId } : undefined)} disabled={!painel?.emissaoHabilitada || conciliarPendentesMutation.isPending}>
-          {conciliarPendentesMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Atualizar status
-        </Button>
-        <Button onClick={abrirNovaRemessa} disabled={!painel?.emissaoHabilitada}><Plus className="mr-2 h-4 w-4" />Nova remessa</Button>
-      </div>
-    </header>
-
-    {!painel?.emissaoHabilitada && <Alert variant="destructive"><CircleAlert className="h-4 w-4" /><AlertDescription>A emissão BTG está bloqueada. Conclua a configuração, o vínculo da conta recebedora e a liberação do ambiente antes de enviar remessas.</AlertDescription></Alert>}
-    <Alert><ShieldCheck className="h-4 w-4" /><AlertDescription>Um lote contém parcelas de apenas um condomínio e registra cada resultado antes e depois do envio. Pagamentos só recebem baixa após confirmação integral do BTG.</AlertDescription></Alert>
-
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-      <Kpi label="Rascunhos" value={resumo.rascunho} />
-      <Kpi label="Em envio" value={resumo.enviando} tone="blue" />
-      <Kpi label="Processadas" value={resumo.processada} tone="green" />
-      <Kpi label="Parciais" value={resumo.processada_parcialmente} tone="amber" />
-      <Kpi label="Com falha" value={resumo.falha} tone="red" />
-    </div>
-
-    <Card>
-      <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-end">
-        <div className="w-full sm:max-w-sm"><Label htmlFor="filtro-condominio">Condomínio</Label><Select value={condominioId} onValueChange={setCondominioId}><SelectTrigger id="filtro-condominio" className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todos os condomínios</SelectItem>{condominios?.map((condominio) => <SelectItem key={condominio.id} value={String(condominio.id)}>{condominio.name}</SelectItem>)}</SelectContent></Select></div>
-        <Button variant="outline" onClick={() => void refetchRemessas()}><RefreshCw className="mr-2 h-4 w-4" />Atualizar lista</Button>
-      </CardContent>
-    </Card>
-
-    <Card>
-      <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ClipboardList className="h-4 w-4" />Histórico de remessas</CardTitle><CardDescription>{remessas?.length ?? 0} lote(s) encontrados, limitados aos 100 mais recentes.</CardDescription></CardHeader>
-      <CardContent>{carregandoRemessas ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : !remessas?.length ? <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">Ainda não há remessas BTG. Crie um lote a partir de parcelas elegíveis de acordos.</div> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Lote</TableHead><TableHead>Condomínio</TableHead><TableHead>Criação</TableHead><TableHead className="text-right">Itens / valor</TableHead><TableHead>Progresso</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader><TableBody>{remessas.map((remessa) => { const status = STATUS_REMESSA[remessa.status] ?? { label: remessa.status, className: "" }; return <TableRow key={remessa.id}><TableCell className="font-mono text-xs">#{remessa.id}</TableCell><TableCell className="font-medium">{remessa.condominioNome}</TableCell><TableCell className="text-sm">{dataHora(remessa.criadaEm)}</TableCell><TableCell className="text-right"><p className="font-medium">{remessa.totalSelecionado} itens</p><p className="text-xs text-muted-foreground">{moeda(remessa.valorTotalCentavos)}</p></TableCell><TableCell><span className="text-sm text-emerald-700">{remessa.totalEmitido} emitido(s)</span>{remessa.totalFalha > 0 && <span className="block text-xs text-destructive">{remessa.totalFalha} falha(s)</span>}</TableCell><TableCell><Badge variant="outline" className={status.className}>{status.label}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => setRemessaDetalheId(remessa.id)}>Acompanhar</Button></TableCell></TableRow>; })}</TableBody></Table></div>}</CardContent>
-    </Card>
-
-    <Sheet open={sheetNovoAberto} onOpenChange={(aberto) => { if (!aberto) setSheetNovoAberto(false); }}>
-      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-2xl">
-        <SheetHeader className="border-b px-6 py-5 pr-12"><SheetTitle className="flex items-center gap-2"><Send className="h-5 w-5 text-primary" />Nova remessa BTG</SheetTitle><SheetDescription>Selecione um condomínio, revise as parcelas elegíveis e confirme um único lote BolePix.</SheetDescription></SheetHeader>
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-2"><Label htmlFor="novo-condominio">Condomínio</Label><Select value={condominioNovoId} onValueChange={setCondominioNovoId}><SelectTrigger id="novo-condominio"><SelectValue placeholder="Selecione o condomínio" /></SelectTrigger><SelectContent>{condominios?.map((condominio) => <SelectItem key={condominio.id} value={String(condominio.id)}>{condominio.name}</SelectItem>)}</SelectContent></Select></div>
-          {!condominioNovoNumero ? <div className="py-16 text-center text-sm text-muted-foreground">Escolha um condomínio para carregar a fila de parcelas de acordos.</div> : fila.isLoading ? <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : fila.error ? <Alert variant="destructive" className="mt-5"><CircleAlert className="h-4 w-4" /><AlertDescription>{fila.error.message}</AlertDescription></Alert> : <>
-            {!fila.data?.conta && <Alert variant="destructive" className="mt-5"><CircleAlert className="h-4 w-4" /><AlertDescription>Este condomínio não possui conta recebedora BTG ativa vinculada.</AlertDescription></Alert>}
-            {fila.data?.conta && <Alert className="mt-5"><Landmark className="h-4 w-4" /><AlertDescription>Conta recebedora: <strong>{fila.data.conta.rotulo}</strong> · Ag. {fila.data.conta.agencia} · Conta {fila.data.conta.numeroMascarado}</AlertDescription></Alert>}
-            <div className="mt-5 flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3"><div><p className="text-sm font-semibold">Parcelas do lote</p><p className="text-xs text-muted-foreground">{parcelasElegiveis.length} elegível(is) para envio</p></div><Button variant="ghost" size="sm" disabled={!parcelasElegiveis.length} onClick={() => setSelecionadas(todasSelecionadas ? new Set() : new Set(parcelasElegiveis.map((parcela) => parcela.id)))}>{todasSelecionadas ? "Desmarcar todas" : "Selecionar todas"}</Button></div>
-            <div className="mt-3 space-y-2">{fila.data?.parcelas.map((parcela) => <label key={parcela.id} className={`flex items-start gap-3 rounded-lg border p-4 ${parcela.elegivel ? "cursor-pointer hover:border-primary/40 hover:bg-primary/5" : "bg-muted/30 opacity-75"}`}><Checkbox checked={selecionadas.has(parcela.id)} disabled={!parcela.elegivel} onCheckedChange={(valor) => alternarParcela(parcela.id, valor === true)} /><span className="min-w-0 flex-1"><span className="flex flex-wrap justify-between gap-2"><span className="font-medium">Acordo #{parcela.acordoId} · {parcela.installmentNumber === 0 ? "Entrada" : `Parcela ${parcela.installmentNumber}`}</span><span>{moeda(parcela.amount)}</span></span><span className="mt-1 block text-xs text-muted-foreground">{parcela.devedorNome || "Devedor não informado"} · vence em {data(parcela.dueDate)}</span>{!parcela.elegivel && <span className="mt-1 block text-xs text-destructive">{parcela.motivoBloqueio}</span>}</span></label>)}</div>
-            <div className="mt-5 space-y-2"><Label htmlFor="observacao-remessa">Observação <span className="text-muted-foreground">(opcional)</span></Label><Input id="observacao-remessa" maxLength={500} value={observacao} onChange={(event) => setObservacao(event.target.value)} placeholder="Referência interna do lote" /></div>
-          </>}
-        </div>
-        <SheetFooter className="border-t bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold">{selecionadas.size} parcela(s) · {moeda(totalSelecionado)}</p><p className="text-xs text-muted-foreground">O lote será persistido antes do envio ao BTG.</p></div><Button onClick={() => setConfirmacaoAberta(true)} disabled={!fila.data?.conta || selecionadas.size === 0 || !painel?.emissaoHabilitada}>Revisar e enviar</Button></SheetFooter>
-      </SheetContent>
-    </Sheet>
-
-    <AlertDialog open={confirmacaoAberta} onOpenChange={setConfirmacaoAberta}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{ambienteSandbox ? "Confirmar remessa de homologação?" : "Confirmar remessa BolePix em Produção?"}</AlertDialogTitle><AlertDialogDescription>{ambienteSandbox ? "O lote será registrado e enviado ao ambiente de homologação. O BTG pode devolver respostas estáticas." : "Esta operação envia cobranças reais ao BTG. O lote e cada item serão registrados para auditoria."} Digite <strong>ENVIAR REMESSA</strong> para confirmar.</AlertDialogDescription></AlertDialogHeader><Input value={confirmacao} onChange={(event) => setConfirmacao(event.target.value)} placeholder="ENVIAR REMESSA" /><AlertDialogFooter><AlertDialogCancel>Voltar</AlertDialogCancel><AlertDialogAction disabled={confirmacao !== "ENVIAR REMESSA" || criarRemessaMutation.isPending} onClick={(event) => { event.preventDefault(); if (!condominioNovoNumero) return; criarRemessaMutation.mutate({ condominioId: condominioNovoNumero, parcelaIds: Array.from(selecionadas), observacao: observacao || undefined, confirmacao: "ENVIAR REMESSA" }); }}>{criarRemessaMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar envio</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-
-    <Sheet open={remessaDetalheId !== null} onOpenChange={(aberto) => !aberto && setRemessaDetalheId(null)}>
-      <SheetContent side="right" className="w-full gap-0 overflow-hidden p-0 sm:max-w-3xl">
-        {detalhe.isLoading ? (
-          <div className="flex flex-1 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
-        ) : detalhe.error ? (
-          <div className="p-6"><Alert variant="destructive"><CircleAlert className="h-4 w-4" /><AlertDescription>{detalhe.error.message}</AlertDescription></Alert></div>
-        ) : detalhe.data ? (() => {
-          const remessa = detalhe.data.remessa;
-          const status = STATUS_REMESSA[remessa.status] ?? { label: remessa.status, className: "" };
-          return <>
-            <SheetHeader className="border-b bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 pr-12">
-              <div className="flex flex-wrap items-center gap-2">
-                <SheetTitle className="text-lg">Remessa #{remessa.id}</SheetTitle>
-                <Badge variant="outline" className={status.className}>{status.label}</Badge>
-                <Badge variant="outline" className={ambienteSandbox ? "border-amber-300 bg-amber-50 text-amber-700" : "border-emerald-300 bg-emerald-50 text-emerald-700"}>{ambienteSandbox ? "Sandbox" : "Produção"}</Badge>
-              </div>
-              <SheetDescription>{detalhe.data.condominioNome} · criada em {dataHora(remessa.criadaEm)}</SheetDescription>
-            </SheetHeader>
-
-            <div className="flex-1 overflow-y-auto bg-muted/20 p-6">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <ResumoDetalhe label="Selecionadas" value={String(remessa.totalSelecionado)} />
-                <ResumoDetalhe label="Emitidas" value={String(remessa.totalEmitido)} tone="green" />
-                <ResumoDetalhe label="Falhas" value={String(remessa.totalFalha)} tone={remessa.totalFalha ? "red" : undefined} />
-                <ResumoDetalhe label="Valor do lote" value={moeda(remessa.valorTotalCentavos)} />
-              </div>
-
-              {remessa.erroResumo && <Alert variant="destructive" className="mt-4"><CircleAlert className="h-4 w-4" /><AlertDescription>{remessa.erroResumo}</AlertDescription></Alert>}
-
-              <section className="mt-5 overflow-hidden rounded-xl border bg-background shadow-sm">
-                <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-3"><Landmark className="h-4 w-4 text-primary" /><h2 className="text-sm font-semibold">Dados do lote</h2></div>
-                <div className="grid gap-x-6 gap-y-3 px-4 py-4 text-sm sm:grid-cols-2">
-                  <LinhaDetalhe label="Condomínio" value={detalhe.data.condominioNome} />
-                  <LinhaDetalhe label="Conta recebedora" value={detalhe.data.conta ? `${detalhe.data.conta.rotulo} · Ag. ${detalhe.data.conta.agencia} · ${detalhe.data.conta.numeroMascarado}` : "Conta não localizada"} />
-                  <LinhaDetalhe label="Início do envio" value={dataHora(remessa.iniciadaEm)} />
-                  <LinhaDetalhe label="Finalização" value={dataHora(remessa.finalizadaEm)} />
-                  {remessa.observacao && <div className="sm:col-span-2"><LinhaDetalhe label="Observação" value={remessa.observacao} /></div>}
-                </div>
-              </section>
-
-              <section className="mt-5">
-                <div className="mb-3 flex items-center justify-between"><div><h2 className="text-sm font-semibold">Itens da remessa</h2><p className="text-xs text-muted-foreground">Resultados persistidos localmente para cada parcela.</p></div><Badge variant="secondary">{detalhe.data.itens.length} item(ns)</Badge></div>
-                <div className="space-y-3">
-                  {detalhe.data.itens.map(({ item, emissao, parcela, acordo, devedor }) => {
-                    const falhou = item.resultado === "falha";
-                    const emitido = item.resultado === "emitida" || item.resultado === "ja_existia";
-                    const identificacaoDevedor = [devedor.name || "Devedor não informado", devedor.bloco && `Bl. ${devedor.bloco}`, devedor.unitNumber && `Un. ${devedor.unitNumber}`].filter(Boolean).join(" · ");
-                    return <article key={item.id} className="overflow-hidden rounded-xl border bg-background shadow-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/20 px-4 py-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold">{item.installmentNumber === 0 ? "Entrada" : `Parcela ${item.installmentNumber}`} <span className="font-normal text-muted-foreground">· Acordo #{acordo.id}</span></p>
-                          <p className="mt-1 text-xs text-muted-foreground">{identificacaoDevedor}</p>
-                        </div>
-                        <div className="text-right"><p className="font-semibold">{moeda(item.valorCentavos)}</p><p className="text-xs text-muted-foreground">Vence em {data(parcela.dueDate)}</p></div>
-                      </div>
-
-                      <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
-                        <div className="space-y-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline" className={falhou ? "border-red-300 bg-red-50 text-red-700" : emitido ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-slate-300 bg-slate-50 text-slate-700"}>{item.resultado === "ja_existia" ? "Já existente" : item.resultado}</Badge>
-                            <Badge variant="secondary" className="font-normal">Parcela: {parcela.status}</Badge>
-                            {emissao && <Badge variant="secondary" className="font-normal">BTG: {emissao.status}</Badge>}
-                          </div>
-                          <p className={`text-sm ${falhou ? "text-destructive" : "text-muted-foreground"}`}>{item.mensagem || (emitido ? "Emissão registrada com sucesso." : "Aguardando processamento.")}</p>
-                          {emissao?.btgCollectionId && <div className="rounded-lg border bg-muted/30 px-3 py-2"><p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Collection ID BTG</p><div className="mt-1 flex items-center gap-2"><code className="min-w-0 flex-1 truncate text-xs">{emissao.btgCollectionId}</code><Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => copiar(emissao.btgCollectionId!, "Collection ID")} aria-label="Copiar Collection ID"><Copy className="h-3.5 w-3.5" /></Button></div></div>}
-                          {emissao && <p className="text-xs text-muted-foreground">Emissão: {dataHora(emissao.emitidaEm)}{emissao.nossoNumero ? ` · Nosso número: ${emissao.nossoNumero}` : ""}</p>}
-                        </div>
-
-                        {emissao && <div className="flex flex-wrap content-start gap-2 sm:w-32 sm:flex-col">
-                          <Button size="sm" variant="outline" disabled={!emissao.btgCollectionId || conciliarItemMutation.isPending} onClick={() => conciliarItemMutation.mutate({ emissaoId: emissao.id })}><RefreshCw className="mr-1 h-3.5 w-3.5" />Conciliar</Button>
-                          {emissao.pixCopiaECola && <Button size="sm" variant="outline" onClick={() => copiar(emissao.pixCopiaECola!, "PIX Copia e Cola")}><QrCode className="mr-1 h-3.5 w-3.5" />Copiar Pix</Button>}
-                          {emissao.linhaDigitavel && <Button size="sm" variant="outline" onClick={() => copiar(emissao.linhaDigitavel!, "Linha digitável")}><Copy className="mr-1 h-3.5 w-3.5" />Copiar linha</Button>}
-                          {emissao.bankSlipUrl && <Button size="sm" variant="outline" asChild><a href={emissao.bankSlipUrl} target="_blank" rel="noreferrer"><FileText className="mr-1 h-3.5 w-3.5" />Boleto<ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
-                        </div>}
-                      </div>
-                    </article>;
-                  })}
-                </div>
-              </section>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight">
+                Remessas BTG
+              </h1>
+              <Badge
+                variant="outline"
+                className={
+                  ambienteSandbox
+                    ? "border-amber-400 bg-amber-50 text-amber-700"
+                    : "border-emerald-400 bg-emerald-50 text-emerald-700"
+                }
+              >
+                {ambienteRotulo}
+              </Badge>
             </div>
-          </>;
-        })() : null}
-      </SheetContent>
-    </Sheet>
-  </div>;
+            <p className="mt-1 text-sm text-muted-foreground">
+              API BTG v2 como canal principal; CNAB 240 como alternativa
+              explícita, sem troca automática em falha.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() =>
+              conciliarPendentesMutation.mutate(
+                condominioFiltroId
+                  ? { condominioId: condominioFiltroId }
+                  : undefined
+              )
+            }
+            disabled={
+              !painel?.emissaoHabilitada || conciliarPendentesMutation.isPending
+            }
+          >
+            {conciliarPendentesMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Atualizar status
+          </Button>
+          <Button onClick={abrirNovaRemessa}>
+            <Send className="mr-2 h-4 w-4" />
+            Enviar ao BTG pela API
+          </Button>
+          <Button variant="outline" asChild>
+            <Link
+              href={
+                condominioFiltroId
+                  ? `/admin/cnab240?condominioId=${condominioFiltroId}`
+                  : "/admin/cnab240"
+              }
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Gerar remessa CNAB
+            </Link>
+          </Button>
+        </div>
+      </header>
+
+      {carregandoPainel && <p role="status" className="text-sm text-muted-foreground">Carregando capacidades da integração...</p>}
+      {erroPainel && <Alert variant="destructive"><AlertDescription>{erroPainel.message}</AlertDescription></Alert>}
+      {!carregandoPainel && !painel?.emissaoHabilitada && (
+        <Alert variant="destructive">
+          <CircleAlert className="h-4 w-4" />
+          <AlertDescription>
+            A emissão BTG está bloqueada. Conclua a configuração, o vínculo da
+            conta recebedora e a liberação do ambiente antes de enviar remessas.
+          </AlertDescription>
+        </Alert>
+      )}
+      <Alert>
+        <ShieldCheck className="h-4 w-4" />
+        <AlertDescription>
+          Um lote contém parcelas de apenas um condomínio e registra cada
+          resultado antes e depois do envio. Pagamentos só recebem baixa após
+          confirmação integral do BTG.
+        </AlertDescription>
+      </Alert>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <Kpi label="Rascunhos" value={resumo.rascunho} />
+        <Kpi label="Em envio" value={resumo.enviando} tone="blue" />
+        <Kpi label="Processadas" value={resumo.processada} tone="green" />
+        <Kpi
+          label="Parciais"
+          value={resumo.processada_parcialmente}
+          tone="amber"
+        />
+        <Kpi label="Com falha" value={resumo.falha} tone="red" />
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-end">
+          <div className="w-full sm:max-w-sm">
+            <Label htmlFor="filtro-condominio">Condomínio</Label>
+            <Select value={condominioId} onValueChange={setCondominioId}>
+              <SelectTrigger id="filtro-condominio" className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os condomínios</SelectItem>
+                {condominios?.map(condominio => (
+                  <SelectItem key={condominio.id} value={String(condominio.id)}>
+                    {condominio.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="outline" onClick={() => void refetchRemessas()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Atualizar lista
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ClipboardList className="h-4 w-4" />
+            Histórico de remessas
+          </CardTitle>
+          <CardDescription>
+            {remessas?.length ?? 0} lote(s) encontrados, limitados aos 100 mais
+            recentes.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {erroRemessas ? <Alert variant="destructive"><AlertDescription>{erroRemessas.message}<Button size="sm" variant="outline" className="mt-2" onClick={() => void refetchRemessas()}>Tentar novamente</Button></AlertDescription></Alert> : carregandoRemessas ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !remessas?.length ? (
+            <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+              Ainda não há remessas BTG. Crie um lote a partir de parcelas
+              elegíveis de acordos.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Lote</TableHead>
+                    <TableHead>Condomínio</TableHead>
+                    <TableHead>Criação</TableHead>
+                    <TableHead className="text-right">Itens / valor</TableHead>
+                    <TableHead>Progresso</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Ação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {remessas.map(remessa => {
+                    const status = STATUS_REMESSA[remessa.status] ?? {
+                      label: remessa.status,
+                      className: "",
+                    };
+                    return (
+                      <TableRow key={remessa.id}>
+                        <TableCell className="font-mono text-xs">
+                          #{remessa.id}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {remessa.condominioNome}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {dataHora(remessa.criadaEm)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <p className="font-medium">
+                            {remessa.totalSelecionado} itens
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {moeda(remessa.valorTotalCentavos)}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-emerald-700">
+                            {remessa.totalEmitido} emitido(s)
+                          </span>
+                          {remessa.totalFalha > 0 && (
+                            <span className="block text-xs text-destructive">
+                              {remessa.totalFalha} falha(s)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={status.className}>
+                            {status.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setRemessaDetalheId(remessa.id)}
+                          >
+                            Acompanhar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Sheet
+        open={sheetNovoAberto}
+        onOpenChange={aberto => {
+          if (!aberto && !ocupado) setSheetNovoAberto(false);
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-full gap-0 p-0 sm:max-w-2xl"
+          onEscapeKeyDown={e => {
+            if (ocupado) e.preventDefault();
+          }}
+          onInteractOutside={e => {
+            if (ocupado) e.preventDefault();
+          }}
+        >
+          <SheetHeader className="border-b px-6 py-5 pr-12">
+            <SheetTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-primary" />
+              Enviar ao BTG pela API
+            </SheetTitle>
+            <SheetDescription>
+              Selecione um condomínio e até 50 parcelas. Reserva local não
+              escolhe o canal; títulos com vínculos existentes permanecem
+              bloqueados. Nenhuma mensagem será enviada automaticamente ao
+              devedor.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="space-y-2">
+              <Label htmlFor="novo-condominio">Condomínio</Label>
+              <Select
+                value={condominioNovoId}
+                disabled={ocupado}
+                onValueChange={id => {
+                  setCondominioNovoId(id);
+                  setSelecionadas(new Set());
+                }}
+              >
+                <SelectTrigger id="novo-condominio">
+                  <SelectValue placeholder="Selecione o condomínio" />
+                </SelectTrigger>
+                <SelectContent>
+                  {condominios?.map(condominio => (
+                    <SelectItem
+                      key={condominio.id}
+                      value={String(condominio.id)}
+                    >
+                      {condominio.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {!condominioNovoNumero ? (
+              <div className="py-16 text-center text-sm text-muted-foreground">
+                Escolha um condomínio para carregar a fila de parcelas de
+                acordos.
+              </div>
+            ) : fila.isLoading ? (
+              <div className="flex justify-center py-16">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : fila.error ? (
+              <Alert variant="destructive" className="mt-5">
+                <CircleAlert className="h-4 w-4" />
+                <AlertDescription>{fila.error.message}</AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                {!fila.data?.conta && (
+                  <Alert variant="destructive" className="mt-5">
+                    <CircleAlert className="h-4 w-4" />
+                    <AlertDescription>
+                      Este condomínio não possui conta recebedora BTG ativa
+                      vinculada.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {fila.data?.conta && (
+                  <Alert className="mt-5">
+                    <Landmark className="h-4 w-4" />
+                    <AlertDescription>
+                      Conta recebedora:{" "}
+                      <strong>{fila.data.conta.rotulo}</strong> · Ag.{" "}
+                      {fila.data.conta.agencia} · Conta{" "}
+                      {fila.data.conta.numeroMascarado}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <div className="mt-5 flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold">Parcelas do lote</p>
+                    <p className="text-xs text-muted-foreground">
+                      {parcelasElegiveis.length} elegível(is) para envio
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={
+                      !parcelasElegiveis.length || ocupado || fila.isFetching
+                    }
+                    onClick={() =>
+                      setSelecionadas(
+                        todasSelecionadas
+                          ? new Set()
+                          : new Set(
+                              parcelasElegiveis
+                                .slice(0, 50)
+                                .map(parcela => parcela.id)
+                            )
+                      )
+                    }
+                  >
+                    {todasSelecionadas
+                      ? "Desmarcar todas"
+                      : "Selecionar elegíveis"}
+                  </Button>
+                </div>
+                {!fila.data?.parcelas.length && (
+                  <p
+                    role="status"
+                    className="py-8 text-center text-sm text-muted-foreground"
+                  >
+                    Nenhuma parcela encontrada para este condomínio.
+                  </p>
+                )}
+                {fila.data?.parcelas.length && !parcelasElegiveis.length ? (
+                  <p
+                    role="status"
+                    className="mt-3 text-sm text-muted-foreground"
+                  >
+                    Nenhuma parcela elegível. Confira os motivos de bloqueio.
+                  </p>
+                ) : null}
+                <div className="mt-3 space-y-2">
+                  {fila.data?.parcelas.map(parcela => (
+                    <article
+                      key={parcela.id}
+                      className={`flex items-start gap-3 rounded-lg border p-4 ${selecionavelApi(parcela) ? "bg-card" : "bg-muted/30"}`}
+                    >
+                      <Checkbox
+                        id={`fila-api-${parcela.id}`}
+                        checked={selecionadas.has(parcela.id)}
+                        disabled={
+                          !selecionavelApi(parcela) ||
+                          ocupado ||
+                          fila.isFetching
+                        }
+                        onCheckedChange={valor =>
+                          alternarParcela(parcela.id, valor === true)
+                        }
+                        aria-describedby={`fila-api-situacao-${parcela.id}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <label
+                          htmlFor={`fila-api-${parcela.id}`}
+                          className="flex flex-wrap justify-between gap-2"
+                        >
+                          <span className="font-medium">
+                            Acordo #{parcela.acordoId} ·{" "}
+                            {parcela.installmentNumber === 0
+                              ? "Entrada"
+                              : `Parcela ${parcela.installmentNumber}`}
+                          </span>
+                          <span>{moeda(parcela.amount)}</span>
+                        </label>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {parcela.devedorNome || "Devedor não informado"} ·
+                          vence em {data(parcela.dueDate)}
+                        </p>
+                        <div id={`fila-api-situacao-${parcela.id}`}>
+                          <SituacaoCanalParcela parcela={parcela} />
+                        </div>
+                        <AcaoRevisarReserva
+                          parcela={parcela}
+                          role={reserva.role}
+                          onClick={() => reserva.abrir(parcela)}
+                          disabled={ocupado}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <div className="mt-5 space-y-2">
+                  <Label htmlFor="observacao-remessa">
+                    Observação{" "}
+                    <span className="text-muted-foreground">(opcional)</span>
+                  </Label>
+                  <Input
+                    id="observacao-remessa"
+                    maxLength={500}
+                    value={observacao}
+                    onChange={event => setObservacao(event.target.value)}
+                    placeholder="Referência interna do lote"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <SheetFooter className="border-t bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">
+                {selecionadas.size} parcela(s) · {moeda(totalSelecionado)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                API BTG v2 · lote persistido antes do envio.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setConfirmacao("");
+                setConfirmacaoAberta(true);
+              }}
+              disabled={
+                !fila.data?.conta ||
+                !selecaoValida ||
+                !painel?.emissaoHabilitada ||
+                ocupado ||
+                fila.isFetching
+              }
+            >
+              Revisar envio API
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog
+        open={confirmacaoAberta}
+        onOpenChange={open => {
+          if (!ocupado) setConfirmacaoAberta(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {ambienteSandbox
+                ? "Confirmar envio API em homologação?"
+                : "Confirmar envio API BolePix em Produção?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {ambienteSandbox
+                ? "O lote será registrado e enviado ao ambiente de homologação. O BTG pode devolver respostas estáticas."
+                : "Esta operação envia cobranças reais ao BTG. O lote e cada item serão registrados para auditoria."}{" "}
+              {selecionadas.size} parcela(s) · {moeda(totalSelecionado)} · canal
+              API BTG v2. Nenhuma mensagem será enviada automaticamente ao
+              devedor. Digite <strong>ENVIAR REMESSA</strong> para confirmar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Label htmlFor="confirmacao-api-lote">Confirmação de envio</Label>
+          <Input
+            id="confirmacao-api-lote"
+            value={confirmacao}
+            onChange={event => setConfirmacao(event.target.value)}
+            placeholder="ENVIAR REMESSA"
+            disabled={ocupado}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={ocupado}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                confirmacao !== "ENVIAR REMESSA" ||
+                ocupado ||
+                !selecaoValida ||
+                fila.isFetching ||
+                !painel?.emissaoHabilitada
+              }
+              onClick={event => {
+                event.preventDefault();
+                if (
+                  !condominioNovoNumero ||
+                  !selecaoValida ||
+                  ocupado ||
+                  fila.isFetching ||
+                  !painel?.emissaoHabilitada ||
+                  confirmacao !== "ENVIAR REMESSA"
+                )
+                  return;
+                criarRemessaMutation.mutate({
+                  condominioId: condominioNovoNumero,
+                  parcelaIds: Array.from(selecionadas),
+                  observacao: observacao || undefined,
+                  confirmacao: "ENVIAR REMESSA",
+                });
+              }}
+            >
+              {criarRemessaMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Confirmar envio API
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <ConfirmarReservaLocalDialog {...reserva.dialogProps} />
+
+      <Sheet
+        open={remessaDetalheId !== null}
+        onOpenChange={aberto => !aberto && setRemessaDetalheId(null)}
+      >
+        <SheetContent
+          side="right"
+          className="w-full gap-0 overflow-hidden p-0 sm:max-w-3xl"
+        >
+          {detalhe.isLoading ? (
+            <div className="flex flex-1 items-center justify-center">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+            </div>
+          ) : detalhe.error ? (
+            <div className="p-6">
+              <Alert variant="destructive">
+                <CircleAlert className="h-4 w-4" />
+                <AlertDescription>{detalhe.error.message}</AlertDescription>
+              </Alert>
+            </div>
+          ) : detalhe.data ? (
+            (() => {
+              const remessa = detalhe.data.remessa;
+              const status = STATUS_REMESSA[remessa.status] ?? {
+                label: remessa.status,
+                className: "",
+              };
+              return (
+                <>
+                  <SheetHeader className="border-b bg-gradient-to-br from-primary/10 via-background to-background px-6 py-5 pr-12">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <SheetTitle className="text-lg">
+                        Remessa #{remessa.id}
+                      </SheetTitle>
+                      <Badge variant="outline" className={status.className}>
+                        {status.label}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={
+                          ambienteSandbox
+                            ? "border-amber-300 bg-amber-50 text-amber-700"
+                            : "border-emerald-300 bg-emerald-50 text-emerald-700"
+                        }
+                      >
+                        {ambienteSandbox ? "Sandbox" : "Produção"}
+                      </Badge>
+                    </div>
+                    <SheetDescription>
+                      {detalhe.data.condominioNome} · criada em{" "}
+                      {dataHora(remessa.criadaEm)}
+                    </SheetDescription>
+                  </SheetHeader>
+
+                  <div className="flex-1 overflow-y-auto bg-muted/20 p-6">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <ResumoDetalhe
+                        label="Selecionadas"
+                        value={String(remessa.totalSelecionado)}
+                      />
+                      <ResumoDetalhe
+                        label="Emitidas"
+                        value={String(remessa.totalEmitido)}
+                        tone="green"
+                      />
+                      <ResumoDetalhe
+                        label="Falhas"
+                        value={String(remessa.totalFalha)}
+                        tone={remessa.totalFalha ? "red" : undefined}
+                      />
+                      <ResumoDetalhe
+                        label="Valor do lote"
+                        value={moeda(remessa.valorTotalCentavos)}
+                      />
+                    </div>
+
+                    {remessa.erroResumo && (
+                      <Alert variant="destructive" className="mt-4">
+                        <CircleAlert className="h-4 w-4" />
+                        <AlertDescription>
+                          {remessa.erroResumo}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <section className="mt-5 overflow-hidden rounded-xl border bg-background shadow-sm">
+                      <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-3">
+                        <Landmark className="h-4 w-4 text-primary" />
+                        <h2 className="text-sm font-semibold">Dados do lote</h2>
+                      </div>
+                      <div className="grid gap-x-6 gap-y-3 px-4 py-4 text-sm sm:grid-cols-2">
+                        <LinhaDetalhe
+                          label="Condomínio"
+                          value={detalhe.data.condominioNome}
+                        />
+                        <LinhaDetalhe
+                          label="Conta recebedora"
+                          value={
+                            detalhe.data.conta
+                              ? `${detalhe.data.conta.rotulo} · Ag. ${detalhe.data.conta.agencia} · ${detalhe.data.conta.numeroMascarado}`
+                              : "Conta não localizada"
+                          }
+                        />
+                        <LinhaDetalhe
+                          label="Início do envio"
+                          value={dataHora(remessa.iniciadaEm)}
+                        />
+                        <LinhaDetalhe
+                          label="Finalização"
+                          value={dataHora(remessa.finalizadaEm)}
+                        />
+                        {remessa.observacao && (
+                          <div className="sm:col-span-2">
+                            <LinhaDetalhe
+                              label="Observação"
+                              value={remessa.observacao}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="mt-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <h2 className="text-sm font-semibold">
+                            Itens da remessa
+                          </h2>
+                          <p className="text-xs text-muted-foreground">
+                            Resultados persistidos localmente para cada parcela.
+                          </p>
+                        </div>
+                        <Badge variant="secondary">
+                          {detalhe.data.itens.length} item(ns)
+                        </Badge>
+                      </div>
+                      <div className="space-y-3">
+                        {detalhe.data.itens.map(
+                          ({ item, emissao, parcela, acordo, devedor }) => {
+                            const falhou = item.resultado === "falha";
+                            const emitido =
+                              item.resultado === "emitida" ||
+                              item.resultado === "ja_existia";
+                            const identificacaoDevedor = [
+                              devedor.name || "Devedor não informado",
+                              devedor.bloco && `Bl. ${devedor.bloco}`,
+                              devedor.unitNumber && `Un. ${devedor.unitNumber}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ");
+                            return (
+                              <article
+                                key={item.id}
+                                className="overflow-hidden rounded-xl border bg-background shadow-sm"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-muted/20 px-4 py-3">
+                                  <div className="min-w-0">
+                                    <p className="font-semibold">
+                                      {item.installmentNumber === 0
+                                        ? "Entrada"
+                                        : `Parcela ${item.installmentNumber}`}{" "}
+                                      <span className="font-normal text-muted-foreground">
+                                        · Acordo #{acordo.id}
+                                      </span>
+                                    </p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {identificacaoDevedor}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-semibold">
+                                      {moeda(item.valorCentavos)}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Vence em {data(parcela.dueDate)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+                                  <div className="space-y-3">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          falhou
+                                            ? "border-red-300 bg-red-50 text-red-700"
+                                            : emitido
+                                              ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                                              : "border-slate-300 bg-slate-50 text-slate-700"
+                                        }
+                                      >
+                                        {item.resultado === "ja_existia"
+                                          ? "Já existente"
+                                          : item.resultado}
+                                      </Badge>
+                                      <Badge
+                                        variant="secondary"
+                                        className="font-normal"
+                                      >
+                                        Parcela: {parcela.status}
+                                      </Badge>
+                                      {emissao && (
+                                        <Badge
+                                          variant="secondary"
+                                          className="font-normal"
+                                        >
+                                          BTG: {emissao.status}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p
+                                      className={`text-sm ${falhou ? "text-destructive" : "text-muted-foreground"}`}
+                                    >
+                                      {item.mensagem ||
+                                        (emitido
+                                          ? "Emissão registrada com sucesso."
+                                          : "Aguardando processamento.")}
+                                    </p>
+                                    {emissao?.btgCollectionId && (
+                                      <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                          Collection ID BTG
+                                        </p>
+                                        <div className="mt-1 flex items-center gap-2">
+                                          <code className="min-w-0 flex-1 truncate text-xs">
+                                            {emissao.btgCollectionId}
+                                          </code>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7 shrink-0"
+                                            onClick={() =>
+                                              copiar(
+                                                emissao.btgCollectionId!,
+                                                "Collection ID"
+                                              )
+                                            }
+                                            aria-label="Copiar Collection ID"
+                                          >
+                                            <Copy className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {emissao && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Emissão: {dataHora(emissao.emitidaEm)}
+                                        {emissao.nossoNumero
+                                          ? ` · Nosso número: ${emissao.nossoNumero}`
+                                          : ""}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {emissao && (
+                                    <div className="flex flex-wrap content-start gap-2 sm:w-32 sm:flex-col">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={
+                                          !emissao.btgCollectionId ||
+                                          conciliarItemMutation.isPending
+                                        }
+                                        onClick={() =>
+                                          conciliarItemMutation.mutate({
+                                            emissaoId: emissao.id,
+                                          })
+                                        }
+                                      >
+                                        <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                                        Conciliar
+                                      </Button>
+                                      {emissao.pixCopiaECola && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            copiar(
+                                              emissao.pixCopiaECola!,
+                                              "PIX Copia e Cola"
+                                            )
+                                          }
+                                        >
+                                          <QrCode className="mr-1 h-3.5 w-3.5" />
+                                          Copiar Pix
+                                        </Button>
+                                      )}
+                                      {emissao.linhaDigitavel && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            copiar(
+                                              emissao.linhaDigitavel!,
+                                              "Linha digitável"
+                                            )
+                                          }
+                                        >
+                                          <Copy className="mr-1 h-3.5 w-3.5" />
+                                          Copiar linha
+                                        </Button>
+                                      )}
+                                      {emissao.bankSlipUrl && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          asChild
+                                        >
+                                          <a
+                                            href={emissao.bankSlipUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            <FileText className="mr-1 h-3.5 w-3.5" />
+                                            Boleto
+                                            <ExternalLink className="ml-1 h-3 w-3" />
+                                          </a>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </article>
+                            );
+                          }
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                </>
+              );
+            })()
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
 }
 
-function Kpi({ label, value, tone }: { label: string; value: number; tone?: "blue" | "green" | "amber" | "red" }) { const cor = tone === "green" ? "text-emerald-700" : tone === "amber" ? "text-amber-700" : tone === "red" ? "text-red-700" : tone === "blue" ? "text-blue-700" : "text-foreground"; return <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-2xl font-bold ${cor}`}>{value}</p></CardContent></Card>; }
-function ResumoDetalhe({ label, value, tone }: { label: string; value: string; tone?: "green" | "red" }) { return <div className="rounded-xl border bg-background p-3 shadow-sm"><p className="text-xs text-muted-foreground">{label}</p><p className={`mt-1 text-lg font-bold ${tone === "green" ? "text-emerald-700" : tone === "red" ? "text-red-700" : ""}`}>{value}</p></div>; }
-function LinhaDetalhe({ label, value }: { label: string; value: string }) { return <div><p className="text-xs text-muted-foreground">{label}</p><p className="mt-0.5 break-words font-medium text-foreground">{value}</p></div>; }
+function Kpi({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: "blue" | "green" | "amber" | "red";
+}) {
+  const cor =
+    tone === "green"
+      ? "text-emerald-700"
+      : tone === "amber"
+        ? "text-amber-700"
+        : tone === "red"
+          ? "text-red-700"
+          : tone === "blue"
+            ? "text-blue-700"
+            : "text-foreground";
+  return (
+    <Card>
+      <CardContent className="pt-4">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className={`mt-1 text-2xl font-bold ${cor}`}>{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+function ResumoDetalhe({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "green" | "red";
+}) {
+  return (
+    <div className="rounded-xl border bg-background p-3 shadow-sm">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={`mt-1 text-lg font-bold ${tone === "green" ? "text-emerald-700" : tone === "red" ? "text-red-700" : ""}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+function LinhaDetalhe({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-0.5 break-words font-medium text-foreground">{value}</p>
+    </div>
+  );
+}

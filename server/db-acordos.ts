@@ -210,6 +210,8 @@ export async function createParcelas(parcelas: InsertParcelaAcordo[]) {
       dueDate: parcela.dueDate,
       status: parcela.status,
       nossoNumero: parcela.nossoNumero,
+      nossoNumeroOrigem: parcela.nossoNumeroOrigem ?? null,
+      canalBancario: parcela.canalBancario ?? null,
       statusRemessa: parcela.statusRemessa,
       // Snapshot de breakdown no momento do acordo
       snapshotPrincipal: (parcela as any).snapshotPrincipal ?? null,

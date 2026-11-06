@@ -6,6 +6,8 @@ import {
   btgContasRecebedoras,
   btgCobrancasEmitidas,
   btgIntegracoes,
+  btgRemessaItens,
+  btgRemessas,
   devedores,
   parcelasAcordo,
 } from "../../drizzle/schema";
@@ -14,6 +16,10 @@ import { montarPayloadBolePixV2 } from "./bolepix";
 import { BtgV2ConfigurationError, getBtgV2ServerConfig, validarVinculoContaRecebedora, validarContaRecebedoraParaAmbiente, validarIntegracaoRuntimeBtg } from "./config";
 import { getStatusOAuthBtg } from "../btg-oauth";
 import { bloquearIntegracaoBtg } from "./manual-producao";
+import { bloquearParcelasParaCanal, idsComEmissaoV2 } from "../btg-canais";
+import { avaliarElegibilidadeCanalParcela, type EstadoBancarioParcela } from "../../shared/btg-canais";
+
+export { BtgV2ConfigurationError } from "./config";
 
 export type BtgV2OrigemTipo = "parcela_acordo";
 
@@ -51,36 +57,37 @@ export function calcularDataLimiteBtgV2(dueDate: Date, diasLimitePagamento: numb
   return result;
 }
 
-export interface ParcelaAcordoBtgV2Elegibilidade {
+export interface ParcelaAcordoBtgV2Elegibilidade extends EstadoBancarioParcela {
   id?: number;
   acordoId?: number;
   installmentNumber?: number;
   status: string;
-  nossoNumero?: string | null;
-  remessaId?: number | null;
-  statusRemessa?: string | null;
-  btgCollectionId?: string | null;
-  btgEmissaoV2Existente?: boolean;
+  elegivel?: boolean;
+  motivoBloqueio?: string | null;
 }
 
 export function avaliarElegibilidadeParcelaAcordoBtgV2(parcela: ParcelaAcordoBtgV2Elegibilidade) {
-  if (["pago", "cancelado"].includes(parcela.status)) {
-    return { elegivel: false, motivo: "Parcela paga ou cancelada" };
-  }
-  const vinculadaAoLegado = Boolean(
-    parcela.nossoNumero ||
-    parcela.remessaId ||
-    parcela.btgCollectionId ||
-    parcela.btgEmissaoV2Existente ||
-    (parcela.statusRemessa && parcela.statusRemessa !== "nao_enviado"),
-  );
-  if (vinculadaAoLegado) {
-    return { elegivel: false, motivo: "Parcela já vinculada a uma remessa CNAB, boleto legado ou emissão BolePix" };
-  }
-  if (!["pendente", "atrasado"].includes(parcela.status)) {
-    return { elegivel: false, motivo: "Status da parcela não permite emissão" };
-  }
-  return { elegivel: true, motivo: null };
+  return avaliarElegibilidadeCanalParcela(parcela, "api_btg_v2");
+}
+
+/** Somente flags; não inclui payload Pix, boleto ou dados de outra integração na revisão. */
+export function prepararEstadoCanalParcelaBtgV2(parcela: ParcelaAcordoBtgV2Elegibilidade & Pick<typeof parcelasAcordo.$inferSelect, "nossoNumeroOrigem" | "canalBancario">, emissaoV2Existente: boolean, acordoStatus = "ativo") {
+  const avaliacao = avaliarElegibilidadeParcelaAcordoBtgV2({ ...parcela, btgEmissaoV2Existente: emissaoV2Existente });
+  const acordoAtivo = acordoStatus === "ativo";
+  return {
+    nossoNumeroOrigem: parcela.nossoNumeroOrigem ?? null,
+    canalBancario: parcela.canalBancario ?? null,
+    btgEmissaoV2Existente: emissaoV2Existente,
+    elegivel: acordoAtivo && avaliacao.elegivel,
+    motivoBloqueio: acordoAtivo ? avaliacao.motivo : "Acordo não está ativo",
+    codigo: acordoAtivo ? avaliacao.codigo : "acordo_inativo" as const,
+    podeConfirmarReserva: acordoAtivo && avaliacao.confirmarReservaDisponivel,
+  };
+}
+
+/** Qualquer emissão/revisão/ambiente bloqueia NOVA operação, mesmo falha ou cancelada. */
+export async function consultarParcelasComEmissaoV2Btg(db: Pick<Db, "select">, parcelaIds: number[]): Promise<Set<number>> {
+  return idsComEmissaoV2(db, parcelaIds);
 }
 
 export function validarAcordoAtivoBtgV2(status: string): void {
@@ -93,6 +100,7 @@ export function validarSelecaoParcelasAcordoBtgV2(input: {
   acordoId: number;
   parcelaIds: number[];
   parcelas: ParcelaAcordoBtgV2Elegibilidade[];
+  reutilizarEmissaoExistente?: boolean;
 }): ParcelaAcordoBtgV2Elegibilidade[] {
   if (input.parcelaIds.length === 0) {
     throw new BtgV2ConfigurationError("Selecione ao menos uma parcela do acordo para enviar ao BTG.");
@@ -111,8 +119,10 @@ export function validarSelecaoParcelasAcordoBtgV2(input: {
       throw new BtgV2ConfigurationError(`A parcela ${parcelaId} não pertence ao acordo informado.`);
     }
     const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2(parcela);
-    if (!elegibilidade.elegivel) {
-      throw new BtgV2ConfigurationError(`A parcela ${parcelaId} não pode ser enviada: ${elegibilidade.motivo?.toLowerCase()}.`);
+    // Esta exceção só encaminha ao emissor; ele ainda valida a origem/contexto
+    // e exige o registro canônico da integração atual, sem novo POST.
+    if ((!elegibilidade.elegivel || parcela.elegivel === false) && !(input.reutilizarEmissaoExistente && parcela.btgEmissaoV2Existente)) {
+      throw new BtgV2ConfigurationError(`A parcela ${parcelaId} não pode ser enviada: ${(parcela.motivoBloqueio ?? elegibilidade.motivo)?.toLowerCase()}.`);
     }
     return parcela;
   });
@@ -124,8 +134,12 @@ export interface BtgV2ParcelaAcordoParaEmissao extends ParcelaAcordoBtgV2Elegibi
   installmentNumber: number;
   amount: number;
   dueDate: Date;
+  nossoNumeroOrigem: typeof parcelasAcordo.$inferSelect["nossoNumeroOrigem"];
+  canalBancario: typeof parcelasAcordo.$inferSelect["canalBancario"];
   elegivel: boolean;
   motivoBloqueio: string | null;
+  codigo: ReturnType<typeof prepararEstadoCanalParcelaBtgV2>["codigo"];
+  podeConfirmarReserva: boolean;
 }
 
 export async function validarContaVinculadaAtualBtgV2(input: { db: Pick<Db, "select">; condominioId: number; paraEmissao?: boolean }) {
@@ -147,7 +161,7 @@ export async function validarContaVinculadaAtualBtgV2(input: { db: Pick<Db, "sel
     const oauth = await getStatusOAuthBtg();
     if (oauth.status !== "conectado") throw new BtgV2ConfigurationError("Conecte a conta BTG antes de emitir cobranças.");
     if (serverConfig.ambiente === "producao" && !process.env.BTG_WEBHOOK_SECRET?.trim()) {
-      throw new BtgV2ConfigurationError("Configure o segredo HMAC do webhook BTG antes de emitir em Produção.");
+      throw new BtgV2ConfigurationError("Configure o segredo do webhook BTG para Authorization: Bearer antes de emitir em Produção. Não use Client Secret nem access token OAuth.");
     }
   }
   return { integracao, accountRow, serverConfig };
@@ -164,10 +178,10 @@ export async function prepararEmissaoParcelasAcordoBtgV2(input: {
 
   const parcelas = await input.db.select().from(parcelasAcordo)
     .where(eq(parcelasAcordo.acordoId, acordo.id));
+  const comEmissao = await consultarParcelasComEmissaoV2Btg(input.db, parcelas.map(parcela => parcela.id));
   return {
     acordoId: acordo.id,
     parcelas: parcelas.map((parcela) => {
-      const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2(parcela);
       return {
         id: parcela.id,
         acordoId: parcela.acordoId,
@@ -179,8 +193,7 @@ export async function prepararEmissaoParcelasAcordoBtgV2(input: {
         remessaId: parcela.remessaId,
         statusRemessa: parcela.statusRemessa,
         btgCollectionId: parcela.btgCollectionId,
-        elegivel: elegibilidade.elegivel,
-        motivoBloqueio: elegibilidade.motivo,
+        ...prepararEstadoCanalParcelaBtgV2(parcela, comEmissao.has(parcela.id), acordo.status),
       };
     }),
   };
@@ -204,13 +217,14 @@ export async function emitirParcelasAcordoBtgV2(input: {
     acordoId: input.acordoId,
     parcelaIds: input.parcelaIds,
     parcelas: preparacao.parcelas,
+    reutilizarEmissaoExistente: true,
   });
   const resultados: BtgV2ResultadoEmissaoParcelaAcordo[] = [];
   const ambiente = getBtgV2ServerConfig().ambiente;
 
   for (const parcela of selecionadas) {
     try {
-      const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id! });
+      const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id!, acordoIdEsperado: input.acordoId });
       resultados.push({
         parcelaId: parcela.id!,
         installmentNumber: parcela.installmentNumber ?? 0,
@@ -267,10 +281,43 @@ async function findExisting(db: Pick<Db, "select">, integracaoId: number, origem
   return rows[0] ?? null;
 }
 
+function validarRegistroCanonicoBtgV2(row: typeof btgCobrancasEmitidas.$inferSelect, input: {
+  integracaoId: number; parcelaId: number; condominioId: number; contaId: number;
+}) {
+  if (row.btgIntegracaoId !== input.integracaoId || row.origemTipo !== "parcela_acordo" || row.origemId !== input.parcelaId ||
+      row.revisao !== 1 || row.condominioId !== input.condominioId || row.btgContaRecebedoraId !== input.contaId) {
+    throw new BtgV2ConfigurationError("A emissão existente não corresponde à origem, condomínio ou conta atuais. Revise o registro canônico.");
+  }
+}
+
+function validarParcelaPreparadaBtgV2(atual: typeof parcelasAcordo.$inferSelect, preparada: typeof parcelasAcordo.$inferSelect) {
+  if (atual.acordoId !== preparada.acordoId || atual.installmentNumber !== preparada.installmentNumber ||
+      atual.amount !== preparada.amount || atual.dueDate.getTime() !== preparada.dueDate.getTime()) {
+    throw new BtgV2ConfigurationError("O acordo, valor ou vencimento da parcela foi alterado durante a preparação; revise a emissão.");
+  }
+}
+
+async function validarContextoRemessaBtgV2(db: Pick<Db, "select">, remessaId: number | undefined, input: {
+  integracaoId: number; condominioId: number; contaId: number; parcelaId: number; amount: number;
+}) {
+  if (remessaId === undefined) return;
+  const [remessa] = await db.select().from(btgRemessas).where(eq(btgRemessas.id, remessaId)).limit(1);
+  const [item] = await db.select().from(btgRemessaItens)
+    .where(and(eq(btgRemessaItens.btgRemessaId, remessaId), eq(btgRemessaItens.parcelaAcordoId, input.parcelaId))).limit(1);
+  if (!remessa || !item || remessa.btgIntegracaoId !== input.integracaoId || remessa.condominioId !== input.condominioId ||
+      remessa.btgContaRecebedoraId !== input.contaId || item.valorCentavos !== input.amount ||
+      !["rascunho", "enviando"].includes(remessa.status)) {
+    throw new BtgV2ConfigurationError("A parcela ou conta não corresponde ao contexto atual da remessa BTG.");
+  }
+}
+
 export async function emitirBolePixV2(input: {
   db: Db;
   parcelaId: number;
   btgRemessaId?: number;
+  acordoIdEsperado?: number;
+  condominioIdEsperado?: number;
+  valorCentavosEsperado?: number;
 }): Promise<BtgV2EmissaoResultado> {
   const { db, parcelaId, btgRemessaId } = input;
   const origemTipo: BtgV2OrigemTipo = "parcela_acordo";
@@ -297,9 +344,10 @@ export async function emitirBolePixV2(input: {
   const [acordo] = await db.select().from(acordos).where(eq(acordos.id, parcela.acordoId)).limit(1);
   if (!acordo) throw new BtgV2ConfigurationError("Acordo da parcela não encontrado.");
   validarAcordoAtivoBtgV2(acordo.status);
-  const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2(parcela);
-  if (!elegibilidade.elegivel) {
-    throw new BtgV2ConfigurationError(`Esta parcela não pode ser enviada: ${elegibilidade.motivo?.toLowerCase()}.`);
+  if ((input.acordoIdEsperado !== undefined && acordo.id !== input.acordoIdEsperado) ||
+      (input.condominioIdEsperado !== undefined && acordo.condominioId !== input.condominioIdEsperado) ||
+      (input.valorCentavosEsperado !== undefined && parcela.amount !== input.valorCentavosEsperado)) {
+    throw new BtgV2ConfigurationError("A parcela não corresponde ao acordo, condomínio ou valor selecionados; revise a emissão.");
   }
   origem = {
     condominioId: acordo.condominioId,
@@ -339,10 +387,25 @@ export async function emitirBolePixV2(input: {
   });
   if (!accountRow) throw new BtgV2ConfigurationError("A conta recebedora não foi encontrada.");
   validarContaRecebedoraParaAmbiente({ conta: accountRow.conta, integracao, serverConfig });
+  const contextoCanonico = { integracaoId: integracao.id, parcelaId, condominioId: origem.condominioId, contaId: accountRow.conta.id };
+  await validarContextoRemessaBtgV2(db, btgRemessaId, { ...contextoCanonico, amount: origem.amount });
+
+  // O próprio canal reservado não é um motivo para rejeitar a consulta canônica.
+  // Guards de ator/carteira seguem no router; origem/conta/condomínio são validados aqui.
+  const existenteAntesDaReserva = await findExisting(db, integracao.id, origemTipo, parcelaId);
+  if (existenteAntesDaReserva) {
+    validarRegistroCanonicoBtgV2(existenteAntesDaReserva, contextoCanonico);
+    return toResult(existenteAntesDaReserva, true);
+  }
+  const comEmissao = await consultarParcelasComEmissaoV2Btg(db, [parcelaId]);
+  const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2({ ...parcela, btgEmissaoV2Existente: comEmissao.has(parcelaId) });
+  if (!elegibilidade.elegivel) {
+    throw new BtgV2ConfigurationError(`Esta parcela não pode ser enviada: ${elegibilidade.motivo?.toLowerCase()}.`);
+  }
   const oauth = await getStatusOAuthBtg();
   if (oauth.status !== "conectado") throw new BtgV2ConfigurationError("Conecte a conta BTG antes de emitir cobranças.");
   if (serverConfig.ambiente === "producao" && !process.env.BTG_WEBHOOK_SECRET?.trim()) {
-    throw new BtgV2ConfigurationError("Configure o segredo HMAC do webhook BTG antes de emitir em Produção.");
+    throw new BtgV2ConfigurationError("Configure o segredo do webhook BTG para Authorization: Bearer antes de emitir em Produção. Não use Client Secret nem access token OAuth.");
   }
 
   const externalId = gerarExternalIdBtgV2(integracao.ambiente, origemTipo, parcelaId);
@@ -367,8 +430,24 @@ export async function emitirBolePixV2(input: {
           vinculada.conta.nomeBeneficiario !== accountRow.conta.nomeBeneficiario) {
         throw new BtgV2ConfigurationError("A conta recebedora foi alterada durante a preparação; revise a emissão.");
       }
+      const [bloqueada] = await bloquearParcelasParaCanal(tx, [parcelaId], origem.condominioId);
+      if (!bloqueada || bloqueada.parcela.acordoId !== acordo.id || bloqueada.condominioId !== origem.condominioId) {
+        throw new BtgV2ConfigurationError("A parcela não corresponde mais ao acordo ou condomínio selecionados.");
+      }
+      validarAcordoAtivoBtgV2(bloqueada.acordoStatus);
+      const [acordoAtual] = await tx.select().from(acordos).where(eq(acordos.id, acordo.id)).limit(1);
+      if (!acordoAtual || acordoAtual.devedorId !== origem.devedorId) {
+        throw new BtgV2ConfigurationError("O pagador do acordo foi alterado durante a preparação; revise a emissão.");
+      }
       const existente = await findExisting(tx, atual.id, origemTipo, parcelaId);
-      if (existente) return { row: existente, jaExistia: true };
+      if (existente) {
+        validarRegistroCanonicoBtgV2(existente, contextoCanonico);
+        return { row: existente, jaExistia: true };
+      }
+      validarParcelaPreparadaBtgV2(bloqueada.parcela, parcela);
+      const liberdade = avaliarElegibilidadeParcelaAcordoBtgV2({ ...bloqueada.parcela, btgEmissaoV2Existente: bloqueada.emissaoV2Existente });
+      if (!liberdade.elegivel) throw new BtgV2ConfigurationError(`Esta parcela não pode ser enviada: ${liberdade.motivo?.toLowerCase()}.`);
+      await validarContextoRemessaBtgV2(tx, btgRemessaId, { ...contextoCanonico, amount: origem.amount });
       await tx.insert(btgCobrancasEmitidas).values({
         btgIntegracaoId: integracao.id,
         btgContaRecebedoraId: accountRow.conta.id,
@@ -392,12 +471,19 @@ export async function emitirBolePixV2(input: {
       });
       const row = await findExisting(tx, atual.id, origemTipo, parcelaId);
       if (!row) throw new BtgV2ConfigurationError("Não foi possível reservar a emissão BolePix.");
+      validarRegistroCanonicoBtgV2(row, contextoCanonico);
+      // Nenhuma mudança de numeração, origem, snapshots ou campos bancários legados.
+      // Falha em qualquer etapa desta transação desfaz reserva e canal juntos.
+      await tx.update(parcelasAcordo).set({ canalBancario: "api_btg_v2" }).where(eq(parcelasAcordo.id, parcelaId));
       return { row, jaExistia: false };
     });
   } catch (error) {
     if (!isDuplicate(error)) throw error;
     const existingAfterRace = await findExisting(db, integracao.id, origemTipo, parcelaId);
-    if (existingAfterRace) return toResult(existingAfterRace, true);
+    if (existingAfterRace) {
+      validarRegistroCanonicoBtgV2(existingAfterRace, contextoCanonico);
+      return toResult(existingAfterRace, true);
+    }
     throw error;
   }
 
@@ -413,9 +499,49 @@ export async function emitirBolePixV2(input: {
     throw new BtgV2ConfigurationError("A conta recebedora foi alterada depois da reserva; nenhum envio foi realizado. Revise a emissão reservada.");
   }
 
-  await db.update(btgCobrancasEmitidas)
-    .set({ status: "enviando", updatedAt: new Date() })
-    .where(eq(btgCobrancasEmitidas.id, reserva.id));
+  await db.transaction(async tx => {
+    const atual = await bloquearIntegracaoBtg(tx, getBtgV2ServerConfig());
+    if (atual.id !== integracao.id || atual.emissaoHabilitada !== 1) throw new BtgV2ConfigurationError("A integração foi alterada depois da reserva; revise a emissão reservada.");
+    const [vinculada] = await tx.select({ vinculoAtivo: btgContaRecebedoraCondominios.ativo, conta: btgContasRecebedoras })
+      .from(btgContaRecebedoraCondominios)
+      .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+      .where(and(eq(btgContaRecebedoraCondominios.btgIntegracaoId, atual.id), eq(btgContaRecebedoraCondominios.condominioId, origem.condominioId)))
+      .limit(1).for("update");
+    if (!vinculada || vinculada.vinculoAtivo !== 1 || vinculada.conta.id !== accountRow.conta.id ||
+        vinculada.conta.agencia !== reserva.agenciaRecebedora || vinculada.conta.numero !== reserva.contaRecebedora ||
+        vinculada.conta.documentoBeneficiario !== reserva.documentoBeneficiario || vinculada.conta.nomeBeneficiario !== reserva.nomeBeneficiario) {
+      throw new BtgV2ConfigurationError("A conta recebedora foi alterada depois da reserva; revise a emissão reservada.");
+    }
+    validarContaRecebedoraParaAmbiente({ conta: vinculada.conta, integracao: atual, serverConfig: getBtgV2ServerConfig() });
+    const [bloqueada] = await bloquearParcelasParaCanal(tx, [parcelaId], origem.condominioId);
+    if (!bloqueada || bloqueada.condominioId !== origem.condominioId) throw new BtgV2ConfigurationError("O condomínio da parcela foi alterado depois da reserva.");
+    validarAcordoAtivoBtgV2(bloqueada.acordoStatus);
+    validarParcelaPreparadaBtgV2(bloqueada.parcela, parcela);
+    if (bloqueada.parcela.canalBancario !== "api_btg_v2") throw new BtgV2ConfigurationError("O canal da parcela foi alterado depois da reserva; revise a emissão reservada.");
+    // Desconsidera SOMENTE a própria reserva canônica, sem ignorar CNAB/legado.
+    const estado = avaliarElegibilidadeParcelaAcordoBtgV2({ ...bloqueada.parcela, canalBancario: null, btgEmissaoV2Existente: false });
+    if (!estado.elegivel) throw new BtgV2ConfigurationError(`A parcela foi alterada depois da reserva: ${estado.motivo?.toLowerCase()}.`);
+    const [acordoAtual] = await tx.select().from(acordos).where(eq(acordos.id, acordo.id)).limit(1);
+    const [pagadorAtual] = await tx.select().from(devedores).where(eq(devedores.id, origem.devedorId)).limit(1);
+    if (!acordoAtual || acordoAtual.devedorId !== origem.devedorId || !pagadorAtual || pagadorAtual.condominioId !== origem.condominioId ||
+        ["name", "cpfCnpj", "email", "phone", "address", "addressNumber", "addressComplement", "neighborhood", "city", "state", "zipCode", "unitNumber"].some(
+          key => pagadorAtual[key as keyof typeof pagadorAtual] !== devedor[key as keyof typeof devedor])) {
+      throw new BtgV2ConfigurationError("O pagador da cobrança foi alterado depois da reserva; revise a emissão reservada.");
+    }
+    await validarContextoRemessaBtgV2(tx, btgRemessaId, { ...contextoCanonico, amount: origem.amount });
+    const canonica = await findExisting(tx, integracao.id, origemTipo, parcelaId);
+    if (!canonica || canonica.id !== reserva.id || canonica.status !== "reservada") throw new BtgV2ConfigurationError("O estado da reserva foi alterado; nenhum novo envio foi realizado.");
+    validarRegistroCanonicoBtgV2(canonica, contextoCanonico);
+    if (canonica.amount !== origem.amount || canonica.dueDate.getTime() !== origem.dueDate.getTime() ||
+        canonica.agenciaRecebedora !== reserva.agenciaRecebedora || canonica.contaRecebedora !== reserva.contaRecebedora ||
+        canonica.documentoBeneficiario !== reserva.documentoBeneficiario || canonica.nomeBeneficiario !== reserva.nomeBeneficiario) {
+      throw new BtgV2ConfigurationError("Os dados da reserva canônica foram alterados; nenhum novo envio foi realizado.");
+    }
+    const outrasEmissoes = await tx.select({ id: btgCobrancasEmitidas.id }).from(btgCobrancasEmitidas)
+      .where(and(eq(btgCobrancasEmitidas.origemTipo, origemTipo), eq(btgCobrancasEmitidas.origemId, parcelaId)));
+    if (outrasEmissoes.some(row => row.id !== reserva.id)) throw new BtgV2ConfigurationError("Outra emissão foi identificada depois da reserva; nenhum novo envio foi realizado.");
+    await tx.update(btgCobrancasEmitidas).set({ status: "enviando", updatedAt: new Date() }).where(eq(btgCobrancasEmitidas.id, reserva.id));
+  });
 
   try {
     const payload = montarPayloadBolePixV2({

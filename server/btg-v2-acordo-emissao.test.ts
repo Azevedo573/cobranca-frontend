@@ -8,9 +8,9 @@ import {
 
 describe("BTG v2 — emissão por acordo", () => {
   it("considera pendente, atrasada e entrada pendente como parcelas elegíveis", () => {
-    expect(avaliarElegibilidadeParcelaAcordoBtgV2({ status: "pendente" })).toEqual({ elegivel: true, motivo: null });
-    expect(avaliarElegibilidadeParcelaAcordoBtgV2({ status: "atrasado" })).toEqual({ elegivel: true, motivo: null });
-    expect(avaliarElegibilidadeParcelaAcordoBtgV2({ status: "pendente", installmentNumber: 0 })).toEqual({ elegivel: true, motivo: null });
+    expect(avaliarElegibilidadeParcelaAcordoBtgV2({ status: "pendente" })).toEqual({ elegivel: true, motivo: null, codigo: null, confirmarReservaDisponivel: false });
+    expect(avaliarElegibilidadeParcelaAcordoBtgV2({ status: "atrasado" })).toEqual({ elegivel: true, motivo: null, codigo: null, confirmarReservaDisponivel: false });
+    expect(avaliarElegibilidadeParcelaAcordoBtgV2({ status: "pendente", installmentNumber: 0 })).toEqual({ elegivel: true, motivo: null, codigo: null, confirmarReservaDisponivel: false });
   });
 
   it("bloqueia parcela paga, cancelada ou vinculada ao fluxo legado", () => {

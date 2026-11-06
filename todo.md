@@ -2962,3 +2962,21 @@ Não há contas reais cadastradas ou remessas enviadas por esta evolução no de
 - [ ] Atualizar manualmente a VPS, configurar o webhook e seu segredo correspondente no BTG/VPS e homologar entrega real/baixa
 
 Correção técnica concluída no desenvolvimento, sem migration, novas dependências, alteração de credenciais, conta/valores ou envio de cobrança. O usuário relatou cadastro manual da conta na VPS após atualização ce005f48 e bloqueio por segredo de webhook ausente. A liberação e a primeira cobrança continuam manuais e dependem da validação do webhook; o novo código não as ativa automaticamente.
+
+## Evolução — API BTG principal e CNAB alternativo (06/11/2026)
+
+Usuário aprovou implementar no desenvolvimento às 15:19:17. Fonte: `docs/specs/SPEC-btg-elegibilidade-reserva-local.md`; checklist técnico em `tasks/plan-btg-canais-api-cnab.md`. Sem autorização de deploy, emissão real, alteração de credenciais ou reclassificação da parcela #19.
+
+- [x] Especificação aprovada e plano com frentes de trabalho separados.
+- [x] Colunas nullable de origem/canal em parcelas; migration 0100 revisada e aplicada exclusivamente no desenvolvimento, sem backfill.
+- [x] Política comum tipada de elegibilidade e router administrativo de confirmação individual com auditoria transacional/rollback, estado esperado e preservação de números/valores.
+- [x] Provisionador seletivo preparado com --check, literal de DDL, recusa de tipos/defaults inesperados e aplicação somente das duas colunas; leitura do desenvolvimento confirmou estrutura completa.
+- [x] Reserva API v2 com lock fresco de parcela/acordo e canal no mesmo commit da emissão canônica, preservando idempotência/estado incerto e revalidação antes do POST.
+- [x] CNAB por condomínio/global e emissor legado integrados aos locks/política comum; seleção integral e contexto único. CNAB revalida valores/acordo/evidências também após gerar o arquivo, antes do vínculo final.
+- [x] Criação identifica numeração local sem escolher canal ou emitir automaticamente.
+- [x] Interface API principal/CNAB alternativo, seleção/revisão reais, confirmação local, fila com número esperado, caches e bloqueios/estado coerentes.
+- [x] Testes de integração e concorrência API/CNAB/legado, tenant/RBAC, rollback, contextos desatualizados e caches concluídos em fixtures, sem DB/BTG reais.
+- [x] Suíte serial: 1227 testes aprovados/1 externo opt-in ignorado; TypeScript, build e diff aprovados. Componentes reais inspecionados com dados fictícios/callbacks locais; sem sessão a gestão redirecionou ao login.
+- [x] Manual, especificação, plano e handoff atualizados com resultados/limites; artefatos preparados para checkpoint pelo GitHub, sem deploy.
+
+Homologação manual futura: conferir título #19 fora do sistema antes da confirmação real; validar nova parcela/API/CNAB em Produção apenas após solicitação e backup; cadastro/entrega real do webhook e pagamento permanecem independentes dos testes simulados.

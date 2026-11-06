@@ -226,6 +226,8 @@ export const parcelasAcordo = mysqlTable("parcelasAcordo", {
   snapshotDescricao: text("snapshotDescricao"),      // Descrição/referência da cobrança original
   // Campos de boleto CNAB 240
   nossoNumero: varchar("nossoNumero", { length: 30 }), // Nosso número BTG atribuído ao criar o acordo
+  nossoNumeroOrigem: mysqlEnum("nossoNumeroOrigem", ["reserva_local", "legado"]), // null: origem histórica não comprovada
+  canalBancario: mysqlEnum("canalBancario", ["api_btg_v2", "cnab240", "legado"]), // reserva/uso efetivo, não preferência visual
   pixCopiaCola: text("pixCopiaCola"),                   // Pix copia e cola (EMV) retornado pelo banco no retorno D+1 (Bolepix)
   statusRemessa: mysqlEnum("statusRemessa", ["nao_enviado", "remessa_gerada", "enviado", "retorno_recebido"]).default("nao_enviado"),
   remessaId: int("remessaId"), // ID da remessa CNAB que incluiu esta parcela

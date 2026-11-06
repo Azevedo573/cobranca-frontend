@@ -694,6 +694,13 @@
       "when": 1793911479875,
       "tag": "0099_brave_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "5",
+      "when": 1793989393726,
+      "tag": "0100_organic_guardsmen",
+      "breakpoints": true
     }
   ]
 }

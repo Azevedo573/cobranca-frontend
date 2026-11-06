@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -22,264 +25,571 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { CheckCircle2, CircleAlert, Loader2, RefreshCw, Send, ShieldCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  CircleAlert,
+  Copy,
+  ExternalLink,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
+import {
+  caminhoCnabAcordo,
+  preservarSelecaoElegivel,
+  selecionavelApi,
+} from "@/lib/btgCanaisUI";
+import { invalidarCanaisBtg } from "@/lib/invalidarCanaisBtg";
+import {
+  AcaoRevisarReserva,
+  ConfirmarReservaLocalDialog,
+  SituacaoCanalParcela,
+} from "./btg/CanaisUI";
+import { useConfirmarReservaLocal } from "./btg/useConfirmarReservaLocal";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "../../../server/routers";
 
+type Resultado = inferRouterOutputs<AppRouter>["btgV2"]["emitirParcelasAcordo"];
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   acordoId: number;
   onSuccess?: () => void;
 }
+const moeda = (valor: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    valor / 100
+  );
+const data = (valor: Date | string) =>
+  new Date(valor).toLocaleDateString("pt-BR");
 
-const moeda = (valorCentavos: number) => new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-}).format(valorCentavos / 100);
-
-const data = (valor: Date | string) => new Date(valor).toLocaleDateString("pt-BR");
-
-export function BTGEnviarParcelasAcordoModal({ open, onOpenChange, acordoId, onSuccess }: Props) {
+export function BTGEnviarParcelasAcordoModal({
+  open,
+  onOpenChange,
+  acordoId,
+  onSuccess,
+}: Props) {
   const utils = trpc.useUtils();
+  const reserva = useConfirmarReservaLocal();
+  const admin = reserva.role === "admin";
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [confirmarOpen, setConfirmarOpen] = useState(false);
-  const [resultado, setResultado] = useState<{
-    acordoId: number;
-    resultados: Array<{
-      parcelaId: number;
-      installmentNumber: number;
-      resultado: "simulada" | "emitida" | "ja_existia" | "falha";
-      mensagem: string;
-    }>;
-  } | null>(null);
-
+  const [confirmacao, setConfirmacao] = useState("");
+  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const painel = trpc.btgV2.painel.useQuery(undefined, {
+    enabled: open && admin,
+  });
+  const acordo = trpc.acordos.getById.useQuery(
+    { id: acordoId },
+    { enabled: open && acordoId > 0 }
+  );
+  const parcelasAcordo = trpc.acordos.getParcelas.useQuery(
+    { acordoId },
+    { enabled: open && acordoId > 0 }
+  );
+  const situacao = trpc.btgCanais.situacaoAcordo.useQuery(
+    { acordoId },
+    { enabled: open && admin && acordoId > 0 }
+  );
   const preparacao = trpc.btgV2.prepararEmissaoAcordo.useQuery(
     { acordoId },
-    { enabled: open && acordoId > 0 },
+    { enabled: open && admin && acordoId > 0 }
   );
+  const ambiente =
+    painel.data?.integracao?.ambiente ?? painel.data?.oauth?.ambiente;
+  const sandbox = ambiente === "sandbox";
+  const parcelas = useMemo(() => {
+    const base = preparacao.data?.parcelas ?? parcelasAcordo.data ?? [];
+    return base.map(p => {
+      const atual = situacao.data?.find(s => s.parcelaId === p.id);
+      const conjunta = {
+        ...p,
+        ...atual,
+        elegivel:
+          "elegivel" in p && p.elegivel === true && atual?.elegivel !== false,
+        motivoBloqueio:
+          "motivoBloqueio" in p && p.motivoBloqueio
+            ? p.motivoBloqueio
+            : atual?.motivoBloqueio,
+      };
+      return {
+        ...conjunta,
+        elegivel: Boolean(preparacao.data && selecionavelApi(conjunta)),
+      };
+    });
+  }, [preparacao.data, parcelasAcordo.data, situacao.data]);
+  const elegiveis = parcelas.filter(p => p.elegivel);
+  const todas =
+    elegiveis.length > 0 && elegiveis.every(p => selecionadas.has(p.id));
+  const total = parcelas
+    .filter(p => p.elegivel && selecionadas.has(p.id))
+    .reduce((s, p) => s + p.amount, 0);
+  const selecaoValida =
+    selecionadas.size > 0 &&
+    selecionadas.size <= 50 &&
+    parcelas.filter(p => p.elegivel && selecionadas.has(p.id)).length ===
+      selecionadas.size;
+  const emissaoHabilitada =
+    admin &&
+    painel.data?.emissaoHabilitada === true &&
+    Boolean(preparacao.data) &&
+    !preparacao.isFetching &&
+    !situacao.isFetching;
 
   useEffect(() => {
-    if (!open || !preparacao.data) return;
-    setSelecionadas(new Set(preparacao.data.parcelas.filter((parcela) => parcela.elegivel).map((parcela) => parcela.id)));
+    setSelecionadas(new Set());
     setResultado(null);
     setConfirmarOpen(false);
-  }, [open, preparacao.data]);
-
-  const parcelasElegiveis = useMemo(
-    () => preparacao.data?.parcelas.filter((parcela) => parcela.elegivel) ?? [],
-    [preparacao.data],
-  );
-  const totalSelecionado = useMemo(
-    () => preparacao.data?.parcelas
-      .filter((parcela) => selecionadas.has(parcela.id))
-      .reduce((total, parcela) => total + parcela.amount, 0) ?? 0,
-    [preparacao.data, selecionadas],
-  );
-  const todasSelecionadas = parcelasElegiveis.length > 0 && parcelasElegiveis.every((parcela) => selecionadas.has(parcela.id));
+    setConfirmacao("");
+  }, [open, acordoId]);
+  useEffect(() => {
+    setSelecionadas(anterior => preservarSelecaoElegivel(anterior, parcelas));
+  }, [parcelas]);
 
   const emitirMutation = trpc.btgV2.emitirParcelasAcordo.useMutation({
-    onSuccess: async (retorno) => {
+    onSuccess: async retorno => {
       setResultado(retorno);
+      setSelecionadas(new Set());
       setConfirmarOpen(false);
-      const simuladas = retorno.resultados.filter((item) => item.resultado === "simulada").length;
-      const emitidas = retorno.resultados.filter((item) => item.resultado === "emitida").length;
-      const falhas = retorno.resultados.filter((item) => item.resultado === "falha").length;
-      toast[falhas > 0 ? "warning" : "success"](
-        falhas > 0
-          ? `Envio concluído com ${falhas} item(ns) que exigem atenção.`
-          : emitidas > 0
-            ? `${emitidas} parcela(s) emitida(s) no BTG.`
-            : `${simuladas} parcela(s) simulada(s) no BTG Sandbox.`,
+      setConfirmacao("");
+      const falhas = retorno.resultados.filter(
+        i => i.resultado === "falha"
+      ).length;
+      toast[falhas ? "warning" : "success"](
+        falhas
+          ? `Resultado com ${falhas} item(ns) para revisão. Não haverá troca automática de canal.`
+          : "Resultado da operação API BTG recebido."
       );
-      await Promise.all([
-        utils.acordos.getParcelas.invalidate({ acordoId }),
-        utils.acordos.getById.invalidate({ id: acordoId }),
-      ]);
+      await invalidarCanaisBtg(utils);
       onSuccess?.();
     },
-    onError: (error) => {
+    onError: async error => {
       setConfirmarOpen(false);
-      toast.error(`Não foi possível enviar as parcelas: ${error.message}`);
+      toast.error(
+        `Não foi possível concluir o envio: ${error.message}. Revise a situação atual antes de tentar outra operação.`
+      );
+      await invalidarCanaisBtg(utils);
     },
   });
-
-  const alternarParcela = (parcelaId: number, marcada: boolean) => {
-    setSelecionadas((anterior) => {
+  const ocupado = emitirMutation.isPending || reserva.dialogProps.pendente;
+  const fechar = () => {
+    if (!ocupado) {
+      setConfirmarOpen(false);
+      onOpenChange(false);
+    }
+  };
+  const alternar = (id: number, marcada: boolean) => {
+    if (ocupado || !parcelas.some(p => p.id === id && p.elegivel)) return;
+    setSelecionadas(anterior => {
       const proxima = new Set(anterior);
-      if (marcada) proxima.add(parcelaId);
-      else proxima.delete(parcelaId);
+      marcada ? proxima.add(id) : proxima.delete(id);
       return proxima;
     });
   };
-
-  const alternarTodas = () => {
-    setSelecionadas(todasSelecionadas ? new Set() : new Set(parcelasElegiveis.map((parcela) => parcela.id)));
-  };
-
-  const fechar = () => {
-    setConfirmarOpen(false);
-    onOpenChange(false);
+  const copiar = async (valor: string) => {
+    try {
+      await navigator.clipboard.writeText(valor);
+      toast.success("Copiado.");
+    } catch {
+      toast.error(
+        "Não foi possível copiar. Verifique a permissão do navegador."
+      );
+    }
   };
 
   return (
     <>
-      <Sheet open={open} onOpenChange={(value) => !value && fechar()}>
-        <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-[640px]">
+      <Sheet
+        open={open}
+        onOpenChange={value => {
+          if (!value) fechar();
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-full gap-0 p-0 sm:max-w-[680px]"
+          onEscapeKeyDown={e => {
+            if (ocupado) e.preventDefault();
+          }}
+          onInteractOutside={e => {
+            if (ocupado) e.preventDefault();
+          }}
+        >
           <SheetHeader className="border-b px-6 py-5 pr-12">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <SheetTitle className="flex items-center gap-2 text-lg">
-                <Send className="h-5 w-5 text-blue-600" />
-                Enviar parcelas ao BTG
+                <Send className="h-5 w-5 text-primary" />
+                Enviar ao BTG pela API
               </SheetTitle>
-              <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700">Sandbox</Badge>
+              <Badge variant="outline">
+                {sandbox
+                  ? "Sandbox"
+                  : ambiente === "producao"
+                    ? "Produção"
+                    : "Ambiente não confirmado"}
+              </Badge>
             </div>
             <SheetDescription>
-              Revise e selecione as parcelas do acordo #{acordoId}. O acordo permanece visível ao fundo para preservar seu contexto.
+              Acordo #{acordoId} · selecione as parcelas para uma operação API
+              BTG v2. Criar acordo ou confirmar reserva não emite cobranças.
             </SheetDescription>
           </SheetHeader>
-
-          {preparacao.isLoading ? (
-            <div className="flex flex-1 items-center justify-center p-10 text-muted-foreground">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Carregando parcelas do acordo...
-            </div>
-          ) : preparacao.error ? (
-            <div className="p-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {!admin ? (
               <Alert variant="destructive">
-                <CircleAlert className="h-4 w-4" />
-                <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-                  <span>{preparacao.error.message}</span>
-                  <Button size="sm" variant="outline" onClick={() => preparacao.refetch()}>
-                    <RefreshCw className="mr-1 h-3.5 w-3.5" /> Tentar novamente
-                  </Button>
+                <AlertDescription>
+                  Envio API e confirmação de reserva são exclusivos do
+                  administrador.
                 </AlertDescription>
               </Alert>
-            </div>
-          ) : resultado ? (
-            <>
-              <div className="flex-1 overflow-y-auto p-6">
-                <Alert className="border-emerald-500/50 bg-emerald-500/5">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            ) : (
+              <>
+                {painel.isLoading ||
+                preparacao.isLoading ||
+                parcelasAcordo.isLoading ? (
+                  <p
+                    role="status"
+                    className="flex items-center justify-center py-6"
+                  >
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Carregando revisão...
+                  </p>
+                ) : null}
+                {[
+                  painel.error,
+                  preparacao.error,
+                  situacao.error,
+                  parcelasAcordo.error,
+                ]
+                  .filter(Boolean)
+                  .map((erro, index) => (
+                    <Alert key={index} variant="destructive">
+                      <CircleAlert className="h-4 w-4" />
+                      <AlertDescription>
+                        {erro?.message}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() => {
+                            void preparacao.refetch();
+                            void situacao.refetch();
+                            void painel.refetch();
+                          }}
+                        >
+                          <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                          Atualizar revisão
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+                {!painel.isLoading && !painel.data?.emissaoHabilitada && (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      A emissão API está bloqueada. Confira OAuth, conta
+                      vinculada e liberação do ambiente em{" "}
+                      <Link href="/configuracoes/btg" className="underline">
+                        Configuração BTG
+                      </Link>
+                      . O CNAB é uma escolha separada, não um fallback.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <Alert>
+                  <ShieldCheck className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Resultado da simulação Sandbox.</strong> O BTG devolve respostas estáticas de homologação; nenhuma cobrança é persistida no portal bancário.
+                    {sandbox
+                      ? "Homologação Sandbox: respostas de teste, sem cobrança real no portal bancário."
+                      : "A confirmação envia cobranças ao BTG; em Produção, a emissão é real."}{" "}
+                    Não há envio automático ao devedor nem troca de canal em
+                    falha. Boleto/Pix existentes permanecem disponíveis.
                   </AlertDescription>
                 </Alert>
-                <div className="mt-4 overflow-hidden rounded-lg border divide-y">
-                  {resultado.resultados.map((item) => (
-                    <div key={item.parcelaId} className="flex items-start justify-between gap-4 p-4 text-sm">
-                      <div>
-                        <p className="font-medium">{item.installmentNumber === 0 ? "Entrada" : `Parcela ${item.installmentNumber}`}</p>
-                        <p className="mt-1 text-muted-foreground">{item.mensagem}</p>
-                      </div>
-                      <Badge
-                        variant={item.resultado === "falha" ? "destructive" : "outline"}
-                        className={["simulada", "emitida"].includes(item.resultado) ? "border-emerald-300 bg-emerald-50 text-emerald-700" : ""}
+                {resultado ? (
+                  <section aria-label="Resultado API BTG" className="space-y-3">
+                    <h2 className="font-semibold">
+                      Resultado da operação · API BTG v2
+                    </h2>
+                    {resultado.resultados.map(item => (
+                      <article
+                        key={item.parcelaId}
+                        className="rounded-lg border p-4 text-sm"
                       >
-                        {item.resultado === "simulada" ? "Simulada" : item.resultado === "emitida" ? "Emitida" : item.resultado === "ja_existia" ? "Já registrada" : "Falha"}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <SheetFooter className="border-t bg-background px-6 py-4 sm:flex-row sm:justify-end">
-                <Button onClick={fechar}>Fechar</Button>
-              </SheetFooter>
-            </>
-          ) : (
-            <>
-              <div className="flex-1 overflow-y-auto px-6 py-5">
-                <Alert className="border-blue-200 bg-blue-50/70">
-                  <ShieldCheck className="h-4 w-4 text-blue-700" />
-                  <AlertDescription className="text-blue-950">
-                    <strong>Homologação Sandbox.</strong> Parcelas pendentes e atrasadas foram pré-selecionadas. Itens pagos, cancelados ou vinculados a CNAB/BTG legado ficam bloqueados.
-                  </AlertDescription>
-                </Alert>
-
-                <div className="mt-5 flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-semibold">Parcelas do acordo</p>
-                    <p className="text-xs text-muted-foreground">{parcelasElegiveis.length} elegível(is) para a simulação</p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={alternarTodas} disabled={parcelasElegiveis.length === 0}>
-                    {todasSelecionadas ? "Desmarcar todas" : "Selecionar todas"}
-                  </Button>
-                </div>
-
-                <div className="mt-3 space-y-2">
-                  {preparacao.data?.parcelas.map((parcela) => (
-                    <label
-                      key={parcela.id}
-                      className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${
-                        parcela.elegivel ? "cursor-pointer bg-card hover:border-blue-300 hover:bg-blue-50/40" : "bg-muted/30 opacity-75"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={selecionadas.has(parcela.id)}
-                        disabled={!parcela.elegivel}
-                        onCheckedChange={(value) => alternarParcela(parcela.id, value === true)}
-                        aria-label={`Selecionar ${parcela.installmentNumber === 0 ? "entrada" : `parcela ${parcela.installmentNumber}`}`}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-medium">{parcela.installmentNumber === 0 ? "Entrada" : `Parcela ${parcela.installmentNumber}`}</span>
-                          <span className="font-semibold tabular-nums">{moeda(parcela.amount)}</span>
-                        </span>
-                        <span className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                          <span>Vencimento: {data(parcela.dueDate)}</span>
-                          {parcela.elegivel ? (
-                            <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">Pendente</Badge>
-                          ) : (
-                            <Badge variant="secondary">Bloqueada</Badge>
+                        <div className="flex justify-between gap-3">
+                          <p className="font-medium">
+                            {item.installmentNumber === 0
+                              ? "Entrada"
+                              : `Parcela ${item.installmentNumber}`}
+                          </p>
+                          <Badge
+                            variant={
+                              item.resultado === "falha"
+                                ? "destructive"
+                                : "outline"
+                            }
+                          >
+                            {item.resultado === "simulada"
+                              ? "Simulada"
+                              : item.resultado === "emitida"
+                                ? "Emitida"
+                                : item.resultado === "ja_existia"
+                                  ? "Já registrada"
+                                  : "Falha / revisar"}
+                          </Badge>
+                        </div>
+                        <p className="mt-2 text-muted-foreground">
+                          {item.mensagem}
+                        </p>
+                        {item.resultado === "falha" && (
+                          <p className="mt-2 text-xs text-destructive">
+                            Não use CNAB para contornar falha ou estado incerto.
+                            Revise/concilie a emissão existente.
+                          </p>
+                        )}
+                        {item.emissao?.nossoNumero && (
+                          <p className="mt-2 text-xs font-mono">
+                            Nosso número bancário: {item.emissao.nossoNumero}
+                          </p>
+                        )}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {item.emissao?.bankSlipUrl && (
+                            <Button size="sm" variant="outline" asChild>
+                              <a
+                                href={item.emissao.bankSlipUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Boleto
+                              </a>
+                            </Button>
                           )}
-                        </span>
-                        {!parcela.elegivel && <span className="mt-2 block text-xs text-muted-foreground">{parcela.motivoBloqueio}</span>}
-                      </span>
-                    </label>
-                  ))}
+                          {item.emissao?.linhaDigitavel && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                void copiar(item.emissao!.linhaDigitavel!)
+                              }
+                            >
+                              <Copy className="mr-2 h-4 w-4" />
+                              Copiar linha
+                            </Button>
+                          )}
+                          {item.emissao?.pixCopiaECola && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                void copiar(item.emissao!.pixCopiaECola!)
+                              }
+                            >
+                              <Copy className="mr-2 h-4 w-4" />
+                              Copiar Pix
+                            </Button>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </section>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                      <div>
+                        <p className="text-sm font-semibold">
+                          Parcelas do acordo
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {elegiveis.length} elegível(is) · selecione até 50
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={
+                          !elegiveis.length || ocupado || !emissaoHabilitada
+                        }
+                        onClick={() =>
+                          setSelecionadas(
+                            todas
+                              ? new Set()
+                              : new Set(elegiveis.slice(0, 50).map(p => p.id))
+                          )
+                        }
+                      >
+                        {todas ? "Desmarcar todas" : "Selecionar elegíveis"}
+                      </Button>
+                    </div>
+                    {!parcelas.length && !parcelasAcordo.isLoading && (
+                      <p className="py-8 text-center text-sm text-muted-foreground">
+                        Nenhuma parcela encontrada neste acordo.
+                      </p>
+                    )}
+                    {parcelas.length > 0 && !elegiveis.length && (
+                      <p
+                        role="status"
+                        className="text-sm text-muted-foreground"
+                      >
+                        Nenhuma parcela elegível para envio API. Confira os
+                        motivos abaixo.
+                      </p>
+                    )}
+                    {parcelas.map(parcela => (
+                      <article
+                        key={parcela.id}
+                        className={`rounded-lg border p-4 ${parcela.elegivel ? "bg-card" : "bg-muted/30"}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={`api-parcela-${parcela.id}`}
+                            checked={selecionadas.has(parcela.id)}
+                            disabled={
+                              !parcela.elegivel || ocupado || !emissaoHabilitada
+                            }
+                            onCheckedChange={value =>
+                              alternar(parcela.id, value === true)
+                            }
+                            aria-describedby={`api-situacao-${parcela.id}`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <label
+                              htmlFor={`api-parcela-${parcela.id}`}
+                              className="flex flex-wrap items-center justify-between gap-2 font-medium"
+                            >
+                              {parcela.installmentNumber === 0
+                                ? "Entrada"
+                                : `Parcela ${parcela.installmentNumber}`}
+                              <span>{moeda(parcela.amount)}</span>
+                            </label>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Vencimento: {data(parcela.dueDate)} ·{" "}
+                              {parcela.status}
+                            </p>
+                            <div id={`api-situacao-${parcela.id}`}>
+                              <SituacaoCanalParcela parcela={parcela} />
+                            </div>
+                            <AcaoRevisarReserva
+                              parcela={parcela}
+                              role={reserva.role}
+                              onClick={() => reserva.abrir(parcela)}
+                              disabled={ocupado}
+                            />
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <SheetFooter className="border-t bg-background px-6 py-4">
+            <div className="w-full space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm">
+                  {selecionadas.size} parcela(s) ·{" "}
+                  <strong>{moeda(total)}</strong>
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={fechar} disabled={ocupado}>
+                    Fechar
+                  </Button>
+                  {!resultado && (
+                    <Button
+                      disabled={!selecaoValida || !emissaoHabilitada || ocupado}
+                      onClick={() => {
+                        setConfirmacao("");
+                        setConfirmarOpen(true);
+                      }}
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Revisar envio API
+                    </Button>
+                  )}
                 </div>
               </div>
-
-              <SheetFooter className="border-t bg-background px-6 py-4">
-                <div className="w-full rounded-lg bg-muted/40 p-3 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{selecionadas.size} parcela(s) selecionada(s)</p>
-                    <p className="text-sm text-muted-foreground">Total: <strong className="text-foreground">{moeda(totalSelecionado)}</strong></p>
-                  </div>
-                  <div className="mt-3 flex gap-2 sm:mt-0">
-                    <Button variant="outline" onClick={fechar}>Cancelar</Button>
-                    <Button disabled={selecionadas.size === 0} onClick={() => setConfirmarOpen(true)}>
-                      <CheckCircle2 className="mr-2 h-4 w-4" /> Revisar simulação
-                    </Button>
-                  </div>
-                </div>
-              </SheetFooter>
-            </>
-          )}
+              {admin && acordo.data?.condominioId && !ocupado && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link
+                    href={caminhoCnabAcordo(acordoId, acordo.data.condominioId)}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Gerar remessa CNAB
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
-
-      <AlertDialog open={confirmarOpen} onOpenChange={setConfirmarOpen}>
+      <AlertDialog
+        open={confirmarOpen}
+        onOpenChange={value => {
+          if (!ocupado) setConfirmarOpen(value);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar simulação de parcelas no BTG Sandbox?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {sandbox
+                ? "Confirmar envio API em homologação?"
+                : "Confirmar envio pela API BTG?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Serão enviadas {selecionadas.size} parcela(s), no total de {moeda(totalSelecionado)}, usando dados do acordo e do pagador. O Sandbox devolve resposta de homologação e não cria cobrança persistida no portal bancário.
+              Serão enviadas {selecionadas.size} parcela(s) do acordo #
+              {acordoId}, total {moeda(total)}, pelo canal API BTG v2.{" "}
+              {sandbox
+                ? "O Sandbox devolve respostas de homologação."
+                : "Em Produção, esta operação emite cobranças reais."}{" "}
+              Nenhuma mensagem será enviada automaticamente ao devedor. Digite
+              ENVIAR API BTG.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <Label htmlFor="confirmacao-api-acordo">Confirmação de envio</Label>
+          <Input
+            id="confirmacao-api-acordo"
+            value={confirmacao}
+            onChange={e => setConfirmacao(e.target.value)}
+            disabled={ocupado}
+            autoComplete="off"
+          />
           <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogCancel disabled={ocupado}>Voltar</AlertDialogCancel>
             <AlertDialogAction
-              disabled={emitirMutation.isPending || selecionadas.size === 0}
-              onClick={(event) => {
+              disabled={
+                ocupado ||
+                !selecaoValida ||
+                !emissaoHabilitada ||
+                confirmacao !== "ENVIAR API BTG"
+              }
+              onClick={event => {
                 event.preventDefault();
-                emitirMutation.mutate({ acordoId, parcelaIds: Array.from(selecionadas) });
+                if (
+                  confirmacao === "ENVIAR API BTG" &&
+                  selecaoValida &&
+                  emissaoHabilitada &&
+                  !ocupado
+                )
+                  emitirMutation.mutate({
+                    acordoId,
+                    parcelaIds: Array.from(selecionadas),
+                  });
               }}
             >
-              {emitirMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirmar simulação
+              {emitirMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Confirmar envio API
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ConfirmarReservaLocalDialog {...reserva.dialogProps} />
     </>
   );
 }

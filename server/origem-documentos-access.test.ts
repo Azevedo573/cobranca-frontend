@@ -23,6 +23,12 @@ vi.mock("./boleto-pdf", async (original) => ({ ...await original<typeof import("
 vi.mock("./db-configuracao-boleto", async (original) => ({ ...await original<typeof import("./db-configuracao-boleto")>(), getConfiguracaoBoleto: mocks.config }));
 vi.mock("./storage", () => ({ storagePut: mocks.storage }));
 vi.mock("./audit", async (original) => ({ ...await original<typeof import("./audit")>(), logAudit: mocks.audit }));
+// Esta suíte isola origem documental/tenancy. A nova guarda bancária com locks
+// e evidências é exercitada integralmente em btg-canais-cnab*.test.ts.
+vi.mock("./btg-canais-cnab", async (original) => ({
+  ...await original<typeof import("./btg-canais-cnab")>(),
+  validarReapresentacaoBoletoCnab: vi.fn().mockResolvedValue(undefined),
+}));
 import { appRouter } from "./routers";
 import { montarOrigemDividaAcordo } from "./origem-divida-acordo";
 

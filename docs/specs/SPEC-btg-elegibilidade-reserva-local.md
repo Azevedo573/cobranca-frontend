@@ -1,6 +1,6 @@
 # Especificação — API BTG principal, CNAB alternativo e reserva local
 
-Status: proposta técnica revisada para aprovação em 06/11/2026. O usuário definiu às 15:16:26 que deseja poder enviar cobranças por API ou CNAB e que a API seja a forma principal. Base produtiva de referência `4d47413a`; caso de teste: acordo #5/parcela #19. Não há implementação, migração, reclassificação ou emissão autorizada nesta revisão documental.
+Status: implementação técnica concluída e validada no desenvolvimento em 06/11/2026, após aprovação às 15:19:17. O usuário definiu às 15:16:26 que deseja poder enviar cobranças por API ou CNAB e que a API seja a forma principal. Base produtiva de referência `4d47413a`; caso de teste: acordo #5/parcela #19. A autorização inclui schema aditivo e testes no desenvolvimento, mas não reclassificação de registros reais, emissão ou deploy na VPS.
 
 ## Resumo da Demanda
 
@@ -152,8 +152,16 @@ Reversão preserva os dados e históricos; não restaurar dump antigo sobre tran
 
 ## Pendências para Validação
 
-A preferência API principal/CNAB alternativo foi definida pelo usuário. Falta aprovar este corte técnico com rastreabilidade/colunas aditivas e confirmação administrativa das reservas atuais. O administrador ainda deverá conferir o título #19 antes de qualquer confirmação real. Verificar cadastro/entrega real do webhook separadamente.
+A preferência API principal/CNAB alternativo e o corte técnico foram implementados e testados no desenvolvimento; o checklist está em `tasks/plan-btg-canais-api-cnab.md`. Permanecem externos: autorização e atualização da VPS com backup/migration 0100, conferência do título #19 antes da confirmação real e homologação bancária/entrega do webhook. Fixtures não comprovam registro, distribuição ou pagamento real.
 
 ## Próximos Passos
 
-Aprovar a proposta revisada e gerar plano/checklist técnico; implementar e validar no desenvolvimento, sem emissões ou reclassificações reais. Depois entregar checkpoint pelo GitHub e orientar atualização manual da VPS. Confirmação da parcela #19 e primeira emissão permanecem ações separadas, explícitas e revisadas.
+Entregar o checkpoint validado pelo GitHub e seguir o manual `docs/btg-api-principal-cnab-operacao.md`. Orientar atualização manual da VPS somente após solicitação. Confirmação da parcela #19 e primeira emissão permanecem ações separadas, explícitas e revisadas.
+
+## Registro da implementação e validação
+
+Migration `0100_organic_guardsmen.sql`: dois ADD COLUMN nullable, revisados e aplicados somente no desenvolvimento, sem backfill. Política em `shared/btg-canais.ts`; locks/consulta de emissões e auditoria em `server/btg-canais.ts`; confirmação em `btgCanais.situacaoAcordo`/`confirmarReservaLocal`; CNAB e legado em `server/btg-canais-cnab.ts`, com guarda de reapresentação de PDF que impede fabricar boleto local para reserva livre ou API.
+
+API v2 reutiliza registros canônicos idempotentes, reserva o canal junto à emissão e revalida antes do POST. CNAB reserva o lote antes dos efeitos e revalida contexto/valores após geração; mantém evidência do arquivo e reserva em erro. Criação registra numeração local sem canal/emissão. API é principal na interface; CNAB usa a gestão existente com filtros por acordo/condomínio, seleção válida e confirmação. A fila API retorna o número atual esperado para confirmação, sem consulta auxiliar por cartão.
+
+Validação em 06/11/2026: **1227 testes aprovados e 1 externo opt-in ignorado**, TypeScript, build e diff sem erros. Componentes reais de situação/confirmação inspecionados com dados fictícios isolados e callbacks sem backend. Disputas entre canais e falhas exercitadas em memória, não em InnoDB/BTG reais. Sem deploy, confirmação da parcela #19, emissão real ou mudanças de credenciais nesta evolução.

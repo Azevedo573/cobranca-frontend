@@ -177,6 +177,11 @@ export const btgRouter = router({
 
       if (!cobrancaRows.length) throw new Error("Cobrança não encontrada");
       const cobranca = cobrancaRows[0];
+      // A dívida em acordo é encaminhada exclusivamente por suas parcelas.
+      // Não migrar o emissor avulso nem permitir usá-lo como bypass do canal.
+      if (cobranca.status === "em_acordo") {
+        throw new Error("Cobrança formalizada em acordo: utilize as parcelas e a revisão de canal bancário.");
+      }
 
       // Verificar se já tem boleto BTG ativo
       if (cobranca.btgCollectionId && cobranca.btgStatus && !["CANCELED", "EXPIRED"].includes(cobranca.btgStatus)) {
@@ -286,7 +291,7 @@ export const btgRouter = router({
       payerState: z.string().optional(),
       payerZipCode: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco não disponível");
 
@@ -307,6 +312,8 @@ export const btgRouter = router({
 
       if (!acordoRows.length) throw new Error("Acordo não encontrado");
       const acordo = acordoRows[0];
+      const { assertAcordoAcessivel } = await import("../tenant-guard");
+      await assertAcordoAcessivel(ctx.user, acordo.id);
 
       const devedorRows = await db.select().from(devedores)
         .where(eq(devedores.id, acordo.devedorId))
@@ -356,10 +363,15 @@ export const btgRouter = router({
           : 2.0,
       });
 
+      const { reservarParcelaParaEmissorLegado } = await import("../btg-canais-cnab");
+      await reservarParcelaParaEmissorLegado(ctx, parcela, acordo.condominioId);
+      // O contrato OAuth/payload permanece legado. Reserva já comitada impede
+      // corrida com API/CNAB e permanece bloqueada em timeout ou erro externo.
       const resultado = await criarCobrancaBtg(payload);
 
       await db.update(parcelasAcordo)
         .set({
+          nossoNumeroOrigem: parcela.nossoNumero ? "legado" : parcela.nossoNumeroOrigem,
           btgCollectionId: resultado.collectionId,
           btgBankSlipUrl: resultado.bankSlipUrl ?? null,
           btgPixQrCode: resultado.pixQrCode ?? null,

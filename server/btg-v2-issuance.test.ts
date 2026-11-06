@@ -29,7 +29,7 @@ describe("BTG v2 — proteção de emissão", () => {
     expect(avaliarElegibilidadeParcelaAcordoBtgV2({
       status: "pendente",
       btgEmissaoV2Existente: true,
-    })).toEqual({ elegivel: false, motivo: "Parcela já vinculada a uma remessa CNAB, boleto legado ou emissão BolePix" });
+    })).toEqual({ elegivel: false, motivo: "Parcela já reservada ou registrada na API BTG; revise a emissão existente", codigo: "api_vinculada", confirmarReservaDisponivel: false });
   });
 
   it("mantém a idempotência por origem e ambiente, independentemente do identificador retornado pelo Sandbox", () => {
