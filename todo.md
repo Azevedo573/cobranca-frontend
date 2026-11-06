@@ -3013,3 +3013,15 @@ Registro: `docs/ocorrencias/OCORRENCIA-btg-bolepix-http400-2026-11-06.md`. Usuá
 - [ ] Verificar situação bancária e autorizar separadamente eventual recuperação financeira da emissão #1; não liberar a reserva como efeito da correção de código.
 
 Não apagar reserva, mudar revisão/canal/externalId, alterar valores/datas, cancelar título ou presumir ausência de cobrança pela ausência de Collection ID local.
+
+## Operação VPS — correção BolePix/documento e diagnóstico (06/11/2026)
+
+- [x] Atualização autorizada às16:55:03; backupnovo confirmado em /var/backups/cobranca/btg-manual-2026-11-06-171155-sc6CjF.
+- [x] Código pelo GitHub atualizado para73cdeb56; nenhuma migration/dependência/credencial alterada.
+- [x] TypeScript/build/leitura por cobranca aprovados no candidato .build-bolepix-kP9G9B/dist às17:23:02.
+- [x] Primeiro bloco de ativação colado incompleto; diagnóstico às17:28:00 mostrou buildsoriginais/PM2online/HTTP200. Sem repetição àscegas.
+- [x] Troca reversível do dist/reinício somentecobranca efetuados com blocomenor; anterior preservado no caminho do backup/build-anterior-dir.txt.
+- [x] Confirmação do usuário às17:30:49: código73cdeb56, HTTP200local/HTTPS, PM2online/PID1283245/uptime71s/reinícios14 estáveis.
+- [x] Manual/especificação/ocorrência/plano atualizados como registro documental da implantação; não requer novo pull/build/restart.
+
+A disponibilidade da aplicação não homologa BolePix/webhook nem confirma inexistência da cobrança. Nenhuma emissão foi recuperada/cancelada/reenviada ou canal/revisão alterado por estes roteiros. A investigação/recuperação da emissão #1 permanece nas pendências financeiras anteriores; não limpar a reserva ou usar CNAB como contorno.

@@ -1,6 +1,6 @@
 # Especificação — documento BolePix e diagnóstico protegido
 
-Status: aprovada pelo usuário em 06/11/2026 às 16:38:30 para implementação e testes no desenvolvimento. Origem: HTTP 400 da emissão #1, parcela #19 do acordo #5. Sem autorização de reenvio, recuperação da reserva ou novo deploy na VPS.
+Status: aprovada pelo usuário em 06/11/2026 às 16:38:30 para implementação e testes no desenvolvimento; concluída no checkpoint `73cdeb56`. Implantação na VPS autorizada às 16:55:03 e confirmada com HTTP200 local/HTTPS e PM2 online às 17:30:49. Origem: HTTP400 da emissão #1, parcela #19 do acordo #5. Sem autorização de reenvio ou recuperação financeira da reserva.
 
 ## Objetivo
 
@@ -23,7 +23,7 @@ Backend Collections v2, montagem/validação do payload, mensagem segura nas tel
 
 ## Fora do escopo
 
-Reenviar emissão #1, limpar sua reserva, mudar revisão/externalId/canal, migrar títulos, cancelar cobrança, gerar CNAB como alternativa de erro, alterar valores/datas/snapshots, mudar conta/CNPJ/credenciais/OAuth/webhook ou implantar na VPS. Não recriar título para descobrir o erro. A melhoria não recupera retrospectivamente a resposta já descartada.
+Reenviar emissão #1, limpar sua reserva, mudar revisão/externalId/canal, migrar títulos, cancelar cobrança, gerar CNAB como alternativa de erro, alterar valores/datas/snapshots ou mudar conta/CNPJ/credenciais/OAuth/webhook. A implantação na VPS ficou fora da autorização inicial e foi autorizada/concluída posteriormente em etapa separada com backup/build/troca reversível. Não recriar título para descobrir o erro. A melhoria não recupera retrospectivamente a resposta já descartada.
 
 ## Identificadores e compatibilidade
 
@@ -67,7 +67,7 @@ Rollback de código mantém dados existentes e reserva/canal protegidos; não re
 
 Helpers de geração/limites e diagnóstico protegido integrados ao emissor/cliente, sem alterar externalId/chave/valores/datas/conta/canal canônico. Resultado e auditoria administrativa preservam apenas diagnóstico permitido. Sem schema/migration/dependências ou credenciais alterados. A canônica #1 incerta foi exercitada em fixture sem nenhuma escrita ou POST. Em Produção, o erro original continua sem corpo recuperável pelo código anterior.
 
-Depois, mediante solicitação, planejar deploy específico e diagnóstico/recuperação da emissão #1 em etapas separadas. A VPS permanece 5756c31b e o envio real continua dependendo de revisão e confirmação do usuário.
+VPS atualizada para `73cdeb56` com backup em `/var/backups/cobranca/btg-manual-2026-11-06-171155-sc6CjF`, sem migration ou reenvio; build anterior preservado. Próximo passo: diagnóstico/recuperação da emissão #1 em etapa financeira separada, baseada na situação bancária e confirmação explícita do usuário. O registro documental desse deploy não exige nova atualização de código na VPS.
 
 ## Referências
 

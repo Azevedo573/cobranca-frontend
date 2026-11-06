@@ -90,11 +90,13 @@ Depende da identificação da tentativa e de leitura dos registros da VPS; event
 
 # Pendências para Validação
 
-Identificação, valor e estado local confirmados para acordo #5/parcela #19/emissão #1. Contrato BolePix conferido e violação de `documentNumber` comprovada. Implementação técnica e validação completa concluídas. Permanecem exclusivamente externas: implantação futura da correção na VPS; retorno original específico do BTG, se disponível no banco; situação do título sem nova emissão; decisão autorizada de recuperação da tentativa #1.
+Identificação, valor e estado local confirmados para acordo #5/parcela #19/emissão #1. Contrato BolePix conferido e violação de `documentNumber` comprovada. Implementação técnica, validação completa e implantação posterior autorizada concluídas. Usuário confirmou `73cdeb56`, HTTP200 local/HTTPS e PM2 online às 17:30:49. Backup `/var/backups/cobranca/btg-manual-2026-11-06-171155-sc6CjF`; build candidato `.build-bolepix-kP9G9B/dist`, com anterior preservado. O bloco inicial incompleto foi diagnosticado antes de troca/reinício com bloco reduzido.
+
+Permanecem exclusivamente externas: retorno original específico do BTG, se disponível no banco; situação do título sem nova emissão; decisão autorizada de recuperação da tentativa #1. Disponibilidade HTTP não demonstra registro/ausência da cobrança no BTG. Nenhum estado financeiro foi alterado ou relido pelo agente durante a ativação.
 
 # Próximos Passos
 
-Salvar a correção validada no GitHub. Depois, somente mediante solicitação, preparar atualização da VPS com backup, build e troca reversível, sem migration ou reenvio automático. Manter a parcela e a emissão existentes bloqueadas até esclarecer a situação bancária e planejar sua recuperação separadamente. Não obter o diagnóstico repetindo POST financeiro. A instrumentação nova não recupera retrospectivamente o corpo descartado.
+Manter a parcela e a emissão existentes bloqueadas até esclarecer a situação bancária e planejar sua recuperação separadamente. Não obter o diagnóstico repetindo POST financeiro. A instrumentação nova não recupera retrospectivamente o corpo descartado. A atualização documental posterior à ativação não exige outra implantação; a VPS fica na versão de código já instalada.
 
 ## Referências
 

@@ -21,3 +21,13 @@ Payload/emissor e integração de resultado; helper HTTP/cliente com testes de p
 ## Limites externos
 
 Emissão real #1 permanece incerta e protegida. A situação bancária, eventual recuperação, atualização da VPS e nova tentativa financeira exigem etapas separadas. A melhoria não recupera retroativamente o corpo descartado. Testes usaram respostas HTTP/bancos simulados; nenhuma conta/pagador/título real foi criado ou modificado.
+
+## Implantação posterior autorizada — 06/11/2026
+
+- [x] Usuário autorizou atualização da VPS às 16:55:03, sem recuperação/reenvio da emissão #1.
+- [x] Backup novo confirmado em `/var/backups/cobranca/btg-manual-2026-11-06-171155-sc6CjF`; código via GitHub em `73cdeb56`.
+- [x] TypeScript/build/permissões confirmados no candidato `.build-bolepix-kP9G9B/dist` às 17:23:02, com dist ativo preservado.
+- [x] Bloco de ativação incompleto diagnosticado por leitura antes de retomar; troca reversível/reinício da aplicação com bloco reduzido.
+- [x] Usuário confirmou HTTP200 local/HTTPS, código73cdeb56 e PM2online/PID1283245/uptime71s/reinícios14 às 17:30:49.
+
+A implantação citada como etapa separada acima foi concluída. A emissão #1, situação bancária, decisão de recuperação e eventual novo envio continuam pendentes e não foram autorizados por esta atualização. Somente registro documental neste complemento; sem novo deploy.
