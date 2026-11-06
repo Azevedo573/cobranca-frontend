@@ -72,6 +72,23 @@ function requiredText(value: string | null | undefined, label: string): string {
   return normalized;
 }
 
+function limitedText(value: string | null | undefined, label: string, maxLength: number): string {
+  const normalized = requiredText(value, label);
+  if (Array.from(normalized).length > maxLength) {
+    throw new BtgV2BolePixError(`${label} deve ter no máximo ${maxLength} caracteres para emitir BolePix.`);
+  }
+  return normalized;
+}
+
+/** Referência documental, distinta do nosso número e da chave idempotente. */
+export function gerarDocumentoParcelaBtgV2(parcelaId: number, revisao = 1): string {
+  if (!Number.isSafeInteger(parcelaId) || parcelaId <= 0 || !Number.isSafeInteger(revisao) || revisao <= 0) {
+    throw new BtgV2BolePixError("A parcela e a revisão precisam ser inteiros positivos válidos para o documento BolePix.");
+  }
+  // Não cortar IDs: truncamento pode fazer duas parcelas compartilharem referência.
+  return limitedText(`PA${parcelaId}R${revisao}`, "O número do documento", 15);
+}
+
 function validarEndereco(input: BtgV2BolePixPayloadInput["payer"]["address"]) {
   const street = input.street?.trim();
   const number = input.number?.trim();
@@ -83,6 +100,11 @@ function validarEndereco(input: BtgV2BolePixPayloadInput["payer"]["address"]) {
   if (!street || !number || !neighborhood || !city || !state || state.length !== 2 || zipCode.length !== 8) {
     throw new BtgV2BolePixError("O pagador precisa ter endereço completo para emissão BolePix.");
   }
+
+  limitedText(street, "O logradouro do pagador", 40);
+  limitedText(number, "O número do endereço do pagador", 10);
+  limitedText(neighborhood, "O bairro do pagador", 20);
+  limitedText(city, "A cidade do pagador", 50);
 
   const complement = input.complement?.trim();
   return {
@@ -121,9 +143,9 @@ export function montarPayloadBolePixV2(input: BtgV2BolePixPayloadInput): BtgV2Bo
     description: requiredText(input.description, "A descrição").slice(0, 300),
     account: { branch: agencia, number: numero },
     detail: {
-      documentNumber: requiredText(input.documentNumber, "O número do documento"),
+      documentNumber: limitedText(input.documentNumber, "O número do documento", 15),
       externalId: requiredText(input.externalId, "O identificador externo"),
-      correlationId: requiredText(input.correlationId, "O identificador de correlação"),
+      correlationId: limitedText(input.correlationId, "O identificador de correlação", 20),
     },
     payer: {
       name,

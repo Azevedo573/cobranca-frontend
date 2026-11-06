@@ -12,6 +12,7 @@ import { executarRemessaBtgV2, listarFilaRemessaBtgV2 } from "./btg-v2/remessas"
 import { bloquearParcelasParaCanal, exigirParcelaLivreParaCanal } from "./btg-canais";
 import { eq } from "drizzle-orm";
 import { parcelasAcordo } from "../drizzle/schema";
+import { BtgV2HttpError } from "./btg-v2/errors";
 
 /** Fixture local: interpreta somente eq/and/inArray usados nesta frente e serializa commits. */
 function criarDbApiEmMemoria(initial: Record<string, any[]>) {
@@ -139,6 +140,9 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     expect(state.locks.indexOf("btgContaRecebedoraCondominios:update")).toBeLessThan(state.locks.indexOf("parcelasAcordo:update"));
     expect(mocks.bank).toHaveBeenCalledTimes(1);
     expect(mocks.bank.mock.calls[0][0].account).toEqual({ branch: "0050", number: "0003081850" });
+    expect(mocks.bank.mock.calls[0][0].detail).toEqual({
+      documentNumber: "PA19R1", externalId: "v2:sbx:parcela_acordo:19:r1", correlationId: "btgv2-100",
+    });
     expect(JSON.stringify(mocks.bank.mock.calls[0][0])).not.toMatch(/reserva_local|api_btg_v2|1000000018|nossoNumeroOrigem|canalBancario/);
     await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ jaExistia: true, collectionId: "collection-fixture" });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
@@ -161,6 +165,16 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
   it.each(["reservada", "enviando", "incerta", "falha", "emitida", "paga", "cancelada", "expirada"])("reutiliza canônica %s apesar do próprio canal, sem POST", async status => {
     const { db, state } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [canonica({ status })] });
     await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ id: 100, status, jaExistia: true, collectionId: "canonical-collection" });
+    expect(state.writes).toEqual([]);
+    expect(mocks.bank).not.toHaveBeenCalled();
+  });
+
+  it("correção documental não altera nem reenvia a canônica #1 incerta sem Collection ID", async () => {
+    const registro = canonica({ id: 1, btgCollectionId: null, erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
+    const { db, state } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [registro] });
+    const antes = structuredClone(state.tables);
+    await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ id: 1, status: "incerta", jaExistia: true, collectionId: null });
+    expect(state.tables).toEqual(antes);
     expect(state.writes).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
   });
@@ -193,6 +207,27 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
     expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({ status: "incerta", erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
     await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ status: "incerta", jaExistia: true });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+  });
+
+  it("retorna diagnóstico HTTP sanitizado por parcela e conserva reserva/canal incertos", async () => {
+    const { db, state } = setup();
+    mocks.bank.mockRejectedValue(new BtgV2HttpError({
+      httpStatus: 400, camposInvalidos: ["detail.documentNumber"],
+      motivos: ["O número do documento excede o limite permitido"],
+    }));
+    const resultado = await emitirParcelasAcordoBtgV2({ db, acordoId: 5, parcelaIds: [19] });
+    expect(resultado.resultados[0]).toMatchObject({
+      parcelaId: 19, resultado: "falha", diagnosticoHttp: {
+        httpStatus: 400, camposInvalidos: ["detail.documentNumber"],
+        motivos: ["O número do documento excede o limite permitido"],
+      },
+    });
+    expect(resultado.resultados[0].mensagem).toContain("HTTP 400");
+    expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({ status: "incerta", erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
+    expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+    await emitirBolePixV2({ db, parcelaId: 19 });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
 
@@ -337,6 +372,23 @@ describe("API BTG — contexto de remessa", () => {
     const { db, state } = setup({ btgRemessas: [lote()], btgRemessaItens: [item()] });
     await expect(executarRemessaBtgV2({ db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({ status: "processada", totalEmitido: 1 });
     expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({ btgRemessaId: 50, condominioId: 2 });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+  });
+  it("persiste mensagem protegida de HTTP400 no item e resumo sem liberar o canal", async () => {
+    const { db, state } = setup({ btgRemessas: [lote()], btgRemessaItens: [item()] });
+    mocks.bank.mockRejectedValue(new BtgV2HttpError({
+      httpStatus: 400, camposInvalidos: ["detail.documentNumber", "CPF-NAO-EXIBIR"],
+      motivos: ["O número do documento excede o limite permitido", "TOKEN-NAO-EXIBIR"],
+    }));
+    await expect(executarRemessaBtgV2({ db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({ status: "falha", totalFalha: 1 });
+    const mensagem = state.tables.btgRemessaItens[0].mensagem;
+    expect(mensagem).toContain("HTTP 400");
+    expect(mensagem).toContain("detail.documentNumber");
+    expect(mensagem.length).toBeLessThanOrEqual(500);
+    expect(state.tables.btgRemessas[0].erroResumo).toContain("HTTP 400");
+    expect(JSON.stringify(state.tables)).not.toMatch(/CPF-NAO-EXIBIR|TOKEN-NAO-EXIBIR/);
+    expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
+    expect(state.tables.btgCobrancasEmitidas[0].status).toBe("incerta");
     expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
   it.each([{ condominioId: 3 }, { btgIntegracaoId: 99 }, { btgContaRecebedoraId: 16 }])("não usa lote de contexto divergente para obter/emissão de parcela: %j", async patch => {

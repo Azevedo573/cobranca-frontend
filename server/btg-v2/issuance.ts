@@ -12,12 +12,13 @@ import {
   parcelasAcordo,
 } from "../../drizzle/schema";
 import { criarBolePixBtgV2 } from "./client";
-import { montarPayloadBolePixV2 } from "./bolepix";
+import { gerarDocumentoParcelaBtgV2, montarPayloadBolePixV2 } from "./bolepix";
 import { BtgV2ConfigurationError, getBtgV2ServerConfig, validarVinculoContaRecebedora, validarContaRecebedoraParaAmbiente, validarIntegracaoRuntimeBtg } from "./config";
 import { getStatusOAuthBtg } from "../btg-oauth";
 import { bloquearIntegracaoBtg } from "./manual-producao";
 import { bloquearParcelasParaCanal, idsComEmissaoV2 } from "../btg-canais";
 import { avaliarElegibilidadeCanalParcela, type EstadoBancarioParcela } from "../../shared/btg-canais";
+import { obterDiagnosticoHttpBtg, type BtgV2DiagnosticoHttp } from "./errors";
 
 export { BtgV2ConfigurationError } from "./config";
 
@@ -204,6 +205,7 @@ export interface BtgV2ResultadoEmissaoParcelaAcordo {
   installmentNumber: number;
   resultado: "simulada" | "emitida" | "ja_existia" | "falha";
   mensagem: string;
+  diagnosticoHttp?: BtgV2DiagnosticoHttp;
   emissao?: BtgV2EmissaoResultado;
 }
 
@@ -237,11 +239,13 @@ export async function emitirParcelasAcordoBtgV2(input: {
         emissao,
       });
     } catch (error) {
+      const diagnosticoHttp = obterDiagnosticoHttpBtg(error);
       resultados.push({
         parcelaId: parcela.id!,
         installmentNumber: parcela.installmentNumber ?? 0,
         resultado: "falha",
         mensagem: error instanceof Error ? error.message : "Não foi possível simular esta parcela no BTG.",
+        ...(diagnosticoHttp ? { diagnosticoHttp } : {}),
       });
     }
   }
@@ -550,7 +554,7 @@ export async function emitirBolePixV2(input: {
       overDueDate: calcularDataLimiteBtgV2(origem.dueDate, integracao.diasLimitePagamento),
       description: integracao.instrucoes?.trim() || origem.description,
       externalId,
-      documentNumber: `${origemTipo}-${parcelaId}-R1`.slice(0, 100),
+      documentNumber: gerarDocumentoParcelaBtgV2(parcelaId, reserva.revisao),
       correlationId: `btgv2-${reserva.id}`,
       account: { agencia: accountRow.conta.agencia, numero: accountRow.conta.numero },
       payer: {

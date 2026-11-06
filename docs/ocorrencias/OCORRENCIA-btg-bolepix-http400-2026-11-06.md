@@ -12,7 +12,7 @@ BTG v2 Collections — emissão BolePix por parcela de acordo na VPS. O contrato
 
 # Comportamento Atual
 
-`server/btg-v2/client.ts`, função `criarBolePixBtgV2`, faz POST Collections e, quando `response.ok` é falso, lança somente uma mensagem com `response.status`, sem ler o corpo ou os identificadores de resposta. Não há captura do motivo específico do HTTP 400 nesse caminho.
+Na versão da VPS `5756c31b`, `server/btg-v2/client.ts`, função `criarBolePixBtgV2`, fazia POST Collections e, quando `response.ok` era falso, lançava somente uma mensagem com `response.status`, sem ler o corpo ou os identificadores de resposta. A correção aprovada às 16:38:30 foi implementada no desenvolvimento: documento compacto, limites de payload e diagnóstico HTTP protegido. A VPS e sua tentativa existente não foram alteradas nesta implementação.
 
 Em `server/btg-v2/issuance.ts`, falhas no bloco de montagem/envio/persistência são tratadas conservadoramente como `incerta`, com `erroCodigo=EMISSAO_SEM_CONFIRMACAO`. A consulta da VPS confirmou esse estado para emissão #1, revisão 1, ambiente Produção, sem Collection ID local. Valor persistido: 1123 centavos (R$ 11,23); vencimento exibido pela consulta: 06/11/2026. A parcela #19 permanece pendente, com origem `reserva_local`, canal `api_btg_v2` e número `1000000018` preservado. Item #1 da remessa #1 registra `falha` e HTTP 400.
 
@@ -48,17 +48,19 @@ A emissão #1 está bloqueada localmente como incerta, sem Collection ID. Ausên
 
 Tentativa e dados mínimos identificados por SELECT. Próximo passo: confrontar campos do payload com a variante específica BolePix e, se houver histórico/apoio bancário disponível, obter o retorno original pelos identificadores existentes, sem novo POST. Não há motivo bancário completo persistido no cliente, emissão ou mensagem de item consultados.
 
-Proposta específica em `docs/specs/SPEC-btg-bolepix-documento-diagnostico.md`: documento compacto determinístico como `PA19R1`, validação ≤15, limites oficiais de correlação/endereço e captura protegida de futuros erros 400, que podem conter `reason`/`invalidParams`. Nunca exibir o `value` desses parâmetros ou corpo integral. Preservar número local, externalId, chave idempotente, parcela/valor/datas e a reserva incerta. Nenhum código foi modificado nesta etapa; a implementação está proposta para aprovação e não autoriza recuperar/reemitir a tentativa #1. [3]
+Implementação da especificação aprovada `docs/specs/SPEC-btg-bolepix-documento-diagnostico.md`: documento compacto determinístico `PA{id}R{revisão}`, validação ≤15, correlação ≤20 e limites de endereço sem truncamento. O helper `server/btg-v2/errors.ts` lê erros em streaming até 32 KiB e 5 segundos, descarta corpo original e mantém somente campos/motivos reconhecidos de `reason`/`invalidParams`, códigos fixos e requestId UUID permitido. Valores inválidos, BRN arbitrário, dados do pagador, HTML e segredos não são repassados. Mensagem ≤500 caracteres, sem retry. [3]
+
+Diagnóstico opcional por parcela é preservado no resultado administrativo; a mensagem limitada permanece em itens de remessa e o diagnóstico é revalidado independentemente na auditoria existente. As telas existentes renderizam a mensagem como texto React. Nenhuma migration, nova credencial ou concessão foi necessária. O nosso número, externalId, chave idempotente, origem/valor/datas/conta e reserva incerta permanecem preservados; não houve recuperação/reenvio da tentativa #1.
 
 # Regra Atual e Regra Corrigida
 
-Regra atual: erro HTTP vira mensagem genérica; falha de emissão mantém reserva/canal incertos. Regra proposta de diagnóstico: conservar informações seguras para investigação, sem alterar a proibição de reenvio/fallback. Não interpretar HTTP 400 isolado como autorização para liberar a parcela.
+Regra anterior: identificador documental longo e erro HTTP somente genérico; falha mantém reserva/canal incertos. Regra corrigida: documento compacto e validado, captura protegida de campos/motivos conhecidos e fallback genérico para respostas desconhecidas/ilegíveis. A proibição de reenvio/fallback e a política canônica de falha continuam iguais. Não interpretar HTTP 400 isolado como autorização para liberar a parcela.
 
 # Alterações Técnicas Necessárias
 
-Frontend: exibir motivo sanitizado e identificador de suporte quando disponíveis. Backend: ler corpo de erro com limite de tamanho, sanitização/allowlist e fallback para texto não JSON; preservar código HTTP e evitar impressão de cabeçalhos/payload.
+Frontend: a tela existente já renderiza a mensagem protegida como texto React, sem HTML bancário ou alteração de fluxo. Backend: leitura de erro limitada, allowlist de campos/frases, fallback defensivo e preservação do HTTP; nenhum cabeçalho/payload integral é impresso. A integração também mantém GET/DELETE e sucesso 204 de cancelamento inalterados, sem executar essas operações reais nos testes.
 
-Banco: avaliar persistência mínima somente após definição de contrato; nenhum DDL/DML foi executado. Integração: confirmar a forma específica BolePix oficial antes de alterar qualquer campo. A resposta já descartada não pode ser recuperada retroativamente do cliente atual.
+Banco: sem migração/DDL/DML real; itens/resumo de remessa e auditoria existentes mantêm diagnóstico permitido para erros futuros. Integração: documento compactado e limites oficiais validados; externalId/chave/payload financeiro preservados. A resposta já descartada não pode ser recuperada retroativamente do cliente anterior.
 
 # Correção de Dados Existentes
 
@@ -71,6 +73,8 @@ Preservar tentativa, identificadores locais, status e horários. Registrar event
 # Plano de Testes
 
 Simular erros 400/422/500, corpo JSON/não JSON/vazio e falha de leitura; garantir limite/redação de segredos/dados pessoais, fallback seguro e ausência de retry. Simular resposta de criação aceita seguida de falha local para preservar `incerta`. Regressões de reserva, RBAC/carteira, idempotência e bloqueio recíproco API/CNAB. Nenhum teste financeiro real para obter um erro mais detalhado.
+
+Resultado definitivo no desenvolvimento: 188 testes específicos em 7 arquivos; suíte serial com 1343 testes aprovados e 1 externo opt-in ignorado (92 arquivos aprovados/1 ignorado). TypeScript, build e diff aprovados, HTTP200 local. Cobertura inclui erro literal documentado, limites textuais/Unicode, JSON/UTF-8 inválido, 32KiB exatos/excesso, prazo global de 5s, cancelamento pendente, getter/proxy hostil, UUID com documento embutido, dados pessoais sem dígitos, ausência de retry e preservação de canônica incerta sem Collection ID. Auditoria administrativa é testada com mocks e não-admin bloqueado; não há nova autorização de dados nem teste de emissão autenticada real.
 
 # Plano de Reversão
 
@@ -86,11 +90,11 @@ Depende da identificação da tentativa e de leitura dos registros da VPS; event
 
 # Pendências para Validação
 
-Identificação, valor e estado local confirmados para acordo #5/parcela #19/emissão #1. Contrato BolePix conferido e violação de `documentNumber` comprovada. Permanecem pendentes: aprovação/implementação/testes da proposta; retorno original específico do BTG, se recuperável no banco; situação do título sem nova emissão; decisão de recuperação da tentativa #1.
+Identificação, valor e estado local confirmados para acordo #5/parcela #19/emissão #1. Contrato BolePix conferido e violação de `documentNumber` comprovada. Implementação técnica e validação completa concluídas. Permanecem exclusivamente externas: implantação futura da correção na VPS; retorno original específico do BTG, se disponível no banco; situação do título sem nova emissão; decisão autorizada de recuperação da tentativa #1.
 
 # Próximos Passos
 
-Obter aprovação da correção documental e do diagnóstico protegido no desenvolvimento. Manter a parcela e a emissão existentes bloqueadas até esclarecer a situação bancária e planejar sua recuperação separadamente. Não obter o diagnóstico repetindo POST financeiro. A instrumentação nova não recupera retrospectivamente o corpo descartado.
+Salvar a correção validada no GitHub. Depois, somente mediante solicitação, preparar atualização da VPS com backup, build e troca reversível, sem migration ou reenvio automático. Manter a parcela e a emissão existentes bloqueadas até esclarecer a situação bancária e planejar sua recuperação separadamente. Não obter o diagnóstico repetindo POST financeiro. A instrumentação nova não recupera retrospectivamente o corpo descartado.
 
 ## Referências
 

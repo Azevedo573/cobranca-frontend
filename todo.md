@@ -3005,8 +3005,11 @@ Registro: `docs/ocorrencias/OCORRENCIA-btg-bolepix-http400-2026-11-06.md`. Usuá
 - [x] Contrato oficial Collections consultado; HTTP 400 isolado não determina o campo ou a causa. Nenhuma chamada BTG realizada nesta investigação.
 - [x] Acordo/parcela/tentativa e estado canônico identificados por consulta restrita fornecida pelo usuário; idempotência e reservas preservadas.
 - [x] Schema específico BolePix conferido no asset oficial: documentNumber obrigatório com maxLength15; payload atual parcela_acordo-19-R1 possui20 caracteres. Violação comprovada, sem afirmar causa exclusiva do 400 descartado.
-- [ ] Aprovar/implementar/testar documento compacto determinístico e captura protegida de erros no desenvolvimento, sem alteração ou reenvio da emissão #1.
-- [ ] Obter motivo bancário seguro e definir melhoria de diagnóstico, sem repetir POST ou trocar para CNAB.
+- [x] Correção/testes aprovados às 16:38:30 exclusivamente no desenvolvimento. Plano: `tasks/plan-btg-bolepix-documento-diagnostico.md`.
+- [x] Gerador PA{id}R{revisão}, limites documentais/correlação/endereço e integração no emissor validados com fixtures; canônica #1 incerta sem Collection ID preservada sem reenvio.
+- [x] Captura HTTP em streaming até32KiB/5s, sanitização por frases/campos/códigos/UUID permitidos, diagnóstico reconhecido/imutável e auditoria independente concluídos. 188 testes específicos; suíte serial1343 aprovados/1 externo opt-in ignorado; TypeScript/build/diff aprovados, HTTP200 desenvolvimento.
+- [x] Ocorrência/especificação/manual/plano atualizados, artefatos completos e preparados para checkpoint pelo GitHub; sem migrations, segredos, valores, reserva ou deploy/VPS alterados.
+- [ ] Etapa externa: obter retorno original específico do BTG, se ainda disponível no banco, sem repetir POST ou trocar para CNAB. Instrumentação nova não recupera corpo antigo descartado.
 - [ ] Verificar situação bancária e autorizar separadamente eventual recuperação financeira da emissão #1; não liberar a reserva como efeito da correção de código.
 
 Não apagar reserva, mudar revisão/canal/externalId, alterar valores/datas, cancelar título ou presumir ausência de cobrança pela ausência de Collection ID local.

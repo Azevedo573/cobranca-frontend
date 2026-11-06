@@ -36,6 +36,64 @@ import { emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2, validarC
 import { executarRemessaBtgV2, listarFilaRemessaBtgV2, obterInsertIdBtgV2, validarSelecaoRemessaBtgV2 } from "../btg-v2/remessas";
 import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
 
+// A auditoria é outra fronteira: nunca copia mensagens, payloads ou propriedades
+// arbitrárias do resultado, mesmo quando o cliente já sanitizou o diagnóstico.
+const CAMPOS_DIAGNOSTICO_AUDIT_BTG = new Set([
+  "amount", "type", "dueDate", "overDueDate", "description",
+  "account.branch", "account.number", "detail.documentNumber", "detail.externalId",
+  "detail.correlationId", "payer.name", "payer.taxId", "payer.personType",
+  "payer.email", "payer.phoneNumber", "payer.address.street",
+  "payer.address.number", "payer.address.complement", "payer.address.neighborhood",
+  "payer.address.city", "payer.address.state", "payer.address.zipCode",
+  "interest.startDate", "interest.type", "interest.value",
+  "fine.startDate", "fine.type", "fine.value",
+  "startDate",
+]);
+const MOTIVOS_DIAGNOSTICO_AUDIT_BTG = new Set([
+  "O BTG não informou um motivo seguro para este erro.",
+  "O número do documento excede o limite permitido",
+  "A data de início dos juros deve ser posterior à data de vencimento",
+  "A data de início dos juros é inválida", "O documento do pagador é inválido",
+  "Há campos inválidos na solicitação.", "Campo obrigatório", "Campo inválido",
+  "Formato inválido", "O valor excede o limite permitido",
+]);
+const CODIGOS_DIAGNOSTICO_AUDIT_BTG = new Set([
+  "BadRequest", "VALIDATION_ERROR", "INVALID_PARAMETER",
+  "UNPROCESSABLE_ENTITY", "INTERNAL_SERVER_ERROR",
+]);
+const diagnosticoAuditBtgSchema = z.object({
+  httpStatus: z.number().int().min(400).max(599),
+  camposInvalidos: z.array(z.unknown()),
+  motivos: z.array(z.unknown()),
+  requestId: z.unknown().optional(),
+  codigo: z.unknown().optional(),
+});
+
+function sanitizarDiagnosticoHttpAuditBtg(value: unknown) {
+  try {
+    const validado = diagnosticoAuditBtgSchema.safeParse(value);
+    if (!validado.success) return null;
+    const diagnostico = validado.data;
+    const filtrar = (valores: unknown[], permitidos: Set<string>) => Array.from(new Set(
+      valores.filter((valor): valor is string => typeof valor === "string" && permitidos.has(valor)),
+    )).slice(0, 5);
+    return {
+      httpStatus: diagnostico.httpStatus,
+      camposInvalidos: filtrar(diagnostico.camposInvalidos, CAMPOS_DIAGNOSTICO_AUDIT_BTG),
+      motivos: filtrar(diagnostico.motivos, MOTIVOS_DIAGNOSTICO_AUDIT_BTG),
+      ...(typeof diagnostico.requestId === "string" && diagnostico.requestId.length === 36
+        && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(diagnostico.requestId)
+        && !/\d{11}/.test(diagnostico.requestId)
+        ? { requestId: diagnostico.requestId } : {}),
+      ...(typeof diagnostico.codigo === "string" && CODIGOS_DIAGNOSTICO_AUDIT_BTG.has(diagnostico.codigo)
+        ? { codigo: diagnostico.codigo } : {}),
+    };
+  } catch {
+    // Um objeto malformado com getter/proxy não deve mudar o estado da emissão.
+    return null;
+  }
+}
+
 function toTrpcError(error: unknown): TRPCError {
   if (error instanceof BtgV2ConfigurationError) {
     return new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
@@ -811,6 +869,11 @@ export const btgV2Router = router({
           acumulado[item.resultado] += 1;
           return acumulado;
         }, { simulada: 0, emitida: 0, ja_existia: 0, falha: 0 });
+        const diagnosticosHttp = resultado.resultados.slice(0, 50).flatMap((item) => {
+          if (!Number.isSafeInteger(item.parcelaId) || !input.parcelaIds.includes(item.parcelaId)) return [];
+          const diagnostico = sanitizarDiagnosticoHttpAuditBtg(item.diagnosticoHttp);
+          return diagnostico ? [{ parcelaId: item.parcelaId, ...diagnostico }] : [];
+        });
         await logAudit(ctx, {
           action: "generate_boleto",
           entity: "acordo",
@@ -822,6 +885,7 @@ export const btgV2Router = router({
             ambiente: config.ambiente,
             parcelasSelecionadas: input.parcelaIds.length,
             ...resumo,
+            ...(diagnosticosHttp.length ? { diagnosticosHttp } : {}),
           },
           severity: "warning",
         });

@@ -1,6 +1,6 @@
 # Especificação — documento BolePix e diagnóstico protegido
 
-Status: proposta para aprovação. Origem: HTTP 400 da emissão #1, parcela #19 do acordo #5, relatado em 06/11/2026. Não implementada, sem novo deploy ou chamada BTG nesta etapa.
+Status: aprovada pelo usuário em 06/11/2026 às 16:38:30 para implementação e testes no desenvolvimento. Origem: HTTP 400 da emissão #1, parcela #19 do acordo #5. Sem autorização de reenvio, recuperação da reserva ou novo deploy na VPS.
 
 ## Objetivo
 
@@ -39,6 +39,10 @@ Validar erros com dados sintéticos que contenham CPF/CNPJ, e-mails, tokens e pa
 
 Arquivos principais: `server/btg-v2/bolepix.ts`, `server/btg-v2/issuance.ts`, `server/btg-v2/client.ts`; testes em `server/*btg*.test.ts`. Usar helpers tipados, mensagens em português, exceções existentes/derivadas compatíveis e funções puras para geração/redação. Preservar contratos das telas e resultados canônicos.
 
+Contrato do helper de erros em `server/btg-v2/errors.ts`: exportar `BtgV2HttpError` derivado de `BtgV2ConfigurationError`, com `diagnostico` já sanitizado, e `obterDiagnosticoHttpBtg(error)` que retorna somente dados de uma instância reconhecida. Tipo `BtgV2DiagnosticoHttp`: `httpStatus:number`, `camposInvalidos:string[]`, `motivos:string[]`, `requestId?:string`, `codigo?:string`. Nenhum campo arbitrário é repassado. `motivos` deve preservar somente frases reconhecidas/seguras ou templates genéricos; nomes de campos precisam de allowlist. Não é suficiente remover apenas dígitos de mensagens bancárias desconhecidas, pois podem conter nomes/endereço/segredos.
+
+Leitura do corpo limitada em streaming a 32 KiB, até 5 segundos na resposta de erro; no máximo cinco campos/motivos reconhecidos e mensagem final até 500 caracteres. Corpo excessivo, pendente ou ilegível é cancelado e usa fallback. GET/DELETE podem usar o mesmo helper defensivo sem mudar URL, parâmetros ou semântica. Diagnóstico opcional de resultado (`diagnosticoHttp`) deriva apenas desse helper e pode ser preservado em auditoria administrativa existente; o cliente/telas não recebem corpo original. Não persistir um payload novo nem modificar a emissão canônica existente.
+
 ## Plano de testes e aceite
 
 - Gerador retorna `PA19R1` e identificadores distintos para parcelas distintas; IDs/revisões inválidos e identificadores >15 são recusados, sem truncamento.
@@ -59,7 +63,11 @@ pnpm build
 
 ## Reversão e próximos passos
 
-Rollback de código mantém dados existentes e reserva/canal protegidos; não restaurar dump antigo. Após aprovação, implementar e validar no desenvolvimento. Depois planejar deploy específico e diagnóstico/recuperação da emissão #1 em etapas separadas. O envio real continua dependendo de revisão e confirmação do usuário.
+Rollback de código mantém dados existentes e reserva/canal protegidos; não restaurar dump antigo. Implementação e validação concluídas no desenvolvimento em 06/11/2026: 188 regressões específicas e suíte completa com 1343 testes aprovados/1 externo opt-in ignorado, TypeScript, build e diff aprovados. Leitura local /login-admin HTTP200; telas não foram exercitadas com emissão autenticada real. Testes de HTTP e banco usam fixtures, não a API BTG ou o banco da VPS.
+
+Helpers de geração/limites e diagnóstico protegido integrados ao emissor/cliente, sem alterar externalId/chave/valores/datas/conta/canal canônico. Resultado e auditoria administrativa preservam apenas diagnóstico permitido. Sem schema/migration/dependências ou credenciais alterados. A canônica #1 incerta foi exercitada em fixture sem nenhuma escrita ou POST. Em Produção, o erro original continua sem corpo recuperável pelo código anterior.
+
+Depois, mediante solicitação, planejar deploy específico e diagnóstico/recuperação da emissão #1 em etapas separadas. A VPS permanece 5756c31b e o envio real continua dependendo de revisão e confirmação do usuário.
 
 ## Referências
 

@@ -5,6 +5,7 @@ import {
   type BtgV2BolePixResponse,
 } from "./bolepix";
 import { BtgV2ConfigurationError, getBtgV2ServerConfig } from "./config";
+import { criarErroHttpBtgV2 } from "./errors";
 
 function getHeaders(accessToken: string, contentType = false): Record<string, string> {
   const config = getBtgV2ServerConfig();
@@ -43,7 +44,7 @@ export async function criarBolePixBtgV2(
   );
 
   if (!response.ok) {
-    throw new BtgV2ConfigurationError(`O BTG recusou a emissão BolePix (HTTP ${response.status}).`);
+    throw await criarErroHttpBtgV2(response, "emissao");
   }
 
   const data: unknown = await response.json();
@@ -79,7 +80,7 @@ export async function consultarCobrancaBtgV2(
     { method: "GET", headers: getHeaders(accessToken) },
   );
   if (!response.ok) {
-    throw new BtgV2ConfigurationError(`O BTG recusou a consulta de cobrança (HTTP ${response.status}).`);
+    throw await criarErroHttpBtgV2(response, "consulta");
   }
 
   const data: unknown = await response.json();
@@ -107,6 +108,6 @@ export async function cancelarCobrancaBtgV2(
     { method: "DELETE", headers: getHeaders(accessToken) },
   );
   if (response.status !== 204) {
-    throw new BtgV2ConfigurationError(`O BTG recusou o cancelamento da cobrança (HTTP ${response.status}).`);
+    throw await criarErroHttpBtgV2(response, "cancelamento");
   }
 }
