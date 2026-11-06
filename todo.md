@@ -2980,3 +2980,19 @@ Usuário aprovou implementar no desenvolvimento às 15:19:17. Fonte: `docs/specs
 - [x] Manual, especificação, plano e handoff atualizados com resultados/limites; artefatos preparados para checkpoint pelo GitHub, sem deploy.
 
 Homologação manual futura: conferir título #19 fora do sistema antes da confirmação real; validar nova parcela/API/CNAB em Produção apenas após solicitação e backup; cadastro/entrega real do webhook e pagamento permanecem independentes dos testes simulados.
+
+## Operação VPS — API principal/CNAB alternativo (06/11/2026)
+
+Atualização autorizada pelo usuário às 15:50:11 e executada manualmente como root, mantendo o fluxo GitHub. Referência: registro posterior em `docs/btg-api-principal-cnab-operacao.md`.
+
+- [x] Backup novo confirmado em `/var/backups/cobranca/btg-canais-2026-11-06-155323-ko7yOH`; aplicação/banco/configuração protegida e commit anterior preservados.
+- [x] Código atualizado para `5756c31b` com fast-forward, sem apagar `.pm2` ou builds temporários locais.
+- [x] Migration 0100 aplicada por provisionador exclusivo; dois ADD COLUMN e estrutura completa confirmados pelo usuário às 16:02:26, sem reclassificar parcela #19 ou alterar títulos.
+- [x] TypeScript/build/leitura por cobranca confirmados às 16:06:35; build candidato `.build-canais-34NFF3/dist`.
+- [x] Ativação reversível/reinício da aplicação informados às 16:13:20 com versão 5756c31b; roteiro verifica HTTP antes de concluir, saídas individuais PM2/curl não enviadas. Build anterior registrado em `build-anterior-dir.txt` no backup.
+- [ ] Conferir a revisão do acordo #5 na interface de Produção sem emitir.
+- [ ] Conferir título #19 no banco/distribuição externa antes de confirmar origem local individualmente.
+- [ ] Revisar primeira parcela/conta/valor/vencimento/ambiente e confirmar explicitamente emissão real API.
+- [ ] Homologar pagamento/webhook e disponibilização dos meios de pagamento, separadamente de envio de mensagem ao devedor.
+
+Este registro não realiza nova implantação, confirmação financeira, cancelamento, mudança de credenciais ou concessão RBAC. Não restaurar dump antigo sobre transações posteriores.

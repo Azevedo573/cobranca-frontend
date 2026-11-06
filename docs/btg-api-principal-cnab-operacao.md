@@ -1,6 +1,6 @@
 # Operação — API BTG principal e CNAB alternativo
 
-Implementação no desenvolvimento aprovada em 06/11/2026 e tecnicamente concluída na mesma data. Este manual não confirma implantação na VPS, emissão bancária, entrega de mensagens ao devedor ou homologação do webhook. Os resultados de testes simulados estão registrados ao final.
+Implementação no desenvolvimento aprovada em 06/11/2026 e tecnicamente concluída na mesma data. A atualização da VPS foi autorizada posteriormente e sua ativação foi informada pelo usuário às 16:13:20. Este manual não confirma emissão bancária, entrega de mensagens ao devedor ou homologação do webhook. Os resultados técnicos e o registro da VPS estão ao final.
 
 ## Escolha do canal
 
@@ -34,11 +34,11 @@ Falha na API, timeout, reserva pendente ou resposta incerta exige revisão do re
 
 Falha na auditoria de confirmação desfaz o marcador dentro da transação. Nenhum erro será interpretado como autorização para enviar uma segunda cobrança.
 
-## Migração futura na VPS — não executada nesta etapa
+## Procedimento de migração 0100 na VPS
 
 A migration `drizzle/0100_organic_guardsmen.sql` acrescenta somente `parcelasAcordo.nossoNumeroOrigem` e `parcelasAcordo.canalBancario`, nullable, sem backfill. Dados antigos continuam null, e vínculos existentes continuam bloqueando nova emissão.
 
-Após autorização posterior, confirmar a versão da VPS, fazer backup do código/build, banco e `.env`, atualizar para o commit testado pelo GitHub e conferir estrutura. O provisionador específico permite checagem e aplicação restrita:
+Aplicação concluída na VPS em 06/11/2026, conforme registro posterior ao final; não é preciso repetir esta etapa para a atualização atual. Como referência do procedimento autorizado: confirmar versão, fazer backup do código/build/banco/configuração, atualizar pelo GitHub e conferir estrutura. O provisionador específico permite checagem e aplicação restrita:
 
 ```bash
 cd /var/www/cobranca || exit 1
@@ -64,4 +64,14 @@ Concluída no desenvolvimento em 06/11/2026: suíte serial com **1227 testes apr
 
 Os componentes reais de situação e confirmação foram inspecionados no navegador com dados fictícios e callbacks locais: sem declaração ou sem literal, o botão permaneceu bloqueado; com ambos, habilitou apenas a simulação local. Nenhuma confirmação foi enviada ao servidor. Sem sessão, a gestão redirecionou ao login conforme esperado. Não houve homologação autenticada de emissão real.
 
-A concorrência foi exercitada com fixtures transacionais serializadas e helpers/emissor completos, sem chamadas BTG ou banco real. Isso verifica os guards e a ordem de reserva no código, mas não substitui um teste de interleaving no InnoDB de Produção. Nenhuma cobrança real foi enviada, parcela #19 reclassificada, segredo alterado ou mudança implantada na VPS.
+A concorrência foi exercitada com fixtures transacionais serializadas e helpers/emissor completos, sem chamadas BTG ou banco real. Isso verifica os guards e a ordem de reserva no código, mas não substitui um teste de interleaving no InnoDB de Produção. Na etapa de desenvolvimento descrita nesta seção, não houve emissão real, reclassificação da parcela #19, alteração de segredo ou deploy na VPS; a ativação posterior está registrada abaixo.
+
+## Registro posterior — atualização da VPS em 06/11/2026
+
+O usuário autorizou a atualização às 15:50:11 e executou os comandos como root na VPS. Backup novo confirmado em `/var/backups/cobranca/btg-canais-2026-11-06-155323-ko7yOH`, com aplicação, banco, versão anterior e configuração protegida. Código atualizado pelo GitHub para `5756c31bb43e37f1db991a0bdb6f35c5b85ba050`, sem apagar diretórios locais ou alterar dependências.
+
+Às 16:02:26, o usuário informou a aplicação dos dois ADD COLUMN da migration 0100 e a checagem de estrutura completa. O provisionador preservou números/valores/canais históricos/contas/títulos, sem reclassificação da parcela #19. Às 16:06:35 confirmou TypeScript/build e leitura por `cobranca` no candidato `/var/www/cobranca/.build-canais-34NFF3/dist`.
+
+Às 16:13:20, informou a conclusão do roteiro de troca reversível/reinício da aplicação, com a versão `5756c31b` ativa e estrutura/credenciais preservadas. O roteiro verifica HTTP local/HTTPS antes da mensagem final; o usuário forneceu esse trecho final, não as saídas individuais do PM2/curl. O diretório do build anterior está registrado no backup em `build-anterior-dir.txt`.
+
+Pendências pós-ativação: conferir a revisão do acordo #5 na interface; conferir o título #19 fora do sistema antes de confirmar sua origem; revisar a parcela/conta/valor/vencimento/ambiente antes de emissão real; homologar separadamente webhook/pagamento e entrega ao devedor. Ativar o build não confirma, envia ou cancela cobranças e não homologa o banco. Este registro posterior atualiza somente documentação; não executa outro deploy.
