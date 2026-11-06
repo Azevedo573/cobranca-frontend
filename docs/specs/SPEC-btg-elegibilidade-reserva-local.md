@@ -1,55 +1,141 @@
-# Especificação — elegibilidade BTG e reserva local de numeração
+# Especificação — API BTG principal, CNAB alternativo e reserva local
 
-Status: proposta para aprovação, em 06/11/2026. Base de código `4d47413a`. Caso de referência: acordo #5, parcela #19, condomínio #1 na VPS. Nenhuma emissão, alteração de dados ou implantação é autorizada por este documento enquanto não houver aprovação.
+Status: proposta técnica revisada para aprovação em 06/11/2026. O usuário definiu às 15:16:26 que deseja poder enviar cobranças por API ou CNAB e que a API seja a forma principal. Base produtiva de referência `4d47413a`; caso de teste: acordo #5/parcela #19. Não há implementação, migração, reclassificação ou emissão autorizada nesta revisão documental.
 
-## Objetivo e premissas
+## Resumo da Demanda
 
-Corrigir o conflito entre criação de acordo, que reserva nosso número localmente, e elegibilidade API, que interpreta qualquer número como título legado. Preservar acordo obrigatório, valor/vencimento, numeração e histórico, RBAC, condomínio, exclusividade CNAB/API e idempotência. Não remover a trava de número para todos os registros nem limpar números existentes.
+Disponibilizar dois canais bancários para as parcelas de acordos: **API BTG como caminho principal** e **remessa CNAB como alternativa escolhida pelo administrador**. Uma reserva de nosso número não pode forçar a escolha do CNAB. A mesma parcela não pode gerar dois títulos por canais diferentes.
 
-A saída da VPS fornecida pelo usuário confirma acordo #5 ativo, parcela #19 pendente com número `1000000018`, status `nao_enviado`, sem remessa, dados bancários legados ou emissão v2 registrada. Isso não equivale a conferir o portal do banco ou provar que nenhum boleto/PDF foi encaminhado por fora do sistema.
+## Classificação
 
-## Regra proposta
+Correção de elegibilidade combinada com melhoria do fluxo financeiro. Prioridade alta, complexidade média. A integração API e o CNAB existentes serão reaproveitados; não criar outro emissor ou reescrever a integração bancária.
 
-Introduzir origem explícita da numeração local, em coluna aditiva `parcelasAcordo.nossoNumeroOrigem`, nullable, enum `reserva_local` / `legado`. Registros atuais ficam null (origem não comprovada), sem reclassificação automática. Não alterar números ou estado de remessa.
+## Problema Atual
 
-Novos acordos criados pelo servidor que reservarem numeração serão marcados como `reserva_local`, antes de qualquer encaminhamento. O cliente não pode fornecer ou alterar esse marcador livremente.
+A criação de acordo pode atribuir `nossoNumero` mesmo com status `nao_enviado`. A elegibilidade API interpreta o número como vínculo legado e bloqueia a parcela antes do POST. A tela também usa configurações históricas `modoBoleto` para algumas ações, o que não deve significar que todas as parcelas novas estão irrevogavelmente presas a um canal.
 
-Uma parcela com número pode ser elegível para API somente se a reserva local estiver explicitamente comprovada, o acordo estiver ativo, a parcela estiver pendente/atrasada, status de remessa for exatamente `nao_enviado` e não existir remessa, coleção/dados legados ou emissão/reserva v2 que impeça nova emissão. Número com origem null/legado continua bloqueado, ainda que o status seja não enviado. Ausência de número não dispensa os demais guards.
+A consulta da VPS fornecida pelo usuário mostra acordo #5 ativo, parcela #19 pendente, número `1000000018`, sem remessa, dados bancários legados ou emissão v2 registrada. Isso não equivale a uma consulta ao banco nem prova ausência de encaminhamento externo do boleto.
 
-CNAB/fluxo legado devem consumir a reserva ao encaminhar um título, marcando origem legada e preservando número e histórico. Travas precisam impedir que CNAB/legado e API usem a mesma parcela simultaneamente. Não modificar layout CNAB ou valores; apenas os guards e a rastreabilidade de canal necessários a esta correção.
+## Solução Proposta
 
-## Parcela existente e confirmação administrativa
+Criar uma experiência de **revisão e envio de cobranças** que privilegie a API BTG. No acordo e na gestão bancária, a ação principal será `Enviar ao BTG pela API`. A ação secundária será `Gerar remessa CNAB`. Ambas operam sobre parcelas elegíveis do mesmo condomínio, mantendo revisão e confirmação.
 
-Adicionar ação administrativa de confirmação de reserva local no contexto da parcela bloqueada, sem emissão automática. Requer literal/declaração inequívoca de que a parcela não foi enviada, registrada ou distribuída em outro canal e que o número foi somente reservado pelo sistema. A ação não é cancelamento bancário e não deve ser usada para títulos registrados.
+A escolha do canal é feita para as parcelas selecionadas no momento da operação, não impondo um canal único a todas as parcelas do acordo. Cada lote usa somente um canal; parcelas distintas do mesmo acordo podem usar canais distintos quando isso for escolhido explicitamente e não houver vínculos anteriores. Não mudar automaticamente o canal de títulos históricos.
 
-Para o acordo #5/parcela #19, o administrador poderá usar essa ação após revisar o caso. Revalidar no servidor todos os dados atuais, acordo, condomínio e vínculos, sob transação/locks compartilhados com os emissores. Se aparecer qualquer evidência bancária, recusar e não realizar alteração parcial. Registrar ator, data, motivo, estado anterior e posterior em auditoria estrita na mesma transação. Não alterar nosso número, valor, vencimento, snapshots ou saldo.
+## Escopo
 
-Não confirmar todas as parcelas antigas em massa. Não inferir canal pelo nome de perfil, data de criação ou ausência isolada de remessa. Casos ambíguos continuam em revisão.
+- API selecionada/destacada como padrão na experiência nova de envio, sem disparo automático.
+- CNAB disponível como alternativa explícita, usando layout, configuração e geração existentes.
+- Identificar reserva local de número separadamente de canal bancário reservado/encaminhado.
+- Elegibilidade e locks compartilhados entre API, CNAB e caminhos legados para evitar dupla emissão.
+- Tratamento administrativo individual de reservas existentes ambíguas, como a parcela #19.
+- Motivos de bloqueio específicos e histórico do canal por parcela/lote.
+- Atualização de caches e preservação de boleto/Pix/resultados bancários já registrados.
 
-## Contratos e arquivos
+## Fora do Escopo
 
-- Schema e migration aditiva exclusiva da nova coluna, sem backfill ou execução de migrações históricas.
-- `server/routers.ts` / `server/db-acordos.ts`: registrar origem quando o próprio servidor reservar a numeração e reforçar o consumo/trava no CNAB/legado.
-- `server/btg-v2/issuance.ts` / `remessas.ts`: uma política de elegibilidade para fila, prévia, seleção e reserva antes do POST; motivos específicos de bloqueio.
-- Router/helper administrativo separado para confirmar reserva, com Zod, RBAC e auditoria transacional; nenhuma entrada pública para definir marcador.
-- Componentes BTG de parcelas/remessa e helper visual: exibir reserva a confirmar versus remessa/legado/emissão existente, confirmação acessível e invalidação direcionada de caches.
-- Testes em `server/*.test.ts`, sem banco real/BTG real. Documentação de operação e provisionamento restrito para futura VPS.
+Emissão avulsa de dívida sem acordo; envio automático ao criar dívida/acordo; fallback automático API → CNAB; cancelamento/reemissão de título registrado; migração em massa de acordos antigos; alteração de valores/snapshots; envio automático novo por WhatsApp, e-mail ou SMS; alteração OAuth, conta, webhook ou escopos; deploy automático na VPS.
 
-Exemplo de contrato de domínio, sujeito a implementação tipada:
+A API emite/registra a cobrança no BTG e disponibiliza os meios de pagamento retornados ao Luminus. Enviar a cobrança ao banco não comprova envio de mensagem ao devedor; a distribuição existente do boleto/linha/Pix será preservada, sem criar automação externa neste corte.
+
+## Módulos Impactados
+
+Criação/detalhe de acordo, gestão bancária, seleção de parcelas, CNAB, emissão API BTG v2, elegibilidade, reserva concorrente, auditoria e testes. As mudanças na criação não devem fazer `modoBoleto=api_btg` acionar o emissor legado como se fosse a integração v2.
+
+## Regras de Negócio
+
+1. Dívida continua sendo formalizada em acordo ativo antes do envio ao BTG. Somente parcelas pendentes/atrasadas elegíveis podem ser encaminhadas.
+2. API é a ação principal, mas CNAB não será removido ou automaticamente usado quando a API falhar.
+3. Criar dívida/acordo ou reservar numeração não emite nem escolhe definitivamente o canal.
+4. Uma parcela pode ter apenas um canal bancário reservado/encaminhado por vez. Remessa gerada, envio em andamento, emissão existente ou estado incerto impedem envio pelo outro canal.
+5. Falha/timeout/incerteza na API não permite gerar CNAB para contornar o estado. O título precisa de revisão/conciliação antes de qualquer nova decisão.
+6. Número com origem desconhecida permanece bloqueado para revisão. Registros antigos não serão convertidos automaticamente em reserva local.
+7. Evidência de remessa/coleção/retorno/boleto/Pix legado ou reserva/emissão v2 prevalece sobre qualquer marcador local.
+8. API e CNAB devem conferir os dados atuais e reservar o canal de forma atômica, com lock da parcela e consulta das reservas concorrentes. Locks/checks também valem para os caminhos legados existentes, não só para a fila nova.
+9. Nenhuma alteração de número, valor, vencimento, snapshot, saldo ou acordo ocorrerá apenas para tornar a parcela elegível.
+10. Alteração do canal de uma parcela ainda livre é escolha do usuário. Canal de título já registrado não pode ser trocado por um seletor simples.
+
+## Fluxo da Funcionalidade
+
+1. Administrador cria/revisa o acordo. Nenhuma emissão acontece neste passo.
+2. Escolhe parcelas na revisão de envio; API aparece como caminho principal.
+3. Se optar por API, revisa conta, devedor, valores, vencimentos e confirmação de envio real; o backend reserva o canal e reutiliza o fluxo v2 idempotente existente.
+4. Se optar por CNAB, revisa o lote e confirma geração; o backend reserva o canal e reutiliza a geração CNAB do condomínio. Gerar o arquivo não significa transmiti-lo automaticamente ao banco.
+5. O resultado mostra canal, parcela, número/lote, situação e meios de pagamento quando realmente disponíveis.
+6. Parcela encaminhada por um canal aparece bloqueada no outro, com motivo específico.
+7. Faltando configuração API, mostrar a pendência e permitir escolha explícita de CNAB apenas se a parcela estiver livre e o CNAB estiver configurado. Não selecionar fallback silenciosamente.
+
+## Telas e Experiência do Usuário
+
+### Acordo e gestão bancária
+
+Ação principal `Enviar ao BTG pela API`; ação secundária `Gerar remessa CNAB`. Seleção obrigatória de parcelas, condomínio único e um canal por lote. Canal será indicado por texto/badge, sem confundir API v2 com o legado `api_btg`. Controles financeiros continuam exclusivos do administrador.
+
+Estados: configuração pendente, carregando, sem parcelas elegíveis, revisão, envio/geração em andamento, sucesso, parcial, falha/incerteza e bloqueio por outro canal. Não esconder motivo de bloqueio ou oferecer ação financeira fictícia.
+
+### Confirmação de reserva existente
+
+No contexto da parcela bloqueada por número de origem desconhecida, oferecer ação administrativa de confirmar que o número foi somente reservado pelo sistema. Exigir declaração/literal de que a parcela não foi enviada, registrada ou distribuída em outro canal. Revalidar todos os vínculos atuais sob transação; recusar se algum surgir. Auditoria estrita com ator, data, motivo e estados anterior/posterior; rollback em falha da auditoria.
+
+Para a parcela #19, esta ação poderá preservar `1000000018` e registrar a origem local após a conferência humana. Confirmar reserva não envia cobrança nem cancela título no banco. Nenhuma confirmação em massa ou inferência por data/nome/perfil será feita.
+
+### Mensagens
+
+Distinguir `Numeração de origem não confirmada`, `Parcela reservada/enviada pela API`, `Parcela vinculada a remessa CNAB`, `Parcela paga/cancelada` e `Acordo não está ativo`. Sucesso de emissão API somente após resultado bancário apropriado; geração CNAB é geração de arquivo, não comprovante de envio ou registro.
+
+## Dados e Banco de Dados
+
+Proposta de migration aditiva nas parcelas:
+
+- `nossoNumeroOrigem`: nullable enum `reserva_local` / `legado`, para diferenciar numeração reservada de origem histórica/encaminhada.
+- `canalBancario`: nullable enum `api_btg_v2` / `cnab240` / `legado`, registrando a reserva/uso bancário, não apenas preferência visual.
+
+Dados atuais ficam null, sem backfill automático. Vínculos existentes continuam sendo fonte de bloqueio mesmo sem marcador. `modoBoleto` e configurações de condomínio não serão alterados em massa. Não usar a preferência de interface como prova de inexistência de emissão.
+
+A reserva automática de numeração, quando mantida na criação, será identificada explicitamente como local e não escolherá CNAB. Se a numeração for atribuída apenas na operação CNAB, isso deve preservar as ações existentes e ser registrado no plano técnico, sem modificar números atuais. O número retornado pelo BTG v2 fica no registro canônico de emissão, sem apagar o histórico local.
+
+Contratos de origem/canal são controlados pelo servidor. Não aceitar marcador livre em formulários comuns. Auditoria administrativa será gravada na mesma transação que a confirmação, usando a infraestrutura existente.
+
+## Permissões
+
+Manter RBAC e carteira multi-condomínio. Operações BTG v2 e confirmação financeira continuam administrativas; preservar as permissões CNAB existentes, sem ampliar a usuários que não tinham acesso. Nenhuma gerente jurídica receberá privilégios financeiros para este fluxo. Frontend não substitui guards por ID no servidor.
+
+## Integrações e Automações
+
+Reutilizar Collections/API BTG v2 e CNAB 240. Nenhuma chamada ao banco durante desenvolvimento/testes; nenhuma mudança de credenciais. Webhook/consentimento/conta/liberação de Produção precisam permanecer corretos e homologados separadamente. Não introduzir agendador, retry automático ou novo serviço de entrega ao devedor.
+
+## Histórico e Auditoria
+
+Preservar acordos, parcelas, números, remessas, PDFs, emissões e meios de pagamento. Auditar escolha efetiva/reserva de canal, confirmação local, geração/envio e bloqueios pertinentes. Não registrar tokens, segredo do webhook, CPF/CNPJ completo ou conteúdo Pix na auditoria de decisão de canal. Um evento financeiro anterior nunca será apagado para liberar outro emissor.
+
+## Critérios de Aceite
+
+- Dado um acordo novo ativo com parcelas livres, quando abrir a revisão, então API é a ação principal e CNAB permanece disponível como alternativa, sem emissão automática.
+- Dada uma parcela com reserva local comprovada e nenhum vínculo, quando selecionar API, então número local não provoca falso bloqueio.
+- Dada uma parcela livre, quando escolher CNAB, então é gerado um lote CNAB conforme configuração existente, sem POST à API BTG.
+- Dada uma reserva/emissão API, quando tentar CNAB, então o backend recusa; reciprocamente CNAB gerado impede novo envio API.
+- Dada disputa simultânea API/CNAB pela mesma parcela, quando ambas confirmarem, então só uma operação reserva/encaminha o título.
+- Dado número antigo de origem desconhecida, quando abrir a fila, então permanece em revisão; confirmação individual exige declaração e ausência de vínculos atuais, com auditoria transacional.
+- Dada parcela #19 confirmada como reserva local pelo administrador, quando revisar API, então preserva `1000000018`, valores e histórico, sem envio causado pela confirmação.
+- Dada API indisponível ou estado incerto, quando a operação falhar, então não ocorre fallback automático para CNAB.
+- Dada dívida sem acordo ou parcela paga/cancelada, quando tentar emitir, então nenhum canal cria novo título por esse fluxo.
+
+## Tarefas Técnicas
+
+Após aprovação: plano/checklist por etapas, testes de domínio e origem/canal; schema/migration revisada; criação/reserva/consumo e locks nos caminhos API/CNAB/legado; política única de elegibilidade; confirmação auditada; interface com API principal e CNAB alternativo; regressões e manual de operação/migração restrita. Reaproveitar telas/hooks existentes, evitando dois contratos incompatíveis.
+
+Arquivos principais: `drizzle/schema.ts`, nova migration específica, `server/routers.ts` (criação/CNAB/legado), `server/db-acordos.ts`, helpers/router de domínio bancário, `server/btg-v2/issuance.ts` e `remessas.ts`, componentes de envio/gestão/acordo e testes em `server/*.test.ts`.
+
+Usar TypeScript tipado, Zod, tRPC e Drizzle existentes, sem dependências novas. Exemplo do contrato de domínio:
 
 ```ts
 type OrigemNossoNumero = 'reserva_local' | 'legado' | null;
+type CanalBancario = 'api_btg_v2' | 'cnab240' | 'legado' | null;
+// Canal efetivo/reservado não é preferência visual.
 // Evidência bancária prevalece sobre qualquer marcador local.
-// O estado null com número não pode ser convertido em reserva por uma leitura.
 ```
 
-## Estratégia de implementação e testes
-
-Primeiro modelar a origem e seus testes; depois criação/consumo e travas; em seguida política e confirmação auditada; por fim interface e operação. Os detalhes de locks/contratos serão registrados no plano técnico após aprovação. Não expandir para emissão avulsa ou gestão bancária nova.
-
-Cobrir: reserva comprovada elegível; número antigo ambíguo bloqueado; qualquer remessa/retorno/coleção/Pix/API legado prevalece; reserva/emissão v2 impede duplicidade; acordo inativo e parcela paga/cancelada recusados; confirmação sem autorização, literal incorreto ou vínculo surgido durante a operação recusada; falha de auditoria causa rollback; numeração/snapshots preservados; disputa CNAB/API não permite dois encaminhamentos; fila/prévia/reserva consistentes.
-
-Comandos de validação na raiz `/home/ubuntu/cobranca-frontend`:
+Testes com fixtures/mocks, sem banco real ou emissão. Cobrir ambas as direções de exclusão, concorrência, auditoria/rollback, legado ambíguo, snapshots/numeração, RBAC/carteira, status e filas. Executar específicos antes da validação completa na raiz do projeto:
 
 ```bash
 pnpm exec vitest run --no-file-parallelism --reporter=default
@@ -58,26 +144,16 @@ pnpm build
 git diff --check
 ```
 
-Testes específicos deverão preceder a suíte completa. Homologação de cobrança real não é substituída por fixtures, e nenhuma cobrança será enviada durante o desenvolvimento.
+## Riscos e Dependências
 
-## Limites, autorização e reversão
+Títulos distribuídos/registrados fora do sistema exigem conferência humana, não podem ser inferidos de null. Caminhos legados podem concorrer com a API e precisam usar a mesma trava; marcar canal só no frontend não resolve. Mudança de preferência não transforma `api_btg` legado em v2. API retorna título/meios de pagamento, não comprova mensagem ao devedor. Homologação bancária externa e configuração CNAB continuam dependências distintas.
 
-Sempre preservar numeração, valores, histórico e guards; auditoria da confirmação é obrigatória. Aprovação desta proposta autoriza implementação no desenvolvimento, inclusive migration aditiva e caminho administrativo, mas não autoriza reclassificação real da parcela #19, cadastro de teste em banco real, envio ao BTG ou deploy automático na VPS.
+Reversão preserva os dados e históricos; não restaurar dump antigo sobre transações novas. Código anterior poderá voltar a bloquear números reservados. Sem exclusão de registros ou reclassificação em massa. Deploy futuro exigirá backup, migration exclusiva e teste controlado, sem `db:push` global.
 
-Sem dependência nova prevista. Se outra alteração de schema/regra for necessária além deste corte, registrar e obter aprovação. Não alterar OAuth, segredo de webhook, conta recebedora, escopos, CNAB financeiro, parcelas ou acordos para mascarar o bloqueio.
+## Pendências para Validação
 
-Rollbacks de código mantêm dados e histórico; voltar ao código anterior bloqueará novamente reservas numeradas. Não restaurar dump antigo sobre transações novas nem apagar registros para retornar a um estado elegível. A implantação posterior terá backup e roteiro de DDL específica, sem `db:push` global.
+A preferência API principal/CNAB alternativo foi definida pelo usuário. Falta aprovar este corte técnico com rastreabilidade/colunas aditivas e confirmação administrativa das reservas atuais. O administrador ainda deverá conferir o título #19 antes de qualquer confirmação real. Verificar cadastro/entrega real do webhook separadamente.
 
-## Critérios de aceite
+## Próximos Passos
 
-1. Criar acordo novo com reserva de número não causa falso bloqueio para API, desde que não haja outro vínculo.
-2. O acordo #5 pode passar por confirmação administrativa de reserva, sem perder `1000000018`, desde que todas as checagens atuais e declaração sejam válidas.
-3. Nenhum acordo antigo é liberado automaticamente; boletos efetivos e estados incertos continuam protegidos.
-4. CNAB/API não podem encaminhar a mesma parcela em concorrência; nenhuma falha é tratada como permissão para reemitir.
-5. Fila, prévia e reserva aplicam a mesma política; a interface apenas reflete o servidor.
-6. Auditoria, testes, TypeScript e build aprovados antes de checkpoint e futura implantação pelo GitHub.
-7. Confirmação de reserva não envia cobrança; emissão continua uma ação financeira separada e explícita.
-
-## Pendências de aprovação
-
-Aprovar o corte técnico acima. O administrador ainda deverá conferir que a parcela #19 não foi encaminhada/distribuída fora do sistema antes de qualquer confirmação real. Cadastro e entrega do webhook BTG seguem como homologação separada, não demonstrada pela elegibilidade desta parcela.
+Aprovar a proposta revisada e gerar plano/checklist técnico; implementar e validar no desenvolvimento, sem emissões ou reclassificações reais. Depois entregar checkpoint pelo GitHub e orientar atualização manual da VPS. Confirmação da parcela #19 e primeira emissão permanecem ações separadas, explícitas e revisadas.
