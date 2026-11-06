@@ -1,6 +1,6 @@
 # Resumo da Ocorrência
 
-Em 06/11/2026 às 16:17:59, após atualização manual da VPS para `5756c31b`, o usuário informou: “Parcela 1: O BTG recusou a emissão BolePix (HTTP 400).” A conversa anterior tratava do acordo #5/parcela #19, mas o identificador da tentativa atual ainda precisa ser confirmado. Não houve nova chamada bancária realizada pelo agente nesta investigação.
+Em 06/11/2026 às 16:17:59, após atualização manual da VPS para `5756c31b`, o usuário informou: “Parcela 1: O BTG recusou a emissão BolePix (HTTP 400).” A consulta somente leitura fornecida às 16:26:17 identificou acordo #5, parcela #19 (parcela 1), emissão #1 e remessa BTG #1. Não houve nova chamada bancária realizada pelo agente nesta investigação.
 
 # Classificação e Prioridade
 
@@ -14,7 +14,11 @@ BTG v2 Collections — emissão BolePix por parcela de acordo na VPS. O contrato
 
 `server/btg-v2/client.ts`, função `criarBolePixBtgV2`, faz POST Collections e, quando `response.ok` é falso, lança somente uma mensagem com `response.status`, sem ler o corpo ou os identificadores de resposta. Não há captura do motivo específico do HTTP 400 nesse caminho.
 
-Em `server/btg-v2/issuance.ts`, falhas no bloco de montagem/envio/persistência são tratadas conservadoramente como `incerta`, com `erroCodigo=EMISSAO_SEM_CONFIRMACAO`. A origem e o canal continuam protegidos contra outro envio. Esse é o comportamento do código; o estado da tentativa real ainda não foi consultado.
+Em `server/btg-v2/issuance.ts`, falhas no bloco de montagem/envio/persistência são tratadas conservadoramente como `incerta`, com `erroCodigo=EMISSAO_SEM_CONFIRMACAO`. A consulta da VPS confirmou esse estado para emissão #1, revisão 1, ambiente Produção, sem Collection ID local. Valor persistido: 1123 centavos (R$ 11,23); vencimento exibido pela consulta: 06/11/2026. A parcela #19 permanece pendente, com origem `reserva_local`, canal `api_btg_v2` e número `1000000018` preservado. Item #1 da remessa #1 registra `falha` e HTTP 400.
+
+Identificadores locais para investigação: `externalId=v2:prd:parcela_acordo:19:r1` e `detail.correlationId=btgv2-1`, conforme payload gerado pelo emissor. Este correlationId enviado não é um requestId retornado pelo banco. O ID interno de parcela #5 também apareceu na leitura como parcela 2 do acordo #4, sem tentativa relacionada nas tabelas fornecidas; não é o registro do erro atual.
+
+Os horários Date exibidos pela consulta precisam ser confrontados com timezone da conexão/driver antes de serem tratados como horário real da tentativa. O `createdAt` apresentado como 22:17:44Z não deve ser interpretado automaticamente como horário correto para o suporte bancário, dado o relato às 16:17 locais. Nenhuma correção de timezone ou alteração global de datas foi executada.
 
 # Comportamento Esperado
 
@@ -30,19 +34,21 @@ Confirmado por inspeção: o sistema descarta os detalhes do retorno de erro; a 
 
 A ficha técnica e o contrato de criação foram consultados em 06/11/2026. O exemplo padrão publicado corresponde a boleto simples, embora o contrato liste alternativas BolePix. Não presumir todos os campos internos de BolePix exclusivamente a partir desse exemplo. [1] [2]
 
+Conferência posterior do schema efetivo `CreateBankslipPixRequest` no asset oficial da página identificou `BankslipPixDetailRequest.documentNumber`: obrigatório, string, `maxLength:15`. O código vigente monta `parcela_acordo-19-R1`, que tem 20 caracteres. Essa incompatibilidade é comprovada e precisa ser corrigida, embora o corpo do erro original não esteja disponível para atribuir-lhe a causa exclusiva. `detail.correlationId` tem limite de 20; `btgv2-1` é compatível. [3]
+
 # Causa Provável
 
-Causa específica da recusa ainda desconhecida. Há hipóteses de validação do pagador, datas, formato/identificadores do payload, dados da conta ou habilitação bancária; nenhuma foi comprovada para a tentativa real. A ausência de detalhe é uma falha confirmada de observabilidade, não prova de qual hipótese causou o HTTP 400.
+Identificador documental excede o máximo oficial e é uma causa plausível do HTTP 400, com a violação de schema comprovada. Podem existir outras validações; o retorno descartado impede afirmar a causa exclusiva. A falta de diagnóstico também é confirmada. Não há evidência de erro nos valores, conta, telefone ou datas. A ausência de `externalId` nas propriedades documentadas não implica rejeição, e não foi encontrado requisito UUID; não alterá-lo como tentativa especulativa. [3]
 
 # Impactos Identificados
 
-A emissão pode ficar bloqueada localmente como incerta, sem Collection ID. Ausência de Collection ID local não comprova inexistência de título no banco. Reenviar, gerar CNAB para contornar ou apagar a reserva pode duplicar obrigação financeira. A investigação deve preservar conta, parcela, valor, vencimento, número reservado, canal e histórico.
+A emissão #1 está bloqueada localmente como incerta, sem Collection ID. Ausência de Collection ID local não comprova inexistência de título no banco. Reenviar, gerar CNAB para contornar ou apagar a reserva pode duplicar obrigação financeira. A investigação deve preservar conta, parcela, valor, vencimento, número reservado, canal e histórico.
 
 # Correção Proposta
 
-Primeiro identificar a tentativa e conferir seus dados mínimos por SELECT. Quando houver identificadores e horário, buscar o retorno original nos canais de diagnóstico do banco, se disponível, sem novo POST.
+Tentativa e dados mínimos identificados por SELECT. Próximo passo: confrontar campos do payload com a variante específica BolePix e, se houver histórico/apoio bancário disponível, obter o retorno original pelos identificadores existentes, sem novo POST. Não há motivo bancário completo persistido no cliente, emissão ou mensagem de item consultados.
 
-Propor melhoria do cliente para capturar informações de erro sanitizadas e limitadas, com status e identificadores permitidos, preservando a política de ausência de retry. Não alterar payload, valor, datas, canal ou tratamento financeiro da tentativa existente sem especificação, teste e aprovação adequados. Esta ocorrência registra proposta; nenhum código foi modificado nesta etapa.
+Proposta específica em `docs/specs/SPEC-btg-bolepix-documento-diagnostico.md`: documento compacto determinístico como `PA19R1`, validação ≤15, limites oficiais de correlação/endereço e captura protegida de futuros erros 400, que podem conter `reason`/`invalidParams`. Nunca exibir o `value` desses parâmetros ou corpo integral. Preservar número local, externalId, chave idempotente, parcela/valor/datas e a reserva incerta. Nenhum código foi modificado nesta etapa; a implementação está proposta para aprovação e não autoriza recuperar/reemitir a tentativa #1. [3]
 
 # Regra Atual e Regra Corrigida
 
@@ -80,13 +86,14 @@ Depende da identificação da tentativa e de leitura dos registros da VPS; event
 
 # Pendências para Validação
 
-Confirmar se ocorreu no acordo #5/parcela #19 ou em outro acordo. Obter valor/vencimento e status/identificadores mínimos por leitura. Verificar se houve título visível no BTG sem realizar segunda emissão. Definir proposta de diagnóstico e recuperação somente depois dessas evidências.
+Identificação, valor e estado local confirmados para acordo #5/parcela #19/emissão #1. Contrato BolePix conferido e violação de `documentNumber` comprovada. Permanecem pendentes: aprovação/implementação/testes da proposta; retorno original específico do BTG, se recuperável no banco; situação do título sem nova emissão; decisão de recuperação da tentativa #1.
 
 # Próximos Passos
 
-Pedir os identificadores do acordo da tentativa. Preparar leitura restrita dos registros corretos, sem consulta a senhas/tokens ou envio bancário. Manter a parcela bloqueada até esclarecer a emissão.
+Obter aprovação da correção documental e do diagnóstico protegido no desenvolvimento. Manter a parcela e a emissão existentes bloqueadas até esclarecer a situação bancária e planejar sua recuperação separadamente. Não obter o diagnóstico repetindo POST financeiro. A instrumentação nova não recupera retrospectivamente o corpo descartado.
 
 ## Referências
 
 [1]: https://developers.empresas.btgpactual.com/docs/tecspecs/Banking%20-%20Collections-spec "BTG Collections — ficha técnica e modalidades"
 [2]: https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/criar-cobranca "BTG Collections — contrato de criação de cobrança"
+[3]: https://developers.empresas.btgpactual.com/assets/js/b05136c2.10e8401d.js "Schema oficial de CreateBankslipPixRequest e resposta 400"

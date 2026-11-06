@@ -2999,12 +2999,14 @@ Este registro não realiza nova implantação, confirmação financeira, cancela
 
 ## Ocorrência — BTG BolePix HTTP 400 (06/11/2026, 16:17:59)
 
-Registro: `docs/ocorrencias/OCORRENCIA-btg-bolepix-http400-2026-11-06.md`. Usuário relatou recusa de Parcela 1 após deploy 5756c31b. Identificador do acordo ainda precisa ser confirmado; conversa anterior tratava de #5/#19, sem comprovação da tentativa atual.
+Registro: `docs/ocorrencias/OCORRENCIA-btg-bolepix-http400-2026-11-06.md`. Usuário relatou recusa de Parcela 1 após deploy 5756c31b; leitura da VPS às 16:26:17 confirmou acordo #5/parcela #19/emissão #1/remessa #1, incerta sem Collection ID, R$ 11,23, origem local e canal API. Proposta: `docs/specs/SPEC-btg-bolepix-documento-diagnostico.md`.
 
 - [x] Inspeção confirmou descarte do corpo de erro em `criarBolePixBtgV2`; mensagem disponível é genérica. Código conserva reserva/canal como incertos após falha de emissão.
 - [x] Contrato oficial Collections consultado; HTTP 400 isolado não determina o campo ou a causa. Nenhuma chamada BTG realizada nesta investigação.
-- [ ] Identificar acordo/parcela/tentativa atual e ler estado canônico/identificadores por consulta restrita na VPS.
+- [x] Acordo/parcela/tentativa e estado canônico identificados por consulta restrita fornecida pelo usuário; idempotência e reservas preservadas.
+- [x] Schema específico BolePix conferido no asset oficial: documentNumber obrigatório com maxLength15; payload atual parcela_acordo-19-R1 possui20 caracteres. Violação comprovada, sem afirmar causa exclusiva do 400 descartado.
+- [ ] Aprovar/implementar/testar documento compacto determinístico e captura protegida de erros no desenvolvimento, sem alteração ou reenvio da emissão #1.
 - [ ] Obter motivo bancário seguro e definir melhoria de diagnóstico, sem repetir POST ou trocar para CNAB.
-- [ ] Aprovar/testar eventual correção de payload ou recuperação somente depois da causa e situação bancária confirmadas.
+- [ ] Verificar situação bancária e autorizar separadamente eventual recuperação financeira da emissão #1; não liberar a reserva como efeito da correção de código.
 
 Não apagar reserva, mudar revisão/canal/externalId, alterar valores/datas, cancelar título ou presumir ausência de cobrança pela ausência de Collection ID local.
