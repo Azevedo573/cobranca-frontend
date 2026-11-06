@@ -2996,3 +2996,15 @@ Atualização autorizada pelo usuário às 15:50:11 e executada manualmente como
 - [ ] Homologar pagamento/webhook e disponibilização dos meios de pagamento, separadamente de envio de mensagem ao devedor.
 
 Este registro não realiza nova implantação, confirmação financeira, cancelamento, mudança de credenciais ou concessão RBAC. Não restaurar dump antigo sobre transações posteriores.
+
+## Ocorrência — BTG BolePix HTTP 400 (06/11/2026, 16:17:59)
+
+Registro: `docs/ocorrencias/OCORRENCIA-btg-bolepix-http400-2026-11-06.md`. Usuário relatou recusa de Parcela 1 após deploy 5756c31b. Identificador do acordo ainda precisa ser confirmado; conversa anterior tratava de #5/#19, sem comprovação da tentativa atual.
+
+- [x] Inspeção confirmou descarte do corpo de erro em `criarBolePixBtgV2`; mensagem disponível é genérica. Código conserva reserva/canal como incertos após falha de emissão.
+- [x] Contrato oficial Collections consultado; HTTP 400 isolado não determina o campo ou a causa. Nenhuma chamada BTG realizada nesta investigação.
+- [ ] Identificar acordo/parcela/tentativa atual e ler estado canônico/identificadores por consulta restrita na VPS.
+- [ ] Obter motivo bancário seguro e definir melhoria de diagnóstico, sem repetir POST ou trocar para CNAB.
+- [ ] Aprovar/testar eventual correção de payload ou recuperação somente depois da causa e situação bancária confirmadas.
+
+Não apagar reserva, mudar revisão/canal/externalId, alterar valores/datas, cancelar título ou presumir ausência de cobrança pela ausência de Collection ID local.
