@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ config: vi.fn(), oauth: vi.fn(), bank: vi.fn()
 vi.mock("./btg-oauth", () => ({ getBtgOAuthConfig: mocks.config, getStatusOAuthBtg: mocks.oauth }));
 vi.mock("./btg-v2/client", () => ({ criarBolePixBtgV2: mocks.bank }));
 vi.mock("./db", () => ({ getDb: vi.fn(() => { throw new Error("DB real proibido"); }) }));
+vi.mock("./btg-v2/diagnosticos", async () => ({ criarCapturaHttpBtg: (await import("./btg-v2-http-captura-test-helper")).criarCapturaMock }));
 
 import { avaliarElegibilidadeParcelaAcordoBtgV2, emitirBolePixV2, emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2 } from "./btg-v2/issuance";
 import { executarRemessaBtgV2, listarFilaRemessaBtgV2 } from "./btg-v2/remessas";
@@ -132,7 +133,7 @@ afterEach(() => { expect(fetchMock).not.toHaveBeenCalled(); vi.unstubAllGlobals(
 describe("API BTG — origem local, canal e reserva canônica", () => {
   it("reserva local não bloqueia API; canal e reserva commitam juntos preservando número/snapshots/payload", async () => {
     const { db, state } = setup();
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ status: "emitida", jaExistia: false, nossoNumero: "bank-number" });
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ status: "emitida", jaExistia: false, nossoNumero: "bank-number" });
     expect(state.tables.parcelasAcordo[0]).toMatchObject({ ...parcela, canalBancario: "api_btg_v2" });
     expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({ amount: 12599, dueDate: parcela.dueDate, status: "emitida" });
     expect(state.locks).toContain("parcelasAcordo:update");
@@ -144,7 +145,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
       documentNumber: "PA19R1", externalId: "v2:sbx:parcela_acordo:19:r1", correlationId: "btgv2-100",
     });
     expect(JSON.stringify(mocks.bank.mock.calls[0][0])).not.toMatch(/reserva_local|api_btg_v2|1000000018|nossoNumeroOrigem|canalBancario/);
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ jaExistia: true, collectionId: "collection-fixture" });
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ jaExistia: true, collectionId: "collection-fixture" });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
 
@@ -157,14 +158,14 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     { status: "pago" }, { status: "cancelado" },
   ])("nenhuma evidência/estado legado é neutralizado pela origem local: %j", async patch => {
     const { db, state } = setup({ parcelasAcordo: [{ ...parcela, ...patch }] });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toBeDefined();
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toBeDefined();
     expect(state.writes).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
   });
 
   it.each(["reservada", "enviando", "incerta", "falha", "emitida", "paga", "cancelada", "expirada"])("reutiliza canônica %s apesar do próprio canal, sem POST", async status => {
     const { db, state } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [canonica({ status })] });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ id: 100, status, jaExistia: true, collectionId: "canonical-collection" });
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ id: 100, status, jaExistia: true, collectionId: "canonical-collection" });
     expect(state.writes).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
   });
@@ -173,7 +174,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     const registro = canonica({ id: 1, btgCollectionId: null, erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
     const { db, state } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [registro] });
     const antes = structuredClone(state.tables);
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ id: 1, status: "incerta", jaExistia: true, collectionId: null });
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ id: 1, status: "incerta", jaExistia: true, collectionId: null });
     expect(state.tables).toEqual(antes);
     expect(state.writes).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
@@ -181,20 +182,20 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
 
   it.each([{ condominioId: 3 }, { btgContaRecebedoraId: 16 }])("não devolve canônica de contexto divergente: %j", async patch => {
     const { db } = setup({ btgCobrancasEmitidas: [canonica(patch)] });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toThrow("registro canônico");
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toThrow("registro canônico");
     expect(mocks.bank).not.toHaveBeenCalled();
   });
 
   it("emissão em outra integração bloqueia novo POST, sem expor o registro", async () => {
     const { db, state } = setup({ btgCobrancasEmitidas: [canonica({ btgIntegracaoId: 99, revisao: 3, status: "cancelada" })] });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toThrow(/api btg/i);
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toThrow(/api btg/i);
     expect(state.writes).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
   });
 
   it("commit do canal falhando faz rollback da própria reserva", async () => {
     const { db, state } = setup(); state.failCanal = true;
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toThrow("canal unavailable");
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toThrow("canal unavailable");
     expect(state.tables.btgCobrancasEmitidas).toEqual([]);
     expect(state.tables.parcelasAcordo[0].canalBancario).toBeNull();
     expect(state.writes).toEqual([]);
@@ -203,10 +204,10 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
 
   it("falha de POST conserva reserva/canal incertos, sem release nem retry/fallback", async () => {
     const { db, state } = setup(); mocks.bank.mockRejectedValue(new Error("timeout fixture"));
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toThrow("timeout fixture");
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toThrow("sem confirmação local");
     expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
     expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({ status: "incerta", erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ status: "incerta", jaExistia: true });
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ status: "incerta", jaExistia: true });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
 
@@ -216,7 +217,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
       httpStatus: 400, camposInvalidos: ["detail.documentNumber"],
       motivos: ["O número do documento excede o limite permitido"],
     }));
-    const resultado = await emitirParcelasAcordoBtgV2({ db, acordoId: 5, parcelaIds: [19] });
+    const resultado = await emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] });
     expect(resultado.resultados[0]).toMatchObject({
       parcelaId: 19, resultado: "falha", diagnosticoHttp: {
         httpStatus: 400, camposInvalidos: ["detail.documentNumber"],
@@ -227,7 +228,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({ status: "incerta", erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
     expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
     expect(mocks.bank).toHaveBeenCalledTimes(1);
-    await emitirBolePixV2({ db, parcelaId: 19 });
+    await emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
 
@@ -243,7 +244,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     const { db, state } = setup();
     const original = db.transaction.getMockImplementation(); let first = true;
     db.transaction.mockImplementation((run: any) => { if (first) { first = false; Object.assign(state.tables[table][0], patch); } return original(run); });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toBeDefined();
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toBeDefined();
     expect(state.tables.btgCobrancasEmitidas).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
   });
@@ -263,7 +264,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
   ])("alteração após commit bloqueia POST e conserva reserva/canal: %j", async ({ table, patch }) => {
     const { db, state } = setup(); const original = db.transaction.getMockImplementation(); let first = true;
     db.transaction.mockImplementation(async (run: any) => { const result = await original(run); if (first) { first = false; Object.assign(state.tables[table][0], patch); } return result; });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toBeDefined();
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toBeDefined();
     expect(state.tables.btgCobrancasEmitidas[0].status).toBe("reservada");
     expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
     expect(mocks.bank).not.toHaveBeenCalled();
@@ -271,7 +272,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
 
   it("duas tentativas concorrentes API convergem para uma reserva e no máximo um POST", async () => {
     const { db, state } = setup();
-    const results = await Promise.all([emitirBolePixV2({ db, parcelaId: 19 }), emitirBolePixV2({ db, parcelaId: 19 })]);
+    const results = await Promise.all([emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 }), emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })]);
     expect(state.tables.btgCobrancasEmitidas).toHaveLength(1);
     expect(results.map(result => result.jaExistia).sort()).toEqual([false, true]);
     expect(new Set(results.map(result => result.id)).size).toBe(1);
@@ -285,7 +286,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
       if (first) { first = false; state.tables.btgCobrancasEmitidas.push(canonica({ id: 101, btgIntegracaoId: 99 })); }
       return result;
     });
-    await expect(emitirBolePixV2({ db, parcelaId: 19 })).rejects.toThrow("Outra emissão");
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).rejects.toThrow("Outra emissão");
     expect(state.tables.btgCobrancasEmitidas[0].status).toBe("reservada");
     expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
     expect(mocks.bank).not.toHaveBeenCalled();
@@ -299,7 +300,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
       await tx.update(parcelasAcordo).set({ canalBancario: "cnab240", remessaId: 88, statusRemessa: "remessa_gerada" }).where(eq(parcelasAcordo.id, 19));
     });
     if (ordem === "cnab_primeiro") {
-      const results = await Promise.allSettled([reservarCnab(), emitirBolePixV2({ db, parcelaId: 19 })]);
+      const results = await Promise.allSettled([reservarCnab(), emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })]);
       expect(results.map(result => result.status)).toEqual(["fulfilled", "rejected"]);
       expect(state.tables.parcelasAcordo[0].canalBancario).toBe("cnab240");
       expect(state.tables.btgCobrancasEmitidas).toHaveLength(0);
@@ -314,7 +315,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
         }
         return result;
       });
-      await expect(emitirBolePixV2({ db, parcelaId: 19 })).resolves.toMatchObject({ jaExistia: false });
+      await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ jaExistia: false });
       expect(state.tables.parcelasAcordo[0].canalBancario).toBe("api_btg_v2");
       expect(state.tables.btgCobrancasEmitidas).toHaveLength(1);
       expect(mocks.bank).toHaveBeenCalledTimes(1);
@@ -323,9 +324,9 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
 
   it("emissão por acordo aceita consulta idempotente mas recusa contexto de outro acordo", async () => {
     const { db } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [canonica()] });
-    await expect(emitirParcelasAcordoBtgV2({ db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({ resultados: [{ resultado: "ja_existia", emissao: { id: 100, jaExistia: true } }] });
-    await expect(emitirBolePixV2({ db, parcelaId: 19, acordoIdEsperado: 6 })).rejects.toThrow("selecionados");
-    await expect(emitirBolePixV2({ db, parcelaId: 19, condominioIdEsperado: 3 })).rejects.toThrow("selecionados");
+    await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({ resultados: [{ resultado: "ja_existia", emissao: { id: 100, jaExistia: true } }] });
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19, acordoIdEsperado: 6 })).rejects.toThrow("selecionados");
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19, condominioIdEsperado: 3 })).rejects.toThrow("selecionados");
     expect(mocks.bank).not.toHaveBeenCalled();
   });
 });
@@ -360,7 +361,7 @@ describe("API BTG — prévias e fila segura", () => {
     const previa = await prepararEmissaoParcelasAcordoBtgV2({ db, acordoId: 5 });
     expect(previa.parcelas[0]).toMatchObject({ elegivel: false, codigo: "legado_vinculado" });
     expect(JSON.stringify(previa)).not.toContain("secret-legacy-pix");
-    await expect(emitirParcelasAcordoBtgV2({ db, acordoId: 5, parcelaIds: [19] })).rejects.toThrow("legado");
+    await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).rejects.toThrow("legado");
     expect(mocks.bank).not.toHaveBeenCalled();
   });
 });
@@ -370,7 +371,7 @@ describe("API BTG — contexto de remessa", () => {
   function item() { return { id: 1, btgRemessaId: 50, parcelaAcordoId: 19, installmentNumber: 1, valorCentavos: 12599 }; }
   it("envia lote de contexto correto usando o mesmo emissor canônico", async () => {
     const { db, state } = setup({ btgRemessas: [lote()], btgRemessaItens: [item()] });
-    await expect(executarRemessaBtgV2({ db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({ status: "processada", totalEmitido: 1 });
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({ status: "processada", totalEmitido: 1 });
     expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({ btgRemessaId: 50, condominioId: 2 });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
@@ -380,7 +381,7 @@ describe("API BTG — contexto de remessa", () => {
       httpStatus: 400, camposInvalidos: ["detail.documentNumber", "CPF-NAO-EXIBIR"],
       motivos: ["O número do documento excede o limite permitido", "TOKEN-NAO-EXIBIR"],
     }));
-    await expect(executarRemessaBtgV2({ db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({ status: "falha", totalFalha: 1 });
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({ status: "falha", totalFalha: 1 });
     const mensagem = state.tables.btgRemessaItens[0].mensagem;
     expect(mensagem).toContain("HTTP 400");
     expect(mensagem).toContain("detail.documentNumber");
@@ -393,15 +394,15 @@ describe("API BTG — contexto de remessa", () => {
   });
   it.each([{ condominioId: 3 }, { btgIntegracaoId: 99 }, { btgContaRecebedoraId: 16 }])("não usa lote de contexto divergente para obter/emissão de parcela: %j", async patch => {
     const { db, state } = setup({ btgRemessas: [lote(patch)], btgRemessaItens: [item()] });
-    await expect(emitirBolePixV2({ db, parcelaId: 19, btgRemessaId: 50 })).rejects.toThrow("contexto");
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19, btgRemessaId: 50 })).rejects.toThrow("contexto");
     expect(state.tables.btgCobrancasEmitidas).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
   });
   it("lote não permite valor diferente da seleção nem reexecução processada", async () => {
     const { db, state } = setup({ btgRemessas: [lote()], btgRemessaItens: [item()] });
-    await expect(executarRemessaBtgV2({ db, remessaId: 50, parcelas: [{ ...parcela, amount: 15000 }] })).resolves.toMatchObject({ status: "falha", totalFalha: 1 });
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [{ ...parcela, amount: 15000 }] })).resolves.toMatchObject({ status: "falha", totalFalha: 1 });
     expect(state.tables.btgCobrancasEmitidas).toEqual([]);
-    await expect(executarRemessaBtgV2({ db, remessaId: 50, parcelas: [parcela] })).rejects.toThrow("novo envio");
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).rejects.toThrow("novo envio");
     expect(mocks.bank).not.toHaveBeenCalled();
   });
 });

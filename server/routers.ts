@@ -14,6 +14,7 @@ import { fluxosRouter } from "./routers/fluxos";
 import { btgRouter } from "./routers/btg";
 import { btgV2Router } from "./routers/btg-v2";
 import { btgCanaisRouter } from "./routers/btg-canais";
+import { btgDiagnosticosRouter } from "./routers/btg-diagnosticos";
 import { processosRouter, prazosRouter } from "./routers/processos";
 import { mniRouter } from "./routers/mni";
 import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
@@ -93,6 +94,7 @@ export const appRouter = router({
   btg: btgRouter,
   btgV2: btgV2Router,
   btgCanais: btgCanaisRouter,
+  btgDiagnosticos: btgDiagnosticosRouter,
   processos: processosRouter,
   prazos: prazosRouter,
   mni: mniRouter,

@@ -14,6 +14,7 @@ import { cancelarCobrancaBtgV2, consultarCobrancaBtgV2, criarBolePixBtgV2 } from
 import { BtgV2ConfigurationError } from "./btg-v2/config";
 import { BtgV2HttpError, obterDiagnosticoHttpBtg } from "./btg-v2/errors";
 import type { BtgV2BolePixPayload } from "./btg-v2/bolepix";
+import { criarCapturaMock } from "./btg-v2-http-captura-test-helper";
 
 const documento = "O número do documento excede o limite permitido";
 const fallback = "O BTG não informou um motivo seguro para este erro.";
@@ -85,7 +86,7 @@ describe("BTG v2 — cliente Collections", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 201 }));
     const payload = { amount: 123.45, type: "BANKSLIP_QRCODE", detail: { documentNumber: "PA19R1" } } as BtgV2BolePixPayload;
 
-    await expect(criarBolePixBtgV2(payload, fetchMock)).resolves.toEqual({
+    await expect(criarBolePixBtgV2(payload, fetchMock, criarCapturaMock())).resolves.toEqual({
       collectionId: "stub-collection-1", status: "CREATED", bankSlipUrl: "https://example.invalid/boleto",
       pixQrCode: "qr-sintetico", pixCopiaECola: "pix-sintetico", codigoBarras: "barras", linhaDigitavel: "linha", nossoNumero: "nosso",
     });
@@ -129,7 +130,7 @@ describe("BTG v2 — cliente Collections", () => {
       invalidParams: [{ name: "detail.documentNumber", reason: documento, value: segredo }],
     }), { status }));
     const payload = { amount: 123.45, detail: { documentNumber: "PA19R1" } } as BtgV2BolePixPayload;
-    const error = await capturarErro(criarBolePixBtgV2(payload, fetchMock));
+    const error = await capturarErro(criarBolePixBtgV2(payload, fetchMock, criarCapturaMock()));
     expect(error.message).toContain(`emissão BolePix (HTTP ${status})`);
     expect(error.message).toContain(documento);
     expect(error.message).not.toContain(segredo);
@@ -147,7 +148,7 @@ describe("BTG v2 — cliente Collections", () => {
   it.each(["", "<html>erro</html>", "{malformed", "a".repeat(32769)])(
     "mantém fallback seguro para corpo inválido no POST (%#)", async (body) => {
       const fetchMock = vi.fn().mockResolvedValue(new Response(body, { status: 400 }));
-      const error = await capturarErro(criarBolePixBtgV2({} as BtgV2BolePixPayload, fetchMock));
+      const error = await capturarErro(criarBolePixBtgV2({} as BtgV2BolePixPayload, fetchMock, criarCapturaMock()));
       expect(obterDiagnosticoHttpBtg(error)).toEqual({ httpStatus: 400, camposInvalidos: [], motivos: [fallback] });
       expect(fetchMock).toHaveBeenCalledOnce();
     },
@@ -161,7 +162,7 @@ describe("BTG v2 — cliente Collections", () => {
       cancel,
     });
     const fetchMock = vi.fn().mockResolvedValue(new Response(stream, { status: 400 }));
-    const pending = capturarErro(criarBolePixBtgV2({} as BtgV2BolePixPayload, fetchMock));
+    const pending = capturarErro(criarBolePixBtgV2({} as BtgV2BolePixPayload, fetchMock, criarCapturaMock()));
     await vi.advanceTimersByTimeAsync(5000);
     const error = await pending;
     expect(error.diagnostico.motivos).toEqual([fallback]);
@@ -199,7 +200,7 @@ describe("BTG v2 — cliente Collections", () => {
     const fetchMock = vi.fn().mockResolvedValue(method === "DELETE"
       ? new Response(null, { status: 204 })
       : new Response(JSON.stringify(method === "GET" ? [body] : body), { status: 200 }));
-    if (method === "POST") await criarBolePixBtgV2({} as BtgV2BolePixPayload, fetchMock);
+    if (method === "POST") await criarBolePixBtgV2({} as BtgV2BolePixPayload, fetchMock, criarCapturaMock());
     else if (method === "GET") await consultarCobrancaBtgV2("collection-1", fetchMock);
     else await cancelarCobrancaBtgV2("collection-1", fetchMock);
     expect(fetchMock).toHaveBeenCalledOnce();

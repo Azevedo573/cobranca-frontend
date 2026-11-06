@@ -1,4 +1,4 @@
-import { boolean, decimal, index, int, json, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, index, int, json, mediumtext, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -482,6 +482,43 @@ export const btgRemessaItens = mysqlTable("btgRemessaItens", {
 ]);
 export type BtgRemessaItem = typeof btgRemessaItens.$inferSelect;
 export type InsertBtgRemessaItem = typeof btgRemessaItens.$inferInsert;
+
+// Evidência técnica de uma tentativa HTTP. Corpos exclusivamente cifrados;
+// expurgo manual preserva metadados e não altera o livro financeiro.
+export const btgHttpDiagnosticos = mysqlTable("btgHttpDiagnosticos", {
+  id: int("id").autoincrement().primaryKey(),
+  chaveCaptura: varchar("chaveCaptura", { length: 36 }).notNull(),
+  ambiente: mysqlEnum("ambiente", ["sandbox", "producao"]).notNull(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  btgCobrancaEmitidaId: int("btgCobrancaEmitidaId").notNull(),
+  btgRemessaId: int("btgRemessaId"),
+  parcelaAcordoId: int("parcelaAcordoId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  usuarioId: int("usuarioId").notNull(),
+  operacao: mysqlEnum("operacao", ["emissao"]).default("emissao").notNull(),
+  estadoCaptura: mysqlEnum("estadoCaptura", ["preparado", "enviando", "resposta_recebida", "resposta_incompleta", "sem_resposta"])
+    .default("preparado").notNull(),
+  httpStatus: int("httpStatus"),
+  correlationId: varchar("correlationId", { length: 20 }).notNull(),
+  payloadCifrado: mediumtext("payloadCifrado"),
+  respostaCifrada: mediumtext("respostaCifrada"),
+  payloadSha256: varchar("payloadSha256", { length: 64 }).notNull(),
+  respostaSha256: varchar("respostaSha256", { length: 64 }),
+  payloadBytes: int("payloadBytes").notNull(),
+  respostaBytes: int("respostaBytes"),
+  respostaCompleta: int("respostaCompleta").default(0).notNull(),
+  versaoCriptografia: varchar("versaoCriptografia", { length: 20 }).default("v1").notNull(),
+  capturaCriadaEm: timestamp("capturaCriadaEm").defaultNow().notNull(),
+  respostaRecebidaEm: timestamp("respostaRecebidaEm"),
+  conteudoExpurgadoEm: timestamp("conteudoExpurgadoEm"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("btgHttpDiagnosticos_chave_unique").on(table.chaveCaptura),
+  uniqueIndex("btgHttpDiagnosticos_emissao_unique").on(table.btgCobrancaEmitidaId),
+  index("btgHttpDiagnosticos_remessa_idx").on(table.btgRemessaId, table.id),
+  index("btgHttpDiagnosticos_condominio_idx").on(table.condominioId, table.capturaCriadaEm),
+]);
+export type BtgHttpDiagnostico = typeof btgHttpDiagnosticos.$inferSelect;
 
 // Livro imutável de entregas do webhook. Armazena hash e metadados mínimos;
 // CPF/CNPJ e conteúdo integral do evento não são persistidos nesta tabela.

@@ -71,6 +71,8 @@ import {
   SituacaoCanalParcela,
 } from "@/components/btg/CanaisUI";
 import { useConfirmarReservaLocal } from "@/components/btg/useConfirmarReservaLocal";
+import BtgDiagnosticoDialog, { BtgDiagnosticosItem } from "@/components/btg/BtgDiagnosticoDialog";
+import { diagnosticosDaParcela, type BtgDiagnosticoMeta } from "@/components/btg/btgDiagnosticoUI";
 
 const STATUS_REMESSA: Record<string, { label: string; className: string }> = {
   rascunho: {
@@ -125,6 +127,17 @@ export default function BTGRemessas() {
   const [observacao, setObservacao] = useState("");
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
   const [remessaDetalheId, setRemessaDetalheId] = useState<number | null>(null);
+  const authDiagnostico = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const usuarioDiagnostico = authDiagnostico.data;
+  const adminDiagnostico = Boolean(usuarioDiagnostico?.role === "admin" &&
+    usuarioDiagnostico.isActive === 1 && usuarioDiagnostico.isDeleted === 0 && !authDiagnostico.error);
+  const contextoDiagnostico = `${usuarioDiagnostico?.id}:${usuarioDiagnostico?.role}:${usuarioDiagnostico?.isActive}:${usuarioDiagnostico?.isDeleted}:${usuarioDiagnostico?.profileId}`;
+  const [diagnosticoSelecionado, setDiagnosticoSelecionado] = useState<{
+    diagnostico: BtgDiagnosticoMeta;
+    acao: "visualizar" | "expurgar";
+    remessaId: number;
+    contexto: string;
+  } | null>(null);
 
   const condominioFiltroId =
     condominioId === "todos" ? undefined : Number(condominioId);
@@ -149,6 +162,20 @@ export default function BTGRemessas() {
     { remessaId: remessaDetalheId ?? 0 },
     { enabled: Boolean(remessaDetalheId) }
   );
+  const diagnosticos = trpc.btgDiagnosticos.listarPorRemessa.useQuery(
+    { remessaId: remessaDetalheId ?? 0 },
+    {
+      enabled: Boolean(remessaDetalheId && adminDiagnostico),
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchInterval: false,
+      trpc: { abortOnUnmount: true },
+    }
+  );
+  useEffect(() => {
+    setDiagnosticoSelecionado(null);
+  }, [remessaDetalheId, contextoDiagnostico, adminDiagnostico]);
 
   useEffect(() => {
     if (!fila.data) return;
@@ -1039,6 +1066,17 @@ export default function BTGRemessas() {
                                           : ""}
                                       </p>
                                     )}
+                                    {adminDiagnostico && (
+                                      <BtgDiagnosticosItem
+                                        diagnosticos={diagnosticosDaParcela(diagnosticos.data ?? [], item.parcelaAcordoId)}
+                                        carregando={diagnosticos.isLoading}
+                                        indisponivel={Boolean(diagnosticos.error)}
+                                        onAbrir={(diagnostico, acao) => {
+                                          if (!remessaDetalheId) return;
+                                          setDiagnosticoSelecionado({ diagnostico, acao, remessaId: remessaDetalheId, contexto: contextoDiagnostico });
+                                        }}
+                                      />
+                                    )}
                                   </div>
 
                                   {emissao && (
@@ -1122,6 +1160,17 @@ export default function BTGRemessas() {
           ) : null}
         </SheetContent>
       </Sheet>
+      {adminDiagnostico && diagnosticoSelecionado &&
+        diagnosticoSelecionado.remessaId === remessaDetalheId &&
+        diagnosticoSelecionado.contexto === contextoDiagnostico && (
+          <BtgDiagnosticoDialog
+            key={`${contextoDiagnostico}:${remessaDetalheId}:${diagnosticoSelecionado.diagnostico.id}:${diagnosticoSelecionado.acao}`}
+            diagnostico={diagnosticoSelecionado.diagnostico}
+            acao={diagnosticoSelecionado.acao}
+            onClose={() => setDiagnosticoSelecionado(null)}
+            onExpurgado={() => { void diagnosticos.refetch(); }}
+          />
+        )}
     </div>
   );
 }

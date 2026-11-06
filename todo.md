@@ -3025,3 +3025,24 @@ Não apagar reserva, mudar revisão/canal/externalId, alterar valores/datas, can
 - [x] Manual/especificação/ocorrência/plano atualizados como registro documental da implantação; não requer novo pull/build/restart.
 
 A disponibilidade da aplicação não homologa BolePix/webhook nem confirma inexistência da cobrança. Nenhuma emissão foi recuperada/cancelada/reenviada ou canal/revisão alterado por estes roteiros. A investigação/recuperação da emissão #1 permanece nas pendências financeiras anteriores; não limpar a reserva ou usar CNAB como contorno.
+
+## Evolução — captura criptografada BTG (06/11/2026, aprovada17:50:38)
+
+Fonte: docs/specs/SPEC-btg-captura-payload-diagnostico.md; plano: tasks/plan-btg-captura-payload-diagnostico.md. Apenas desenvolvimento, sem deploy/reenvio/recuperação.
+
+- [x] Schema btgHttpDiagnosticos/MEDIUMTEXT e migration0101 revisada e aplicada só no desenvolvimento; nenhuma conta/título/registro histórico inserido ou alterado.
+- [x] Crypto HKDF/AES256GCM/AAD separa pedido/resposta e contexto; repositório grava antesPOST com auditoria/rollback e limites de64KiB. Testes crypto6/repositório13 aprovados com fixtures.
+- [x] Provisionador seletivo assinaturaDDL/tipos/constraints/defaults/índices/recusa parcial/idempotência preparado;12 regressões aprovadas e --check confirmou estrutura do desenvolvimento por leitura.
+- [x] Integração cliente/emissão/remessa com body único/retorno único/ator/IDs e vínculos de falha, conservando canônicas sem retry.
+- [x] APIs administrativas frescas/metadados/visualização auditada/expurgo manual30dias e testes de autorização/rollback/locks e→diagnóstico concluídos.
+- [x] Interface técnica com confirmação/finalidade/texto inerte/limites/expiração/limpeza de conteúdo e testes; cache privado semplaintext e respostas tardias descartadas.
+- [x] Validação definitiva1504 aprovados/1 externo ignorado, TypeScript/build/diff/HTTP200, inspeção sintética semAPI, documentação e artefatos completos preparados para checkpoint final.
+
+## Solicitação adicional — reenviar parcela/cobrança com falha (06/11/2026,17:58:23)
+
+- [x] Necessidade registrada em tasks/solicitacao-btg-reenvio-falhas.md, separada da captura aprovada. Falha de item não equivale a recusa definitiva/canônica ausente.
+- [x] Proposta estruturada em docs/specs/SPEC-btg-reenvio-controlado.md com provas/consulta/idempotência/revisão/locks/confirmacão e bloqueio de incertas; implementação não iniciada.
+- [ ] Revisar/aprovar recuperação de falha local/rejeição definitiva versus estado incerto, sem exceção financeira implícita.
+- [ ] Implementar/testar recuperação após regras aprovadas; manter tentativas anteriores e evidências, sem reset/retry automático/fallbackCNAB.
+
+Operação real/implantação da captura e situação bancária das emissões1/2 continuam externas e não foram realizadas pelos testes.

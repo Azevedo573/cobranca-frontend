@@ -10,6 +10,7 @@ vi.mock("./storage", () => ({ storagePut: mocks.storage }));
 vi.mock("./db-cnab", async original => ({ ...await original<typeof import("./db-cnab")>(), gerarArquivoRemessaCNAB240: mocks.arquivo }));
 vi.mock("./btg-oauth", () => ({ getBtgOAuthConfig: mocks.oauthConfig, getStatusOAuthBtg: mocks.oauthStatus }));
 vi.mock("./btg-v2/client", () => ({ criarBolePixBtgV2: mocks.apiBank }));
+vi.mock("./btg-v2/diagnosticos", async () => ({ criarCapturaHttpBtg: (await import("./btg-v2-http-captura-test-helper")).criarCapturaMock }));
 
 import { bloquearParcelasParaCanal, exigirParcelaLivreParaCanal } from "./btg-canais";
 import { emitirBolePixV2 } from "./btg-v2/issuance";
@@ -169,7 +170,7 @@ describe("CNAB de parcelas — reserva transacional", () => {
     const aguarda = new Promise<void>(resolve => { continuar = resolve; });
     mocks.boleto.mockImplementation(async () => { chegou(); await aguarda; return { nomeBeneficiario: "Condomínio", cnpjBeneficiario: "30306294000145" }; });
     const cnab = gerar(); await entrou;
-    const api = emitirBolePixV2({ db: fixture.db, parcelaId: 19 });
+    const api = emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 19 });
     continuar();
     const result = await Promise.allSettled([cnab, api]);
     expect(result[0].status).toBe("fulfilled"); expect(result[1].status).toBe("rejected");
@@ -181,7 +182,7 @@ describe("CNAB de parcelas — reserva transacional", () => {
     const entrou = new Promise<void>(resolve => { chegou = resolve; });
     const aguarda = new Promise<void>(resolve => { continuar = resolve; });
     mocks.apiBank.mockImplementation(async () => { chegou(); await aguarda; return { collectionId: "api-fixture", status: "CREATED", nossoNumero: "bank-fixture" }; });
-    const api = emitirBolePixV2({ db: fixture.db, parcelaId: 19 }); await entrou;
+    const api = emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 19 }); await entrou;
     expect(livre().canalBancario).toBe("api_btg_v2");
     await expect(gerar()).rejects.toThrow("API"); continuar();
     await expect(api).resolves.toMatchObject({ status: "emitida" });

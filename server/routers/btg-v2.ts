@@ -94,6 +94,29 @@ function sanitizarDiagnosticoHttpAuditBtg(value: unknown) {
   }
 }
 
+function sanitizarDiagnosticosRemessaAuditBtg(value: unknown, parcelaIds: number[]) {
+  try {
+    const parsed = z.object({ diagnosticosHttp: z.array(z.unknown()) }).safeParse(value);
+    if (!parsed.success) return [];
+    return parsed.data.diagnosticosHttp.slice(0, 50).flatMap(item => {
+      const row = z.object({ parcelaId: z.number().int().positive(),
+        emissaoId: z.number().int().positive().optional(), capturaId: z.number().int().positive().optional(),
+        diagnosticoHttp: z.unknown().optional(),
+      }).safeParse(item);
+      if (!row.success || !parcelaIds.includes(row.data.parcelaId)) return [];
+      const diagnostico = sanitizarDiagnosticoHttpAuditBtg(row.data.diagnosticoHttp ?? item);
+      if (!diagnostico && !row.data.capturaId) return [];
+      return [{ parcelaId: row.data.parcelaId,
+        ...(row.data.emissaoId ? { emissaoId: row.data.emissaoId } : {}),
+        ...(row.data.capturaId ? { capturaId: row.data.capturaId } : {}),
+        ...(diagnostico ?? {}),
+      }];
+    });
+  } catch {
+    return [];
+  }
+}
+
 function toTrpcError(error: unknown): TRPCError {
   if (error instanceof BtgV2ConfigurationError) {
     return new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
@@ -743,13 +766,20 @@ export const btgV2Router = router({
           throw new BtgV2ConfigurationError(mensagem);
         }
 
-        const resumo = await executarRemessaBtgV2({ db, remessaId, parcelas: selecionadas });
+        const resumo = await executarRemessaBtgV2({ db, remessaId, parcelas: selecionadas, usuarioId: ctx.user.id });
+        const diagnosticosHttp = sanitizarDiagnosticosRemessaAuditBtg(resumo, selecionadas.map(parcela => parcela.id));
         await logAudit(ctx, {
           action: "generate_boleto",
           entity: "configuracao",
           entityId: `btg-remessa:${remessaId}`,
           condominioId: input.condominioId,
-          metadata: { integracao: "btg-v2", evento: "remessa_enviada", remessaId, ...resumo },
+          metadata: {
+            integracao: "btg-v2", evento: "remessa_enviada", remessaId,
+            status: resumo.status, totalSelecionado: resumo.totalSelecionado,
+            totalEmitido: resumo.totalEmitido, totalFalha: resumo.totalFalha,
+            valorTotalCentavos: resumo.valorTotalCentavos,
+            ...(diagnosticosHttp.length ? { diagnosticosHttp } : {}),
+          },
           severity: resumo.totalFalha ? "warning" : "info",
         });
         return { id: remessaId, ...resumo };
@@ -864,7 +894,7 @@ export const btgV2Router = router({
         const config = getBtgV2ServerConfig();
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
-        const resultado = await emitirParcelasAcordoBtgV2({ db, ...input });
+        const resultado = await emitirParcelasAcordoBtgV2({ db, ...input, usuarioId: ctx.user.id });
         const resumo = resultado.resultados.reduce((acumulado, item) => {
           acumulado[item.resultado] += 1;
           return acumulado;

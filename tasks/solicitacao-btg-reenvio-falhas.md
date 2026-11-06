@@ -1,0 +1,11 @@
+# Solicitação — recuperar/reenviar parcela com falha
+
+Usuário solicitou em06/11/2026 às17:58:23 a possibilidade de enviar novamente parcelas/cobranças com falha. Registrada como evolução separada da captura cifrada aprovada; implementação financeira não iniciada nem autorizada por esse registro.
+
+Objetivo: ação administrativa de reenvio explícito que preserve histórico e permita corrigir um pedido recusado, sem permitir duas cobranças válidas para a mesma parcela. “Falha” no item de remessa não é prova de ausência da cobrança: canônica pode permanecer incerta. Não resetar campos/revisão/canal, excluir emissões, trocar para CNAB ou repetir POST automaticamente.
+
+Proposta a especificar/revisar: falha comprovadamente anterior ao POST poderá gerar nova tentativa após correção e confirmação, mantendo tentativa anterior e nova evidência. Rejeição bancária definitiva exige resposta e correlação identificáveis, política idempotente compatível com BTG e revisão explícita; estado incerto/timeouts/persistência falha apósPOST exige primeiro consulta/reconciliação por Collection ID/correlação. Se título existir, recuperar o vínculo em vez de emitir outro. Consulta incompleta, resposta inválida, HTTP diferente de200 ou mera ausência visual no portal não liberam reenvio.
+
+Antes de implementar: definir transições e provas exigidas, nova revisão versus repetição idempotente, proteção transacional de parcela/acordo/canal, permissão administrativa e confirmação, interação com expurgo30dias/evidência, limites de listagem BTG e conflito de contexto/valores após correção. A tabela de evidências mantém uma captura por emissão canônica; eventual nova revisão terá nova emissão/evidência, nunca sobrescrevendo a anterior. Mudança desse mecanismo deve ser especificada, não feita dentro do cliente HTTP.
+
+Critérios mínimos futuros: rejeitar canônica incerta sem reconciliação; recuperar título existente sem POST; lote não repetir itens já emitidos; manter valores/acordo/carteira e auditoria; ações individuais explícitas, sem fallback/retry em background; falhas de consulta/DB/concorrência preservam bloqueio. Captura deve ser concluída/testada antes da implementação da recuperação. Deploy e reenvio real de Produção requerem autorização separada.

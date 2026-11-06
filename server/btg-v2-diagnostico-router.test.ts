@@ -124,7 +124,7 @@ describe("BTG v2 — diagnóstico protegido na auditoria de emitirParcelasAcordo
     const retornado = await caller().emitirParcelasAcordo(input);
     expect(retornado).toBe(resultado);
     expect(mocks.emitir).toHaveBeenCalledTimes(1);
-    expect(mocks.emitir).toHaveBeenCalledWith({ db, ...input });
+    expect(mocks.emitir).toHaveBeenCalledWith({ db, ...input, usuarioId: 10 });
     expect(mocks.audit.mock.calls[0][0].user.id).toBe(10);
     expect(mocks.audit.mock.calls[0][1]).toEqual({
       action: "generate_boleto", entity: "acordo", entityId: "5", severity: "warning",

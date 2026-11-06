@@ -62,6 +62,56 @@ const MOTIVOS_PERMITIDOS = new Map<string, string>([
 
 const diagnosticosReconhecidos = new WeakMap<BtgV2HttpError, BtgV2DiagnosticoHttp>();
 
+export interface BtgV2ContextoCapturaErro {
+  capturaId: number | null;
+  envioIniciado: boolean;
+}
+
+export interface BtgV2VinculoEmissaoErro {
+  emissaoId: number;
+  capturaId: number | null;
+  parcelaId: number;
+  btgRemessaId: number | null;
+  btgIntegracaoId: number;
+  condominioId: number;
+  btgContaRecebedoraId: number;
+}
+
+// Só metadados locais validados. Não expor propriedades no erro, body ou cause.
+const capturasDosErros = new WeakMap<Error, Readonly<BtgV2ContextoCapturaErro>>();
+const emissoesDosErros = new WeakMap<Error, Readonly<BtgV2VinculoEmissaoErro>>();
+
+function idLocalValido(id: unknown): id is number {
+  return typeof id === "number" && Number.isSafeInteger(id) && id > 0;
+}
+
+export function vincularCapturaHttpErroBtg(error: Error, contexto: BtgV2ContextoCapturaErro): void {
+  if (contexto.capturaId !== null && !idLocalValido(contexto.capturaId)) return;
+  capturasDosErros.set(error, Object.freeze({ capturaId: contexto.capturaId, envioIniciado: contexto.envioIniciado === true }));
+}
+
+export function obterCapturaHttpErroBtg(error: unknown): BtgV2ContextoCapturaErro | undefined {
+  try {
+    const contexto = error instanceof Error ? capturasDosErros.get(error) : undefined;
+    return contexto ? { ...contexto } : undefined;
+  } catch { return undefined; }
+}
+
+/** Chamado pelo emissor somente depois de validar a reserva canônica real. */
+export function vincularEmissaoErroBtg(error: Error, vinculo: BtgV2VinculoEmissaoErro): void {
+  if (![vinculo.emissaoId, vinculo.parcelaId, vinculo.btgIntegracaoId, vinculo.condominioId, vinculo.btgContaRecebedoraId].every(idLocalValido) ||
+      (vinculo.capturaId !== null && !idLocalValido(vinculo.capturaId)) ||
+      (vinculo.btgRemessaId !== null && !idLocalValido(vinculo.btgRemessaId))) return;
+  emissoesDosErros.set(error, Object.freeze({ ...vinculo }));
+}
+
+export function obterVinculoEmissaoErroBtg(error: unknown): BtgV2VinculoEmissaoErro | undefined {
+  try {
+    const vinculo = error instanceof Error ? emissoesDosErros.get(error) : undefined;
+    return vinculo ? { ...vinculo } : undefined;
+  } catch { return undefined; }
+}
+
 function registro(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -231,9 +281,30 @@ export async function criarErroHttpBtgV2(
   response: Response,
   operacao: OperacaoHttpBtg = "emissao",
 ): Promise<BtgV2HttpError> {
+  return criarErroHttpBtgV2Dados(response, await lerJsonLimitado(response), operacao);
+}
+
+/** Parse só dos bytes capturados completos. Nunca reler Response.json/text. */
+export function parseJsonBytesBtgV2(bytes: Uint8Array, completa: boolean): unknown {
+  if (!completa) return undefined;
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch { return undefined; }
+}
+
+export function criarErroHttpBtgV2DoCorpo(
+  response: Response,
+  bytes: Uint8Array,
+  completa: boolean,
+  operacao: OperacaoHttpBtg = "emissao",
+): BtgV2HttpError {
+  return criarErroHttpBtgV2Dados(response, parseJsonBytesBtgV2(bytes, completa), operacao);
+}
+
+function criarErroHttpBtgV2Dados(response: Response, corpo: unknown, operacao: OperacaoHttpBtg): BtgV2HttpError {
   const httpStatus = statusSeguro(response.status);
   const requestId = obterRequestId(response);
-  const data = registro(await lerJsonLimitado(response));
+  const data = registro(corpo);
   const camposInvalidos: string[] = [];
   const motivos: string[] = [];
   // BancoResponse oficial: name/brn/reason/invalidParams[{value,name,reason}].

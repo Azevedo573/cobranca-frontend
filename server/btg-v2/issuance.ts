@@ -18,7 +18,8 @@ import { getStatusOAuthBtg } from "../btg-oauth";
 import { bloquearIntegracaoBtg } from "./manual-producao";
 import { bloquearParcelasParaCanal, idsComEmissaoV2 } from "../btg-canais";
 import { avaliarElegibilidadeCanalParcela, type EstadoBancarioParcela } from "../../shared/btg-canais";
-import { obterDiagnosticoHttpBtg, type BtgV2DiagnosticoHttp } from "./errors";
+import { obterCapturaHttpErroBtg, obterDiagnosticoHttpBtg, obterVinculoEmissaoErroBtg, vincularEmissaoErroBtg, type BtgV2DiagnosticoHttp } from "./errors";
+import { criarCapturaHttpBtg, type BtgHttpCaptura } from "./diagnosticos";
 
 export { BtgV2ConfigurationError } from "./config";
 
@@ -37,6 +38,7 @@ export interface BtgV2EmissaoResultado {
   codigoBarras: string | null;
   linhaDigitavel: string | null;
   nossoNumero: string | null;
+  capturaId?: number;
 }
 
 export function gerarExternalIdBtgV2(ambiente: "sandbox" | "producao", origemTipo: BtgV2OrigemTipo, origemId: number, revisao = 1): string {
@@ -207,12 +209,15 @@ export interface BtgV2ResultadoEmissaoParcelaAcordo {
   mensagem: string;
   diagnosticoHttp?: BtgV2DiagnosticoHttp;
   emissao?: BtgV2EmissaoResultado;
+  emissaoId?: number;
+  capturaId?: number;
 }
 
 export async function emitirParcelasAcordoBtgV2(input: {
   db: Db;
   acordoId: number;
   parcelaIds: number[];
+  usuarioId?: number;
 }): Promise<{ acordoId: number; resultados: BtgV2ResultadoEmissaoParcelaAcordo[] }> {
   const preparacao = await prepararEmissaoParcelasAcordoBtgV2({ db: input.db, acordoId: input.acordoId });
   const selecionadas = validarSelecaoParcelasAcordoBtgV2({
@@ -226,7 +231,7 @@ export async function emitirParcelasAcordoBtgV2(input: {
 
   for (const parcela of selecionadas) {
     try {
-      const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id!, acordoIdEsperado: input.acordoId });
+      const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id!, acordoIdEsperado: input.acordoId, usuarioId: input.usuarioId });
       resultados.push({
         parcelaId: parcela.id!,
         installmentNumber: parcela.installmentNumber ?? 0,
@@ -240,12 +245,15 @@ export async function emitirParcelasAcordoBtgV2(input: {
       });
     } catch (error) {
       const diagnosticoHttp = obterDiagnosticoHttpBtg(error);
+      const vinculo = obterVinculoEmissaoErroBtg(error);
       resultados.push({
         parcelaId: parcela.id!,
         installmentNumber: parcela.installmentNumber ?? 0,
         resultado: "falha",
-        mensagem: error instanceof Error ? error.message : "Não foi possível simular esta parcela no BTG.",
+        mensagem: error instanceof BtgV2ConfigurationError ? error.message : "Não foi possível emitir esta parcela no BTG.",
         ...(diagnosticoHttp ? { diagnosticoHttp } : {}),
+        ...(vinculo && vinculo.parcelaId === parcela.id ? { emissaoId: vinculo.emissaoId,
+          ...(vinculo.capturaId ? { capturaId: vinculo.capturaId } : {}) } : {}),
       });
     }
   }
@@ -322,6 +330,7 @@ export async function emitirBolePixV2(input: {
   acordoIdEsperado?: number;
   condominioIdEsperado?: number;
   valorCentavosEsperado?: number;
+  usuarioId?: number;
 }): Promise<BtgV2EmissaoResultado> {
   const { db, parcelaId, btgRemessaId } = input;
   const origemTipo: BtgV2OrigemTipo = "parcela_acordo";
@@ -400,6 +409,10 @@ export async function emitirBolePixV2(input: {
   if (existenteAntesDaReserva) {
     validarRegistroCanonicoBtgV2(existenteAntesDaReserva, contextoCanonico);
     return toResult(existenteAntesDaReserva, true);
+  }
+  // Obrigatório para um novo comando; consulta canônica histórica não cria captura.
+  if (!Number.isSafeInteger(input.usuarioId) || input.usuarioId! <= 0) {
+    throw new BtgV2ConfigurationError("Um usuário autenticado válido é obrigatório para capturar uma nova emissão BolePix.");
   }
   const comEmissao = await consultarParcelasComEmissaoV2Btg(db, [parcelaId]);
   const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2({ ...parcela, btgEmissaoV2Existente: comEmissao.has(parcelaId) });
@@ -493,61 +506,65 @@ export async function emitirBolePixV2(input: {
 
   if (reservada.jaExistia) return toResult(reservada.row, true);
   const reserva = reservada.row;
-
-  // Nova leitura antes do POST: o runtime pode ter mudado durante a reserva.
-  // Se invalidada, a reserva permanece e nunca gera um retry bancário automático.
-  const antesDoEnvio = await validarContaVinculadaAtualBtgV2({ db, condominioId: origem.condominioId, paraEmissao: true });
-  if (antesDoEnvio.integracao.id !== integracao.id || antesDoEnvio.accountRow.conta.id !== accountRow.conta.id ||
-      antesDoEnvio.accountRow.conta.agencia !== reserva.agenciaRecebedora || antesDoEnvio.accountRow.conta.numero !== reserva.contaRecebedora ||
-      antesDoEnvio.accountRow.conta.documentoBeneficiario !== reserva.documentoBeneficiario || antesDoEnvio.accountRow.conta.nomeBeneficiario !== reserva.nomeBeneficiario) {
-    throw new BtgV2ConfigurationError("A conta recebedora foi alterada depois da reserva; nenhum envio foi realizado. Revise a emissão reservada.");
-  }
-
-  await db.transaction(async tx => {
-    const atual = await bloquearIntegracaoBtg(tx, getBtgV2ServerConfig());
-    if (atual.id !== integracao.id || atual.emissaoHabilitada !== 1) throw new BtgV2ConfigurationError("A integração foi alterada depois da reserva; revise a emissão reservada.");
-    const [vinculada] = await tx.select({ vinculoAtivo: btgContaRecebedoraCondominios.ativo, conta: btgContasRecebedoras })
-      .from(btgContaRecebedoraCondominios)
-      .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
-      .where(and(eq(btgContaRecebedoraCondominios.btgIntegracaoId, atual.id), eq(btgContaRecebedoraCondominios.condominioId, origem.condominioId)))
-      .limit(1).for("update");
-    if (!vinculada || vinculada.vinculoAtivo !== 1 || vinculada.conta.id !== accountRow.conta.id ||
-        vinculada.conta.agencia !== reserva.agenciaRecebedora || vinculada.conta.numero !== reserva.contaRecebedora ||
-        vinculada.conta.documentoBeneficiario !== reserva.documentoBeneficiario || vinculada.conta.nomeBeneficiario !== reserva.nomeBeneficiario) {
-      throw new BtgV2ConfigurationError("A conta recebedora foi alterada depois da reserva; revise a emissão reservada.");
-    }
-    validarContaRecebedoraParaAmbiente({ conta: vinculada.conta, integracao: atual, serverConfig: getBtgV2ServerConfig() });
-    const [bloqueada] = await bloquearParcelasParaCanal(tx, [parcelaId], origem.condominioId);
-    if (!bloqueada || bloqueada.condominioId !== origem.condominioId) throw new BtgV2ConfigurationError("O condomínio da parcela foi alterado depois da reserva.");
-    validarAcordoAtivoBtgV2(bloqueada.acordoStatus);
-    validarParcelaPreparadaBtgV2(bloqueada.parcela, parcela);
-    if (bloqueada.parcela.canalBancario !== "api_btg_v2") throw new BtgV2ConfigurationError("O canal da parcela foi alterado depois da reserva; revise a emissão reservada.");
-    // Desconsidera SOMENTE a própria reserva canônica, sem ignorar CNAB/legado.
-    const estado = avaliarElegibilidadeParcelaAcordoBtgV2({ ...bloqueada.parcela, canalBancario: null, btgEmissaoV2Existente: false });
-    if (!estado.elegivel) throw new BtgV2ConfigurationError(`A parcela foi alterada depois da reserva: ${estado.motivo?.toLowerCase()}.`);
-    const [acordoAtual] = await tx.select().from(acordos).where(eq(acordos.id, acordo.id)).limit(1);
-    const [pagadorAtual] = await tx.select().from(devedores).where(eq(devedores.id, origem.devedorId)).limit(1);
-    if (!acordoAtual || acordoAtual.devedorId !== origem.devedorId || !pagadorAtual || pagadorAtual.condominioId !== origem.condominioId ||
-        ["name", "cpfCnpj", "email", "phone", "address", "addressNumber", "addressComplement", "neighborhood", "city", "state", "zipCode", "unitNumber"].some(
-          key => pagadorAtual[key as keyof typeof pagadorAtual] !== devedor[key as keyof typeof devedor])) {
-      throw new BtgV2ConfigurationError("O pagador da cobrança foi alterado depois da reserva; revise a emissão reservada.");
-    }
-    await validarContextoRemessaBtgV2(tx, btgRemessaId, { ...contextoCanonico, amount: origem.amount });
-    const canonica = await findExisting(tx, integracao.id, origemTipo, parcelaId);
-    if (!canonica || canonica.id !== reserva.id || canonica.status !== "reservada") throw new BtgV2ConfigurationError("O estado da reserva foi alterado; nenhum novo envio foi realizado.");
-    validarRegistroCanonicoBtgV2(canonica, contextoCanonico);
-    if (canonica.amount !== origem.amount || canonica.dueDate.getTime() !== origem.dueDate.getTime() ||
-        canonica.agenciaRecebedora !== reserva.agenciaRecebedora || canonica.contaRecebedora !== reserva.contaRecebedora ||
-        canonica.documentoBeneficiario !== reserva.documentoBeneficiario || canonica.nomeBeneficiario !== reserva.nomeBeneficiario) {
-      throw new BtgV2ConfigurationError("Os dados da reserva canônica foram alterados; nenhum novo envio foi realizado.");
-    }
-    const outrasEmissoes = await tx.select({ id: btgCobrancasEmitidas.id }).from(btgCobrancasEmitidas)
-      .where(and(eq(btgCobrancasEmitidas.origemTipo, origemTipo), eq(btgCobrancasEmitidas.origemId, parcelaId)));
-    if (outrasEmissoes.some(row => row.id !== reserva.id)) throw new BtgV2ConfigurationError("Outra emissão foi identificada depois da reserva; nenhum novo envio foi realizado.");
-    await tx.update(btgCobrancasEmitidas).set({ status: "enviando", updatedAt: new Date() }).where(eq(btgCobrancasEmitidas.id, reserva.id));
-  });
+  let captura: BtgHttpCaptura | undefined;
+  let clienteInvocado = false;
 
   try {
+    captura = criarCapturaHttpBtg({ db, emissaoId: reserva.id, usuarioId: input.usuarioId! });
+
+    // Nova leitura antes do POST: o runtime pode ter mudado durante a reserva.
+    // Se invalidada, a reserva permanece e nunca gera um retry bancário automático.
+    const antesDoEnvio = await validarContaVinculadaAtualBtgV2({ db, condominioId: origem.condominioId, paraEmissao: true });
+    if (antesDoEnvio.integracao.id !== integracao.id || antesDoEnvio.accountRow.conta.id !== accountRow.conta.id ||
+        antesDoEnvio.accountRow.conta.agencia !== reserva.agenciaRecebedora || antesDoEnvio.accountRow.conta.numero !== reserva.contaRecebedora ||
+        antesDoEnvio.accountRow.conta.documentoBeneficiario !== reserva.documentoBeneficiario || antesDoEnvio.accountRow.conta.nomeBeneficiario !== reserva.nomeBeneficiario) {
+      throw new BtgV2ConfigurationError("A conta recebedora foi alterada depois da reserva; nenhum envio foi realizado. Revise a emissão reservada.");
+    }
+
+    await db.transaction(async tx => {
+      const atual = await bloquearIntegracaoBtg(tx, getBtgV2ServerConfig());
+      if (atual.id !== integracao.id || atual.emissaoHabilitada !== 1) throw new BtgV2ConfigurationError("A integração foi alterada depois da reserva; revise a emissão reservada.");
+      const [vinculada] = await tx.select({ vinculoAtivo: btgContaRecebedoraCondominios.ativo, conta: btgContasRecebedoras })
+        .from(btgContaRecebedoraCondominios)
+        .innerJoin(btgContasRecebedoras, eq(btgContasRecebedoras.id, btgContaRecebedoraCondominios.btgContaRecebedoraId))
+        .where(and(eq(btgContaRecebedoraCondominios.btgIntegracaoId, atual.id), eq(btgContaRecebedoraCondominios.condominioId, origem.condominioId)))
+        .limit(1).for("update");
+      if (!vinculada || vinculada.vinculoAtivo !== 1 || vinculada.conta.id !== accountRow.conta.id ||
+          vinculada.conta.agencia !== reserva.agenciaRecebedora || vinculada.conta.numero !== reserva.contaRecebedora ||
+          vinculada.conta.documentoBeneficiario !== reserva.documentoBeneficiario || vinculada.conta.nomeBeneficiario !== reserva.nomeBeneficiario) {
+        throw new BtgV2ConfigurationError("A conta recebedora foi alterada depois da reserva; revise a emissão reservada.");
+      }
+      validarContaRecebedoraParaAmbiente({ conta: vinculada.conta, integracao: atual, serverConfig: getBtgV2ServerConfig() });
+      const [bloqueada] = await bloquearParcelasParaCanal(tx, [parcelaId], origem.condominioId);
+      if (!bloqueada || bloqueada.condominioId !== origem.condominioId) throw new BtgV2ConfigurationError("O condomínio da parcela foi alterado depois da reserva.");
+      validarAcordoAtivoBtgV2(bloqueada.acordoStatus);
+      validarParcelaPreparadaBtgV2(bloqueada.parcela, parcela);
+      if (bloqueada.parcela.canalBancario !== "api_btg_v2") throw new BtgV2ConfigurationError("O canal da parcela foi alterado depois da reserva; revise a emissão reservada.");
+      // Desconsidera SOMENTE a própria reserva canônica, sem ignorar CNAB/legado.
+      const estado = avaliarElegibilidadeParcelaAcordoBtgV2({ ...bloqueada.parcela, canalBancario: null, btgEmissaoV2Existente: false });
+      if (!estado.elegivel) throw new BtgV2ConfigurationError(`A parcela foi alterada depois da reserva: ${estado.motivo?.toLowerCase()}.`);
+      const [acordoAtual] = await tx.select().from(acordos).where(eq(acordos.id, acordo.id)).limit(1);
+      const [pagadorAtual] = await tx.select().from(devedores).where(eq(devedores.id, origem.devedorId)).limit(1);
+      if (!acordoAtual || acordoAtual.devedorId !== origem.devedorId || !pagadorAtual || pagadorAtual.condominioId !== origem.condominioId ||
+          ["name", "cpfCnpj", "email", "phone", "address", "addressNumber", "addressComplement", "neighborhood", "city", "state", "zipCode", "unitNumber"].some(
+            key => pagadorAtual[key as keyof typeof pagadorAtual] !== devedor[key as keyof typeof devedor])) {
+        throw new BtgV2ConfigurationError("O pagador da cobrança foi alterado depois da reserva; revise a emissão reservada.");
+      }
+      await validarContextoRemessaBtgV2(tx, btgRemessaId, { ...contextoCanonico, amount: origem.amount });
+      const canonica = await findExisting(tx, integracao.id, origemTipo, parcelaId);
+      if (!canonica || canonica.id !== reserva.id || canonica.status !== "reservada") throw new BtgV2ConfigurationError("O estado da reserva foi alterado; nenhum novo envio foi realizado.");
+      validarRegistroCanonicoBtgV2(canonica, contextoCanonico);
+      if (canonica.amount !== origem.amount || canonica.dueDate.getTime() !== origem.dueDate.getTime() ||
+          canonica.agenciaRecebedora !== reserva.agenciaRecebedora || canonica.contaRecebedora !== reserva.contaRecebedora ||
+          canonica.documentoBeneficiario !== reserva.documentoBeneficiario || canonica.nomeBeneficiario !== reserva.nomeBeneficiario) {
+        throw new BtgV2ConfigurationError("Os dados da reserva canônica foram alterados; nenhum novo envio foi realizado.");
+      }
+      const outrasEmissoes = await tx.select({ id: btgCobrancasEmitidas.id }).from(btgCobrancasEmitidas)
+        .where(and(eq(btgCobrancasEmitidas.origemTipo, origemTipo), eq(btgCobrancasEmitidas.origemId, parcelaId)));
+      if (outrasEmissoes.some(row => row.id !== reserva.id)) throw new BtgV2ConfigurationError("Outra emissão foi identificada depois da reserva; nenhum novo envio foi realizado.");
+      await tx.update(btgCobrancasEmitidas).set({ status: "enviando", updatedAt: new Date() }).where(eq(btgCobrancasEmitidas.id, reserva.id));
+    });
+
     const payload = montarPayloadBolePixV2({
       amountCentavos: origem.amount,
       dueDate: origem.dueDate,
@@ -573,7 +590,8 @@ export async function emitirBolePixV2(input: {
         },
       },
     });
-    const resposta = await criarBolePixBtgV2(payload);
+    clienteInvocado = true;
+    const resposta = await criarBolePixBtgV2(payload, undefined, captura);
     const emittedAt = new Date();
     await db.update(btgCobrancasEmitidas).set({
       btgCollectionId: resposta.collectionId,
@@ -590,13 +608,25 @@ export async function emitirBolePixV2(input: {
     }).where(eq(btgCobrancasEmitidas.id, reserva.id));
     const emitted = await findExisting(db, integracao.id, origemTipo, parcelaId);
     if (!emitted) throw new BtgV2ConfigurationError("A emissão foi concluída sem registro local.");
-    return toResult(emitted, false);
+    return { ...toResult(emitted, false), ...(captura.id ? { capturaId: captura.id } : {}) };
   } catch (error) {
-    // Depois de iniciar o POST, qualquer falha é tratada como incerta por
-    // segurança: nenhuma nova emissão automática poderá duplicar o título.
-    await db.update(btgCobrancasEmitidas)
-      .set({ status: "incerta", erroCodigo: "EMISSAO_SEM_CONFIRMACAO", updatedAt: new Date() })
-      .where(eq(btgCobrancasEmitidas.id, reserva.id));
-    throw error;
+    const contexto = obterCapturaHttpErroBtg(error);
+    // Em defeito desconhecido do cliente, assumir envio evita qualquer retry inseguro.
+    const envioIniciado = contexto?.envioIniciado ?? clienteInvocado;
+    const seguro = error instanceof BtgV2ConfigurationError ? error
+      : new BtgV2ConfigurationError(envioIniciado
+        ? "A emissão BolePix ficou sem confirmação local; revise a emissão incerta, sem reenviar."
+        : "Não foi possível preparar a emissão BolePix; nenhum envio foi realizado e a reserva foi preservada.");
+    vincularEmissaoErroBtg(seguro, {
+      emissaoId: reserva.id, capturaId: contexto?.capturaId ?? captura?.id ?? null,
+      parcelaId, btgRemessaId: btgRemessaId ?? null,
+      btgIntegracaoId: integracao.id, condominioId: origem.condominioId, btgContaRecebedoraId: accountRow.conta.id,
+    });
+    try {
+      await db.update(btgCobrancasEmitidas)
+        .set({ status: envioIniciado ? "incerta" : "reservada", erroCodigo: envioIniciado ? "EMISSAO_SEM_CONFIRMACAO" : "CAPTURA_OU_PREPARO_NAO_CONCLUIDO", updatedAt: new Date() })
+        .where(and(eq(btgCobrancasEmitidas.id, reserva.id), eq(btgCobrancasEmitidas.status, "enviando")));
+    } catch { /* Falha local não apaga vínculo, não libera o canal e não repete POST. */ }
+    throw seguro;
   }
 }

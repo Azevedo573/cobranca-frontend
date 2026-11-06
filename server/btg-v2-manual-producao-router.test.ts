@@ -7,7 +7,9 @@ vi.mock("./db", () => ({ getDb: mocks.getDb }));
 vi.mock("./btg-oauth", () => ({ getBtgOAuthConfig: mocks.config, getStatusOAuthBtg: mocks.status, obterAccessTokenBtg: mocks.token, consultaContasBtgHabilitada: mocks.accounts }));
 vi.mock("./btg-v2/client", () => ({ criarBolePixBtgV2: mocks.bank }));
 vi.mock("./audit", () => ({ logAudit: mocks.audit }));
+vi.mock("./btg-v2/diagnosticos", async () => ({ criarCapturaHttpBtg: (await import("./btg-v2-http-captura-test-helper")).criarCapturaMock }));
 
+import { BtgV2HttpError } from "./btg-v2/errors";
 import { btgV2Router } from "./routers/btg-v2";
 import { normalizarContaManualProducao, consultarContasRecebedorasBtg } from "./btg-v2/config";
 import { emitirBolePixV2, prepararEmissaoParcelasAcordoBtgV2 } from "./btg-v2/issuance";
@@ -207,7 +209,7 @@ describe("BTG manual Produção — guardas de prévia/emissão", () => {
   it.each([{ origemCadastro: "manual_sandbox", accountId: "manual-sandbox:old" }, { confirmadoEm: null }, { documentoBeneficiario: "04252011000110" }, { origemCadastro: "api", accountId: "official", documentoBeneficiario: "04252011000110" }])("prévia e emissão recusam conta atual inválida antes da reserva: %j", async patch => {
     setupEmissao({ btgContasRecebedoras: [{ ...manual(), ...patch }] });
     await expect(prepararEmissaoParcelasAcordoBtgV2({ db: fixture.db, acordoId: 11 })).rejects.toBeDefined();
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toBeDefined();
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toBeDefined();
     expect(fixture.state.writes).toEqual([]);
     semBanco();
   });
@@ -215,7 +217,7 @@ describe("BTG manual Produção — guardas de prévia/emissão", () => {
   it("runtime CNPJ atualizado bloqueia emissão e prévia antes da reserva sem atualizar integração antiga", async () => {
     setupEmissao();
     mocks.config.mockReturnValue({ ...config, companyId: "04252011000110" });
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow("CNPJ");
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow("CNPJ");
     await expect(prepararEmissaoParcelasAcordoBtgV2({ db: fixture.db, acordoId: 11 })).rejects.toThrow("CNPJ");
     expect(fixture.state.writes).toEqual([]);
     semBanco();
@@ -228,7 +230,7 @@ describe("BTG manual Produção — guardas de prévia/emissão", () => {
       mocks.config.mockReturnValue({ ...config, companyId: "04252011000110" });
       return transacao(run);
     });
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow("CNPJ");
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow("CNPJ");
     expect(fixture.state.writes).toEqual([]);
     semBanco();
   });
@@ -241,7 +243,7 @@ describe("BTG manual Produção — guardas de prévia/emissão", () => {
       mocks.config.mockReturnValue({ ...config, companyId: "04252011000110" });
       return result;
     });
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow("CNPJ");
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow("CNPJ");
     expect(fixture.state.tables.btgCobrancasEmitidas[0].status).toBe("reservada");
     semBanco();
   });
@@ -249,17 +251,17 @@ describe("BTG manual Produção — guardas de prévia/emissão", () => {
   it("emissão recusa ausência OAuth/webhook antes da reserva", async () => {
     setupEmissao();
     mocks.status.mockResolvedValue({ status: "desconectado" });
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow("Conecte");
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow("Conecte");
     mocks.status.mockResolvedValue({ status: "conectado" });
     vi.stubEnv("BTG_WEBHOOK_SECRET", "");
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow("webhook");
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow("webhook");
     expect(fixture.state.writes).toEqual([]);
     semBanco();
   });
 
   it("preserva agência/conta no payload Collections e snapshot, sem enviar ID interno", async () => {
     setupEmissao();
-    const result = await emitirBolePixV2({ db: fixture.db, parcelaId: 31 });
+    const result = await emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 });
     expect(result).toMatchObject({ status: "emitida", jaExistia: false });
     const payload = mocks.bank.mock.calls[0][0];
     expect(payload.account).toEqual({ branch: "0050", number: "0003081850" });
@@ -267,25 +269,25 @@ describe("BTG manual Produção — guardas de prévia/emissão", () => {
     expect(fixture.state.tables.btgCobrancasEmitidas[0]).toMatchObject({ agenciaRecebedora: "0050", contaRecebedora: "0003081850", amount: 12599, documentoBeneficiario: cnpj });
     expect(fixture.state.locks).toContain("btgIntegracoes:update");
     expect(mocks.bank).toHaveBeenCalledTimes(1);
-    await emitirBolePixV2({ db: fixture.db, parcelaId: 31 });
+    await emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("recusa bancária preserva estado incerto e evidência, sem retry cego", async () => {
     setupEmissao();
-    mocks.bank.mockRejectedValue(new Error("BTG recusou HTTP 422"));
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow("422");
+    mocks.bank.mockRejectedValue(new BtgV2HttpError({ httpStatus: 422, camposInvalidos: [], motivos: [] }));
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow("422");
     expect(fixture.state.tables.btgCobrancasEmitidas[0]).toMatchObject({ status: "incerta", erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).resolves.toMatchObject({ status: "incerta", jaExistia: true });
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).resolves.toMatchObject({ status: "incerta", jaExistia: true });
     expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
 
   it("acordo inativo e parcela CNAB continuam bloqueados", async () => {
     setupEmissao({ acordos: [{ id: 11, condominioId: 2, devedorId: 21, status: "cancelado" }] });
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow("acordo ativo");
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow("acordo ativo");
     setupEmissao({ parcelasAcordo: [{ id: 31, acordoId: 11, status: "pendente", remessaId: 98 }] });
-    await expect(emitirBolePixV2({ db: fixture.db, parcelaId: 31 })).rejects.toThrow(/cnab/i);
+    await expect(emitirBolePixV2({ usuarioId: 10, db: fixture.db, parcelaId: 31 })).rejects.toThrow(/cnab/i);
     expect(fixture.state.writes).toEqual([]);
     semBanco();
   });

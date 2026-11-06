@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import {
   acordos,
+  btgCobrancasEmitidas,
   btgRemessaItens,
   btgRemessas,
   devedores,
@@ -8,6 +9,7 @@ import {
 } from "../../drizzle/schema";
 import { BtgV2ConfigurationError } from "./config";
 import { consultarParcelasComEmissaoV2Btg, emitirBolePixV2, prepararEstadoCanalParcelaBtgV2 } from "./issuance";
+import { obterDiagnosticoHttpBtg, obterVinculoEmissaoErroBtg, type BtgV2DiagnosticoHttp } from "./errors";
 
 export type ResultadoItemRemessaBtgV2 = "emitida" | "ja_existia" | "falha";
 export type StatusRemessaBtgV2 = "rascunho" | "enviando" | "processada" | "processada_parcialmente" | "falha" | "cancelada";
@@ -25,6 +27,7 @@ export interface ResumoRemessaBtgV2 {
   totalEmitido: number;
   totalFalha: number;
   valorTotalCentavos: number;
+  diagnosticosHttp?: Array<BtgV2DiagnosticoHttp & { parcelaId: number; emissaoId?: number; capturaId?: number }>;
 }
 
 /**
@@ -136,6 +139,7 @@ export async function executarRemessaBtgV2(input: {
   db: Db;
   remessaId: number;
   parcelas: Array<Pick<ParcelaFilaRemessaBtgV2, "id" | "installmentNumber" | "amount">>;
+  usuarioId?: number;
 }): Promise<ResumoRemessaBtgV2> {
   const now = new Date();
   const [remessa] = await input.db.select().from(btgRemessas).where(eq(btgRemessas.id, input.remessaId)).limit(1);
@@ -146,10 +150,11 @@ export async function executarRemessaBtgV2(input: {
 
   const resultados: ResultadoRemessaBtgV2[] = [];
   const erros: string[] = [];
+  const diagnosticosHttp: NonNullable<ResumoRemessaBtgV2["diagnosticosHttp"]> = [];
   for (const parcela of input.parcelas) {
     try {
       const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id, btgRemessaId: input.remessaId,
-        condominioIdEsperado: remessa.condominioId, valorCentavosEsperado: parcela.amount });
+        condominioIdEsperado: remessa.condominioId, valorCentavosEsperado: parcela.amount, usuarioId: input.usuarioId });
       const resultado: ResultadoItemRemessaBtgV2 = emissao.jaExistia ? "ja_existia" : "emitida";
       const mensagem = emissao.jaExistia ? "Emissão já existente, vinculada ao lote." : "Cobrança enviada ao BTG.";
       await input.db.update(btgRemessaItens).set({
@@ -160,9 +165,33 @@ export async function executarRemessaBtgV2(input: {
       }).where(and(eq(btgRemessaItens.btgRemessaId, input.remessaId), eq(btgRemessaItens.parcelaAcordoId, parcela.id)));
       resultados.push({ resultado, valorCentavos: parcela.amount });
     } catch (error) {
-      const mensagem = error instanceof Error ? error.message : "Falha desconhecida no envio ao BTG.";
+      const mensagem = error instanceof BtgV2ConfigurationError ? error.message : "Falha local no envio ao BTG; revise a emissão, sem reenviar.";
+      const vinculo = obterVinculoEmissaoErroBtg(error);
+      let emissaoId: number | undefined;
+      let capturaId: number | undefined;
+      // Nunca inferir vínculo por contador, mensagem ou objeto look-alike.
+      // Conferência fresca contra a reserva cuja origem foi validada pelo emissor.
+      if (vinculo && vinculo.parcelaId === parcela.id && vinculo.btgRemessaId === input.remessaId &&
+          vinculo.btgIntegracaoId === remessa.btgIntegracaoId && vinculo.condominioId === remessa.condominioId &&
+          vinculo.btgContaRecebedoraId === remessa.btgContaRecebedoraId) {
+        try {
+          const [canonica] = await input.db.select().from(btgCobrancasEmitidas)
+            .where(and(eq(btgCobrancasEmitidas.id, vinculo.emissaoId), eq(btgCobrancasEmitidas.origemId, parcela.id))).limit(1);
+          if (canonica && canonica.origemTipo === "parcela_acordo" && canonica.revisao === 1 &&
+              canonica.btgRemessaId === input.remessaId && canonica.btgIntegracaoId === remessa.btgIntegracaoId &&
+              canonica.condominioId === remessa.condominioId && canonica.btgContaRecebedoraId === remessa.btgContaRecebedoraId &&
+              canonica.amount === parcela.amount) {
+            emissaoId = canonica.id;
+            capturaId = vinculo.capturaId ?? undefined;
+          }
+        } catch { /* Sem prova fresca não inventar vínculo; a canônica permanece. */ }
+      }
+      const diagnosticoHttp = obterDiagnosticoHttpBtg(error);
+      if (diagnosticoHttp) diagnosticosHttp.push({ parcelaId: parcela.id, ...diagnosticoHttp,
+        ...(emissaoId ? { emissaoId } : {}), ...(capturaId ? { capturaId } : {}) });
       erros.push(`Parcela ${parcela.installmentNumber}: ${mensagem}`);
-      await input.db.update(btgRemessaItens).set({ resultado: "falha", mensagem: mensagem.slice(0, 500), updatedAt: new Date() })
+      await input.db.update(btgRemessaItens).set({ resultado: "falha", mensagem: mensagem.slice(0, 500), updatedAt: new Date(),
+        ...(emissaoId ? { btgCobrancaEmitidaId: emissaoId } : {}) })
         .where(and(eq(btgRemessaItens.btgRemessaId, input.remessaId), eq(btgRemessaItens.parcelaAcordoId, parcela.id)));
       resultados.push({ resultado: "falha", valorCentavos: parcela.amount });
     }
@@ -180,5 +209,5 @@ export async function executarRemessaBtgV2(input: {
     updatedAt: new Date(),
   }).where(eq(btgRemessas.id, input.remessaId));
 
-  return resumo;
+  return { ...resumo, ...(diagnosticosHttp.length ? { diagnosticosHttp } : {}) };
 }

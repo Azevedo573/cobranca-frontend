@@ -1,6 +1,6 @@
 # Resumo da Demanda
 
-Capturar o corpo JSON exato transmitido no POST BolePix e o retorno recebido, vinculados à tentativa canônica, para diagnosticar erros de validação sem testar cobranças por tentativa e erro. Solicitação do usuário em 06/11/2026 às17:46:22. Estado: proposta para aprovação; nenhum código, DDL, dado financeiro ou envio alterado nesta etapa.
+Capturar o corpo JSON exato transmitido no POST BolePix e o retorno recebido, vinculados à tentativa canônica, para diagnosticar erros de validação sem testar cobranças por tentativa e erro. Solicitação do usuário em 06/11/2026 às17:46:22. Usuário aprovou captura criptografada e testes no desenvolvimento às17:50:38; implantação na VPS e operações financeiras reais permanecem fora da autorização.
 
 # Classificação
 
@@ -87,8 +87,14 @@ Payload/retorno contêm dados pessoais e financeiros: cifrar em repouso não sub
 
 # Pendências para Validação
 
-Aprovar nova captura cifrada, visualização administrativa, retenção30dias/expurgo manual e DDL aditiva no desenvolvimento. Nenhum novo deploy ou envio real está autorizado por esta proposta. Consultar diretamente a canônica da parcela20 permanece pendente, pois join anterior por item nulo não a localizou; isso não depende de nova emissão.
+Captura cifrada, visualização administrativa, retenção30dias/expurgo manual e DDL aditiva no desenvolvimento aprovados e implementados. Validação definitiva:1504 testes aprovados/1 externo opt-in ignorado, TypeScript/build/diff e HTTP200 local; UI real inspecionada com dados fictícios sem tRPC bancário. Migration0101 aplicada apenas no desenvolvimento, sem backfill. Nenhum novo deploy ou envio real autorizado/executado. Consultar diretamente a canônica da parcela20 permanece pendente, pois join anterior por item nulo não a localizou; isso não depende de nova emissão. Testes de locks em memória não equivalem a InnoDB real.
 
 # Próximos Passos
 
-Revisar a proposta com o usuário. Depois de aprovada, gerar o plano e implementar no desenvolvimento. Implantação na VPS e qualquer emissão real continuam sujeitas a etapas separadas.
+Plano `tasks/plan-btg-captura-payload-diagnostico.md` concluído tecnicamente; salvar o checkpoint de entrega pelo GitHub, sem publicar. Implantação na VPS e qualquer emissão real continuam sujeitas a etapas separadas. Solicitação adicional de reenvio documentada em `docs/specs/SPEC-btg-reenvio-controlado.md` para revisão, sem retry/recuperação adicionados nesta captura.
+
+## Contratos de implementação
+
+Captura usa `BtgHttpCaptura` com métodos assíncronos `preparar(payloadSerializado: string): Promise<number>`, `iniciar(): Promise<void>`, `responder(httpStatus: number, bytes: Uint8Array, completa: boolean): Promise<void>`, `semResposta(): Promise<void>`; `id` fica disponível após preparar. Helper `criarCapturaHttpBtg({db,emissaoId,usuarioId})` valida contexto contra canônica/integração/parcela/remessa atuais e retorna a captura. POST sem captura não é permitido; GET/DELETE mantêm contrato anterior. A string de preparo é a mesma do fetch. Resposta é lida uma vez em bytes até64KiB/prazo5s, e os mesmos bytes alimentam a evidência e o parsing; bytes incompletos não são normalizados como sucesso. Estado de captura é distinto de estado financeiro.
+
+Tabela `btgHttpDiagnosticos`: IDs locais, `chaveCaptura` UUID único para AAD, `ambiente`, `operacao=emissao`, `estadoCaptura` preparado/enviando/resposta_recebida/resposta_incompleta/sem_resposta, `httpStatus`, `correlationId`, `payloadCifrado`/`respostaCifrada` nullable após expurgo, `payloadSha256`/`respostaSha256`, `payloadBytes`/`respostaBytes`, `respostaCompleta`, `versaoCriptografia`, `capturaCriadaEm`/`respostaRecebidaEm`/`conteudoExpurgadoEm`/`updatedAt`. Usuário/ator deve ser propagado dos routers administrativos; nenhum ID é inferido de sequência de inserção. Router `btgDiagnosticos` fornece `listarPorEmissao`, `listarPorRemessa` só metadados, `visualizar` por mutation com confirmação/finalidade e `expurgar` por mutation com literal e apenas conteúdo já expirado. Leitura de usuário/perfil ativo é fresca antes de revelar conteúdo. Registro auditável estrito na mesma transação antes do retorno de plaintext/expurgo.
