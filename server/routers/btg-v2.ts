@@ -246,7 +246,7 @@ export const btgV2Router = router({
           throw new BtgV2ConfigurationError("Conecte a conta BTG de Produção antes de liberar emissões.");
         }
         if (!process.env.BTG_WEBHOOK_SECRET?.trim()) {
-          throw new BtgV2ConfigurationError("Configure o segredo HMAC do webhook BTG antes de liberar emissões de Produção.");
+          throw new BtgV2ConfigurationError("Configure o segredo do webhook BTG para Authorization: Bearer antes de liberar emissões de Produção. Não use Client Secret nem access token OAuth.");
         }
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });

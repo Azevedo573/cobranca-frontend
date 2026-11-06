@@ -28,7 +28,7 @@ Selecionar explicitamente o condomínio e salvar o vínculo à conta do escritó
 
 ## Emissão continua separada
 
-Cadastrar conta não libera BolePix. Permanece necessária a confirmação `LIBERAR PRODUCAO`, com OAuth conectado, conta elegível, vínculo e webhook adequadamente configurado. Um segredo de webhook arbitrário só para passar pela verificação do servidor não comprova assinatura bancária: alinhar o contrato real com o BTG e homologar entrega, HMAC, deduplicação e baixa antes de disponibilizar cobranças ao cliente.
+Cadastrar conta não libera BolePix. Permanece necessária a confirmação `LIBERAR PRODUCAO`, com OAuth conectado, conta elegível, vínculo e webhook adequadamente configurado. O `BTG_WEBHOOK_SECRET` deve ser o segredo cadastrado no webhook BTG e usado em `Authorization: Bearer <webhook secret>`; não é Client Secret nem access token OAuth. Um segredo arbitrário só para passar pela verificação local não comprova cadastro, entrega, autenticação bancária ou homologação. A rota pública existente é `POST https://luminus.gomesesilvaadv.com.br/api/webhooks/btg/v2/producao`; alinhar o contrato real com o BTG e homologar entrega, deduplicação e baixa antes de disponibilizar cobranças ao cliente. Esta orientação corrige as referências anteriores a HMAC em 06/11/2026.
 
 O fluxo segue acordo ativo → parcelas pendentes elegíveis → remessa de um condomínio → revisão e confirmação → envio. Parcela com CNAB/registro bancário conflitante ou emissão existente não pode ser duplicada. Uma resposta incerta não é autorização para reenviar. A primeira emissão real exige aprovação do pagador/parcela, valor, vencimento e conta recebedora, e conferência do beneficiário retornado antes de entregar o título.
 

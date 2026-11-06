@@ -36,8 +36,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Webhook BTG v2 precisa receber o corpo bruto para validar HMAC sobre os
-  // bytes originais. Deve vir antes dos parsers JSON globais.
+  // Webhook BTG v2 usa os bytes originais para hash/deduplicação e autentica
+  // pelo segredo Bearer. Deve vir antes dos parsers JSON globais.
   const { webhookBtgV2Handler } = await import("../btg-v2/webhook");
   app.post(
     "/api/webhooks/btg/v2/:ambiente",

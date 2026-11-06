@@ -22,10 +22,10 @@ O URL de retorno cadastrado no portal BTG deve ser exatamente igual a `BTG_REDIR
 
 > Se o consentimento OAuth foi feito antes desta atualização, conecte novamente a conta Sandbox para conceder o novo escopo de leitura de contas.
 
-A variável abaixo ainda não é necessária para o Sandbox, porque esse ambiente não entrega webhooks reais. Ela será obrigatória antes de habilitar o callback na Produção:
+A variável abaixo ainda não é necessária para o Sandbox, porque esse ambiente não entrega webhooks reais. Ela será obrigatória antes de habilitar o callback na Produção e deve conter o segredo cadastrado no webhook BTG, usado como `Authorization: Bearer <webhook secret>` — não é Client Secret nem access token OAuth:
 
 ```text
-BTG_WEBHOOK_SECRET=<segredo HMAC entregue/cadastrado no BTG>
+BTG_WEBHOOK_SECRET=<segredo cadastrado no webhook BTG>
 ```
 
 ## Passo a passo no sistema
@@ -46,7 +46,7 @@ BTG_WEBHOOK_SECRET=<segredo HMAC entregue/cadastrado no BTG>
 
 A rota de emissão está limitada ao Sandbox e aceita apenas parcelas de acordo ativo. Produção não tem botão de ativação nesta versão. Antes de chamar o BTG, o sistema valida integralmente a seleção do acordo e grava uma reserva exclusiva por parcela; se houver falha sem confirmação, o título entra em estado `incerta` e não pode ser reemitido automaticamente.
 
-A rota de webhook v2 é `POST /api/webhooks/btg/v2/:ambiente`. Ela usa corpo bruto, exige HMAC SHA-256 e guarda apenas hash e metadados mínimos da entrega para deduplicação. O Sandbox não é adequado para testar webhooks. [1]
+A rota pública de webhook v2 em Produção é `POST https://luminus.gomesesilvaadv.com.br/api/webhooks/btg/v2/producao`. Conforme a correção de 06/11/2026 à documentação anterior, a autenticação esperada é `Authorization: Bearer <webhook secret>`; guarda-se apenas hash e metadados mínimos da entrega para deduplicação. O Sandbox não é adequado para testar webhooks. A presença local de `BTG_WEBHOOK_SECRET` não comprova cadastro, entrega ou homologação. [1]
 
 ## Não executar ainda
 

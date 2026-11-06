@@ -2948,3 +2948,17 @@ Implementação técnica concluída no desenvolvimento. Sem deploy na VPS, integ
 - [ ] Implantar na VPS e homologar cadastro/vínculo/webhook/primeira cobrança real — somente em etapa posterior autorizada
 
 Não há contas reais cadastradas ou remessas enviadas por esta evolução no desenvolvimento. Credenciais de Produção foram configuradas pelo próprio usuário na VPS; valores não foram enviados ao chat. Ajustes de schema/code no sandbox não significam implantação na VPS. A cobrança real permanece dependente da etapa operacional e revisão humana.
+
+## Correção — webhook BTG autenticado por Bearer (06/11/2026)
+- [x] Diagnosticar requisito HMAC incompatível com o padrão oficial Authorization: Bearer e obter aprovação de correção/testes
+- [x] Validar segredo Bearer sem fallback HMAC e recusar cabeçalhos duplicados, valores/tipos/datas inválidos antes do banco
+- [x] Preservar variável BTG_WEBHOOK_SECRET, guardas de emissão e separação do Client Secret/token OAuth
+- [x] Preservar envelope/IDs de entrega e hash/metadados, sem segredo ou corpo integral persistido
+- [x] Aplicar baixa e concluir entrega na mesma transação, com locks, rollback e reentrega de recebido/falha
+- [x] Recusar coleção ambígua/alheia, origem/condomínio incompatível e valores não integrais/divergentes; nominal isolado não autoriza baixa
+- [x] Preservar pagamento terminal, data original e snapshots; criação tardia não reabre título cancelado/expirado
+- [x] Corrigir mensagem/UI/documentos e registrar ocorrência, especificação e plano
+- [x] Validar 191 testes específicos, suíte completa com 986 aprovados/1 externo ignorado, TypeScript e build
+- [ ] Atualizar manualmente a VPS, configurar o webhook e seu segredo correspondente no BTG/VPS e homologar entrega real/baixa
+
+Correção técnica concluída no desenvolvimento, sem migration, novas dependências, alteração de credenciais, conta/valores ou envio de cobrança. O usuário relatou cadastro manual da conta na VPS após atualização ce005f48 e bloqueio por segredo de webhook ausente. A liberação e a primeira cobrança continuam manuais e dependem da validação do webhook; o novo código não as ativa automaticamente.
