@@ -18,7 +18,7 @@ Relato09/11/2026: /devedores/1/detalhes, boleto sem QR/Copia e Cola. Escopo: val
 - [ ] Identificar acordo/parcela/PDF da cobrança real e confirmar origem e EMV/estado do Pix sem publicar dados sensíveis.
 - [x] Usuário autorizou em09/11/2026 às14:23 o deploy da correção na VPS.
 - [x] Preparar/validar roteiro peloGitHub:39cenários isolados/918verificações/0falhas; sintaxe/hash conferidos, semVPS/banco/serviços reais.
-- [ ] Executar/confirmar o deploy autorizado de2ead4388 com backup/build isolado/troca reversível; sem migração nova. Roteiro GitHub: scripts/deploy-btg-pix-pdf-vps.sh.
+- [x] Usuário confirmou09/11/2026 às14:54 o deploy de2ead4388: backupbtg-pix-pdf-2026-11-09-144144-PQrilQ, distanterior.dist-anterior-pix-pdf-YtanHw/dist,HTTP200local/HTTPS ePM2online; semmigração/banco/credenciais alterados ouenvio/cancelamento/reenvio pelo roteiro. SeminspeçãoSSHindependente.
 - [ ] Baixar novamente o PDF da canônica e conferir QR/Copia e Cola na VPS sem pagamento, emissão, cancelamento ou reenvio.
 
 O defeito sintético e a incompatibilidade documental estão confirmados; isso não comprova sozinho a causa no título real. Ausência de Pix no retorno ou PDF antigo/CNAB permanecem hipóteses até a evidência real. Reversão só do commit de correção, mantendo os dados e o título bancário.

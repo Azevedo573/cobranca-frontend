@@ -42,7 +42,7 @@ A correção delimitada foi implementada no desenvolvimento: comparação ASCII 
 
 # Regra Atual e Regra Corrigida
 
-Anterior: GUI literal maiúsculo, falha de Pix suprimida no PDF. Corrigida no desenvolvimento: reconhecer GUI ASCII maiúsculo/minúsculo/misto, preservar integralmente o conteúdo recebido e permitir somente Pix estruturalmente válido. Sem geração, reparo do CRC ou fallback estático. Em09/11/2026,14:23, o usuário autorizou a implantação de2ead4388 na VPS com backup/build/troca reversível, sem migração. A execução e a conferência do PDF real ainda aguardam resultado; não há acesso SSH da sessão à VPS.
+Anterior: GUI literal maiúsculo, falha de Pix suprimida noPDF. Corrigida: reconhecerGUIASCII maiúsculo/minúsculo/misto, preservar integralmente oconteúdo recebido e permitir somentePixestruturalmenteválido; sem geração/reparoCRC/fallbackestático. Usuário autorizou09/11/2026,14:23 e confirmou14:54 a implantação de2ead4388 naVPS com backup/build/trocareversível,HTTP200local/HTTPS ePM2online, semmigração. NãoháacessoSSHindependente da sessão; a conferência doPDFreal continua pendente.
 
 # Alterações Técnicas Necessárias
 
@@ -78,8 +78,8 @@ A captura/consulta real define se o problema é validação ou campo ausente. PD
 
 # Pendências para Validação
 
-Número do acordo/parcela, origem e nome do PDF baixado e presença/formato do EMV retornado pelo BTG. A conferência do contrato, a correção delimitada e os testes técnicos estão concluídos. Não houve mudança de banco ou emissão/cancelamento real pela correção. Atualização da VPS autorizada e aguardando execução/resultado; não há migração nova. Roteiro: scripts/deploy-btg-pix-pdf-vps.sh; operação: docs/deploy-btg-pix-pdf-vps.md.
+Número doacordo/parcela, origem/nome doPDFbaixado e presença/formato doEMVretornado peloBTG. Contrato/correçãodelimitada/testestécnicos concluídos eVPSimplantada conforme saída do usuário09/11/2026,14:54:versão2ead4388,backup`/var/backups/cobranca/btg-pix-pdf-2026-11-09-144144-PQrilQ`,buildanterior`/var/www/cobranca/.dist-anterior-pix-pdf-YtanHw/dist`,HTTP200local/HTTPS ePM2online. Banco/credenciaispreservados e nenhumaemissão/cancelamento/reenvio pelo roteiro. Não precisa novo deploy para testar. Roteiro:scripts/deploy-btg-pix-pdf-vps.sh; registro:docs/deploy-btg-pix-pdf-vps.md.
 
 # Próximos Passos
 
-Entregar o checkpoint de desenvolvimento e a amostra sintética. Após autorizar/inventariar/backup/build/troca reversível, baixar novamente o PDF da mesma emissão API na VPS e conferir QR e Pix Copia e Cola. Se permanecer ausente, verificar a evidência daquela parcela para distinguir dado ausente, inválido ou documento antigo/CNAB. Nunca criar, cancelar, pagar ou reenviar uma cobrança para testar essa correção.
+Atualizar navegadorCtrl+F5 e baixar novamente oBoleto(PDF) da mesma emissãoAPI naVPS para conferirQR ePixCopiaeCola. Se permanecer ausente, verificar evidência daquela parcela para distinguir dadoausente/inválido ou documentoantigo/CNAB. Não criar/cancelar/pagar/reenviar cobrança para testar esta correção; implantação não é homologação documental.

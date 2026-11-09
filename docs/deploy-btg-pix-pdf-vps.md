@@ -1,6 +1,6 @@
 # Deploy da correção de Pix no PDF BTG — VPS
 
-Autorizado pelo usuário em09/11/2026 às14:23. Código de aplicação de destino: `2ead4388cc60a0a06207422b8057eea441ade521`. A última versão ativa informada da VPS é `ca85568ceeaa68d1a558f74695a1e819ebe0602d`. A execução será manual pelo usuário como root; não há acesso SSH da sessão à VPS. Este documento não confirma implantação.
+Autorizado pelo usuário em09/11/2026 às14:23 e executado por ele naVPS como root. Em09/11/2026 às14:54, a saída fornecida confirmou a versão ativa `2ead4388cc60a0a06207422b8057eea441ade521`, HTTP200 local/HTTPS ePM2online. A origem anteriormente informada era `ca85568ceeaa68d1a558f74695a1e819ebe0602d`. Não há acessoSSH da sessão àVPS; a confirmação é baseada no resultado do usuário, não em inspeção remota independente.
 
 ## Escopo
 
@@ -52,4 +52,17 @@ Autorização recebida; roteiro preparado e validado isoladamente em09/11/2026:3
 
 Cobertos sucesso, origem/branch/working tree/remoto inesperados, backup falho, build parcial, gates de dependências/schema, adulteração antes da ativação, falha da segunda movimentação com retorno do build anterior, reinício/saúde falhos após troca e preservação dos caminhos de recuperação. A simulação não prova restauração do dump, build/PM2/permissões/HTTP reais ou concorrência/crash de filesystem. A troca usa dois movimentos curtos, não uma troca atômica única. Se falhar após trocar, parar para revisão; o rollback não é automático.
 
-O deploy real e a homologação do PDF aguardam execução/resultado do usuário. Roteiro de suporte será publicado noGitHub, sem novo código de aplicação além do destino fixado2ead4388.
+Roteiro de suporte disponibilizado noGitHub no commit `1a03aa920fb82d867270f7332b6c3297334c1d26`; o código de aplicação implantado é o destino fixado2ead4388. Não é necessário fazer novo pull, build ou reinício para conferir esta correção.
+
+### Resultado daVPS informado em09/11/2026 às14:54
+
+| Item | Resultado fornecido |
+|---|---|
+| Versão ativa | `2ead4388cc60a0a06207422b8057eea441ade521` |
+| Backup | `/var/backups/cobranca/btg-pix-pdf-2026-11-09-144144-PQrilQ` |
+| Build anterior | `/var/www/cobranca/.dist-anterior-pix-pdf-YtanHw/dist` |
+| Disponibilidade | HTTP200 local/HTTPS ePM2online |
+| Banco/configuração | Sem migração; banco e credenciais preservados |
+| Operações bancárias | Nenhuma cobrança emitida, cancelada ou reenviada pelo roteiro |
+
+Implantação concluída conforme a saída fornecida. A homologação do QR/PixCopiaeCola no PDF da parcela real continua pendente e não é comprovada peloHTTP200 ou pelos testes sintéticos. Próximo passo: baixar novamente oBoleto(PDF) da mesma emissãoAPI, sem pagar, cancelar, recriar ou reenviar.
