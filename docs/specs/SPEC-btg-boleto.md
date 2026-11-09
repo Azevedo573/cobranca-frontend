@@ -20,6 +20,8 @@ await gerarBoletoPDF({ ...dados, pagamentoBancario: { origem: 'btg_api', codigoB
 
 ModoAPI não calcula código ou geraPixestático. Validar antes PDF:44dígitosbarras/47linha, DVs gerais/campos, correspondência, valor/banco/datafator2025; zeros preservados. EMVvalidadoTLV/CRC e renderizado íntegro.
 
+Correção delimitada09/11/2026: o GUI do template de conta Pix deve reconhecer `br.gov.bcb.pix`, `BR.GOV.BCB.PIX` e capitalização ASCII mista na comparação. O exemplo oficial BTG usa letras minúsculas. Não converter o EMV, reparar CRC, completar chave/URL ou modificar bytes persistidos: CRC/TLV continuam validados sobre o corpo original e o retorno permanece exatamente igual ao recebido. Aceite: projeção, consulta, routerPDF e renderizador preservam o payload minúsculo válido; corrupção, outra GUI e ausência continuam sem Pix substituto. Causa real da cobrança relatada em `/devedores/1/detalhes` depende da evidência de Produção; não inferir conteúdo real da fixture.
+
 ## Testing Strategy
 
 Fixtures bancárias sintéticas válidas, ausência/divergência, DV inválido, fator2025, nossoNúmeroextenso, CPF/endereço imutável, QR/barra legível, lote misto, acesso/estado/cache. Testes existenteCNAB/regressãoorigem intactos.
@@ -41,3 +43,5 @@ Concluída tecnicamente no desenvolvimento09/11/2026. Fonte canônica/admin fres
 PDF oficial BTG por URL não verificada não foi habilitado. O caminho implementado é o PDF Luminus com dados bancários da mesma emissão, identificado como tal. Não há fetch/proxy arbitrário ou fallback paraCNAB/PixCNPJ.
 
 Validação definitiva:15suítes específicas/507testes na execução integrada e suíte completa serial2568aprovados/1externoBTGopt-in ignorado; TypeScript/build/diff aprovados. PDF sintético inspecionado, I25 decodificado nos testes e UI real conferida com dados/callbacks fictícios. Nenhuma consulta/emissão/cancelamento real ou deployVPS. Manual: docs/btg-boleto-cancelamento-operacao.md. InnoDB/banco real e leitura em aplicativo bancário continuam dependentes de homologação autorizada.
+
+Correção Pix09/11/2026:196testes específicos/4suítes; completa2581aprovados/1externoopt-in ignorado, TypeScript/build/diff aprovados eHTTP200 local. QR do PDF sintético decodificado da página300DPI:140bytes eCRC62A7 idênticos; Copia e Cola integral eI25 preservado. Sem migration/DBreal/emissão/reenvio/deploy. Fonte e pendências do caso real: docs/ocorrencias/OCORRENCIA-btg-pix-ausente-pdf-2026-11-09.md.

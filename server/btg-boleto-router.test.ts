@@ -884,6 +884,26 @@ describe("router BTG: documento local fiel, sem URL/POST/storage/fallback CNAB",
     );
   });
 
+  it("Pix com GUI minúsculo aparece na projeção e chega intacto ao PDF sem consulta ou reemissão", async () => {
+    const payload = comCrc(pix.slice(0, -8).replace("BR.GOV.BCB.PIX", "br.gov.bcb.pix"));
+    f.state.tables.btgCobrancasEmitidas[0].pixCopiaECola = payload;
+    const antes = structuredClone(f.state.tables.btgCobrancasEmitidas[0]);
+    const situacao = await caller().situacaoParcela({ parcelaId: 10 });
+    expect(situacao).toMatchObject({
+      pdfDisponivel: true,
+      pixCopiaECola: payload,
+      codigoBarras,
+      linhaDigitavel,
+    });
+    await gerar();
+    expect(mock.render.mock.calls[0][0].pixCopiaCola).toBe(payload);
+    expect(f.state.tables.btgCobrancasEmitidas[0]).toEqual(antes);
+    expect(mock.post).not.toHaveBeenCalled();
+    expect(mock.get).not.toHaveBeenCalled();
+    expect(mock.consulta).not.toHaveBeenCalled();
+    expect(mock.cancel).not.toHaveBeenCalled();
+  });
+
   it("usa a revisão atual somente quando cadeia de recuperação é válida", async () => {
     novaRevisao();
     const result = await gerar();

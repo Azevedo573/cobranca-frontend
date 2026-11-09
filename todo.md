@@ -3098,3 +3098,12 @@ Estado de desenvolvimento validado. Nenhum POST/consulta BTG real, UPDATE cadast
 - [ ] Homologar PDF real/leitura de códigos sem pagar/reload/consulta parcial; cancelamento somente de título expressamente autorizado e concorrênciaInnoDB real.
 
 Entrega técnica concluída no desenvolvimento e posteriormente implantada na VPS pelo usuário conforme saída09/11/2026,12:36, sem acesso SSH independente. PDFoficial porURLnãoverificada não habilitado; entreguePDFLuminus com dados bancários identificado, semfallbackCNAB/proxyarbitrário. Não houve redeBTGreal/título ouconta nova/baixa/cancelamento/reenvio/RBAC/segredos/dependências nos testes ou roteiro. Usuário confirmou antes desta evolução uma cobrança emitida naVPS; a homologação do PDF e do cancelamento ainda está pendente. Concorrência/rollback são mocks, nãoInnoDBreal; PDFs já compartilhados não são revogáveis e novas entregas são bloqueadas se título não elegível.
+
+## Correção — Pix ausente no PDF API BTG (09/11/2026)
+- [x] Rastrear /devedores/1/detalhes até btgBoletos.gerarPdf e registrar ocorrência específica, sem dados pessoais reais.
+- [x] Conferir contratos oficiais POST/GET: detail.emv, GUI ilustrado br.gov.bcb.pix; normalizador já lê esse campo.
+- [x] Reproduzir validação somente maiúscula com fixture CRC válido; corrigir comparação ASCII sem modificar payload/CRC nem criar Pix substituto.
+- [x] Testar capitalização, integridade, GUI alheio/Unicode, projeção/router/PDFinput e consulta parcial/rollback, sem banco ou API reais.
+- [x] PDF sintético uma página/QR decodificado300DPI140bytesCRC62A7 idênticos/Copia e Cola integral/I25 conferido;196específicos4suítes/13regressões novas; completa2581aprovados1externoopt-in ignorado;TypeScript/build/diff/HTTP200 e documentação final preparados para checkpoint.
+- [ ] Confirmar acordo/parcela/arquivo/EMV da VPS; autorizar deploy sem nova migração e homologar PDF real, sem pagar ou reenviar.
+Documento: docs/ocorrencias/OCORRENCIA-btg-pix-ausente-pdf-2026-11-09.md. Incompatibilidade de capitalização comprovada em dados sintéticos e compatível com o sintoma; causa no título real ainda não confirmada. Nenhuma cobrança, payload existente, valor, número, canal, estado financeiro, chave, perfil ou infraestrutura alterada por esta investigação/correção.

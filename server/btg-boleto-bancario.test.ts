@@ -119,6 +119,21 @@ describe("validarPixBtg", () => {
     expect(Buffer.from(validarPixBtg(payload))).toEqual(Buffer.from(payload));
     expect(payload).toContain(" PAGADOR  TESTE ");
   });
+  it.each(["br.gov.bcb.pix", "Br.GoV.bCb.PiX"])("aceita GUI Pix %s sem modificar nenhum byte ou CRC", (gui) => {
+    const payload = comCrc(corpoPix.replace("BR.GOV.BCB.PIX", gui));
+    expect(validarPixBtg(payload)).toBe(payload);
+    expect(Buffer.from(validarPixBtg(payload))).toEqual(Buffer.from(payload));
+    expect(payload).toContain(gui);
+  });
+  it("não repara o CRC ao alterar somente a capitalização do GUI", () => {
+    const corrompido = fixturesBtgBoleto.pix.replace("BR.GOV.BCB.PIX", "br.gov.bcb.pix");
+    expect(() => validarPixBtg(corrompido)).toThrow(/CRC/i);
+  });
+  it.each(["br.gov.bcb.abc", "br.gov.bcb.pıx", "BR.GOV.BCB.PIＸ"])("recusa GUI alheio ou Unicode visualmente semelhante: %s", (gui) => {
+    const template = (valor: string) => tlv("26", tlv("00", valor) + tlv("25", "qr.example.test/cobranca"));
+    const payload = comCrc(corpoPix.replace(template("BR.GOV.BCB.PIX"), template(gui)));
+    expect(() => validarPixBtg(payload)).toThrow(/Pix|EMV/i);
+  });
   it("aceita EMV Pix estático recebido, sem inventar chave ou URL", () => {
     const corpo = corpoPix.replace(tlv("01", "12"), tlv("01", "11")).replace(tlv("26", tlv("00", "BR.GOV.BCB.PIX") + tlv("25", "qr.example.test/cobranca")), tlv("26", tlv("00", "BR.GOV.BCB.PIX") + tlv("01", "00000000000000")));
     expect(validarPixBtg(comCrc(corpo))).toBe(comCrc(corpo));

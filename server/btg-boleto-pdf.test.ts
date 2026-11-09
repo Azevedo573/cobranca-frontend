@@ -25,6 +25,8 @@ function comCrc(corpo: string) {
 const tlv = (id: string, valor: string) => id + String(Buffer.byteLength(valor)).padStart(2, "0") + valor;
 const pix = comCrc(tlv("00", "01") + tlv("01", "12") + tlv("26", tlv("00", "BR.GOV.BCB.PIX") + tlv("25", "qr.example.test/807"))
   + tlv("52", "0000") + tlv("53", "986") + tlv("54", "50.00") + tlv("58", "BR") + tlv("59", " PAGADOR  TESTE ") + tlv("60", "SAO PAULO ") + tlv("62", tlv("05", "***")));
+// Variante sintética: altera somente o GUI 00 do template 26 e recalcula CRC apenas na fixture.
+const pixMinusculo = comCrc(pix.slice(0, -8).replace(tlv("00", "BR.GOV.BCB.PIX"), tlv("00", "br.gov.bcb.pix")));
 function fixture(quantidade = 80): DadosBoleto {
   const dataVencimento = new Date("2025-02-22T00:30:00Z");
   return {
@@ -124,6 +126,49 @@ describe("gerarBoletoPDF no modo explícito btg_api", () => {
     const textoPix = textosDosStreams(pdf).split("PIX COPIA E COLA")[1].split("Corte na linha pontilhada")[0];
     expect(textoPix).toBe(pix);
     expect(Buffer.from(textoPix)).toEqual(Buffer.from(pix));
+  });
+  it("aceita GUI Pix minúsculo no template 26, envia bytes originais ao QR e preserva input e barras I25", async () => {
+    const dados = { ...fixture(), pixCopiaCola: pixMinusculo }, antes = structuredClone(dados);
+    expect(pixMinusculo).toContain(tlv("00", "br.gov.bcb.pix"));
+    expect(pixMinusculo.replace("br.gov.bcb.pix", "BR.GOV.BCB.PIX").slice(0, -4)).toBe(pix.slice(0, -4));
+    expect(pixMinusculo.slice(-4)).not.toBe(pix.slice(-4));
+    const qr = vi.spyOn(QRCode, "toBuffer"), pdf = await gerarBoletoPDF(dados);
+    expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(paginasPdf(pdf)).toBeGreaterThan(0);
+    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(qr).toHaveBeenCalledTimes(1);
+    expect(qr).toHaveBeenCalledWith(pixMinusculo, expect.objectContaining({ type: "png" }));
+    expect(Buffer.from(qr.mock.calls[0][0] as string)).toEqual(Buffer.from(pixMinusculo));
+    expect(dados).toEqual(antes);
+    expect(dados.pixCopiaCola).toBe(pixMinusculo);
+    expect(decodificarI25Pdf(pdf)).toBe(codigoBarras);
+    expect(pdf.toString("latin1")).toContain("/Subtype /Image");
+    if (process.env.BTG_BOLETO_PDF_AMOSTRA_DIR) {
+      mkdirSync(process.env.BTG_BOLETO_PDF_AMOSTRA_DIR, { recursive: true });
+      writeFileSync(join(process.env.BTG_BOLETO_PDF_AMOSTRA_DIR, "btg-pix-minusculo-sintetico.pdf"), pdf);
+    }
+  });
+  it("preserva todos os bytes do Pix Copia e Cola minúsculo nos streams do PDF, inclusive espaços e CRC original", async () => {
+    const dados = { ...fixture(), pixCopiaCola: pixMinusculo }, antes = structuredClone(dados);
+    const pdf = await gerarBoletoPDF(dados);
+    const textoPix = textosDosStreams(pdf).split("PIX COPIA E COLA")[1].split("Corte na linha pontilhada")[0];
+    expect(textoPix).toBe(pixMinusculo);
+    expect(Buffer.from(textoPix)).toEqual(Buffer.from(pixMinusculo));
+    expect(textoPix).toContain("br.gov.bcb.pix");
+    expect(textoPix).not.toContain("BR.GOV.BCB.PIX");
+    expect(textoPix.slice(-4)).toBe(pixMinusculo.slice(-4));
+    expect(dados).toEqual(antes);
+  });
+  it.skipIf(!temPoppler)("exibe o GUI Pix minúsculo e o Copia e Cola integral no texto extraído do PDF", async () => {
+    const pdf = await gerarBoletoPDF({ ...fixture(), pixCopiaCola: pixMinusculo });
+    const texto = textoPdf(pdf);
+    const textoPix = texto.split("PIX COPIA E COLA")[1].split("Corte na linha pontilhada")[0];
+    // Poppler pode agrupar espaços e inserir quebras de linha; a comparação byte a byte está nos streams acima.
+    const textoPixSemEspacos = textoPix.replace(/\s/g, "");
+    expect(textoPixSemEspacos).toBe(pixMinusculo.replace(/\s/g, ""));
+    expect(textoPixSemEspacos).toContain("br.gov.bcb.pix");
+    expect(textoPixSemEspacos).not.toContain("BR.GOV.BCB.PIX");
+    expect(texto).toContain(linhaFormatada);
   });
   it.skipIf(!temPoppler)("formata vencimento e emissão em UTC inclusive quando timezone local está em São Paulo", async () => {
     const anterior = process.env.TZ;

@@ -167,7 +167,8 @@ export function validarPixBtg(payload: string): string {
   for (const campo of campos) {
     if (Number(campo.id) >= 26 && Number(campo.id) <= 51) {
       const subcampos = new Map(lerTlv(campo.valor).map(subcampo => [subcampo.id, subcampo.valor.toString("utf8")]));
-      if (subcampos.get("00") === "BR.GOV.BCB.PIX" && (subcampos.has("01") || subcampos.has("25"))) contaPix = true;
+      // O BTG documenta GUI minúsculo. Comparar ASCII sem alterar os bytes/CRC do EMV.
+      if (/^br\.gov\.bcb\.pix$/i.test(subcampos.get("00") ?? "") && (subcampos.has("01") || subcampos.has("25"))) contaPix = true;
     } else if (campo.id === "62" || campo.id === "64") {
       lerTlv(campo.valor);
     }
