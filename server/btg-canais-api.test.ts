@@ -8,7 +8,7 @@ vi.mock("./btg-v2/client", () => ({ criarBolePixBtgV2: mocks.bank }));
 vi.mock("./db", () => ({ getDb: vi.fn(() => { throw new Error("DB real proibido"); }) }));
 vi.mock("./btg-v2/diagnosticos", async () => ({ criarCapturaHttpBtg: (await import("./btg-v2-http-captura-test-helper")).criarCapturaMock }));
 
-import { avaliarElegibilidadeParcelaAcordoBtgV2, emitirBolePixV2, emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2 } from "./btg-v2/issuance";
+import { BtgV2ConfigurationError, avaliarElegibilidadeParcelaAcordoBtgV2, emitirBolePixV2, emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2 } from "./btg-v2/issuance";
 import { executarRemessaBtgV2, listarFilaRemessaBtgV2 } from "./btg-v2/remessas";
 import { bloquearParcelasParaCanal, exigirParcelaLivreParaCanal } from "./btg-canais";
 import { eq } from "drizzle-orm";
@@ -116,6 +116,40 @@ function setup(extra: Record<string, any[]> = {}) {
     btgCobrancasEmitidas: [], btgRemessas: [], btgRemessaItens: [], ...extra,
   });
 }
+/** Telefones sintéticos da especificação; alteração apenas no estado inicial da fixture. */
+function setupComTelefone(phone: string | null | undefined, extra: Record<string, any[]> = {}) {
+  const fixture = setup(extra);
+  fixture.state.tables.devedores[0].phone = phone;
+  return fixture;
+}
+function esperarPayloadFinanceiroOriginal(payload: any) {
+  expect(payload).toMatchObject({
+    amount: 125.99, type: "BANKSLIP_QRCODE", dueDate: "2026-12-01", overDueDate: "2027-01-30",
+    description: "Parcela 1 do acordo #5", account: { branch: "0050", number: "0003081850" },
+  });
+  expect(payload.detail).toEqual({
+    documentNumber: "PA19R1", externalId: "v2:sbx:parcela_acordo:19:r1", correlationId: "btgv2-100",
+  });
+}
+function esperarReservaTelefoneInvalido(state: ReturnType<typeof setup>["state"]) {
+  expect(state.tables.btgCobrancasEmitidas).toHaveLength(1);
+  expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({
+    id: 100, origemTipo: "parcela_acordo", origemId: 19, revisao: 1,
+    externalId: "v2:sbx:parcela_acordo:19:r1", amount: 12599, dueDate: parcela.dueDate,
+    status: "reservada", erroCodigo: "FALHA_ANTES_POST_COMPROVADA",
+    falhaAntesEnvioEm: expect.any(Date), btgCollectionId: null, emitidaEm: null,
+  });
+  expect(state.tables.parcelasAcordo[0]).toEqual({ ...parcela, canalBancario: "api_btg_v2" });
+  expect(state.writes.filter(write => write.table === "devedores")).toEqual([]);
+  expect(mocks.bank).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
+}
+function esperarMensagemTelefoneSegura(mensagem: string, phone: string) {
+  expect(mensagem).toMatch(/telefone/i);
+  expect(mensagem).not.toContain(phone);
+  const digitos = phone.replace(/[^0-9]/g, "");
+  if (digitos) expect(mensagem).not.toContain(digitos);
+}
 function canonica(patch: Record<string, any> = {}) {
   return { id: 100, btgIntegracaoId: 7, btgContaRecebedoraId: 15, condominioId: 2, origemTipo: "parcela_acordo", origemId: 19, revisao: 1, status: "incerta", amount: 12599, dueDate: parcela.dueDate, btgCollectionId: "canonical-collection", nossoNumero: "bank-number", ...patch };
 }
@@ -131,6 +165,91 @@ beforeEach(() => {
 afterEach(() => { expect(fetchMock).not.toHaveBeenCalled(); vi.unstubAllGlobals(); });
 
 describe("API BTG — origem local, canal e reserva canônica", () => {
+  it.each([
+    ["fixo nacional sem máscara", "2140000000", "+552140000000"],
+    ["fixo nacional com máscara", "(21) 4000-0000", "+552140000000"],
+    ["móvel nacional sem máscara", "11987654321", "+5511987654321"],
+    ["móvel nacional com máscara", "(11) 98765-4321", "+5511987654321"],
+    ["fixo internacional sem sinal", "552140000000", "+552140000000"],
+    ["fixo internacional com sinal", "+55 (21) 4000-0000", "+552140000000"],
+    ["móvel internacional sem sinal", "5511987654321", "+5511987654321"],
+    ["móvel internacional com sinal", "+55 (11) 98765-4321", "+5511987654321"],
+    ["fixo nacional de DDD 55", "(55) 4000-0000", "+555540000000"],
+    ["móvel nacional de DDD 55", "(55) 98765-4321", "+5555987654321"],
+    ["fixo internacional de DDD 55", "+55 (55) 4000-0000", "+555540000000"],
+  ])("normaliza %s só no payload, sem mudar cadastro/valor/datas/identificadores", async (_caso, phone, esperado) => {
+    const { db, state } = setupComTelefone(phone);
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ status: "emitida", jaExistia: false });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+    const payload = mocks.bank.mock.calls[0][0];
+    expect(payload.payer.phoneNumber).toBe(esperado);
+    esperarPayloadFinanceiroOriginal(payload);
+    expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({
+      revisao: 1, amount: 12599, dueDate: parcela.dueDate, externalId: "v2:sbx:parcela_acordo:19:r1",
+    });
+    expect(state.tables.parcelasAcordo[0]).toEqual({ ...parcela, canalBancario: "api_btg_v2" });
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+    expect(state.writes.filter(write => write.table === "devedores")).toEqual([]);
+  });
+
+  it.each([undefined, null, "", "   "])("omite telefone ausente (%j), sem inventar número ou atualizar cadastro", async phone => {
+    const { db, state } = setupComTelefone(phone);
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ status: "emitida" });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+    const payload = mocks.bank.mock.calls[0][0];
+    expect(payload.payer).not.toHaveProperty("phoneNumber");
+    esperarPayloadFinanceiroOriginal(payload);
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+    expect(state.writes.filter(write => write.table === "devedores")).toEqual([]);
+  });
+
+  it.each([
+    ["nacional incompleto", "21400000"],
+    ["DDD inexistente", "(20) 4000-0000"],
+    ["fixo com prefixo inválido", "(21) 6000-0000"],
+    ["móvel sem nono dígito válido", "(11) 88765-4321"],
+    ["sinal sem DDI brasileiro", "+21 4000-0000"],
+    ["telefone estrangeiro", "+1 (202) 555-0100"],
+    ["prefixo de operadora", "0212140000000"],
+    ["prefixo internacional de discagem", "00552140000000"],
+    ["ramal", "(21) 4000-0000 ramal 123"],
+    ["controle embutido", "(21) 4000\n0000"],
+    ["múltiplos sinais", "++55 (21) 4000-0000"],
+  ])("bloqueia %s antes do cliente, preserva reserva/canal e não escala revisão", async (_caso, phone) => {
+    const { db, state } = setupComTelefone(phone);
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    const erro = await emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 }).catch(error => error);
+    expect(erro).toBeInstanceOf(BtgV2ConfigurationError);
+    esperarMensagemTelefoneSegura(erro.message, phone);
+    esperarReservaTelefoneInvalido(state);
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+
+    // Correção administrativa simulada só na fixture: nunca libera/reenvia a reserva R1.
+    state.tables.devedores[0].phone = "(21) 4000-0000";
+    const antesDaConsulta = structuredClone(state.tables), writesAntes = structuredClone(state.writes);
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({
+      id: 100, status: "reservada", jaExistia: true, collectionId: null,
+    });
+    expect(state.tables).toEqual(antesDaConsulta);
+    expect(state.writes).toEqual(writesAntes);
+    esperarReservaTelefoneInvalido(state);
+  });
+
+  it("usa a mesma mensagem estática para telefones inválidos distintos, sem refletir entradas", async () => {
+    const mensagens: string[] = [];
+    for (const phone of ["(20) 4000-0000", "+1 (202) 555-0100"]) {
+      const { db, state } = setupComTelefone(phone);
+      const erro = await emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 }).catch(error => error);
+      expect(erro).toBeInstanceOf(BtgV2ConfigurationError);
+      esperarMensagemTelefoneSegura(erro.message, phone);
+      mensagens.push(erro.message);
+      esperarReservaTelefoneInvalido(state);
+    }
+    expect(mensagens[0]).toBe(mensagens[1]);
+  });
+
   it("reserva local não bloqueia API; canal e reserva commitam juntos preservando número/snapshots/payload", async () => {
     const { db, state } = setup();
     await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ status: "emitida", jaExistia: false, nossoNumero: "bank-number" });
@@ -170,11 +289,17 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     expect(mocks.bank).not.toHaveBeenCalled();
   });
 
-  it("correção documental não altera nem reenvia a canônica #1 incerta sem Collection ID", async () => {
-    const registro = canonica({ id: 1, btgCollectionId: null, erroCodigo: "EMISSAO_SEM_CONFIRMACAO" });
-    const { db, state } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [registro] });
+  it.each(["(20) 4000-0000", "(21) 4000-0000"])("telefone atual %s não altera nem reenvia a canônica #1 incerta sem Collection ID", async phone => {
+    const registro = canonica({
+      id: 1, btgCollectionId: null, erroCodigo: "EMISSAO_SEM_CONFIRMACAO",
+      externalId: "v2:sbx:parcela_acordo:19:r1", nossoNumero: null,
+    });
+    const { db, state } = setupComTelefone(phone, { parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [registro] });
     const antes = structuredClone(state.tables);
     await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({ id: 1, status: "incerta", jaExistia: true, collectionId: null });
+    await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({
+      resultados: [{ resultado: "falha", emissao: { id: 1, status: "incerta", jaExistia: true, collectionId: null } }],
+    });
     expect(state.tables).toEqual(antes);
     expect(state.writes).toEqual([]);
     expect(mocks.bank).not.toHaveBeenCalled();
@@ -322,6 +447,49 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
     }
   });
 
+  it.each([
+    ["(21) 4000-0000", "+552140000000"],
+    ["(11) 98765-4321", "+5511987654321"],
+    ["+55 (11) 98765-4321", "+5511987654321"],
+  ])("acordo normaliza telefone %s sem mudar valores/datas/identificadores/cadastro", async (phone, esperado) => {
+    const { db, state } = setupComTelefone(phone);
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({
+      acordoId: 5, resultados: [{ parcelaId: 19, resultado: "simulada", emissao: { id: 100, status: "emitida", jaExistia: false } }],
+    });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+    expect(mocks.bank.mock.calls[0][0].payer.phoneNumber).toBe(esperado);
+    esperarPayloadFinanceiroOriginal(mocks.bank.mock.calls[0][0]);
+    expect(state.tables.parcelasAcordo[0]).toEqual({ ...parcela, canalBancario: "api_btg_v2" });
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+    expect(state.writes.filter(write => write.table === "devedores")).toEqual([]);
+  });
+
+  it("acordo emite sem phoneNumber quando o cadastro não possui telefone", async () => {
+    const { db, state } = setupComTelefone(null);
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({
+      resultados: [{ parcelaId: 19, resultado: "simulada" }],
+    });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+    expect(mocks.bank.mock.calls[0][0].payer).not.toHaveProperty("phoneNumber");
+    esperarPayloadFinanceiroOriginal(mocks.bank.mock.calls[0][0]);
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+    expect(state.writes.filter(write => write.table === "devedores")).toEqual([]);
+  });
+
+  it.each(["(20) 4000-0000", "+21 4000-0000"])("acordo apresenta orientação segura para telefone inválido %s, sem POST nem liberação", async phone => {
+    const { db, state } = setupComTelefone(phone);
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    const resultado = await emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] });
+    expect(resultado.resultados).toHaveLength(1);
+    expect(resultado.resultados[0]).toMatchObject({ parcelaId: 19, resultado: "falha", emissaoId: 100 });
+    esperarMensagemTelefoneSegura(resultado.resultados[0].mensagem, phone);
+    expect(resultado.resultados[0]).not.toHaveProperty("diagnosticoHttp");
+    esperarReservaTelefoneInvalido(state);
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+  });
+
   it("emissão por acordo aceita consulta idempotente mas recusa contexto de outro acordo", async () => {
     const { db } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [canonica()] });
     await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({ resultados: [{ resultado: "falha", mensagem: "Emissão existente sem sucesso confirmado; revisar situação, sem reenviar.", emissao: { id: 100, status: "incerta", jaExistia: true } }] });
@@ -369,6 +537,90 @@ describe("API BTG — prévias e fila segura", () => {
 describe("API BTG — contexto de remessa", () => {
   function lote(patch: Record<string, any> = {}) { return { id: 50, btgIntegracaoId: 7, btgContaRecebedoraId: 15, condominioId: 2, status: "rascunho", ...patch }; }
   function item() { return { id: 1, btgRemessaId: 50, parcelaAcordoId: 19, installmentNumber: 1, valorCentavos: 12599 }; }
+
+  it.each([
+    ["(21) 4000-0000", "+552140000000"],
+    ["(11) 98765-4321", "+5511987654321"],
+    ["552140000000", "+552140000000"],
+    ["+55 (11) 98765-4321", "+5511987654321"],
+  ])("remessa normaliza %s somente no payload e preserva o contexto financeiro", async (phone, esperado) => {
+    const { db, state } = setupComTelefone(phone, { btgRemessas: [lote()], btgRemessaItens: [item()] });
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({
+      status: "processada", totalSelecionado: 1, totalEmitido: 1, totalFalha: 0, valorTotalCentavos: 12599,
+    });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+    expect(mocks.bank.mock.calls[0][0].payer.phoneNumber).toBe(esperado);
+    esperarPayloadFinanceiroOriginal(mocks.bank.mock.calls[0][0]);
+    expect(state.tables.btgCobrancasEmitidas[0]).toMatchObject({
+      btgRemessaId: 50, condominioId: 2, revisao: 1, amount: 12599, dueDate: parcela.dueDate,
+      externalId: "v2:sbx:parcela_acordo:19:r1",
+    });
+    expect(state.tables.btgRemessaItens[0]).toMatchObject({ ...item(), resultado: "emitida", btgCobrancaEmitidaId: 100 });
+    expect(state.tables.parcelasAcordo[0]).toEqual({ ...parcela, canalBancario: "api_btg_v2" });
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+    expect(state.writes.filter(write => write.table === "devedores")).toEqual([]);
+  });
+
+  it("remessa omite telefone ausente sem atualizar cadastro nem substituir por número fictício", async () => {
+    const { db, state } = setupComTelefone("   ", { btgRemessas: [lote()], btgRemessaItens: [item()] });
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({
+      status: "processada", totalEmitido: 1, valorTotalCentavos: 12599,
+    });
+    expect(mocks.bank).toHaveBeenCalledTimes(1);
+    expect(mocks.bank.mock.calls[0][0].payer).not.toHaveProperty("phoneNumber");
+    esperarPayloadFinanceiroOriginal(mocks.bank.mock.calls[0][0]);
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+    expect(state.writes.filter(write => write.table === "devedores")).toEqual([]);
+  });
+
+  it.each(["(20) 4000-0000", "(21) 4000-0000 ramal 123"])("remessa conserva reserva e orientação segura para telefone inválido %s sem POST", async phone => {
+    const { db, state } = setupComTelefone(phone, { btgRemessas: [lote()], btgRemessaItens: [item()] });
+    const cadastroAntes = structuredClone(state.tables.devedores);
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).resolves.toEqual({
+      status: "falha", totalSelecionado: 1, totalEmitido: 0, totalFalha: 1, valorTotalCentavos: 12599,
+    });
+    expect(state.tables.btgRemessaItens[0]).toMatchObject({ ...item(), resultado: "falha", btgCobrancaEmitidaId: 100 });
+    esperarMensagemTelefoneSegura(state.tables.btgRemessaItens[0].mensagem, phone);
+    esperarMensagemTelefoneSegura(state.tables.btgRemessas[0].erroResumo, phone);
+    esperarReservaTelefoneInvalido(state);
+    expect(state.tables.btgCobrancasEmitidas[0].btgRemessaId).toBe(50);
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+
+    // O lote falho e a reserva continuam bloqueados mesmo após corrigir a fixture.
+    state.tables.devedores[0].phone = "(21) 4000-0000";
+    const antesDaConsulta = structuredClone(state.tables), writesAntes = structuredClone(state.writes);
+    await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).rejects.toThrow("novo envio");
+    await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19 })).resolves.toMatchObject({
+      id: 100, status: "reservada", jaExistia: true, collectionId: null,
+    });
+    expect(state.tables).toEqual(antesDaConsulta);
+    expect(state.writes).toEqual(writesAntes);
+    esperarReservaTelefoneInvalido(state);
+  });
+
+  it("remessa consulta canônica incerta sem Collection ID após correção de telefone, sem alterar tentativa nem POST", async () => {
+    const registro = canonica({
+      id: 1, btgRemessaId: 50, btgCollectionId: null, nossoNumero: null,
+      externalId: "v2:sbx:parcela_acordo:19:r1", erroCodigo: "EMISSAO_SEM_CONFIRMACAO",
+    });
+    const { db, state } = setupComTelefone("(21) 4000-0000", {
+      parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [registro],
+      btgRemessas: [lote()], btgRemessaItens: [item()],
+    });
+    const canonicasAntes = structuredClone(state.tables.btgCobrancasEmitidas);
+    const parcelasAntes = structuredClone(state.tables.parcelasAcordo), cadastroAntes = structuredClone(state.tables.devedores);
+    await executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] });
+    expect(state.tables.btgRemessaItens[0]).toMatchObject({ resultado: "ja_existia", btgCobrancaEmitidaId: 1 });
+    expect(state.tables.btgCobrancasEmitidas).toEqual(canonicasAntes);
+    expect(state.tables.parcelasAcordo).toEqual(parcelasAntes);
+    expect(state.tables.devedores).toEqual(cadastroAntes);
+    expect(state.writes.every(write => ["btgRemessas", "btgRemessaItens"].includes(write.table))).toBe(true);
+    expect(mocks.bank).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("envia lote de contexto correto usando o mesmo emissor canônico", async () => {
     const { db, state } = setup({ btgRemessas: [lote()], btgRemessaItens: [item()] });
     await expect(executarRemessaBtgV2({ usuarioId: 10, db, remessaId: 50, parcelas: [parcela] })).resolves.toMatchObject({ status: "processada", totalEmitido: 1 });

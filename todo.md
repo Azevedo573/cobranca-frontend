@@ -3063,3 +3063,17 @@ Operação real/implantação da captura e situação bancária das emissões1/2
 - [ ] Obter prova/diagnóstico adicional para tentativas antigas1/2: não liberadas automaticamente porHTTP400/lista vazia.
 
 Implementação técnica concluída no desenvolvimento. Nenhuma consulta/envio BTG real, alteração de conta/token/segredo/RBAC/valor/número histórico, reclassificação financeira ou deploy. Não existe regra ativa de rejeicao_definitiva sem garantia documental da ausência do título. Concorrência testada em memória não substitui homologação MySQL real.
+
+## Correção — telefone do pagador BTG (09/11/2026)
+- [x] Identificar retorno capturado phoneNumber inválido e registrar diagnóstico sem CPF/corpo pessoal.
+- [x] Aprovação do usuário às 10:13: somente correção e testes no desenvolvimento.
+- [x] Fixar regras em docs/specs/SPEC-btg-telefone-pagador.md; cronograma Anatel 2026 com 67 DDD e plano brasileiro.
+- [x] Implementar normalizador puro: nacional fixo/móvel → +55; internacional BR não duplica DDI; DDD55 preservado; ausência omitida.
+- [x] Bloquear DDD/comprimento/prefixos/caracteres inválidos sem inventar dígitos ou corrigir cadastro silenciosamente.
+- [x] Preservar mensagem estática de domínio antes do cliente, sem expor telefone; canal/reserva/histórico/falha local mantidos.
+- [x] Executar 158 testes unitários novos e suíte de integração API com 111 casos, incluindo acordo/remessa, dados intactos e canônica incerta sem novo POST.
+- [x] Suíte serial: 2.072 aprovados / 1 externo BTG opt-in ignorado; TypeScript, build e diff check aprovados.
+- [x] Documentar ocorrência, especificação e plano; nenhuma migração, dependência, segredo, conta ou RBAC alterado.
+- [ ] Autorizar atualização da VPS e homologação bancária real separadamente; não reenviar títulos históricos por HTTP400 ou lista vazia.
+
+Estado de desenvolvimento validado. Nenhum POST/consulta BTG real, UPDATE cadastral/financeiro ou novo deploy. A VPS permanece no build 1c70e62d informado pelo usuário; estruturas0101/0102 foram aplicadas por ele, sem novas alterações por esta correção.

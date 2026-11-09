@@ -14,7 +14,7 @@ import {
   parcelasAcordo,
 } from "../../drizzle/schema";
 import { criarBolePixBtgV2 } from "./client";
-import { gerarDocumentoParcelaBtgV2, montarPayloadBolePixV2 } from "./bolepix";
+import { BtgV2BolePixError, gerarDocumentoParcelaBtgV2, montarPayloadBolePixV2 } from "./bolepix";
 import { BtgV2ConfigurationError, getBtgV2ServerConfig, validarVinculoContaRecebedora, validarContaRecebedoraParaAmbiente, validarIntegracaoRuntimeBtg } from "./config";
 import { getStatusOAuthBtg } from "../btg-oauth";
 import { bloquearIntegracaoBtg } from "./manual-producao";
@@ -706,9 +706,11 @@ export async function emitirBolePixV2(input: {
     // Em defeito desconhecido do cliente, assumir envio evita qualquer retry inseguro.
     const envioIniciado = contexto?.envioIniciado ?? clienteInvocado;
     const seguro = error instanceof BtgV2ConfigurationError ? error
-      : new BtgV2ConfigurationError(envioIniciado
-        ? "A emissão BolePix ficou sem confirmação local; revise a emissão incerta, sem reenviar."
-        : "Não foi possível preparar a emissão BolePix; nenhum envio foi realizado e a reserva foi preservada.");
+      : !envioIniciado && error instanceof BtgV2BolePixError
+        ? new BtgV2ConfigurationError(error.message)
+        : new BtgV2ConfigurationError(envioIniciado
+          ? "A emissão BolePix ficou sem confirmação local; revise a emissão incerta, sem reenviar."
+          : "Não foi possível preparar a emissão BolePix; nenhum envio foi realizado e a reserva foi preservada.");
     vincularEmissaoErroBtg(seguro, {
       emissaoId: reserva.id, capturaId: contexto?.capturaId ?? captura?.id ?? null,
       parcelaId, btgRemessaId: btgRemessaId ?? null,
