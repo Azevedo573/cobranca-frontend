@@ -36,6 +36,7 @@ export interface BtgCobrancaRecuperacao {
   codigoBarras?: string;
   linhaDigitavel?: string;
   nossoNumero?: string;
+  pagamentoDetectado?: boolean;
 }
 
 export type BtgCobrancaRecuperavel = BtgCobrancaRecuperacao;
@@ -81,7 +82,7 @@ export function normalizarCobrancaRecuperacaoBtg(value: unknown): BtgCobrancaRec
   const account = opcionalObjeto(value.account);
   const payee = opcionalObjeto(value.payee);
   const status = texto(value.status, 30);
-  if (status && !["OVERDUE", "CREATED", "PROCESSING", "PAID", "CANCELED", "FAILED"].includes(status)) return falhar("RESPOSTA_INVALIDA");
+  if (status && !["OVERDUE", "CREATED", "PROCESSING", "PAID", "CANCELED", "FAILED", "CANCELING", "CANCEL_FAILED"].includes(status)) return falhar("RESPOSTA_INVALIDA");
   const type = texto(value.type, 30);
   if (type && !["BANKSLIP_QRCODE", "BANKSLIP", "DUE_DATE_PIX"].includes(type)) return falhar("RESPOSTA_INVALIDA");
   const correlationId = igualSeDuplo(texto(value.correlationId, 20), texto(detail.correlationId, 20));
@@ -104,6 +105,8 @@ export function normalizarCobrancaRecuperacaoBtg(value: unknown): BtgCobrancaRec
   // e coerente. Nunca usar payer ou fabricar conta a partir do cadastro.
   const projected: BtgCobrancaRecuperacao = { collectionId };
   Object.assign(projected, Object.fromEntries(Object.entries({ status, correlationId, externalId, documentNumber, valorCentavos, dueDate, type, agencia, conta, documentoBeneficiario }).filter(([, v]) => v !== undefined)));
+  // Somente sinal conservador; não converte unidade monetária nem realiza baixa.
+  if (['paidAt', 'paymentDate', 'paidAmount', 'amountPaid', 'paidAmountCentavos', 'paymentAmount', 'hasPayment'].some(key => value[key] !== undefined && value[key] !== null && value[key] !== 0 && value[key] !== false)) projected.pagamentoDetectado = true;
   // Compatibilidade com a normalização BolePix, sem fabricar nulls ausentes.
   if (status) {
     for (const key of ["bankSlipUrl", "pdfUrl", "pixQrCode", "pixCopyPaste", "emv", "barCode", "digitableLine", "ourNumber"] as const) texto(value[key], 16_384);

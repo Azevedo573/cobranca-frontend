@@ -3077,3 +3077,24 @@ Implementação técnica concluída no desenvolvimento. Nenhuma consulta/envio B
 - [ ] Autorizar atualização da VPS e homologação bancária real separadamente; não reenviar títulos históricos por HTTP400 ou lista vazia.
 
 Estado de desenvolvimento validado. Nenhum POST/consulta BTG real, UPDATE cadastral/financeiro ou novo deploy. A VPS permanece no build 1c70e62d informado pelo usuário; estruturas0101/0102 foram aplicadas por ele, sem novas alterações por esta correção.
+
+## Evolução — boleto API BTG e cancelamento individual (09/11/2026)
+- [x] Plano/mapa aprovado btg-titulo-contexto → btg-boleto / btg-cancelamento, separado doCNAB.
+- [x] Duas tabelas aprovadas11:41; migração0103 CREATE TABLE/INDEX revisada/aplicada apenas no desenvolvimento, sem backfill/alteração financeira.
+- [x] Contexto fresco por parcela/revisão/cadeia/integração/conta/canal/estado, independente dos últimos100registros.
+- [x] Snapshot mínimo cifrado/hash/AAD na transação da captura antesPOST; fonte antiga só captura2xx completa/hash/bytes/AAD válida/30dias, semcadastroatual histórico.
+- [x] PDFLuminus API usa linha47/barras44/nossoNúmero/Pix oficiais com validaçãoDV/correspondência/banco208/fator2025/TLV/CRC, sem cálculoCNAB/PixCNPJ.
+- [x] ConsultaGET explícita sem baixa/reemissão; merge preserva códigos e linhaoriginal equivalente comseparadores.
+- [x] PDFadmin/lote base64 com validação integralIDs, resultado poritem, revalidação apósrender e auditfalhaaborta; semstoragepúblico/rede/localStorage.
+- [x] Cancelamento individual prévia5min/motivo5–500/literal/ciente/chaveúnica/consumoauditado antesDELETE/GETresultado; semretry oubypasslegado.
+- [x] Confirmar somenteCANCELED/webhookcompatível; não elimina dívida/acordo/parcela, não altera valor/canal ou liberaAPI/CNAB/revisão.
+- [x] Webhook pagamento prioritário/indícios/conflitos/locks/rollback/reentrega e500emfalha, semACK200antecipado.
+- [x] Componentes compartilhados nas telas/remessas/conciliacão, caches/reload/Blob/revoke/limpezaestado; guardPDFlegadocobranca antesdados.
+- [x] Provisionadorseletivo0103 hash/literal/DDLrestrita/tipos/default/índices/idempotência;49testes e --check somenteleitura aprovados.
+- [x] Específicos15suítes507testes; webhookfinal3suítes198testes/66novos; completa definitiva2568aprovados/1externoBTGopt-in ignorado.
+- [x] TypeScript/build/diff aprovados eHTTP200 local; PDF sintético inspecionado/I25decodificado; painéis reais fictícios conferidos/restaurados.
+- [x] Manual/specs/plano atualizados em docs/btg-boleto-cancelamento-operacao.md e tasks/plan-btg-documentos-cancelamento.md.
+- [ ] Autorizar/inventariar/backup/pullfixado/aplicar0103/buildisolado/trocareversível/reinícioaplicação/HTTP naVPS.
+- [ ] Homologar PDF real/leitura de códigos sem pagar/reload/consulta parcial; cancelamento somente de título expressamente autorizado e concorrênciaInnoDB real.
+
+Entrega técnica concluída no desenvolvimento. PDFoficial porURLnãoverificada não habilitado; entreguePDFLuminus com dados bancários identificado, semfallbackCNAB/proxyarbitrário. Não houve redeBTGreal/título ouconta nova/baixa/cancelamento/reenvio/RBAC/segredos/dependências/deploy nesta implementação. Usuário confirmou antes desta evolução uma cobrança emitida naVPS; a versão documental/cancelamento aqui permanece no desenvolvimento. Concorrência/rollback são mocks, nãoInnoDBreal; PDFs já compartilhados não são revogáveis e novas entregas são bloqueadas se título não elegível.

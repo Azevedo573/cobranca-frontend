@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { acordos, auditLogs, btgCobrancasEmitidas, btgHttpDiagnosticos, btgIntegracoes, btgRemessaItens, btgRemessas, parcelasAcordo, users } from '../../drizzle/schema';
 import { BtgV2ConfigurationError } from './config';
 import { aadDiagnosticoBtg, cifrarDiagnosticoBtg, LIMITE_CAPTURA_BTG_BYTES } from './diagnosticos-crypto';
+import { registrarSnapshotDoPedidoBtg } from './boleto-snapshot';
 
 type Db = NonNullable<Awaited<ReturnType<typeof import('../db').getDb>>>;
 type Executor = Pick<Db, 'select' | 'insert' | 'update'>;
@@ -73,6 +74,7 @@ export function criarCapturaHttpBtg(input: {db: Db; emissaoId: number; usuarioId
           const [row] = await tx.select().from(btgHttpDiagnosticos).where(eq(btgHttpDiagnosticos.chaveCaptura,chaveCaptura)).limit(1);
           if (!row) throw falha();
           await auditar(tx,input.usuarioId,row.id,row.condominioId,'captura_preparada');
+          await registrarSnapshotDoPedidoBtg(tx,emissao,body,input.usuarioId,row.id);
           return row.id;
         });
         id = criado;

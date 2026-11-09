@@ -364,7 +364,7 @@ describe("SSR do fluxo principal API", () => {
       success: true,
       parcelaId: 19,
     });
-    expect(mocks.invalidate).toHaveBeenCalledTimes(4);
+    expect(mocks.invalidate).toHaveBeenCalledTimes(8);
     expect(mocks.toast).toHaveBeenCalledWith(
       expect.stringContaining("Nenhuma cobrança foi enviada")
     );

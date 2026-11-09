@@ -34,7 +34,7 @@ import {
 import { auditarContaBtgTransacional, bloquearIntegracaoBtg } from "../btg-v2/manual-producao";
 import { emitirParcelasAcordoBtgV2, prepararEmissaoParcelasAcordoBtgV2, validarContaVinculadaAtualBtgV2 } from "../btg-v2/issuance";
 import { executarRemessaBtgV2, listarFilaRemessaBtgV2, obterInsertIdBtgV2, validarSelecaoRemessaBtgV2 } from "../btg-v2/remessas";
-import { cancelarEmissaoBolePixV2, conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
+import { conciliarEmissaoBolePixV2 } from "../btg-v2/settlement";
 
 // A auditoria é outra fronteira: nunca copia mensagens, payloads ou propriedades
 // arbitrárias do resultado, mesmo quando o cliente já sanitizou o diagnóstico.
@@ -1052,22 +1052,10 @@ export const btgV2Router = router({
 
   cancelarEmissao: adminProcedure
     .input(z.object({ emissaoId: z.number().int().positive(), confirmacao: z.literal("CANCELAR") }))
-    .mutation(async ({ input, ctx }) => {
-      try {
-        const db = await getDb();
-        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
-        const resultado = await cancelarEmissaoBolePixV2(db, input.emissaoId);
-        await logAudit(ctx, {
-          action: "config_change",
-          entity: "boleto",
-          entityId: String(input.emissaoId),
-          metadata: { integracao: "btg-v2", evento: "cancelamento_confirmado", ...resultado },
-          severity: "warning",
-        });
-        return resultado;
-      } catch (error) {
-        if (error instanceof TRPCError) throw error;
-        throw toTrpcError(error);
-      }
+    .mutation(() => {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Cancelamento legado bloqueado. Use btgCancelamento.preparar, revise a prévia e confirme a operação com motivo, ciência e CANCELAR COBRANÇA BTG; acompanhe por consultarResultado.",
+      });
     }),
 });

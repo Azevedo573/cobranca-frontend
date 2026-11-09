@@ -16,6 +16,7 @@ import path from "path";
 import fs from "fs";
 import QRCode from "qrcode";
 import { deveResumirOrigem, montarOrigemDividaAcordo, type OrigemDividaDocumento } from "./origem-divida-acordo";
+import { BtgBoletoBancarioError, validarDadosBancariosBtg, validarPixBtg } from "./btg-v2/boleto-bancario";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +96,12 @@ export interface DadosBoleto {
   // Contexto de acordo: somente para exibição no recibo do pagador
   contextoAcordo?: ContextoBoletoAcordoPdf;
   origemDivida?: OrigemDividaDocumento;
+  /** Ausente: CNAB legado. Presente: somente códigos oficiais da mesma emissão BTG. */
+  pagamentoBancario?: {
+    origem: "btg_api";
+    codigoBarras: string;
+    linhaDigitavel: string;
+  };
 }
 
 // ─── Cálculos FEBRABAN ────────────────────────────────────────────────────────
@@ -280,14 +287,47 @@ export function formatarCNPJ(cnpj: string): string {
 // ─── Gerador de PDF ───────────────────────────────────────────────────────────
 
 export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
-  const codigoBarras = calcularCodigoBarras(dados);
-  const linhaDigitavel = calcularLinhaDigitavel(codigoBarras);
+  const modoApi = dados.pagamentoBancario !== undefined;
+  if (modoApi && dados.pagamentoBancario?.origem !== "btg_api") {
+    throw new BtgBoletoBancarioError("A origem do pagamento bancário deve ser btg_api; não há fallback CNAB.");
+  }
+  const bancarios = modoApi ? validarDadosBancariosBtg({
+    codigoBarras: dados.pagamentoBancario!.codigoBarras,
+    linhaDigitavel: dados.pagamentoBancario!.linhaDigitavel,
+    valorCentavos: dados.valor,
+    vencimento: dados.dataVencimento,
+    banco: dados.banco,
+  }) : undefined;
+  if (modoApi) {
+    for (const [label, valor] of [["Nosso número", dados.nossoNumero], ["Agência", dados.agencia], ["Conta", dados.conta]]) {
+      if (typeof valor !== "string" || !valor.trim()) {
+        throw new BtgBoletoBancarioError(`${label} oficial é obrigatório no PDF BTG; não pode ser inventado.`);
+      }
+    }
+    if (!(dados.dataEmissao instanceof Date) || !Number.isFinite(dados.dataEmissao.getTime())) {
+      throw new BtgBoletoBancarioError("A data de emissão do boleto BTG é inválida.");
+    }
+  }
+  // O modo API nunca chama os geradores CNAB nem cria Pix substituto.
+  const codigoBarras = bancarios ? bancarios.codigoBarras : calcularCodigoBarras(dados);
+  const linhaDigitavel = bancarios ? bancarios.linhaDigitavel : calcularLinhaDigitavel(codigoBarras);
   const linhaFormatada = formatarLinhaDigitavel(linhaDigitavel);
+  const payloadPix = modoApi && dados.pixCopiaCola !== undefined ? validarPixBtg(dados.pixCopiaCola) : dados.pixCopiaCola;
+  const formatarDataDocumento = modoApi
+    ? (data: Date) => `${String(data.getUTCDate()).padStart(2, "0")}/${String(data.getUTCMonth() + 1).padStart(2, "0")}/${data.getUTCFullYear()}`
+    : formatarData;
+  const formatarPixDocumento = modoApi
+    ? (payload: string, caracteresPorLinha = 32) => {
+      const linhas: string[] = [];
+      for (let inicio = 0; inicio < payload.length; inicio += caracteresPorLinha) linhas.push(payload.slice(inicio, inicio + caracteresPorLinha));
+      return linhas.join("\n");
+    }
+    : formatarPixCopiaColaParaExibicao;
 
   // Gerar QR Code Pix como PNG buffer (se houver pixCopiaCola)
   let qrCodeBuffer: Buffer | null = null;
-  if (dados.pixCopiaCola) {
-    qrCodeBuffer = await QRCode.toBuffer(dados.pixCopiaCola, {
+  if (payloadPix) {
+    qrCodeBuffer = await QRCode.toBuffer(payloadPix, {
       errorCorrectionLevel: "M",
       type: "png",
       margin: 1,
@@ -296,8 +336,10 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     }) as Buffer;
   }
 
-  const nossoNumFormatado = `${dados.carteira}/${dados.nossoNumero}`;
-  const agenciaCodigo = `${dados.agencia} / ${dados.conta}-${dados.digitoConta}`;
+  const nossoNumFormatado = modoApi ? dados.nossoNumero : `${dados.carteira}/${dados.nossoNumero}`;
+  const agenciaCodigo = modoApi
+    ? `${dados.agencia}${dados.digitoAgencia ? `-${dados.digitoAgencia}` : ""} / ${dados.conta}${dados.digitoConta ? `-${dados.digitoConta}` : ""}`
+    : `${dados.agencia} / ${dados.conta}-${dados.digitoConta}`;
 
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -350,7 +392,10 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       doc.font(FONTE).fontSize(lz).fillColor(CINZA_LABEL)
         .text(label, x + 3, y + 2, { width: w - 6, lineBreak: false });
       doc.font(opts?.bold ? FONTE_BOLD : FONTE)
-        .fontSize(fz).fillColor(PRETO)
+        .fontSize(fz).fillColor(PRETO);
+      // Nosso número/API e agência/conta oficiais não podem ser truncados.
+      const tamanho = modoApi ? Math.min(fz, fz * (w - 6) / Math.max(doc.widthOfString(valor), 1)) : fz;
+      doc.fontSize(tamanho)
         .text(valor, x + 3, y + h - fz - 4, { width: w - 6, align, lineBreak: false });
     };
 
@@ -462,7 +507,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     y += 8;
 
     const contextoAcordo = dados.contextoAcordo;
-    const origemDivida = contextoAcordo ? (dados.origemDivida ?? montarOrigemDividaAcordo(
+    const origemDivida = modoApi && !contextoAcordo ? dados.origemDivida : contextoAcordo ? (dados.origemDivida ?? montarOrigemDividaAcordo(
       (dados.itensCobranca ?? []).map((item, index) => ({ cobrancaId: index + 1, titulo: item.titulo, valorOriginal: item.valorOriginal, vencimento: item.vencimento })), [],
     )) : undefined;
     if (contextoAcordo) {
@@ -487,7 +532,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     doc.font(FONTE).fontSize(8).fillColor(CINZA_LABEL)
       .text("Vencimento:", xVenc, y, { lineBreak: false });
     doc.font(FONTE_BOLD).fontSize(11).fillColor(PRETO)
-      .text(formatarData(dados.dataVencimento), xVenc + 60, y - 1, { lineBreak: false });
+      .text(formatarDataDocumento(dados.dataVencimento), xVenc + 60, y - 1, { lineBreak: false });
 
     doc.font(FONTE).fontSize(8).fillColor(CINZA_LABEL)
       .text("Valor:", xVenc + 150, y, { lineBreak: false });
@@ -544,6 +589,11 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       y += H_RESUMO + 10;
       // O plano completo permanece no demonstrativo separado, não no boleto.
     }
+    if (modoApi && !contextoAcordo) {
+      doc.font(FONTE).fontSize(7).fillColor(CINZA_LABEL)
+        .text("Resumo do acordo indisponível: contexto original não foi preservado nesta emissão.", ML, y, { width: W, lineBreak: false });
+      y += 18;
+    }
 
     // ── Composição da cobrança ──
     // Constantes de layout da tabela
@@ -564,9 +614,9 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     const TABLE_H = 14;
     const TABLE_FONT = 6.5;
     // Altura estimada da ficha de compensação (para garantir que caiba na última página)
-    const pixAlturaTexto = dados.pixCopiaCola ? doc.font("Courier").fontSize(5.8)
-      .heightOfString(formatarPixCopiaColaParaExibicao(dados.pixCopiaCola, 28), { width: W * 0.45 - 90, lineGap: 1 }) + 20 : 0;
-    const FICHA_H_ESTIMADA = contextoAcordo ? [14, 36, 22, 26, 22, 22, 80, 38, 18, 8,
+    const pixAlturaTexto = payloadPix ? doc.font("Courier").fontSize(5.8)
+      .heightOfString(formatarPixDocumento(payloadPix, 28), { width: W * 0.45 - 90, lineGap: 1 }) + 20 : 0;
+    const FICHA_H_ESTIMADA = contextoAcordo || modoApi ? [14, 36, 22, 26, 22, 22, 80, 38, 18, 8,
       qrCodeBuffer ? Math.max(72, pixAlturaTexto) + 8 : 52, 12].reduce((s, h) => s + h, 0) : 320;
 
     const colsVert = [xVencCol, xNum1, xNum2, xNum3, xNum4, xNum5, xNum6, xNum7, xTotalCol];
@@ -614,7 +664,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       doc.font(FONTE).fontSize(TABLE_FONT).fillColor(PRETO)
         .text(item.titulo, xTituloCol + 2, textY, { width: COL_TITULO - 4, lineBreak: false });
       doc.font(FONTE).fontSize(TABLE_FONT).fillColor(PRETO)
-        .text(formatarData(item.vencimento), xVencCol + 2, textY, { width: COL_VENC - 4, lineBreak: false });
+        .text(formatarDataDocumento(item.vencimento), xVencCol + 2, textY, { width: COL_VENC - 4, lineBreak: false });
       doc.font(FONTE).fontSize(TABLE_FONT).fillColor(PRETO)
         .text(fmtNum(item.valorOriginal), xNum1 + 2, textY, { width: COL_NUM - 4, align: "right", lineBreak: false });
       doc.font(FONTE).fontSize(TABLE_FONT).fillColor(PRETO)
@@ -636,7 +686,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     if (origemDivida) {
       const fmtOrigem = (valor: number | null) => valor == null ? "Não disponível" : `R$ ${formatarValorReais(valor)}`;
       const periodo = origemDivida.primeiroVencimento && origemDivida.ultimoVencimento
-        ? `${formatarData(origemDivida.primeiroVencimento)} a ${formatarData(origemDivida.ultimoVencimento)}` : "Não disponível";
+        ? `${formatarDataDocumento(origemDivida.primeiroVencimento)} a ${formatarDataDocumento(origemDivida.ultimoVencimento)}` : "Não disponível";
       const linhasResumo = [
         `${origemDivida.quantidade} cobrança(s) incluída(s) · Vencimentos de origem: ${periodo}`,
         `Principal preservado: ${fmtOrigem(origemDivida.principal)} · Correção: ${fmtOrigem(origemDivida.correcao)}`,
@@ -683,7 +733,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
           if (index % 2 === 1) doc.rect(ML, y, W, h).fillColor("#FAFAFA").fill();
           hLine(y + h);
           doc.font(FONTE).fontSize(7).fillColor(PRETO).text(`#${item.cobrancaId} — ${item.titulo}`, ML + 4, y + 5, { width: W - 190, lineGap: 1 });
-          doc.text(item.vencimento ? formatarData(item.vencimento) : "—", MR - 176, y + 5, { width: 72, align: "center", lineBreak: false });
+          doc.text(item.vencimento ? formatarDataDocumento(item.vencimento) : "—", MR - 176, y + 5, { width: 72, align: "center", lineBreak: false });
           doc.text(item.principal == null ? "—" : fmtOrigem(item.principal), MR - 96, y + 5, { width: 92, align: "right", lineBreak: false });
           y += h;
         });
@@ -761,7 +811,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     y += TABLE_H + 2;
 
     }
-    if (contextoAcordo && y + 10 + FICHA_H_ESTIMADA > PAGE_H - MARGEM_INF) {
+    if ((contextoAcordo || modoApi) && y + 10 + FICHA_H_ESTIMADA > PAGE_H - MARGEM_INF) {
       doc.addPage();
       y = 18;
     }
@@ -788,7 +838,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       const wL = W * 0.72;
       cell(ML, y, wL, ROW_H, "Local de pagamento", dados.localPagamento);
       cell(ML + wL, y, W - wL, ROW_H, "Vencimento",
-        formatarData(dados.dataVencimento), { bold: true, fontSize: 10, align: "right" });
+        formatarDataDocumento(dados.dataVencimento), { bold: true, fontSize: 10, align: "right" });
       y += ROW_H;
       hLine(y);
       vLine(ML + wL, yR, y);
@@ -817,11 +867,11 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       const wD5 = W * 0.16;
       const wD6 = MR - (ML + wD1 + wD2 + wD3 + wD4 + wD5);
 
-      cell(ML, y, wD1, ROW_H, "Data do documento", formatarData(dados.dataEmissao));
+      cell(ML, y, wD1, ROW_H, "Data do documento", formatarDataDocumento(dados.dataEmissao));
       cell(ML + wD1, y, wD2, ROW_H, "No. do documento", dados.seuNumero);
       cell(ML + wD1 + wD2, y, wD3, ROW_H, "Espécie doc.", dados.especieDocumento);
       cell(ML + wD1 + wD2 + wD3, y, wD4, ROW_H, "Aceite", dados.aceite);
-      cell(ML + wD1 + wD2 + wD3 + wD4, y, wD5, ROW_H, "Data Processamento", formatarData(dados.dataEmissao));
+      cell(ML + wD1 + wD2 + wD3 + wD4, y, wD5, ROW_H, "Data Processamento", formatarDataDocumento(dados.dataEmissao));
       cell(ML + wD1 + wD2 + wD3 + wD4 + wD5, y, wD6, ROW_H,
         "Nosso Número", nossoNumFormatado, { bold: true, align: "right" });
 
@@ -842,7 +892,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
       const wU6 = MR - (ML + wU1 + wU2 + wU3 + wU4 + wU5);
 
       cell(ML, y, wU1, ROW_H, "Uso do Banco", "");
-      cell(ML + wU1, y, wU2, ROW_H, "Carteira", dados.carteira.padStart(3, "0"));
+      cell(ML + wU1, y, wU2, ROW_H, "Carteira", modoApi ? dados.carteira : dados.carteira.padStart(3, "0"));
       cell(ML + wU1 + wU2, y, wU3, ROW_H, "Moeda", "R$");
       cell(ML + wU1 + wU2 + wU3, y, wU4, ROW_H, "Quantidade", "");
       cell(ML + wU1 + wU2 + wU3 + wU4, y, wU5, ROW_H, "Valor", "");
@@ -947,7 +997,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
 
       const wPixInfo = wPix - QR_SIZE - 6;
       const pixInfoY = y + 12;
-      const codigoPixExibicao = formatarPixCopiaColaParaExibicao(dados.pixCopiaCola!, 28);
+      const codigoPixExibicao = formatarPixDocumento(payloadPix!, 28);
       doc.font(FONTE).fontSize(5.8).fillColor(CINZA_LABEL)
         .text("PIX COPIA E COLA", xPix, pixInfoY, { width: wPixInfo, lineBreak: false });
       doc.font("Courier").fontSize(5.8).fillColor(PRETO)
@@ -962,7 +1012,7 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
         .strokeColor(PIX_VERDE).lineWidth(1).stroke();
       doc.image(qrCodeBuffer, xQR, y, { width: QR_SIZE, height: QR_SIZE });
 
-      y += (contextoAcordo ? Math.max(QR_SIZE, pixAlturaTexto) : QR_SIZE) + 8;
+      y += (contextoAcordo || modoApi ? Math.max(QR_SIZE, pixAlturaTexto) : QR_SIZE) + 8;
     } else {
       const escala = W / larguraTotal;
       let xBar = ML;

@@ -1,3 +1,5 @@
+import { BtgBoletosAcordo } from "@/components/btg/BtgBoletosAcordo";
+import { invalidarCanaisBtg } from "@/lib/invalidarCanaisBtg";
 import { useState, useMemo, useCallback } from "react";
 import React from "react";
 import {
@@ -102,6 +104,7 @@ export function RealizarAcordoModal({
   onAcordoCriado,
 }: RealizarAcordoModalProps) {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   // ── Parâmetros globais de cálculo ──────────────────────────────────────────
   const [dataCalculo, setDataCalculo] = useState(hoje());
   const [usarCorrecao, setUsarCorrecao] = useState(true);
@@ -309,39 +312,12 @@ export function RealizarAcordoModal({
     }));
   }, [plano]);
 
-  // ── Gerar boletos em lote ─────────────────────────────────────────────────
-  const [gerandoBoletos, setGerandoBoletos] = useState(false);
-  const gerarBoletosLoteMutation = trpc.acordos.gerarBoletosLoteAcordo.useMutation({
-    onSuccess: (data) => {
-      setGerandoBoletos(false);
-      if (data.success && data.boletos.length > 0) {
-        toast.success(data.mensagem);
-        // Abrir cada boleto em nova aba
-        data.boletos.forEach((b: any) => window.open(b.url, '_blank'));
-      } else {
-        toast.warning(data.mensagem);
-      }
-    },
-    onError: (e) => {
-      setGerandoBoletos(false);
-      toast.error("Erro ao gerar boletos: " + e.message);
-    },
-  });
-
-  const handleGerarBoletosLote = () => {
-    if (!acordoCriadoId) {
-      toast.warning("Finalize o acordo primeiro antes de gerar os boletos.");
-      return;
-    }
-    setGerandoBoletos(true);
-    gerarBoletosLoteMutation.mutate({ acordoId: acordoCriadoId });
-  };
-
   // ── Criar acordo ───────────────────────────────────────────────────────────
   const createAcordoMutation = trpc.acordos.create.useMutation({
     onSuccess: (data) => {
       toast.success("Acordo criado. Nenhuma cobrança foi enviada ao banco; revise o canal e as parcelas antes do envio.");
-      setAcordoCriadoId((data as any)?.id ?? null);
+      setAcordoCriadoId(data.acordoId);
+      void invalidarCanaisBtg(utils);
       onAcordoCriado?.();
     },
     onError: (e) => toast.error("Erro ao criar acordo: " + e.message),
@@ -1181,18 +1157,6 @@ export function RealizarAcordoModal({
               Termo de Acordo
             </Button>
 
-            {/* Boleto em lote */}
-            <Button
-              variant="outline"
-              className="gap-2 border-green-600 text-green-700 hover:bg-green-50"
-              onClick={handleGerarBoletosLote}
-              disabled={gerandoBoletos || !acordoCriadoId}
-              title={!acordoCriadoId ? "Finalize o acordo primeiro" : "Gerar boletos para todas as parcelas"}
-            >
-              {gerandoBoletos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-              {gerandoBoletos ? "Gerando..." : "Boleto"}
-            </Button>
-
             {user?.role === "admin" && (
               <>
               <Button
@@ -1220,6 +1184,8 @@ export function RealizarAcordoModal({
             </Button>
           </div>
         </div>
+
+        {acordoCriadoId && <BtgBoletosAcordo acordoId={acordoCriadoId} mostrarParcelas />}
 
         {/* Modal de Gerar Documento */}
         <GerarDocumentoModal

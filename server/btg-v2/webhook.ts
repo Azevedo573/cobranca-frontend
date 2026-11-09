@@ -1,9 +1,12 @@
 import { createHash, timingSafeEqual } from "crypto";
 import type { Request, Response } from "express";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import {
   acordos,
+  auditLogs,
+  btgCancelamentos,
+  btgContaRecebedoraCondominios,
   btgCobrancasEmitidas,
   btgIntegracoes,
   btgWebhookEntregas,
@@ -17,6 +20,13 @@ type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type BtgV2Status = typeof btgCobrancasEmitidas.$inferSelect.status;
 type Emissao = typeof btgCobrancasEmitidas.$inferSelect;
+type Operacao = typeof btgCancelamentos.$inferSelect;
+type OrigemBloqueada = {
+  cobranca?: typeof cobrancas.$inferSelect;
+  acordo?: typeof acordos.$inferSelect;
+  parcela?: typeof parcelasAcordo.$inferSelect;
+  parcelas: (typeof parcelasAcordo.$inferSelect)[];
+};
 type Resultado = { ok: true; duplicate?: true; ignored?: true };
 
 const payloadSchema = z.object({
@@ -33,9 +43,10 @@ const payloadSchema = z.object({
   }).passthrough(),
 });
 type Payload = z.infer<typeof payloadSchema>;
+const eventosCancelamento = new Set(["collections.cancelled", "collections.canceled", "colections.cancelled"]);
 const eventos = new Set([
   "collections.created", "collections.paid", "collections.expired",
-  "collections.cancelled", "collections.canceled", "colections.cancelled",
+  ...Array.from(eventosCancelamento),
 ]);
 
 /** BTG envia seu webhook secret via Authorization: Bearer, não uma assinatura HMAC. */
@@ -54,7 +65,7 @@ export function mapearStatusWebhookBtgV2(evento: string, statusAtual: BtgV2Statu
   // Uma criação entregue depois do cancelamento/expiração não reabre o título.
   if (evento === "collections.created" && ["cancelada", "expirada"].includes(statusAtual)) return statusAtual;
   if (evento === "collections.expired") return statusAtual === "cancelada" ? statusAtual : "expirada";
-  if (["collections.cancelled", "collections.canceled", "colections.cancelled"].includes(evento)) return "cancelada";
+  if (eventosCancelamento.has(evento)) return "cancelada";
   if (evento === "collections.created") return "emitida";
   return statusAtual;
 }
@@ -87,38 +98,51 @@ function identificadorEntrega(req: Request, payload: Payload): string | null {
 }
 
 async function finalizarEntrega(tx: Tx, id: number, codigo: string | null): Promise<Resultado> {
-  await tx.update(btgWebhookEntregas).set({
+  const change = await tx.update(btgWebhookEntregas).set({
     statusProcessamento: codigo ? "ignorado" : "processado",
     erroCodigo: codigo,
     processadoEm: new Date(),
   }).where(eq(btgWebhookEntregas.id, id));
+  if (!Array.isArray(change) || change[0]?.affectedRows !== 1) throw new Error("DELIVERY_UPDATE_FAILED");
   return codigo ? { ok: true, ignored: true } : { ok: true };
 }
 
-async function aplicarPagamento(tx: Tx, emissao: Emissao, paidAt: Date): Promise<string | null> {
+/** Pai e TODAS as parcelas antes de qualquer emissão. A conclusão do acordo não
+ * pode adquirir outra parcela depois da emissão e inverter a ordem da reserva. */
+async function bloquearOrigem(tx: Tx, emissao: Emissao): Promise<OrigemBloqueada> {
   if (emissao.origemTipo === "cobranca") {
-    const [origem] = await tx.select().from(cobrancas)
+    const [cobranca] = await tx.select().from(cobrancas)
       .where(eq(cobrancas.id, emissao.origemId)).limit(1).for("update");
-    if (!origem || origem.condominioId !== emissao.condominioId) return "ORIGIN_SCOPE_MISMATCH";
-    if (["cancelado", "acordo", "em_acordo", "acordo_atrasado"].includes(origem.status)) return "ORIGIN_NOT_ELIGIBLE";
-    if (origem.status !== "pago") {
+    return { cobranca, parcelas: [] };
+  }
+  const [referencia] = await tx.select({ acordoId: parcelasAcordo.acordoId }).from(parcelasAcordo)
+    .where(eq(parcelasAcordo.id, emissao.origemId)).limit(1);
+  if (!referencia) return { parcelas: [] };
+  const [acordo] = await tx.select().from(acordos)
+    .where(eq(acordos.id, referencia.acordoId)).limit(1).for("update");
+  const parcelas = await tx.select().from(parcelasAcordo)
+    .where(eq(parcelasAcordo.acordoId, referencia.acordoId)).for("update");
+  return { acordo, parcelas, parcela: parcelas.find(p => p.id === emissao.origemId) };
+}
+
+async function aplicarPagamento(tx: Tx, emissao: Emissao, paidAt: Date, origem: OrigemBloqueada): Promise<string | null> {
+  if (emissao.origemTipo === "cobranca") {
+    const cobranca = origem.cobranca;
+    if (!cobranca || cobranca.condominioId !== emissao.condominioId) return "ORIGIN_SCOPE_MISMATCH";
+    if (["cancelado", "acordo", "em_acordo", "acordo_atrasado"].includes(cobranca.status)) return "ORIGIN_NOT_ELIGIBLE";
+    if (cobranca.status !== "pago") {
       await tx.update(cobrancas).set({ status: "pago", paidAt, paidAmount: emissao.amount, updatedAt: new Date() })
-        .where(and(eq(cobrancas.id, origem.id), eq(cobrancas.condominioId, emissao.condominioId)));
+        .where(and(eq(cobrancas.id, cobranca.id), eq(cobrancas.condominioId, emissao.condominioId)));
     }
     return null;
   }
 
-  // Descobrir o acordo antes do lock e revalidar o vínculo depois dele. Os pagamentos
-  // de parcelas do mesmo acordo serializam no pai antes de bloquear suas parcelas.
-  const [referencia] = await tx.select({ acordoId: parcelasAcordo.acordoId }).from(parcelasAcordo)
-    .where(eq(parcelasAcordo.id, emissao.origemId)).limit(1);
-  if (!referencia) return "ORIGIN_NOT_FOUND";
-  const [acordo] = await tx.select().from(acordos)
-    .where(eq(acordos.id, referencia.acordoId)).limit(1).for("update");
+  // Mesmas condições financeiras anteriores; apenas os locks foram antecipados.
+  // Não recalcular nominal, snapshots, juros ou valor pago.
+  const { acordo, parcela, parcelas } = origem;
+  if (!parcela && !parcelas.length) return "ORIGIN_NOT_FOUND";
   if (!acordo || acordo.condominioId !== emissao.condominioId) return "ORIGIN_SCOPE_MISMATCH";
   if (acordo.status === "cancelado") return "ORIGIN_NOT_ELIGIBLE";
-  const [parcela] = await tx.select().from(parcelasAcordo)
-    .where(eq(parcelasAcordo.id, emissao.origemId)).limit(1).for("update");
   if (!parcela || parcela.acordoId !== acordo.id) return "ORIGIN_SCOPE_MISMATCH";
   if (parcela.status === "cancelado") return "ORIGIN_NOT_ELIGIBLE";
   if (parcela.amount !== emissao.amount) return "ORIGIN_AMOUNT_MISMATCH";
@@ -126,12 +150,82 @@ async function aplicarPagamento(tx: Tx, emissao: Emissao, paidAt: Date): Promise
     await tx.update(parcelasAcordo).set({ status: "pago", paymentDate: paidAt })
       .where(and(eq(parcelasAcordo.id, parcela.id), eq(parcelasAcordo.acordoId, acordo.id)));
   }
-  const parcelas = await tx.select({ status: parcelasAcordo.status }).from(parcelasAcordo)
-    .where(eq(parcelasAcordo.acordoId, acordo.id)).for("update");
-  if (acordo.status !== "pago" && parcelas.length && parcelas.every(p => p.status === "pago")) {
+  if (acordo.status !== "pago" && parcelas.length && parcelas.every(p => p.id === parcela.id || p.status === "pago")) {
     await tx.update(acordos).set({ status: "pago", updatedAt: new Date() }).where(eq(acordos.id, acordo.id));
   }
   return null;
+}
+
+function origemNoEscopo(emissao: Emissao, origem: OrigemBloqueada): boolean {
+  return emissao.origemTipo === "parcela_acordo"
+    ? !!(origem.acordo && origem.parcela && origem.acordo.condominioId === emissao.condominioId && origem.parcela.acordoId === origem.acordo.id)
+    : origem.cobranca?.condominioId === emissao.condominioId;
+}
+
+function pagamentoLocal(emissao: Emissao, origem: OrigemBloqueada): boolean {
+  if (emissao.status === "paga" || /PAYMENT|PAGAMENTO|PARCIAL/i.test(emissao.erroCodigo ?? "")) return true;
+  if (!origemNoEscopo(emissao, origem)) return false;
+  return origem.parcela?.status === "pago" || origem.parcela?.paymentDate != null || origem.acordo?.status === "pago" ||
+    origem.cobranca?.status === "pago" || origem.cobranca?.paidAt != null || (origem.cobranca?.paidAmount ?? 0) > 0;
+}
+
+function indicioPagamentoPayload(payload: Payload): boolean {
+  return payload.event === "collections.paid" || /PAID|PAYMENT|PARTIAL|PAGO|PAGAMENTO|PARCIAL/i.test(payload.data.status ?? "") ||
+    ["paidAt", "paymentDate", "paidAmount", "amountPaid", "valorPagoCentavos", "paidAmountCentavos",
+      "paymentAmount", "paid", "hasPayment", "pagamentoDetectado"].some(k => {
+      const value = payload.data[k];
+      return value !== undefined && value !== null && value !== 0 && value !== false;
+    });
+}
+
+function identidadeCancelamentoPayload(payload: Payload, emissao: Emissao): boolean {
+  // collectionId autentica a identidade mínima; dados opcionais contraditórios
+  // nunca podem confirmar uma operação. Não guardar nem logar esses campos.
+  const esperados: Record<string, unknown> = {
+    externalId: emissao.externalId,
+    correlationId: `btgv2-${emissao.id}`,
+    documentNumber: `PA${emissao.origemId}R${emissao.revisao}`,
+    type: "BANKSLIP_QRCODE",
+    amount: emissao.amount,
+  };
+  return Object.entries(esperados).every(([campo, esperado]) => payload.data[campo] === undefined || payload.data[campo] === esperado);
+}
+
+async function atualizarOperacoes(tx: Tx, operacoes: Operacao[], emissao: Emissao,
+  ambiente: "sandbox" | "producao", entregaId: number, conflito: boolean): Promise<void> {
+  for (const operacao of operacoes) {
+    // Conflito é monotônico, inclusive quando pagamento chega após CANCELED.
+    // Cancelamento nunca consome prévia nem ressuscita uma operação recusada.
+    if (!conflito && !["solicitada", "em_confirmacao"].includes(operacao.estado)) continue;
+    const estado = conflito ? "conflito_pagamento" : "cancelada";
+    const codigo = conflito ? "CONFLITO_PAGAMENTO" : "CANCELED";
+    if (operacao.estado === estado && operacao.codigo === codigo) continue;
+    const confirmadaEm = estado === "cancelada" ? (operacao.confirmadaEm ?? new Date()) : operacao.confirmadaEm;
+    const change = await tx.update(btgCancelamentos).set({ estado, codigo, confirmadaEm, updatedAt: new Date() })
+      .where(and(eq(btgCancelamentos.id, operacao.id), eq(btgCancelamentos.estado, operacao.estado),
+        eq(btgCancelamentos.btgCobrancaEmitidaId, emissao.id), eq(btgCancelamentos.btgIntegracaoId, emissao.btgIntegracaoId),
+        eq(btgCancelamentos.parcelaAcordoId, emissao.origemId), eq(btgCancelamentos.condominioId, emissao.condominioId)));
+    if (!Array.isArray(change) || change[0]?.affectedRows !== 1) throw new Error("CANCELLATION_UPDATE_FAILED");
+    // Auditoria direta/estrita: falha desfaz operação, financeiro e entrega.
+    // Ator é o webhook autenticado, não uma nova ação do admin da prévia.
+    const audit = await tx.insert(auditLogs).values({
+      userId: null,
+      userRole: "system",
+      action: "config_change",
+      entity: "configuracao",
+      entityId: `btg-cancelamento:${operacao.chaveOperacao}`,
+      condominioId: emissao.condominioId,
+      metadata: JSON.stringify({
+        evento: conflito ? "webhook_conflito_pagamento" : "webhook_cancelamento_confirmado",
+        operacaoId: operacao.chaveOperacao, emissaoId: emissao.id, parcelaId: emissao.origemId,
+        ambiente, entregaId, estado, codigo,
+      }),
+      success: 1,
+      severity: "warning",
+      ipAddress: "unknown",
+    });
+    if (!Array.isArray(audit) || audit[0]?.affectedRows !== 1) throw new Error("CANCELLATION_AUDIT_FAILED");
+  }
 }
 
 async function processarEntrega(db: Db, integracaoId: number, payloadHash: string, payload: Payload): Promise<Resultado> {
@@ -140,26 +234,96 @@ async function processarEntrega(db: Db, integracaoId: number, payloadHash: strin
       .where(and(eq(btgWebhookEntregas.btgIntegracaoId, integracaoId), eq(btgWebhookEntregas.payloadHash, payloadHash)))
       .limit(1).for("update");
     if (!entrega) throw new Error("DELIVERY_NOT_FOUND");
+    if (entrega.assinaturaValida !== 1) throw new Error("DELIVERY_NOT_AUTHENTICATED");
     if (["processado", "ignorado"].includes(entrega.statusProcessamento)) return { ok: true, duplicate: true };
     if (!eventos.has(payload.event)) return finalizarEntrega(tx, entrega.id, "EVENT_NOT_SUPPORTED");
+
+    // Ordem comum: integração → vínculo → pai → parcelas → emissões → operações.
+    // A entrega é exclusiva deste fluxo; nunca bloquear outras entregas ao ler
+    // indícios anteriores, evitando entrega A ↔ entrega B sob integração.
+    const [integracao] = await tx.select().from(btgIntegracoes)
+      .where(eq(btgIntegracoes.id, integracaoId)).limit(1).for("update");
+    const config = getBtgV2ServerConfig();
+    if (!integracao || integracao.ambiente !== config.ambiente || integracao.companyId !== config.companyId)
+      return finalizarEntrega(tx, entrega.id, "INTEGRATION_SCOPE_MISMATCH");
+    const hints = await tx.select().from(btgCobrancasEmitidas)
+      .where(and(eq(btgCobrancasEmitidas.btgIntegracaoId, integracaoId), eq(btgCobrancasEmitidas.btgCollectionId, payload.data.collectionId!)))
+      .limit(2);
+    if (hints.length !== 1) return finalizarEntrega(tx, entrega.id, hints.length ? "COLLECTION_AMBIGUOUS" : "COLLECTION_NOT_FOUND");
+    const hint = hints[0];
+    const [vinculo] = await tx.select().from(btgContaRecebedoraCondominios)
+      .where(and(eq(btgContaRecebedoraCondominios.btgIntegracaoId, integracaoId), eq(btgContaRecebedoraCondominios.condominioId, hint.condominioId)))
+      .limit(1).for("share");
+    const origem = await bloquearOrigem(tx, hint);
+    const revisoes = await tx.select().from(btgCobrancasEmitidas)
+      .where(and(eq(btgCobrancasEmitidas.origemTipo, hint.origemTipo), eq(btgCobrancasEmitidas.origemId, hint.origemId)))
+      .orderBy(desc(btgCobrancasEmitidas.revisao)).for("update");
     const emissoes = await tx.select().from(btgCobrancasEmitidas)
       .where(and(eq(btgCobrancasEmitidas.btgIntegracaoId, integracaoId), eq(btgCobrancasEmitidas.btgCollectionId, payload.data.collectionId!)))
       .limit(2).for("update");
     if (emissoes.length !== 1) return finalizarEntrega(tx, entrega.id, emissoes.length ? "COLLECTION_AMBIGUOUS" : "COLLECTION_NOT_FOUND");
     const emissao = emissoes[0];
-    if (emissao.status === "paga") return finalizarEntrega(tx, entrega.id, null);
-    const novoStatus = mapearStatusWebhookBtgV2(payload.event, emissao.status);
+    if (emissao.id !== hint.id || emissao.origemId !== hint.origemId || emissao.origemTipo !== hint.origemTipo || emissao.condominioId !== hint.condominioId)
+      return finalizarEntrega(tx, entrega.id, "COLLECTION_IDENTITY_CHANGED");
+
+    // Bookkeeping só do título atual identificado. Vínculos desconhecidos não
+    // são corrigidos nem passam a autorizar documentos/canais por este evento.
+    const atual = revisoes.filter(r => r.revisao >= emissao.revisao);
+    const identidadeOperacional = emissao.origemTipo === "parcela_acordo" && origemNoEscopo(emissao, origem) &&
+      atual.length === 1 && atual[0].id === emissao.id &&
+      vinculo?.ativo === 1 && vinculo.btgContaRecebedoraId === emissao.btgContaRecebedoraId;
+    const operacoes = identidadeOperacional ? await tx.select().from(btgCancelamentos)
+      .where(and(eq(btgCancelamentos.btgCobrancaEmitidaId, emissao.id), eq(btgCancelamentos.btgIntegracaoId, integracaoId),
+        eq(btgCancelamentos.parcelaAcordoId, emissao.origemId), eq(btgCancelamentos.condominioId, emissao.condominioId)))
+      .orderBy(desc(btgCancelamentos.id)).for("update") : [];
+    if (emissao.status === "paga") {
+      await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, true);
+      return finalizarEntrega(tx, entrega.id, null);
+    }
     if (payload.event === "collections.paid") {
+      // Parcial/ambíguo bloqueia a operação para UI, mantendo a regra anterior
+      // de valor integral/elegibilidade. O livro da entrega conserva o indício.
       const pago = valorPagoWebhookBtgEmCentavos(payload.data);
-      if (pago === null || pago !== emissao.amount) return finalizarEntrega(tx, entrega.id, "PAYMENT_AMOUNT_MISMATCH");
+      if (pago === null || pago !== emissao.amount) {
+        await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, true);
+        return finalizarEntrega(tx, entrega.id, "PAYMENT_AMOUNT_MISMATCH");
+      }
       const paidAt = dataPagamento(payload.data.paidAt, new Date());
       if (!paidAt) return finalizarEntrega(tx, entrega.id, "PAYMENT_DATE_INVALID");
-      const codigo = await aplicarPagamento(tx, emissao, paidAt);
+      const codigo = await aplicarPagamento(tx, emissao, paidAt, origem);
+      await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, true);
       if (codigo) return finalizarEntrega(tx, entrega.id, codigo);
     }
+    if (eventosCancelamento.has(payload.event)) {
+      const suspeitas = await tx.select({ id: btgWebhookEntregas.id }).from(btgWebhookEntregas)
+        .where(and(eq(btgWebhookEntregas.btgIntegracaoId, integracaoId), eq(btgWebhookEntregas.btgCollectionId, emissao.btgCollectionId!),
+          eq(btgWebhookEntregas.assinaturaValida, 1), eq(btgWebhookEntregas.statusProcessamento, "ignorado"),
+          or(eq(btgWebhookEntregas.evento, "collections.paid"), eq(btgWebhookEntregas.erroCodigo, "CANCELLATION_PAYMENT_CONFLICT"))))
+        .limit(1);
+      const conflito = pagamentoLocal(emissao, origem) || indicioPagamentoPayload(payload) || suspeitas.length > 0 ||
+        operacoes.some(o => o.estado === "conflito_pagamento");
+      if (conflito) {
+        await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, true);
+        return finalizarEntrega(tx, entrega.id, "CANCELLATION_PAYMENT_CONFLICT");
+      }
+      // Evento contraditório ou contexto financeiro divergente exige consulta,
+      // nunca uma confirmação local otimista. Não mudar a regra de baixa paid.
+      if (payload.data.status !== undefined && !["CANCELED", "CANCELLED"].includes(payload.data.status.toUpperCase()))
+        return finalizarEntrega(tx, entrega.id, "CANCELLATION_STATUS_MISMATCH");
+      if (emissao.origemTipo === "parcela_acordo" && !identidadeCancelamentoPayload(payload, emissao))
+        return finalizarEntrega(tx, entrega.id, "CANCELLATION_IDENTITY_MISMATCH");
+      if (operacoes.length && (!origem.parcela || origem.parcela.amount !== emissao.amount ||
+        origem.parcela.dueDate.getTime() !== emissao.dueDate.getTime() ||
+        !["pendente", "atrasado"].includes(origem.parcela.status) || origem.acordo?.status !== "ativo"))
+        return finalizarEntrega(tx, entrega.id, "CANCELLATION_CONTEXT_MISMATCH");
+      await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, false);
+    }
+    const novoStatus = mapearStatusWebhookBtgV2(payload.event, emissao.status);
     if (novoStatus !== emissao.status) {
-      await tx.update(btgCobrancasEmitidas).set({ status: novoStatus, updatedAt: new Date() })
-        .where(and(eq(btgCobrancasEmitidas.id, emissao.id), eq(btgCobrancasEmitidas.btgIntegracaoId, integracaoId)));
+      const change = await tx.update(btgCobrancasEmitidas).set({ status: novoStatus, updatedAt: new Date() })
+        .where(and(eq(btgCobrancasEmitidas.id, emissao.id), eq(btgCobrancasEmitidas.btgIntegracaoId, integracaoId),
+          eq(btgCobrancasEmitidas.status, emissao.status)));
+      if (!Array.isArray(change) || change[0]?.affectedRows !== 1) throw new Error("EMISSION_UPDATE_FAILED");
     }
     return finalizarEntrega(tx, entrega.id, null);
   });
@@ -222,7 +386,8 @@ export async function webhookBtgV2Handler(req: Request, res: Response): Promise<
       assinaturaValida: 1,
       statusProcessamento: "recebido",
     }).onDuplicateKeyUpdate({ set: { payloadHash } });
-    res.status(200).json(await processarEntrega(db, integracao.id, payloadHash, payload));
+    const resultado = await processarEntrega(db, integracao.id, payloadHash, payload);
+    res.status(200).json(resultado);
   } catch {
     // O rollback preserva o financeiro. Um erro/reenvio pode retomar o registro
     // recebido/falha, sem sobrescrever resultado terminal de outra execução.

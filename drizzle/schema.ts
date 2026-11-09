@@ -553,6 +553,53 @@ export const btgRecuperacoes = mysqlTable("btgRecuperacoes", {
 ]);
 export type BtgRecuperacao = typeof btgRecuperacoes.$inferSelect;
 
+// Snapshot mínimo do documento bancário. Sem PDF/binário nem dados pessoais abertos.
+export const btgBoletoSnapshots = mysqlTable("btgBoletoSnapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  btgCobrancaEmitidaId: int("btgCobrancaEmitidaId").notNull(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  parcelaAcordoId: int("parcelaAcordoId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  revisao: int("revisao").notNull(),
+  diagnosticoId: int("diagnosticoId"),
+  usuarioId: int("usuarioId").notNull(),
+  estado: mysqlEnum("estado", ["completo", "incompleto"]).notNull(),
+  dadosCifrados: mediumtext("dadosCifrados"),
+  dadosSha256: varchar("dadosSha256", { length: 64 }),
+  payloadSha256: varchar("payloadSha256", { length: 64 }).notNull(),
+  criadoEm: timestamp("criadoEm").notNull(),
+}, (table) => [
+  uniqueIndex("btgBoletoSnapshots_emissao_unique").on(table.btgCobrancaEmitidaId),
+  index("btgBoletoSnapshots_parcela_idx").on(table.parcelaAcordoId, table.revisao),
+]);
+export type BtgBoletoSnapshot = typeof btgBoletoSnapshots.$inferSelect;
+
+// Comando de cancelamento separado do status financeiro da origem.
+export const btgCancelamentos = mysqlTable("btgCancelamentos", {
+  id: int("id").autoincrement().primaryKey(),
+  chaveOperacao: varchar("chaveOperacao", { length: 36 }).notNull(),
+  btgCobrancaEmitidaId: int("btgCobrancaEmitidaId").notNull(),
+  parcelaAcordoId: int("parcelaAcordoId").notNull(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  condominioId: int("condominioId").notNull(),
+  usuarioId: int("usuarioId").notNull(),
+  estado: mysqlEnum("estado", ["preparada", "solicitada", "em_confirmacao", "recusada", "cancelada", "conflito_pagamento"]).notNull(),
+  contextoHash: varchar("contextoHash", { length: 64 }).notNull(),
+  consultaCifrada: mediumtext("consultaCifrada"),
+  motivoCifrado: text("motivoCifrado"),
+  criadaEm: timestamp("criadaEm").notNull(),
+  expiraEm: timestamp("expiraEm").notNull(),
+  solicitadaEm: timestamp("solicitadaEm"),
+  confirmadaEm: timestamp("confirmadaEm"),
+  httpStatus: int("httpStatus"),
+  codigo: varchar("codigo", { length: 80 }),
+  updatedAt: timestamp("updatedAt").notNull(),
+}, (table) => [
+  uniqueIndex("btgCancelamentos_chave_unique").on(table.chaveOperacao),
+  index("btgCancelamentos_emissao_idx").on(table.btgCobrancaEmitidaId, table.id),
+]);
+export type BtgCancelamento = typeof btgCancelamentos.$inferSelect;
+
 // Livro imutável de entregas do webhook. Armazena hash e metadados mínimos;
 // CPF/CNPJ e conteúdo integral do evento não são persistidos nesta tabela.
 export const btgWebhookEntregas = mysqlTable("btgWebhookEntregas", {

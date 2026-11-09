@@ -5,6 +5,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { adminProcedure, condominioAccessProcedure } from "./middleware";
 import { requirePermission } from "./rbac";
+import { assertCobrancaAcessivel } from "./tenant-guard";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "./db";
@@ -16,6 +17,8 @@ import { btgV2Router } from "./routers/btg-v2";
 import { btgCanaisRouter } from "./routers/btg-canais";
 import { btgDiagnosticosRouter } from "./routers/btg-diagnosticos";
 import { btgRecuperacaoRouter } from "./routers/btg-recuperacao";
+import { btgBoletosRouter } from "./routers/btg-boletos";
+import { btgCancelamentoRouter } from "./routers/btg-cancelamento";
 import { processosRouter, prazosRouter } from "./routers/processos";
 import { mniRouter } from "./routers/mni";
 import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
@@ -97,6 +100,8 @@ export const appRouter = router({
   btgCanais: btgCanaisRouter,
   btgDiagnosticos: btgDiagnosticosRouter,
   btgRecuperacao: btgRecuperacaoRouter,
+  btgBoletos: btgBoletosRouter,
+  btgCancelamento: btgCancelamentoRouter,
   processos: processosRouter,
   prazos: prazosRouter,
   mni: mniRouter,
@@ -1035,7 +1040,8 @@ export const appRouter = router({
     // Gerar PDF do boleto para uma cobrança específica
     gerarBoletoPDF: protectedProcedure
       .input(z.object({ cobrancaId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await assertCobrancaAcessivel(ctx.user, input.cobrancaId);
         const { getCobrancaById, getCobrancasComCalculos } = await import("./db-cobrancas");
         const { getDevedorById } = await import("./db-devedores");
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
@@ -1046,6 +1052,9 @@ export const appRouter = router({
 
         const cobranca = await getCobrancaById(input.cobrancaId);
         if (!cobranca) throw new TRPCError({ code: "NOT_FOUND", message: "Cobrança não encontrada" });
+        if (["acordo", "em_acordo", "acordo_atrasado"].includes(cobranca.status)) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Esta dívida integra um acordo. Use os documentos das parcelas e sua emissão bancária." });
+        }
         if (!cobranca.nossoNumero) throw new TRPCError({ code: "BAD_REQUEST", message: "Cobrança sem nosso número — envie a remessa CNAB primeiro" });
 
         const devedor = await getDevedorById(cobranca.devedorId);

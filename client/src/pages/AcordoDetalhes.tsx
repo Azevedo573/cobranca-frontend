@@ -1,3 +1,5 @@
+import { BtgBoletosAcordo } from "@/components/btg/BtgBoletosAcordo";
+import { BtgBoletoParcela } from "@/components/btg/BtgBoletoParcela";
 import React, { useState } from "react";
 import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -49,8 +51,6 @@ export default function AcordoDetalhes() {
   const { can } = usePermissions();
   const [, params] = useRoute("/acordos/:id");
   const acordoId = Number(params?.id);
-  const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola: string | null }>>({});
-  const [copiandoParcela, setCopiandoParcela] = useState<Record<number, 'linha' | 'pix' | null>>({});
   const [modalDocumentoOpen, setModalDocumentoOpen] = useState(false);
   const [btgAcordoOpen, setBtgAcordoOpen] = useState(false);
   const [breakdownExpandido, setBreakdownExpandido] = useState<Set<number>>(new Set());
@@ -85,9 +85,6 @@ export default function AcordoDetalhes() {
   const situacaoBancaria = trpc.btgCanais.situacaoAcordo.useQuery(
     { acordoId }, { enabled: !!acordoId && user?.role === "admin" },
   );
-  const emissoesBancarias = trpc.btgV2.listarEmissoes.useQuery(
-    { condominioId: acordo?.condominioId }, { enabled: !!acordo?.condominioId && user?.role === "admin" },
-  );
 
   // Mutation para gerar relatório para administradora
   const gerarRelatorioMutation = trpc.acordos.gerarRelatorioAdministradora.useMutation({
@@ -119,40 +116,6 @@ export default function AcordoDetalhes() {
     { acordoId },
     { enabled: !!acordoId }
   );
-
-  // Mutation para gerar PDF de parcela
-  const gerarPDFParcelaMutation = trpc.acordos.gerarBoletoPDFParcela.useMutation({
-    onSuccess: (data, variables) => {
-      setBoletoParcelas(prev => ({
-        ...prev,
-        [variables.parcelaId]: {
-          url: data.url,
-          linhaDigitavel: data.linhaDigitavel,
-          pixCopiaCola: data.pixCopiaCola ?? null,
-        },
-      }));
-      window.open(data.url, '_blank');
-    },
-    onError: (err) => toast.error('Erro ao gerar PDF: ' + err.message),
-  });
-
-  const copiarLinhaParcela = async (parcelaId: number) => {
-    const boleto = boletoParcelas[parcelaId];
-    if (!boleto) return;
-    await navigator.clipboard.writeText(boleto.linhaDigitavel);
-    setCopiandoParcela(prev => ({ ...prev, [parcelaId]: 'linha' }));
-    toast.success('Linha digitável copiada!');
-    setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcelaId]: null })), 2000);
-  };
-
-  const copiarPixParcela = async (parcelaId: number) => {
-    const boleto = boletoParcelas[parcelaId];
-    if (!boleto?.pixCopiaCola) return;
-    await navigator.clipboard.writeText(boleto.pixCopiaCola);
-    setCopiandoParcela(prev => ({ ...prev, [parcelaId]: 'pix' }));
-    toast.success('Pix copia e cola copiado!');
-    setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcelaId]: null })), 2000);
-  };
 
   // Mutation para marcar parcela como paga
   const marcarPagaMutation = trpc.acordos.updateParcela.useMutation({
@@ -456,6 +419,7 @@ export default function AcordoDetalhes() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {user?.role === "admin" && <div className="mb-3"><BtgBoletosAcordo acordoId={acordoId} /></div>}
             {situacaoBancaria.isLoading && user?.role === "admin" && <p role="status" className="mb-3 text-sm text-muted-foreground">Carregando situação dos canais bancários...</p>}
             {situacaoBancaria.error && <p role="alert" className="mb-3 text-sm text-destructive">Não foi possível carregar a situação bancária: {situacaoBancaria.error.message}</p>}
             <div className="rounded-md border">
@@ -509,117 +473,7 @@ export default function AcordoDetalhes() {
                         </TableCell>
                         <TableCell>{getStatusBadge(parcela.status)}</TableCell>
                         <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <SituacaoCanalParcela parcela={{ ...parcela, ...situacaoBancaria.data?.find((p) => p.parcelaId === parcela.id) }} />
-                            {emissoesBancarias.data?.filter((e) => e.origemTipo === "parcela_acordo" && e.origemId === parcela.id).map((e) => <div key={e.id} className="flex flex-wrap gap-1">
-                              <Badge variant="outline" className="text-xs">API BTG v2 · {e.status}</Badge>
-                              {e.bankSlipUrl && <Button size="sm" variant="outline" className="h-7 text-xs" asChild><a href={e.bankSlipUrl} target="_blank" rel="noreferrer">Boleto API<ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
-                              {e.linhaDigitavel && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={async () => { await navigator.clipboard.writeText(e.linhaDigitavel!); toast.success("Linha digitável copiada."); }}>Copiar linha</Button>}
-                              {e.pixCopiaECola && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={async () => { await navigator.clipboard.writeText(e.pixCopiaECola!); toast.success("Pix copiado."); }}>Copiar Pix</Button>}
-                            </div>)}
-                            {(parcela as any).btgBankSlipUrl ? (
-                              /* Evidência de título legado; preferência do condomínio não redefine canal. */
-                              (parcela as any).btgBankSlipUrl ? (
-                                <div className="flex flex-col gap-1">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 px-2 text-xs w-full"
-                                    onClick={() => window.open((parcela as any).btgBankSlipUrl, "_blank")}
-                                  >
-                                    <ExternalLink className="h-3 w-3 mr-1" /> Boleto BTG
-                                  </Button>
-                                  {(parcela as any).btgPixCopiaECola && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50"
-                                      onClick={async () => {
-                                        await navigator.clipboard.writeText((parcela as any).btgPixCopiaECola);
-                                        setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'pix' }));
-                                        toast.success("PIX copiado!");
-                                        setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
-                                      }}
-                                    >
-                                      {copiandoParcela[parcela.id] === 'pix' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
-                                      <span className="ml-1">Copiar PIX</span>
-                                    </Button>
-                                  )}
-                                  {(parcela as any).btgStatus && (
-                                    <Badge variant="outline" className="text-xs w-fit">{(parcela as any).btgStatus}</Badge>
-                                  )}
-                                </div>
-                              ) : <span className="text-xs text-muted-foreground italic">Envio disponível pelo acordo</span>
-                            ) : (
-                              /* ── Modo CNAB 240 ── */
-                              <div className="flex flex-col gap-1">
-                                {(parcela as any).statusRemessa === "remessa_gerada" && (
-                                  <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs gap-1">
-                                    <FileText className="h-3 w-3" />Remessa Gerada
-                                  </Badge>
-                                )}
-                                {(parcela as any).statusRemessa === "enviado" && (
-                                  <Badge className="bg-blue-100 text-blue-700 border-blue-200 text-xs gap-1">
-                                    <MailCheck className="h-3 w-3" />Enviado
-                                  </Badge>
-                                )}
-                                {(parcela as any).statusRemessa === "retorno_recebido" && (
-                                  <Badge className="bg-green-100 text-green-700 border-green-200 text-xs gap-1">
-                                    <CheckCircle2 className="h-3 w-3" />Confirmado
-                                  </Badge>
-                                )}
-                                {(parcela as any).nossoNumero && (
-                                  <p className="text-xs font-mono text-muted-foreground">{(parcela as any).nossoNumero}</p>
-                                )}
-                                {!(parcela as any).statusRemessa && !((parcela as any).nossoNumero) && (
-                                  <span className="text-xs text-muted-foreground italic">Aguardando remessa</span>
-                                )}
-                                {(parcela as any).nossoNumero && ((parcela as any).nossoNumeroOrigem !== "reserva_local" || (parcela as any).remessaId || ((parcela as any).statusRemessa && (parcela as any).statusRemessa !== "nao_enviado")) && (parcela as any).canalBancario !== "api_btg_v2" && !situacaoBancaria.data?.some((p) => p.parcelaId === parcela.id && p.canalBancario === "api_btg_v2") && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {!boletoParcelas[parcela.id] ? (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-6 text-xs px-2"
-                                        onClick={() => gerarPDFParcelaMutation.mutate({ parcelaId: parcela.id })}
-                                        disabled={gerarPDFParcelaMutation.isPending}
-                                      >
-                                        {gerarPDFParcelaMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
-                                        <span className="ml-1">PDF</span>
-                                      </Button>
-                                    ) : (
-                                      <>
-                                        <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => window.open(boletoParcelas[parcela.id].url, '_blank')}>
-                                          <ExternalLink className="h-3 w-3" /><span className="ml-1">Abrir</span>
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="h-6 text-xs px-2 border-blue-300 text-blue-700 hover:bg-blue-50" onClick={() => copiarLinhaParcela(parcela.id)}>
-                                          {copiandoParcela[parcela.id] === 'linha' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
-                                          <span className="ml-1">Linha</span>
-                                        </Button>
-                                      </>
-                                    )}
-                                    {(boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola) && (
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="h-6 text-xs px-2 border-green-300 text-green-700 hover:bg-green-50"
-                                        onClick={async () => {
-                                          const pix = boletoParcelas[parcela.id]?.pixCopiaCola || (parcela as any).pixCopiaCola;
-                                          await navigator.clipboard.writeText(pix);
-                                          setCopiandoParcela(prev => ({ ...prev, [parcela.id]: 'pix' }));
-                                          toast.success('Pix copia e cola copiado!');
-                                          setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [parcela.id]: null })), 2000);
-                                        }}
-                                      >
-                                        {copiandoParcela[parcela.id] === 'pix' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
-                                        <span className="ml-1">Pix</span>
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          <BtgBoletoParcela parcelaId={parcela.id} parcelaCnab={{ ...parcela, ...situacaoBancaria.data?.find(p => p.parcelaId === parcela.id) }} />
                         </TableCell>
                         <TableCell className="text-right">
                           {parcela.status !== "pago" && user?.role !== "sindico" && (

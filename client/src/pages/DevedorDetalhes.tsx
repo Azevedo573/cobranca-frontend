@@ -1,3 +1,4 @@
+import { BtgBoletoParcela } from "@/components/btg/BtgBoletoParcela";
 import { useAuth } from "@/_core/hooks/useAuth";
 import React from "react";
 import { getDevedorIdentificador } from "@/lib/devedorUtils";
@@ -40,6 +41,8 @@ import { NovaTentativaModal } from "@/components/NovaTentativaModal";
 import { GerarDocumentoModal } from "@/components/GerarDocumentoModal";
 import EnviarEmailModal from "@/components/EnviarEmailModal";
 import { CustasJudiciais } from "@/components/CustasJudiciais";
+
+import { invalidarCanaisBtg } from "@/lib/invalidarCanaisBtg";
 
 export default function DevedorDetalhes() {
   const { user } = useAuth();
@@ -867,7 +870,7 @@ export default function DevedorDetalhes() {
         devedorNome={devedor.name ?? ""}
         condominioId={devedor.condominioId}
         condominioNome={condominio?.name ?? ""}
-        onAcordoCriado={() => { window.location.reload(); }}
+        onAcordoCriado={() => { void invalidarCanaisBtg(utils); }}
       />
 
       {/* Modal de Iniciar Atendimento WhatsApp */}
@@ -1203,7 +1206,7 @@ function ResumoAcordosAtivos({
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold">Parcelas do Acordo #{resumo.acordoId}</p>
-                          <p className="text-xs text-muted-foreground">Os boletos, linhas digitáveis e Pix permanecem disponíveis por parcela.</p>
+                          <p className="text-xs text-muted-foreground">Disponibilidade bancária e documental conferida por parcela; meios encerrados não são oferecidos para novo pagamento.</p>
                         </div>
                         <span className="text-xs font-medium text-muted-foreground">Saldo em aberto: {formatarMoeda(resumo.saldoEmAberto / 100)}</span>
                       </div>
@@ -1242,9 +1245,6 @@ function CobrancasTabela({
   const cobFiltradas = filtroStatus === "todos" ? cobrancas : cobrancas.filter((c: any) => c.status === filtroStatus);
   const cobVisiveis = mostrarTodas ? cobFiltradas : cobFiltradas.slice(0, limiteInicial);
 
-  // Cache de boletos gerados por parcelaId
-  const [boletoParcelas, setBoletoParcelas] = useState<Record<number, { url: string; linhaDigitavel: string; pixCopiaCola?: string }>>({});
-  const [copiandoParcela, setCopiandoParcela] = useState<Record<number, string | null>>({});
   // Controle de linhas de snapshot expandidas
   const [breakdownExpandido, setBreakdownExpandido] = useState<Set<number>>(new Set());
   const toggleBreakdown = (id: number) => {
@@ -1258,14 +1258,6 @@ function CobrancasTabela({
     v != null
       ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v / 100)
       : "-";
-  const gerarPDFParcelaMutation = trpc.acordos.gerarBoletoPDFParcela.useMutation({
-    onSuccess: (data: { url: string; linhaDigitavel: string; pixCopiaCola?: string }, variables: { parcelaId: number }) => {
-      setBoletoParcelas(prev => ({ ...prev, [variables.parcelaId]: data }));
-      toast.success("Boleto gerado com sucesso!");
-    },
-    onError: (err: { message: string }) => toast.error("Erro ao gerar boleto: " + err.message),
-  });
-
   if (cobFiltradas.length === 0) {
     return <div className="text-center py-8 text-muted-foreground">Nenhuma cobrança com este filtro.</div>;
   }
@@ -1352,98 +1344,9 @@ function CobrancasTabela({
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {!isParcela ? (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              ) : modoBoleto === "api_btg" ? (
-                                // Modo API BTG
-                                cob.btgBankSlipUrl ? (
-                                  <div className="flex flex-col gap-1">
-                                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full" onClick={() => window.open(cob.btgBankSlipUrl, "_blank")}>
-                                      <FileDown className="h-3 w-3 mr-1" /> Boleto BTG
-                                    </Button>
-                                    {cob.btgPixCopiaECola && (
-                                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs w-full border-green-300 text-green-700 hover:bg-green-50" onClick={() => { navigator.clipboard.writeText(cob.btgPixCopiaECola); toast.success("PIX copiado!"); }}>
-                                        <QrCode className="h-3 w-3 mr-1" /> Copiar PIX
-                                      </Button>
-                                    )}
-                                  </div>
-                                ) : <span className="text-xs text-muted-foreground italic">Envio disponível no acordo</span>
-                              ) : (
-                                // Modo CNAB 240 (padrão)
-                                cob.nossoNumero ? (
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-xs text-muted-foreground font-mono">{cob.nossoNumero}</span>
-                                    <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 bg-blue-50 w-fit">
-                                      {cob.statusRemessa === "retorno_recebido" ? "Confirmado" : cob.remessaId ? "Na remessa" : "Aguardando remessa"}
-                                    </Badge>
-                                    {/* Botões de boleto para parcelas com nossoNumero */}
-                                    {cob.status !== "cancelado" && (
-                                      <div className="flex items-center gap-1 mt-0.5">
-                                        {!boletoParcelas[cob.id] ? (
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-6 text-xs px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                                            onClick={() => gerarPDFParcelaMutation.mutate({ parcelaId: cob.id })}
-                                            disabled={gerarPDFParcelaMutation.isPending}
-                                          >
-                                            {gerarPDFParcelaMutation.isPending ? (
-                                              <Loader2 className="h-3 w-3 animate-spin" />
-                                            ) : (
-                                              <FileText className="h-3 w-3" />
-                                            )}
-                                            <span className="ml-1">PDF</span>
-                                          </Button>
-                                        ) : (
-                                          <>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              className="h-6 text-xs px-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-                                              onClick={() => window.open(boletoParcelas[cob.id].url, '_blank')}
-                                            >
-                                              <ExternalLink className="h-3 w-3" />
-                                              <span className="ml-1">Abrir</span>
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              className="h-6 text-xs px-2"
-                                              onClick={async () => {
-                                                await navigator.clipboard.writeText(boletoParcelas[cob.id].linhaDigitavel);
-                                                setCopiandoParcela(prev => ({ ...prev, [cob.id]: 'linha' }));
-                                                toast.success('Linha digitável copiada!');
-                                                setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [cob.id]: null })), 2000);
-                                              }}
-                                            >
-                                              {copiandoParcela[cob.id] === 'linha' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
-                                              <span className="ml-1">Linha</span>
-                                            </Button>
-                                            {boletoParcelas[cob.id]?.pixCopiaCola && (
-                                              <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-6 text-xs px-2 border-green-300 text-green-700 hover:bg-green-50"
-                                                onClick={async () => {
-                                                  await navigator.clipboard.writeText(boletoParcelas[cob.id].pixCopiaCola!);
-                                                  setCopiandoParcela(prev => ({ ...prev, [cob.id]: 'pix' }));
-                                                  toast.success('PIX copiado!');
-                                                  setTimeout(() => setCopiandoParcela(prev => ({ ...prev, [cob.id]: null })), 2000);
-                                                }}
-                                              >
-                                                {copiandoParcela[cob.id] === 'pix' ? <CheckCircle2 className="h-3 w-3 text-green-600" /> : <QrCode className="h-3 w-3" />}
-                                                <span className="ml-1">PIX</span>
-                                              </Button>
-                                            )}
-                                          </>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">Aguardando nosso número</span>
-                                )
-                              )}
+                              {isParcela
+                                ? <BtgBoletoParcela parcelaId={cob.id} parcelaCnab={cob} />
+                                : <span className="text-xs text-muted-foreground">—</span>}
                             </TableCell>
                           </TableRow>
                           {/* Linha de snapshot expandida — apenas para parcelas de acordo com snapshot */}

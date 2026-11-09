@@ -1,3 +1,4 @@
+import { BtgBoletoParcela } from "@/components/btg/BtgBoletoParcela";
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -1130,53 +1131,7 @@ export default function BTGRemessas() {
                                         <RefreshCw className="mr-1 h-3.5 w-3.5" />
                                         Conciliar
                                       </Button>
-                                      {emissao.pixCopiaECola && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() =>
-                                            copiar(
-                                              emissao.pixCopiaECola!,
-                                              "PIX Copia e Cola"
-                                            )
-                                          }
-                                        >
-                                          <QrCode className="mr-1 h-3.5 w-3.5" />
-                                          Copiar Pix
-                                        </Button>
-                                      )}
-                                      {emissao.linhaDigitavel && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() =>
-                                            copiar(
-                                              emissao.linhaDigitavel!,
-                                              "Linha digitável"
-                                            )
-                                          }
-                                        >
-                                          <Copy className="mr-1 h-3.5 w-3.5" />
-                                          Copiar linha
-                                        </Button>
-                                      )}
-                                      {emissao.bankSlipUrl && (
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          asChild
-                                        >
-                                          <a
-                                            href={emissao.bankSlipUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                          >
-                                            <FileText className="mr-1 h-3.5 w-3.5" />
-                                            Boleto
-                                            <ExternalLink className="ml-1 h-3 w-3" />
-                                          </a>
-                                        </Button>
-                                      )}
+                                      <BtgBoletoParcela parcelaId={item.parcelaAcordoId} />
                                     </div>
                                   )}
                                 </div>
