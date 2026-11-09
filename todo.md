@@ -3128,6 +3128,10 @@ Registro: docs/ocorrencias/OCORRENCIA-boleto-remover-destaque-valor-2026-11-09.m
 - [x] Novos 53 testes (12 planejador/41 PDF); regressão direcionada com 131 aprovados em oito arquivos; TypeScript/build/diff aprovados. RED isolado em 5cded7aa com 21 falhas/14 aprovações nos 35 testes iniciais.
 - [x] Inspecionar PDFs fictícios API/CNAB de cinco e 80 origens; amostras API com duas/quatro páginas. QR/Pix 143 bytes CRC C133 e I25 44 dígitos decodificados das últimas páginas 300 DPI, sem pagamento.
 - [x] Concluir suíte completa serial e preparar versão validada: 125 arquivos/2.640 testes aprovados e um externo BTG opt-in ignorado; documentação e plano atualizados para checkpoint.
-- [ ] Atualizar VPS e homologar novo PDF da mesma cobrança somente após autorização separada, sem reemitir/cancelar/baixar títulos ou aplicar migrations.
+- [x] Usuário autorizou atualização VPS em 09/11/2026 às 17:54, alvo fixo b1da399e; mantém pedido anterior sem novo backup, com preservação do dist para reversão. Roteiro/manual preparados; bash-n/hash e 32 cenários/290 verificações isoladas aprovados. Guardas de escopo e estrutura bloqueiam também erros do Git, com regressões. Sem deploy real durante validação.
+- [ ] Confirmar saída real da atualização b1da399e na VPS, HTTP200 local/HTTPS e PM2 online; sem SSH independente, migração, reenvio ou operação bancária por este roteiro.
+- [ ] Homologar novo PDF da mesma cobrança depois do deploy confirmado, sem reemitir/cancelar/baixar/pagar títulos.
 
 Registro: docs/ocorrencias/OCORRENCIA-boleto-origem-completa-paginada-2026-11-09.md. Sem banco/BTG real, alterações de dependências/schemas/telas/RBAC, Central Jurídica ou deploy nesta etapa. PDFs antigos preservados; plano de parcelas completo permanece no demonstrativo.
+
+Manual de execução e reversão: docs/deploy-boleto-origem-completa-vps.md. Roteiro recuperável pelo GitHub: scripts/deploy-boleto-origem-vps.sh; não avança para ponta móvel da main e não instala dependências.
