@@ -2,9 +2,11 @@
 
 ## Objective
 
-PDF Luminus com dados da mesma emissãoBTG. Dependência: btg-titulo-contexto. Guardas CNAB não serão removidas comofallback. PDF preserva resumo da parcela/acordo/origem adaptativa; demonstrativo separado e sem quadrodeplano no boleto. Nenhuma emissão/baixa/revisão/DELETE na geração.
+PDF Luminus com dados da mesma emissãoBTG. Dependência: btg-titulo-contexto. Guardas CNAB não serão removidas comofallback. PDF preserva resumo da parcela/acordo e origem completa paginada; demonstrativo separado e sem quadrodeplano no boleto. Nenhuma emissão/baixa/revisão/DELETE na geração.
 
 Pedido de 09/11/2026 às 15:26: remover exclusivamente o bloco superior “VALOR EXIGÍVEL NESTE BOLETO”, incluindo a referência da parcela e o valor grande dentro desse bloco, o fundo/borda e sua reserva de altura. Aplicar no renderizador compartilhado, em PDFs individuais e de lote de acordo, tanto API quanto CNAB. Preservar o valor da parcela em “Detalhes da fatura” e na ficha de compensação, os cartões de resumo, a origem, os códigos bancários e o Pix. Não modificar o contexto/snapshot ou os arquivos já gerados; sem migração, chamada bancária ou deploy nesta alteração.
+
+Decisão posterior aprovada em 09/11/2026 às 17:12: manter todas as dívidas de origem no boleto, dividindo-as entre páginas com cabeçalhos repetidos. A origem usa o espaço após o resumo, sem transporte antecipado da lista inteira. A ficha, linha, barras, QR e Pix permanecem juntos ao final da última página; quando couberem no espaço atual, não criar página exclusiva. Descrições/avisos extensos têm continuação sem truncamento e instruções bancárias têm altura medida. Não há limite artificial de duas páginas para origem longa. Os três cartões, avisos, demonstrativo e retirada do banner permanecem. Spec: `SPEC-boleto-origem-completa-paginada-2026-11-09.md`. Sem deploy ou migration nesta etapa.
 
 ## Commands
 

@@ -4,6 +4,8 @@
 
 Evitar que um boleto de parcela de acordo replique todas as etapas do plano e gere dezenas de páginas. O pagador deve receber um boleto conciso, com o valor exigível daquela parcela, e o usuário interno deve poder baixar um demonstrativo separado com todas as parcelas do acordo.
 
+Atualização de 09/11/2026, às 17:12: o plano completo de parcelas permanece separado, mas o usuário decidiu manter todas as dívidas de origem no boleto com paginação integral e ficha bancária inteira ao final. Assim, a quantidade de páginas do boleto pode crescer com a origem; os limites de duas páginas nesta especificação são históricos, não uma regra vigente para origem extensa. Referência: `SPEC-boleto-origem-completa-paginada-2026-11-09.md`. Os três cartões e a retirada do banner de valor permanecem; não reintroduzir a tabela de todas as parcelas.
+
 ## Decisão aprovada
 
 - **Boleto individual:** valor da parcela em “Detalhes da fatura” e na ficha de compensação, resumo do acordo e composição histórica da dívida. Não mostrará a tabela completa de parcelas. Por pedido de 09/11/2026, o bloco superior “VALOR EXIGÍVEL NESTE BOLETO”, sua referência/valor e sua reserva de altura são retirados; os dados e códigos de pagamento permanecem iguais.

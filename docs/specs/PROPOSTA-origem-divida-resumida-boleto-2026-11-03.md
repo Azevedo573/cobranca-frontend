@@ -2,6 +2,8 @@
 
 Evitar que a seção “Origem da dívida na formalização do acordo” torne cada boleto excessivamente longo quando houver muitas cobranças originais, preservando a transparência sobre o que foi negociado e como será pago.
 
+> **Política substituída em 09/11/2026, às 17:12:** o usuário escolheu manter a origem completa no boleto, dividindo-a entre páginas, com a ficha bancária inteira no final da última página. O limite de cinco títulos, a consolidação obrigatória de listas extensas e a meta fixa de até duas páginas deixam de orientar o renderizador. A origem começa no espaço restante após o resumo, sem mover a lista inteira para acompanhar a ficha. O demonstrativo completo continua disponível, sem efeitos bancários. Regra vigente: [SPEC-boleto-origem-completa-paginada-2026-11-09.md](SPEC-boleto-origem-completa-paginada-2026-11-09.md). Os itens abaixo registram a decisão histórica anterior.
+
 # Classificação
 
 Melhoria de apresentação de documento financeiro. Prioridade alta; complexidade média. História de usuário: como pagador, quero identificar o valor desta parcela e consultar a composição completa do acordo sem receber todas as dívidas repetidas em cada boleto.

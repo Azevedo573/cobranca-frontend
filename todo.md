@@ -3119,3 +3119,15 @@ Documento: docs/ocorrencias/OCORRENCIA-btg-pix-ausente-pdf-2026-11-09.md. Incomp
 - [ ] Implantar na VPS apenas após autorização separada e conferir novo PDF da mesma cobrança, sem pagamento, cancelamento ou reenvio.
 
 Registro: docs/ocorrencias/OCORRENCIA-boleto-remover-destaque-valor-2026-11-09.md. Nenhuma alteração financeira, migration, emissor ou deploy faz parte desta retirada de apresentação. PDFs existentes permanecem no formato original.
+
+## Correção — origem completa paginada e ficha bancária final (09/11/2026)
+- [x] Confirmar interpretação; usuário escolheu opção 1 às 17:12: manter origem completa e dividir páginas, sem retirar do boleto.
+- [x] Registrar spec/plano/reversão antes de implementar; substituir política de cinco títulos/resumo obrigatório e transporte da origem inteira.
+- [x] Implementar planejador puro, primeira página aproveitada, cabeçalhos repetidos e descrições multipágina; principal só no primeiro trecho de cada dívida.
+- [x] Manter quadro/avisos completos antes da ficha, inclusive textos multipágina; reserva bancária medida, códigos/Pix íntegros e juntos no final, sem forçar página exclusiva quando couber.
+- [x] Novos 53 testes (12 planejador/41 PDF); regressão direcionada com 131 aprovados em oito arquivos; TypeScript/build/diff aprovados. RED isolado em 5cded7aa com 21 falhas/14 aprovações nos 35 testes iniciais.
+- [x] Inspecionar PDFs fictícios API/CNAB de cinco e 80 origens; amostras API com duas/quatro páginas. QR/Pix 143 bytes CRC C133 e I25 44 dígitos decodificados das últimas páginas 300 DPI, sem pagamento.
+- [x] Concluir suíte completa serial e preparar versão validada: 125 arquivos/2.640 testes aprovados e um externo BTG opt-in ignorado; documentação e plano atualizados para checkpoint.
+- [ ] Atualizar VPS e homologar novo PDF da mesma cobrança somente após autorização separada, sem reemitir/cancelar/baixar títulos ou aplicar migrations.
+
+Registro: docs/ocorrencias/OCORRENCIA-boleto-origem-completa-paginada-2026-11-09.md. Sem banco/BTG real, alterações de dependências/schemas/telas/RBAC, Central Jurídica ou deploy nesta etapa. PDFs antigos preservados; plano de parcelas completo permanece no demonstrativo.

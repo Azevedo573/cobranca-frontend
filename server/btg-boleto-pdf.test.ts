@@ -13,6 +13,42 @@ const linhaFormatada = "20890.01230 45678.901237 45678.901237 8 10000000005000";
 const temPoppler = !spawnSync("pdftotext", ["-v"]).error;
 const textoPdf = (buffer: Buffer) => execFileSync("pdftotext", ["-layout", "-", "-"], { input: buffer, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
 const paginasPdf = (buffer: Buffer) => (buffer.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
+const normalizarTexto = (texto: string) => texto.replace(/\s+/g, " ").trim();
+function validarOrigemIntegralEFichaFinal(pdf: Buffer, quantidade: number, comPix = true) {
+  if (!temPoppler) return;
+  const paginas = textoPdf(pdf).split("\f").filter(p => p.trim()).map(normalizarTexto);
+  expect(paginas).toHaveLength(paginasPdf(pdf));
+  const texto = paginas.join(" ");
+  const ids = [...texto.matchAll(/Dívida\s+sintética\s+(\d+)\b/g)].map(match => Number(match[1]));
+  expect(ids).toEqual(Array.from({ length: quantidade }, (_, i) => i + 1));
+  expect(texto).not.toContain("composição consolidada");
+  for (const pagina of paginas.filter(p => /Dívida sintética \d+/.test(p))) {
+    for (const cabecalho of ["Cobrança de origem", "Vencimento", "Principal preservado"]) expect(pagina).toContain(cabecalho);
+  }
+  for (const pagina of paginas.slice(0, -1)) {
+    expect(pagina).not.toContain("Ficha de Compensação");
+    expect(pagina).not.toContain(linhaFormatada);
+    expect(pagina).not.toContain("PIX COPIA E COLA");
+    expect(pagina).not.toContain("Corte na linha pontilhada");
+  }
+  expect(paginas.at(-1)).toContain("Ficha de Compensação");
+  expect(paginas.at(-1)).toContain(linhaFormatada);
+  if (comPix) expect(paginas.at(-1)).toContain("PIX COPIA E COLA");
+  else expect(texto).not.toContain("PIX COPIA E COLA");
+  const bbox = execFileSync("pdftotext", ["-bbox", "-", "-"], { input: pdf, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+  const paginasBbox = [...bbox.matchAll(/<page\b[^>]*height="([\d.]+)"[^>]*>([\s\S]*?)<\/page>/g)];
+  expect(paginasBbox).toHaveLength(paginas.length);
+  const ultima = paginasBbox.at(-1)!;
+  const palavras = [...ultima[2].matchAll(/<word\b[^>]*yMin="([\d.]+)"[^>]*yMax="([\d.]+)"[^>]*>(.*?)<\/word>/g)];
+  const corte = palavras.findIndex(palavra => palavra[3] === "Corte");
+  expect(corte, "Localizar o início da ficha na última página").toBeGreaterThanOrEqual(0);
+  // Palavras anteriores ao corte, não um bloco que pode englobar toda a tabela.
+  for (const palavra of palavras.slice(0, corte)) {
+    expect(Number(palavra[2]), palavra[3]).toBeLessThanOrEqual(Number(palavras[corte][1]) + 0.5);
+  }
+  for (const palavra of palavras) expect(Number(palavra[2])).toBeLessThanOrEqual(Number(ultima[1]));
+  expect(palavras.slice(corte).some(palavra => /^#\d+$|^Dívida$/.test(palavra[3]))).toBe(false);
+}
 function comCrc(corpo: string) {
   const prefixo = corpo + "6304";
   let crc = 0xffff;
@@ -45,9 +81,14 @@ function fixture(quantidade = 80): DadosBoleto {
 }
 function streamsPdf(pdf: Buffer): Buffer[] {
   const texto = pdf.toString("latin1"), streams: Buffer[] = [];
-  const regex = /<<(.*?)>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/gs;
+  // Não atravessar objetos sem stream: em PDFs multipágina o regex antigo podia
+  // atribuir /FlateDecode de outro objeto a um stream vazio/não comprimido.
+  const regex = /<<((?:(?!endobj)[\s\S])*?)>>\s*stream\r?\n/g;
   for (const match of texto.matchAll(regex)) {
-    const buffer = Buffer.from(match[2], "latin1");
+    const tamanho = match[1].match(/\/Length\s+(\d+)\b/);
+    expect(tamanho, "Cada stream PDFKit deve declarar seu comprimento").not.toBeNull();
+    const inicio = match.index! + match[0].length;
+    const buffer = pdf.subarray(inicio, inicio + Number(tamanho![1]));
     streams.push(/\/FlateDecode/.test(match[1]) ? inflateSync(buffer) : buffer);
   }
   return streams;
@@ -86,13 +127,13 @@ function decodificarI25Pdf(pdf: Buffer): string {
 afterEach(() => vi.restoreAllMocks());
 
 describe("gerarBoletoPDF no modo explícito btg_api", () => {
-  it("gera PDF real de até duas páginas com origem longa sem alterar dados e reutiliza QR com bytes integrais", async () => {
+  it("gera PDF real paginado com todas as 80 origens, sem alterar dados e com QR de bytes integrais", async () => {
     const dados = fixture(), antes = structuredClone(dados);
     const qr = vi.spyOn(QRCode, "toBuffer");
     const pdf = await gerarBoletoPDF(dados);
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
-    expect(paginasPdf(pdf)).toBeGreaterThan(0);
-    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    validarOrigemIntegralEFichaFinal(pdf, 80);
     expect(qr).toHaveBeenCalledWith(pix, expect.objectContaining({ type: "png" }));
     expect(dados).toEqual(antes);
     expect(decodificarI25Pdf(pdf)).toBe(codigoBarras);
@@ -104,7 +145,8 @@ describe("gerarBoletoPDF no modo explícito btg_api", () => {
   });
   it.skipIf(!temPoppler)("exibe linha da API, nosso número completo sem carteira, conta sem DV inventado, CPF/endereço e resumo existente", async () => {
     const dados = fixture();
-    const texto = textoPdf(await gerarBoletoPDF(dados));
+    const pdf = await gerarBoletoPDF(dados);
+    const texto = textoPdf(pdf);
     expect(texto).toContain(linhaFormatada);
     expect(texto.split(dados.nossoNumero).length - 1).toBe(2);
     expect(texto).not.toContain("API/" + dados.nossoNumero);
@@ -113,11 +155,11 @@ describe("gerarBoletoPDF no modo explícito btg_api", () => {
     expect(texto).toContain("000.000.000-00");
     expect(texto).toContain(dados.enderecoSacado);
     expect(texto).toContain("Resumo do acordo");
-    expect(texto).toContain("composição consolidada");
+    expect(normalizarTexto(texto)).toContain("Origem da dívida na formalização do acordo");
     expect(texto).toContain("80 cobrança(s)");
     expect(texto).toContain("Demonstrativo completo do acordo");
     expect(texto).not.toContain("Plano de pagamento do acordo");
-    expect(texto).not.toContain("Dívida sintética 1");
+    validarOrigemIntegralEFichaFinal(pdf, 80);
     expect(texto).toContain("Ficha de Compensação");
     expect(texto).toContain("50,00");
   });
@@ -134,8 +176,8 @@ describe("gerarBoletoPDF no modo explícito btg_api", () => {
     expect(pixMinusculo.slice(-4)).not.toBe(pix.slice(-4));
     const qr = vi.spyOn(QRCode, "toBuffer"), pdf = await gerarBoletoPDF(dados);
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
-    expect(paginasPdf(pdf)).toBeGreaterThan(0);
-    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    validarOrigemIntegralEFichaFinal(pdf, 80);
     expect(qr).toHaveBeenCalledTimes(1);
     expect(qr).toHaveBeenCalledWith(pixMinusculo, expect.objectContaining({ type: "png" }));
     expect(Buffer.from(qr.mock.calls[0][0] as string)).toEqual(Buffer.from(pixMinusculo));
@@ -191,30 +233,36 @@ describe("gerarBoletoPDF no modo explícito btg_api", () => {
     expect(texto).toContain("Dívida sintética 2");
     expect(texto).toContain("0050-7 / 0000432260-0");
   });
-  it.skipIf(!temPoppler)("sem contexto original não inventa resumo do acordo, mas preserva origem histórica recebida e limita páginas", async () => {
+  it.skipIf(!temPoppler)("sem contexto original não inventa resumo do acordo e preserva todas as origens históricas recebidas", async () => {
     const dados = { ...fixture(), contextoAcordo: undefined };
     const pdf = await gerarBoletoPDF(dados), texto = textoPdf(pdf);
-    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    validarOrigemIntegralEFichaFinal(pdf, 80);
     expect(texto).toContain("Resumo do acordo indisponível");
     expect(texto).toContain("80 cobrança(s)");
     expect(texto).not.toContain("Total negociado no acordo");
     expect(texto).not.toContain("Saldo após este pagamento");
     expect(decodificarI25Pdf(pdf)).toBe(codigoBarras);
   });
-  it("preserva payload Pix longo com espaços, sem truncar bytes ou ultrapassar duas páginas", async () => {
+  it("preserva payload Pix longo com espaços e origem integral paginada, com ficha e Pix no final", async () => {
     const corpo = pix.slice(0, -8).replace(tlv("26", tlv("00", "BR.GOV.BCB.PIX") + tlv("25", "qr.example.test/807")), tlv("26", tlv("00", "BR.GOV.BCB.PIX") + tlv("25", "qr.example.test/" + "a".repeat(60))))
       + tlv("80", " CAMPO  ADICIONAL ".repeat(5));
     const payload = comCrc(corpo);
     const dados = { ...fixture(), pixCopiaCola: payload, contextoAcordo: undefined };
+    const antes = structuredClone(dados);
     const qr = vi.spyOn(QRCode, "toBuffer"), pdf = await gerarBoletoPDF(dados);
-    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    validarOrigemIntegralEFichaFinal(pdf, 80);
     expect(qr).toHaveBeenCalledWith(payload, expect.anything());
     expect(textosDosStreams(pdf).split("PIX COPIA E COLA")[1].split("Corte na linha pontilhada")[0]).toBe(payload);
+    expect(dados).toEqual(antes);
+    expect(decodificarI25Pdf(pdf)).toBe(codigoBarras);
   });
   it("não calcula campo livre CNAB, mesmo com carteira e convênio incompatíveis com CNAB", async () => {
     const dados = { ...fixture(), carteira: "", convenio: "", pixCopiaCola: undefined };
     const pdf = await gerarBoletoPDF(dados);
-    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    validarOrigemIntegralEFichaFinal(pdf, 80, false);
     expect(decodificarI25Pdf(pdf)).toBe(codigoBarras);
   });
   it.each(["barras", "linha", "valor", "vencimento", "pix", "nossoNumero", "agencia", "conta", "origem", "modoNulo"])("bloqueia %s inválido antes de QR/PDF, sem fallback", async (cenario) => {

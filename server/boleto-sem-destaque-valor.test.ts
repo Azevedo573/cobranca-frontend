@@ -74,6 +74,39 @@ function fixture(cenario: typeof cenarios[number], modo: Modo): DadosBoleto {
 function textoPdf(pdf: Buffer): string {
   return execFileSync("pdftotext", ["-layout", "-", "-"], { input: pdf, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
 }
+function validarOrigemIntegralEFichaFinal(pdf: Buffer, quantidade: number, linha: string) {
+  const paginas = textoPdf(pdf).split("\f").filter(p => p.trim()).map(p => p.replace(/\s+/g, " ").trim());
+  const texto = paginas.join(" ");
+  // Títulos podem ser quebrados em linhas pelo Poppler; validar conteúdo e ordem.
+  const ids = [...texto.matchAll(/Dívida\s+sintética\s+(\d+)\b/g)].map(match => Number(match[1]));
+  expect(ids).toEqual(Array.from({ length: quantidade }, (_, i) => i + 1));
+  expect(texto).not.toContain("composição consolidada");
+  for (const pagina of paginas.filter(p => /Dívida sintética \d+/.test(p))) {
+    for (const cabecalho of ["Cobrança de origem", "Vencimento", "Principal preservado"]) expect(pagina).toContain(cabecalho);
+  }
+  for (const pagina of paginas.slice(0, -1)) {
+    expect(pagina).not.toContain("Ficha de Compensação");
+    expect(pagina).not.toContain(linha);
+    expect(pagina).not.toContain("PIX COPIA E COLA");
+    expect(pagina).not.toContain("Corte na linha pontilhada");
+  }
+  expect(paginas.at(-1)).toContain("Ficha de Compensação");
+  expect(paginas.at(-1)).toContain(linha);
+  expect(paginas.at(-1)).toContain("PIX COPIA E COLA");
+  const bbox = execFileSync("pdftotext", ["-bbox", "-", "-"], { input: pdf, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+  const paginasBbox = [...bbox.matchAll(/<page\b[^>]*height="([\d.]+)"[^>]*>([\s\S]*?)<\/page>/g)];
+  expect(paginasBbox).toHaveLength(paginas.length);
+  const ultima = paginasBbox.at(-1)!;
+  const palavras = [...ultima[2].matchAll(/<word\b[^>]*yMin="([\d.]+)"[^>]*yMax="([\d.]+)"[^>]*>(.*?)<\/word>/g)];
+  const corte = palavras.findIndex(palavra => palavra[3] === "Corte");
+  expect(corte, "Localizar o início da ficha na última página").toBeGreaterThanOrEqual(0);
+  // Medir somente palavras anteriores à ficha; um bbox de tabela pode incluir outros blocos.
+  for (const palavra of palavras.slice(0, corte)) {
+    expect(Number(palavra[2]), palavra[3]).toBeLessThanOrEqual(Number(palavras[corte][1]) + 0.5);
+  }
+  for (const palavra of palavras) expect(Number(palavra[2])).toBeLessThanOrEqual(Number(ultima[1]));
+  expect(palavras.slice(corte).some(palavra => /^#\d+$|^Dívida$/.test(palavra[3]))).toBe(false);
+}
 function yDetalhesFatura(pdf: Buffer): number {
   const bbox = execFileSync("pdftotext", ["-bbox", "-", "-"], { input: pdf, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
   const palavra = bbox.match(/<word\b[^>]*\byMin="([\d.]+)"[^>]*>Detalhes<\/word>/);
@@ -83,9 +116,14 @@ function yDetalhesFatura(pdf: Buffer): number {
 // Mesma inspeção de streams/I25 usada no teste BTG existente; não substitui
 // PDFKit nem QRCode por mocks. O spy continua chamando o QR real.
 function streamsPdf(pdf: Buffer): Buffer[] {
-  const regex = /<<(.*?)>>\s*stream\r?\n([\s\S]*?)\r?\nendstream/gs;
+  // Limitar ao objeto atual e ler /Length: mais páginas não podem fazer um
+  // stream herdar o /FlateDecode de um objeto anterior sem stream.
+  const regex = /<<((?:(?!endobj)[\s\S])*?)>>\s*stream\r?\n/g;
   return [...pdf.toString("latin1").matchAll(regex)].map(match => {
-    const buffer = Buffer.from(match[2], "latin1");
+    const tamanho = match[1].match(/\/Length\s+(\d+)\b/);
+    expect(tamanho, "Cada stream PDFKit deve declarar seu comprimento").not.toBeNull();
+    const inicio = match.index! + match[0].length;
+    const buffer = pdf.subarray(inicio, inicio + Number(tamanho![1]));
     return /\/FlateDecode/.test(match[1]) ? inflateSync(buffer) : buffer;
   });
 }
@@ -135,7 +173,9 @@ describe.each<Modo>(["btg_api", "cnab"])("boleto sem destaque de valor — %s", 
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
     const paginas = (pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
     expect(paginas).toBeGreaterThan(0);
-    expect(paginas).toBeLessThanOrEqual(2);
+    if (cenario.origens > 5) expect(paginas).toBeGreaterThan(2);
+    else expect(paginas).toBeLessThanOrEqual(2);
+    validarOrigemIntegralEFichaFinal(pdf, cenario.origens, linha);
     expect(dados).toEqual(antes);
     expect(qr).toHaveBeenCalledTimes(1);
     expect(qr).toHaveBeenCalledWith(dados.pixCopiaCola, expect.objectContaining({ type: "png" }));
@@ -170,13 +210,7 @@ describe.each<Modo>(["btg_api", "cnab"])("boleto sem destaque de valor — %s", 
     expect(texto).toContain("Demonstrativo completo do acordo");
     expect(texto).not.toContain("Plano de pagamento do acordo");
     expect(texto).not.toContain("Etapa sintética");
-    if (cenario.origens > 5) {
-      expect(texto).toContain("composição consolidada");
-      expect(texto).not.toContain("Dívida sintética 1");
-    } else {
-      expect(texto).toContain("Origem da dívida na formalização do acordo");
-      expect(texto).toContain("Dívida sintética 1");
-    }
+    expect(texto.replace(/\s+/g, " ")).toContain("Origem da dívida na formalização do acordo");
 
     // Controle visual real: retirar contexto não altera o cabeçalho anterior aos
     // detalhes. Assim detectamos também um y += 51 esquecido após apagar o texto.

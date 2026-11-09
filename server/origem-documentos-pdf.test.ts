@@ -9,6 +9,46 @@ const temPoppler = !spawnSync("pdftotext", ["-v"]).error;
 const textoPdf = (buffer: Buffer) => execFileSync("pdftotext", ["-layout", "-", "-"], { input: buffer, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
 const paginasPdf = (buffer: Buffer) => (buffer.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length;
 
+const normalizarTexto = (texto: string) => texto.replace(/\s+/g, " ").trim();
+function validarOrigensIntegrais(texto: string, quantidade: number) {
+  // Poppler pode separar um título entre linhas; não exigir a linha física do PDF.
+  const ids = [...texto.matchAll(/Dívida\s+sintética\s+(\d+)\b/g)].map(match => Number(match[1]));
+  expect(ids).toEqual(Array.from({ length: quantidade }, (_, i) => i + 1));
+  expect(texto).not.toContain("composição consolidada");
+}
+function validarFichaNaUltimaPagina(pdf: Buffer) {
+  const paginas = textoPdf(pdf).split("\f").filter(p => p.trim()).map(normalizarTexto);
+  expect(paginas).toHaveLength(paginasPdf(pdf));
+  for (const pagina of paginas.slice(0, -1)) {
+    expect(pagina).not.toContain("Ficha de Compensação");
+    expect(pagina).not.toContain("PIX COPIA E COLA");
+    expect(pagina).not.toContain("Corte na linha pontilhada");
+  }
+  expect(paginas.at(-1)).toContain("Ficha de Compensação");
+  expect(paginas.at(-1)).toContain("PIX COPIA E COLA");
+  const bbox = execFileSync("pdftotext", ["-bbox", "-", "-"], { input: pdf, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+  const paginasBbox = [...bbox.matchAll(/<page\b[^>]*height="([\d.]+)"[^>]*>([\s\S]*?)<\/page>/g)];
+  expect(paginasBbox).toHaveLength(paginas.length);
+  for (const [index, pagina] of paginasBbox.entries()) {
+    const palavras = [...pagina[2].matchAll(/<word\b[^>]*yMin="([\d.]+)"[^>]*yMax="([\d.]+)"[^>]*>(.*?)<\/word>/g)];
+    expect(palavras.length, `Página ${index + 1} não pode estar vazia`).toBeGreaterThan(0);
+    for (const palavra of palavras) {
+      expect(Number(palavra[1])).toBeGreaterThanOrEqual(0);
+      expect(Number(palavra[2])).toBeLessThanOrEqual(Number(pagina[1]));
+    }
+    if (index === paginasBbox.length - 1) {
+      const corte = palavras.findIndex(palavra => palavra[3] === "Corte");
+      expect(corte, "Localizar o início da ficha na última página").toBeGreaterThanOrEqual(0);
+      // Medir as palavras precedentes, não o bbox de um bloco que agrega tabela e ficha.
+      for (const palavra of palavras.slice(0, corte)) {
+        expect(Number(palavra[2]), palavra[3]).toBeLessThanOrEqual(Number(palavras[corte][1]) + 0.5);
+      }
+      expect(palavras.slice(corte).some(palavra => /^#\d+$|^Dívida$|^FIM-TITULO-/.test(palavra[3]))).toBe(false);
+    }
+  }
+  return paginas;
+}
+
 function fixture(quantidade = 80, descricaoLonga = false) {
   const vencimento = new Date("2026-11-28T12:00:00Z");
   const parcelas = Array.from({ length: 65 }, (_, index) => ({
@@ -38,40 +78,72 @@ function fixture(quantidade = 80, descricaoLonga = false) {
   return { dados, inputPlano, origemDivida };
 }
 
-describe("PDF de acordo com origem adaptativa", () => {
-  it("limita a duas páginas mesmo com muitas dívidas e 65 etapas, sem mudar o título", async () => {
+describe("PDF de acordo com origem completa paginada", () => {
+  it("pagina 80 dívidas e 65 etapas sem resumir a origem nem mudar o título", async () => {
     const { dados } = fixture();
     const antes = structuredClone(dados);
     const codigo = calcularCodigoBarras(dados);
     const linha = calcularLinhaDigitavel(codigo);
     const pdf = await gerarBoletoPDF(dados);
-    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    if (temPoppler) {
+      validarOrigensIntegrais(textoPdf(pdf), 80);
+      validarFichaNaUltimaPagina(pdf);
+    }
     expect(calcularCodigoBarras(dados)).toBe(codigo);
     expect(calcularLinhaDigitavel(calcularCodigoBarras(dados))).toBe(linha);
     expect(dados).toEqual(antes);
   });
-  it("usa resumo mesmo com uma única descrição que não cabe na ficha", async () => {
+  it("preserva uma descrição maior que a página em vários trechos, com total e avisos íntegros", async () => {
     const { dados } = fixture(1, true);
-    expect(paginasPdf(await gerarBoletoPDF(dados))).toBeLessThanOrEqual(2);
+    dados.origemDivida!.itens[0].titulo = `${"Descrição extensa da cobrança ".repeat(900)} FIM-TITULO-1`;
+    const antes = structuredClone(dados);
+    const codigo = calcularCodigoBarras(dados);
+    const pdf = await gerarBoletoPDF(dados);
+    expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    if (temPoppler) {
+      const texto = normalizarTexto(textoPdf(pdf));
+      for (const palavra of ["Descrição", "extensa", "cobrança"]) {
+        // O quadro financeiro também imprime "1 cobrança(s)"; não é descrição.
+        expect(texto.match(new RegExp(`\\b${palavra}\\b(?!\\(s\\))`, "g")) ?? [], palavra).toHaveLength(900);
+      }
+      expect(texto).toContain("FIM-TITULO-1");
+      expect(texto).not.toContain("composição consolidada");
+      expect(texto).toContain("1 cobrança(s) incluída(s)");
+      expect(texto).toContain("Principal preservado: R$ 100,00");
+      for (const aviso of dados.origemDivida!.avisos) expect(texto).toContain(normalizarTexto(aviso));
+      const paginas = validarFichaNaUltimaPagina(pdf);
+      expect(paginas.filter(p => p.includes("Descrição extensa")).length).toBeGreaterThan(1);
+    }
+    expect(calcularCodigoBarras(dados)).toBe(codigo);
+    expect(dados).toEqual(antes);
   });
   // Inspeção textual adicional com Poppler, quando disponível; a paginação acima
   // não depende de binários externos nem de biblioteca adicional de PDF.
-  it.skipIf(!temPoppler)("não repete dívidas no boleto extenso nem apresenta zeros como histórico ausente", async () => {
+  it.skipIf(!temPoppler)("imprime todas as dívidas em ordem com cabeçalhos repetidos e sem inventar histórico", async () => {
     const { dados } = fixture();
-    const texto = textoPdf(await gerarBoletoPDF(dados));
-    expect(texto).toContain("composição consolidada");
+    const pdf = await gerarBoletoPDF(dados);
+    const texto = normalizarTexto(textoPdf(pdf));
+    validarOrigensIntegrais(texto, 80);
     expect(texto).toContain("80 cobrança(s)");
-    expect(texto).not.toContain("Dívida sintética 1");
     expect(texto).toContain("Não disponível");
     expect(texto).toContain("50,00");
     expect(texto).toContain("PIX COPIA E COLA");
+    for (const aviso of dados.origemDivida!.avisos) expect(texto).toContain(normalizarTexto(aviso));
+    const paginas = validarFichaNaUltimaPagina(pdf);
+    expect(paginas[0]).toContain("Dívida sintética 1");
+    for (const pagina of paginas.filter(p => /Dívida sintética \d+/.test(p))) {
+      for (const cabecalho of ["Cobrança de origem", "Vencimento", "Principal preservado"]) expect(pagina).toContain(cabecalho);
+    }
   });
   it.skipIf(!temPoppler)("mantém todas as dívidas da tabela curta com a ficha sem truncar descrições", async () => {
     const { dados } = fixture(2);
-    const texto = textoPdf(await gerarBoletoPDF(dados));
-    expect(texto).toContain("Dívida sintética 1");
-    expect(texto).toContain("Dívida sintética 2");
+    const pdf = await gerarBoletoPDF(dados);
+    const texto = textoPdf(pdf);
+    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    validarOrigensIntegrais(texto, 2);
     expect(texto).toContain("Ficha de Compensação");
+    validarFichaNaUltimaPagina(pdf);
   });
   it.skipIf(!temPoppler).each([
     ["parcela única sem entrada", "unica"],
@@ -101,14 +173,15 @@ describe("PDF de acordo com origem adaptativa", () => {
     expect(texto).toContain("Resumo do acordo");
     expect(texto).toContain("Total negociado no acordo");
     expect(texto).toContain("Saldo após este pagamento");
-    expect(texto).toContain(cenario === "longo"
-      ? "Resumo da origem do acordo — composição consolidada"
-      : "Origem da dívida na formalização do acordo");
+    expect(normalizarTexto(texto)).toContain("Origem da dívida na formalização do acordo");
+    validarOrigensIntegrais(texto, cenario === "longo" ? 80 : 2);
+    validarFichaNaUltimaPagina(pdf);
     expect(texto).toContain("Demonstrativo completo do acordo");
     expect(texto).toContain("PIX COPIA E COLA");
     expect(texto).toContain("Ficha de Compensação");
     expect(texto).toContain(cenario === "longo" ? "50,00" : "202,66");
-    expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
+    if (cenario === "longo") expect(paginasPdf(pdf)).toBeGreaterThan(2);
+    else expect(paginasPdf(pdf)).toBeLessThanOrEqual(2);
     expect(calcularCodigoBarras(dados)).toBe(codigo);
     expect(calcularLinhaDigitavel(codigo)).toBe(linha);
     expect(dados).toEqual(antes);
