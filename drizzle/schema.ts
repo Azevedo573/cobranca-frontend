@@ -443,6 +443,8 @@ export const btgCobrancasEmitidas = mysqlTable("btgCobrancasEmitidas", {
   nossoNumero: varchar("nossoNumero", { length: 100 }),
   erroCodigo: varchar("erroCodigo", { length: 80 }),
   emitidaEm: timestamp("emitidaEm"),
+  // Somente falha nova comprovada antes do POST; null em todos os legados.
+  falhaAntesEnvioEm: timestamp("falhaAntesEnvioEm"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -519,6 +521,37 @@ export const btgHttpDiagnosticos = mysqlTable("btgHttpDiagnosticos", {
   index("btgHttpDiagnosticos_condominio_idx").on(table.condominioId, table.capturaCriadaEm),
 ]);
 export type BtgHttpDiagnostico = typeof btgHttpDiagnosticos.$inferSelect;
+
+// Prévia curta e decisão de recuperação, sem reset do histórico bancário.
+export const btgRecuperacoes = mysqlTable("btgRecuperacoes", {
+  id: int("id").autoincrement().primaryKey(),
+  chaveAnalise: varchar("chaveAnalise", { length: 36 }).notNull(),
+  btgIntegracaoId: int("btgIntegracaoId").notNull(),
+  emissaoAnteriorId: int("emissaoAnteriorId").notNull(),
+  novaEmissaoId: int("novaEmissaoId"),
+  parcelaAcordoId: int("parcelaAcordoId").notNull(),
+  btgRemessaId: int("btgRemessaId"),
+  condominioId: int("condominioId").notNull(),
+  usuarioId: int("usuarioId").notNull(),
+  diagnosticoId: int("diagnosticoId"),
+  acao: mysqlEnum("acao", ["bloqueada", "reenviar", "recuperar_vinculo"]).notNull(),
+  codigo: varchar("codigo", { length: 80 }).notNull(),
+  estado: mysqlEnum("estado", ["analisada", "consumida"]).default("analisada").notNull(),
+  contextoHash: varchar("contextoHash", { length: 64 }).notNull(),
+  provaHash: varchar("provaHash", { length: 64 }).notNull(),
+  consultaHash: varchar("consultaHash", { length: 64 }).notNull(),
+  consultaCompleta: int("consultaCompleta").default(0).notNull(),
+  consultaCifrada: mediumtext("consultaCifrada").notNull(),
+  criadaEm: timestamp("criadaEm").notNull(),
+  expiraEm: timestamp("expiraEm").notNull(),
+  consumidaEm: timestamp("consumidaEm"),
+}, (table) => [
+  uniqueIndex("btgRecuperacoes_chave_unique").on(table.chaveAnalise),
+  uniqueIndex("btgRecuperacoes_nova_emissao_unique").on(table.novaEmissaoId),
+  index("btgRecuperacoes_anterior_idx").on(table.emissaoAnteriorId, table.estado),
+  index("btgRecuperacoes_parcela_idx").on(table.parcelaAcordoId, table.id),
+]);
+export type BtgRecuperacao = typeof btgRecuperacoes.$inferSelect;
 
 // Livro imutável de entregas do webhook. Armazena hash e metadados mínimos;
 // CPF/CNPJ e conteúdo integral do evento não são persistidos nesta tabela.

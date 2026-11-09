@@ -73,6 +73,8 @@ import {
 import { useConfirmarReservaLocal } from "@/components/btg/useConfirmarReservaLocal";
 import BtgDiagnosticoDialog, { BtgDiagnosticosItem } from "@/components/btg/BtgDiagnosticoDialog";
 import { diagnosticosDaParcela, type BtgDiagnosticoMeta } from "@/components/btg/btgDiagnosticoUI";
+import BtgRecuperacaoDialog, { AcaoRevisarFalhaBtg } from "@/components/btg/BtgRecuperacaoDialog";
+import type { BtgRecuperacaoAlvo } from "@/components/btg/btgRecuperacaoUI";
 
 const STATUS_REMESSA: Record<string, { label: string; className: string }> = {
   rascunho: {
@@ -137,6 +139,12 @@ export default function BTGRemessas() {
     acao: "visualizar" | "expurgar";
     remessaId: number;
     contexto: string;
+  } | null>(null);
+
+  const [recuperacaoSelecionada, setRecuperacaoSelecionada] = useState<{
+    alvo: BtgRecuperacaoAlvo;
+    contexto: string;
+    versaoItem: string;
   } | null>(null);
 
   const condominioFiltroId =
@@ -272,6 +280,22 @@ export default function BTGRemessas() {
   const ambiente = painel?.integracao?.ambiente ?? painel?.oauth?.ambiente;
   const ambienteSandbox = ambiente === "sandbox";
   const ambienteRotulo = ambienteSandbox ? "SANDBOX" : ambiente === "producao" ? "PRODUÇÃO" : "AMBIENTE NÃO CONFIRMADO";
+  const contextoRecuperacao = `${contextoDiagnostico}:${condominioId}:${ambienteRotulo}`;
+  useEffect(() => {
+    setRecuperacaoSelecionada(null);
+  }, [remessaDetalheId, contextoRecuperacao, adminDiagnostico]);
+  const itemRecuperacaoAtual = recuperacaoSelecionada
+    ? detalhe.data?.itens.find(({ item }) => item.id === recuperacaoSelecionada.alvo.itemId)?.item
+    : undefined;
+  const recuperacaoContextoValido = Boolean(
+    adminDiagnostico && !detalhe.error && recuperacaoSelecionada &&
+    recuperacaoSelecionada.contexto === contextoRecuperacao &&
+    recuperacaoSelecionada.alvo.remessaId === remessaDetalheId &&
+    itemRecuperacaoAtual?.resultado === "falha" &&
+    itemRecuperacaoAtual.parcelaAcordoId === recuperacaoSelecionada.alvo.parcelaId &&
+    itemRecuperacaoAtual.btgCobrancaEmitidaId === recuperacaoSelecionada.alvo.emissaoId &&
+    String(itemRecuperacaoAtual.updatedAt) === recuperacaoSelecionada.versaoItem
+  );
 
   const alternarParcela = (id: number, marcado: boolean) => {
     if (ocupado || !parcelasElegiveis.some(p => p.id === id)) return;
@@ -1032,6 +1056,15 @@ export default function BTGRemessas() {
                                           ? "Emissão registrada com sucesso."
                                           : "Aguardando processamento.")}
                                     </p>
+                                    <AcaoRevisarFalhaBtg
+                                      item={item}
+                                      remessaId={remessa.id}
+                                      habilitada={adminDiagnostico}
+                                      disabled={detalhe.isFetching || conciliarItemMutation.isPending || criarRemessaMutation.isPending}
+                                      onAbrir={alvo => {
+                                        setRecuperacaoSelecionada({ alvo, contexto: contextoRecuperacao, versaoItem: String(item.updatedAt) });
+                                      }}
+                                    />
                                     {emissao?.btgCollectionId && (
                                       <div className="rounded-lg border bg-muted/30 px-3 py-2">
                                         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -1160,6 +1193,13 @@ export default function BTGRemessas() {
           ) : null}
         </SheetContent>
       </Sheet>
+      {recuperacaoContextoValido && recuperacaoSelecionada && (
+        <BtgRecuperacaoDialog
+          alvo={recuperacaoSelecionada.alvo}
+          contexto={recuperacaoSelecionada.contexto}
+          onClose={() => setRecuperacaoSelecionada(null)}
+        />
+      )}
       {adminDiagnostico && diagnosticoSelecionado &&
         diagnosticoSelecionado.remessaId === remessaDetalheId &&
         diagnosticoSelecionado.contexto === contextoDiagnostico && (

@@ -257,3 +257,24 @@ describe("btgDiagnosticos — TTL exato e expurgo manual com rollback", () => {
     expect(mocks.getDb).not.toHaveBeenCalled();
   });
 });
+
+describe('captura histórica após reenvio autorizado',()=>{
+  function cadeia(){
+    fixture.state.tables.btgRemessaItens[0].btgCobrancaEmitidaId=41;
+    fixture.state.tables.btgCobrancasEmitidas.push({...fixture.state.tables.btgCobrancasEmitidas[0],id:41});
+    fixture.state.tables.btgRecuperacoes=[{id:1,btgIntegracaoId:1,emissaoAnteriorId:40,novaEmissaoId:41,parcelaAcordoId:20,btgRemessaId:30,condominioId:2,acao:'reenviar',estado:'consumida'}];
+    antesFinanceiro=JSON.stringify(financeiro.map(table=>fixture.state.tables[table]));
+  }
+  it('permite metadata e leitura auditada da captura R1 apesar do item apontarR2',async()=>{
+    cadeia();const list=await caller().listarPorEmissao({emissaoId:40});expect(list[0].id).toBe(50);semCorposNasListas(list);
+    const content=await caller().visualizar(visualizarInput);expect(content.payload).toBe(payload);semMudancaFinanceira();
+  });
+  it.each(['estado','acao','condominioId','parcelaAcordoId','novaEmissaoId'])('não aceita cadeia com %s divergente',async(campo)=>{
+    cadeia();fixture.state.tables.btgRecuperacoes[0][campo]=campo==='estado'?'analisada':campo==='acao'?'bloqueada':999;
+    await expect(caller().visualizar(visualizarInput)).rejects.toMatchObject({code:'NOT_FOUND'});expect(fixture.state.writes).toEqual([]);
+  });
+  it('destino da recuperação deve pertencer à mesma carteira/conta/parcela',async()=>{
+    cadeia();fixture.state.tables.btgCobrancasEmitidas[1].condominioId=3;
+    await expect(caller().visualizar(visualizarInput)).rejects.toMatchObject({code:'NOT_FOUND'});
+  });
+});

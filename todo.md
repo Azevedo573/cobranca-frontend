@@ -3041,8 +3041,25 @@ Fonte: docs/specs/SPEC-btg-captura-payload-diagnostico.md; plano: tasks/plan-btg
 ## Solicitação adicional — reenviar parcela/cobrança com falha (06/11/2026,17:58:23)
 
 - [x] Necessidade registrada em tasks/solicitacao-btg-reenvio-falhas.md, separada da captura aprovada. Falha de item não equivale a recusa definitiva/canônica ausente.
-- [x] Proposta estruturada em docs/specs/SPEC-btg-reenvio-controlado.md com provas/consulta/idempotência/revisão/locks/confirmacão e bloqueio de incertas; implementação não iniciada.
-- [ ] Revisar/aprovar recuperação de falha local/rejeição definitiva versus estado incerto, sem exceção financeira implícita.
-- [ ] Implementar/testar recuperação após regras aprovadas; manter tentativas anteriores e evidências, sem reset/retry automático/fallbackCNAB.
+- [x] Proposta estruturada em docs/specs/SPEC-btg-reenvio-controlado.md com provas/consulta/idempotência/revisão/locks/confirmação e bloqueio de incertas; implementação aprovada09/11/2026 e concluída no desenvolvimento.
+- [x] Política aprovada09/11/2026: falha local comprovada ou título remoto inequívoco; sem garantia documental suficiente, HTTP400 permanece incerto e não libera nova emissão.
+- [x] Implementar/testar recuperação após regras aprovadas; manter tentativas anteriores e evidências, sem reset/retry automático/fallbackCNAB.
 
 Operação real/implantação da captura e situação bancária das emissões1/2 continuam externas e não foram realizadas pelos testes.
+
+## Evolução — reenvio controlado BTG (09/11/2026)
+- [x] Consulta Collections por correlação/ID com paginação oficial cursor, limites20páginas/1MiB/10s e failclosed; análise semPOST/retry.
+- [x] Provas cifradas/AAD/hash/TTL; marcador explícito sófalhalocalnova antesPOST, sem backfill; HTTP400/lista vazia/timeout/retorno antigo descartado incertos sem garantia suficiente.
+- [x] Migração0102 aditiva revisada/aplicada só no desenvolvimento; provisionador seletivo --check/literal/hash/tipos/default/constraints testado.
+- [x] Prévia administrativa5min e confirmação literal/ciente com contexto fresco/reconsulta/auditoria estrita.
+- [x] Recuperar vínculo remoto semPOST/baixa automática ou criarR+1 com reserva/consumo auditados e capacidade interna usoúnico.
+- [x] Revalidar prova/cadeia/contexto antesPOST; fluxo comum usa última revisão e não conta incerta/reservada como sucesso.
+- [x] Atualizar item/totais individualmente, preservar sucessos/histórico/capturas antigas por cadeia autorizada.
+- [x] Ação Revisar falha / Consultar BTG na gestão, resumo mascarado/TTL/stale/busy/caches; sem fallbackCNAB ou reenvio de lote.
+- [x] Validar424 regressões específicas e suíte serial1872 aprovados/1 externoBTGopt-in ignorado; TypeScript/build/diff aprovados.
+- [x] Inspecionar componentes reais com amostra fictícia sem API e restaurar a página normal.
+- [x] Atualizar docs/btg-reenvio-controlado-operacao.md e tasks/plan-btg-reenvio-controlado.md.
+- [ ] Autorizar/inventariar/backup/implantar captura0101 e recuperação0102 naVPS e homologar noBTG/InnoDB real.
+- [ ] Obter prova/diagnóstico adicional para tentativas antigas1/2: não liberadas automaticamente porHTTP400/lista vazia.
+
+Implementação técnica concluída no desenvolvimento. Nenhuma consulta/envio BTG real, alteração de conta/token/segredo/RBAC/valor/número histórico, reclassificação financeira ou deploy. Não existe regra ativa de rejeicao_definitiva sem garantia documental da ausência do título. Concorrência testada em memória não substitui homologação MySQL real.

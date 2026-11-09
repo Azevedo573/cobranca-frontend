@@ -1,6 +1,6 @@
 # Resumo da Demanda
 
-Possibilitar reenviar parcela/cobrança cuja tentativa falhou, preservando história e impedindo duplicidade. Solicitação06/11/2026 às17:58:23. Proposta para revisão/aprovação: desenvolvimento da captura já aprovado não autoriza recuperar ou reenviar cobranças existentes.
+Possibilitar reenviar parcela/cobrança cuja tentativa falhou, preservando história e impedindo duplicidade. Solicitação06/11/2026 às17:58:23. Usuário aprovou reenvio controlado e testes no desenvolvimento em09/11/2026 às08:54:43. Não autoriza recuperar/reenviar cobranças reais da VPS nem deploy.
 
 # Classificação
 
@@ -36,6 +36,8 @@ Backend de elegibilidade/emissão e remessa, cliente de consulta Collections e r
 | Incerta, timeout, retorno descartado, consulta incompleta/indisponível ou divergente | Permanecer bloqueada; consulta/reconciliação, não reenvio cego |
 
 HTTP400 isolado não é suficiente; capturas incompletas não provam rejeição definitiva. Uma lista vazia isolada não resolve a incerteza. Consultar todas as páginas necessárias conforme contrato; impor limites e recusar decisão quando atingir limite/timeout ou ocorrer resposta malformada. A decisão sobre qual erro constitui rejeição definitiva será baseada em corpo/status oficialmente documentados e evidência concreta, não substring livre. Em tentativas antigas sem prova, consulta negativa permite informar “não localizada”, mas não libera automaticamente novo título; solicitar comprovação bancária adicional.
+
+Verificação documental09/11/2026: o envelope oficial `BadRequestError`/`invalidParams` não documenta garantia de atomicidade ou inexistência de título. Portanto, nenhuma regra de `rejeicao_definitiva` fica habilitada nesta entrega. Mesmo o HTTP400 estruturalmente válido permanece incerto sem garantia adicional verificável. Reenvio efetivo nesta versão depende de prova local anterior aoPOST; título remoto inequívoco admite apenas recuperação de vínculo.
 
 Se parcela/acordo/condomínio/valor/conta/canal ou revisão mudaram após a análise, invalidar a prévia e exigir revisão novamente. Admin não pode mudar a chave da tentativa anterior para contornar a idempotência. Nova revisão usa uma referência determinística própria por parcela/revisão, sem truncar, mantendo o identificador anterior intacto.
 
@@ -81,13 +83,13 @@ Maior risco é cobrar duas vezes por tratar incerteza como falha definitiva. Rec
 
 # Pendências para Validação
 
-Aprovação dessa política no desenvolvimento; comprovação de classificações de rejeição definitiva e estratégia de revisão/idempotência; éventual schema aditivo ainda precisa de revisão. Recuperação/emissão reais1/2, deploy e confirmação externa bancária não autorizados por esta proposta.
+Aprovação do desenvolvimento recebida09/11/2026. Migração0102 revisada/aplicada exclusivamente no desenvolvimento, sem backfill; provisionador seletivo testado. Falta homologação de concorrência/isolamento noInnoDB real e confirmação bancária externa. Recuperação/emissão reais1/2 e deploy não foram autorizados nesta execução. Rejeição definitiva porHTTP400 continua sem garantia documental suficiente e permanece bloqueada.
 
 # Próximos Passos
 
-Confirmar com o usuário reenvio condicionado a prova de falha/ausência de título, incertas bloqueadas e recuperação de vínculo sem nova emissão. Implementar somente depois da política aprovada; operação real da VPS será outra etapa.
+Implementação técnica concluída09/11/2026:1872 testes aprovados/1 externoBTGopt-in ignorado,424 regressões específicas, TypeScript/build/diff aprovados e componentes reais inspecionados com dados fictícios. Salvar checkpoint e manter implantação da captura0101/recuperação0102 naVPS, após inventário/backup e autorização, como outra etapa. Não usar novo acordo ou reset SQL para contornar as tentativas históricas.
 
-Referências públicas já consultadas: https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/listar-cobrancas ; https://developers.empresas.btgpactual.com/assets/js/4e04dca3.b96332a6.js (filtros correlationId/pageSize/pageNumber); https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/criar-cobranca . Não presumir causalidade do HTTP400 sem retorno específico.
+Referências públicas verificadas09/11/2026: https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/listar-cobrancas ; https://developers.empresas.btgpactual.com/assets/js/4e04dca3.b96332a6.js (`data`, `_links.next.href` com cursor opaco; não usar totalPages/pageNumber inferidos); https://developers.empresas.btgpactual.com/docs/api-specs-target/Banking%20-%20Collections/criar-cobranca . Não presumir causalidade do HTTP400 sem retorno específico.
 
 ## Contrato técnico de desenvolvimento
 
@@ -106,4 +108,14 @@ function assertConsultaCompleta(consulta: { completa: boolean }): void {
 }
 ```
 
-Testes Vitest em server/*.test.ts com DB/fetch fictícios e cenários de erro/concorrência; não usar títulos reais como teste. Aderir aos helpers de transação/valores/exclusividade atuais. A captura prévia está tecnicamente concluída/validada1504testes; não foi implantada na VPS. Esta política de reenvio ainda aguarda aprovação.
+Testes Vitest em server/*.test.ts com DB/fetch fictícios e cenários de erro/concorrência; não usar títulos reais como teste. Aderir aos helpers de transação/valores/exclusividade atuais. A captura prévia está tecnicamente concluída/validada1504testes; não foi implantada na VPS. A política de reenvio foi aprovada09/11/2026; não houve envio real nesta implementação.
+
+## Contratos aprovados para implementação —09/11/2026
+
+Migração aditiva mínima: `btgCobrancasEmitidas.falhaAntesEnvioEm` nullable para prova explícita de falha local nova, sem backfill; tabela `btgRecuperacoes` guarda UUID de análise, tentativa anterior/nova(nullable), integração/parcela/condomínio/ator, decisão controlada, estado analisada/consumida, hashes de contexto/prova/consulta, diagnóstico vinculado, consulta completa e corpo de consulta protegido criptograficamente, datas/criação/expiração5min/consumo. Não copiar CPF/conta/payload/resposta em campos livres. Consulta cifrada recebe domínio/AAD próprios, não plaintext na listagem/auditoria. Expiração bloqueia nova confirmação; nenhum timer.
+
+`btgRecuperacao.analisar({parcelaId,remessaId?})`: mutation administrativa fresca, GET bancário semPOST, auditoria estrita e prévia individual com UUID; saída só resumo mascarado/decisão/motivo controlado/expiraEm/revisões. `confirmar({analiseId,confirmacao,ciente:true})`: ator/contexto iguais, reconsulta quando necessário e revalida estado/prova/expiração/hash/conta/pagador/valores/carteira; literal REENVIAR PARCELA BTG ou RECUPERAR VINCULO BTG. Reserva a nova revisão/auditoria/consumo atômicos e usa capacidade opaca de uso único para o emissor existente. A reserva anterior não é resetada. Emissores normais retornam revisão mais recente, sem bypass porR1 ou revisão fornecida pelo cliente.
+
+Nova revisão conserva a remessa de origem para histórico da captura; não reabre remessa inteira. Item aponta a tentativa mais recente depois de validado seu contexto, e auditoria/tabela/captura preservam estado anterior. Totais de remessa são recalculados dos itens sem reenviar sucessos. Para antigo item sem emissaoID, resolver canônica diretamente por parcela/integração/remessa com unicidade e contexto, nunca contador.
+
+Estado `preparado` isolado não prova falha: exigir emissão reservada com erro local concluído e prova explícita/estágio compatível, lock antes da decisão e nenhuma outra tentativa inconclusiva. Título recuperado exige correlação, conta/beneficiário, valor, vencimento e tipo coerentes; campos ausentes/incompatíveis bloqueiam. RecuperarPAID não baixa origem automaticamente nesta funcionalidade: conservar vínculo e sinalizar conciliação existente com valor/data confirmados. Não aplicar pagamento sem prova completa.

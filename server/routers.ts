@@ -15,6 +15,7 @@ import { btgRouter } from "./routers/btg";
 import { btgV2Router } from "./routers/btg-v2";
 import { btgCanaisRouter } from "./routers/btg-canais";
 import { btgDiagnosticosRouter } from "./routers/btg-diagnosticos";
+import { btgRecuperacaoRouter } from "./routers/btg-recuperacao";
 import { processosRouter, prazosRouter } from "./routers/processos";
 import { mniRouter } from "./routers/mni";
 import { juridicoCondominiosRouter } from "./routers/juridico-condominios";
@@ -95,6 +96,7 @@ export const appRouter = router({
   btgV2: btgV2Router,
   btgCanais: btgCanaisRouter,
   btgDiagnosticos: btgDiagnosticosRouter,
+  btgRecuperacao: btgRecuperacaoRouter,
   processos: processosRouter,
   prazos: prazosRouter,
   mni: mniRouter,

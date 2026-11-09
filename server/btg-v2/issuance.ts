@@ -1,11 +1,13 @@
 import { createHash } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   acordos,
   btgContaRecebedoraCondominios,
   btgContasRecebedoras,
   btgCobrancasEmitidas,
+  btgHttpDiagnosticos,
   btgIntegracoes,
+  btgRecuperacoes,
   btgRemessaItens,
   btgRemessas,
   devedores,
@@ -20,6 +22,8 @@ import { bloquearParcelasParaCanal, idsComEmissaoV2 } from "../btg-canais";
 import { avaliarElegibilidadeCanalParcela, type EstadoBancarioParcela } from "../../shared/btg-canais";
 import { obterCapturaHttpErroBtg, obterDiagnosticoHttpBtg, obterVinculoEmissaoErroBtg, vincularEmissaoErroBtg, type BtgV2DiagnosticoHttp } from "./errors";
 import { criarCapturaHttpBtg, type BtgHttpCaptura } from "./diagnosticos";
+import { consumirAutorizacaoReenvioBtg, hashContextoEnvioBtg, type AutorizacaoReenvioBtg, type ContextoAutorizacaoReenvioBtg } from "./reenvio-autorizacao";
+import { classificarProvaReenvioBtg } from "./reenvio-provas";
 
 export { BtgV2ConfigurationError } from "./config";
 
@@ -232,11 +236,14 @@ export async function emitirParcelasAcordoBtgV2(input: {
   for (const parcela of selecionadas) {
     try {
       const emissao = await emitirBolePixV2({ db: input.db, parcelaId: parcela.id!, acordoIdEsperado: input.acordoId, usuarioId: input.usuarioId });
+      const existenteSemSucesso = emissao.jaExistia && !["emitida", "paga"].includes(emissao.status);
       resultados.push({
         parcelaId: parcela.id!,
         installmentNumber: parcela.installmentNumber ?? 0,
-        resultado: emissao.jaExistia ? "ja_existia" : ambiente === "sandbox" ? "simulada" : "emitida",
-        mensagem: emissao.jaExistia
+        resultado: existenteSemSucesso ? "falha" : emissao.jaExistia ? "ja_existia" : ambiente === "sandbox" ? "simulada" : "emitida",
+        mensagem: existenteSemSucesso
+          ? "Emissão existente sem sucesso confirmado; revisar situação, sem reenviar."
+          : emissao.jaExistia
           ? "Emissão já registrada para esta parcela."
           : ambiente === "sandbox"
             ? "Resposta simulada do BTG Sandbox recebida."
@@ -287,8 +294,8 @@ async function findExisting(db: Pick<Db, "select">, integracaoId: number, origem
       eq(btgCobrancasEmitidas.btgIntegracaoId, integracaoId),
       eq(btgCobrancasEmitidas.origemTipo, origemTipo),
       eq(btgCobrancasEmitidas.origemId, origemId),
-      eq(btgCobrancasEmitidas.revisao, 1),
     ))
+    .orderBy(desc(btgCobrancasEmitidas.revisao))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -297,7 +304,7 @@ function validarRegistroCanonicoBtgV2(row: typeof btgCobrancasEmitidas.$inferSel
   integracaoId: number; parcelaId: number; condominioId: number; contaId: number;
 }) {
   if (row.btgIntegracaoId !== input.integracaoId || row.origemTipo !== "parcela_acordo" || row.origemId !== input.parcelaId ||
-      row.revisao !== 1 || row.condominioId !== input.condominioId || row.btgContaRecebedoraId !== input.contaId) {
+      !Number.isSafeInteger(row.revisao) || row.revisao < 1 || row.condominioId !== input.condominioId || row.btgContaRecebedoraId !== input.contaId) {
     throw new BtgV2ConfigurationError("A emissão existente não corresponde à origem, condomínio ou conta atuais. Revise o registro canônico.");
   }
 }
@@ -309,8 +316,59 @@ function validarParcelaPreparadaBtgV2(atual: typeof parcelasAcordo.$inferSelect,
   }
 }
 
+/** Decisão já commitada pelo service; não cria revisão nem altera a tentativa anterior. */
+async function validarRecuperacaoReservadaBtgV2(tx: Pick<Db, "select">, autorizacao: Readonly<ContextoAutorizacaoReenvioBtg>, contexto: {
+  parcela: typeof parcelasAcordo.$inferSelect; acordo: typeof acordos.$inferSelect;
+  devedor: typeof devedores.$inferSelect; integracao: typeof btgIntegracoes.$inferSelect;
+  conta: typeof btgContasRecebedoras.$inferSelect;
+}) {
+  const negar = () => new BtgV2ConfigurationError("A autorização de reenvio ou o histórico de tentativas foi alterado; revise a recuperação BTG, sem novo envio.");
+  if (hashContextoEnvioBtg(contexto) !== autorizacao.contextoHash) throw negar();
+  const emissoes = await tx.select().from(btgCobrancasEmitidas)
+    .where(and(eq(btgCobrancasEmitidas.origemTipo, "parcela_acordo"), eq(btgCobrancasEmitidas.origemId, autorizacao.parcelaId))).for("update");
+  const decisoes = await tx.select().from(btgRecuperacoes)
+    .where(eq(btgRecuperacoes.parcelaAcordoId, autorizacao.parcelaId)).for("update");
+  const nova = emissoes.find(row => row.id === autorizacao.emissaoId);
+  const decisao = decisoes.find(row => row.id === autorizacao.analiseId);
+  const corresponde = (row: typeof btgRecuperacoes.$inferSelect) => row.estado === "consumida" && row.acao === "reenviar" && row.consumidaEm !== null &&
+    row.btgIntegracaoId === contexto.integracao.id && row.parcelaAcordoId === contexto.parcela.id && row.condominioId === contexto.acordo.condominioId &&
+    row.consultaCompleta === 1 && ["falha_local_comprovada", "rejeicao_definitiva"].includes(row.codigo) && /^[a-f0-9]{64}$/.test(row.provaHash);
+  if (!nova || nova.revisao !== autorizacao.revisao || nova.revisao < 2 || nova.status !== "reservada" ||
+      !decisao || !corresponde(decisao) || decisao.emissaoAnteriorId !== autorizacao.emissaoAnteriorId || decisao.novaEmissaoId !== nova.id ||
+      decisao.usuarioId !== autorizacao.usuarioId || decisao.contextoHash !== autorizacao.contextoHash || decisao.btgRemessaId !== nova.btgRemessaId) throw negar();
+  validarRegistroCanonicoBtgV2(nova, { integracaoId: contexto.integracao.id, parcelaId: contexto.parcela.id, condominioId: contexto.acordo.condominioId, contaId: contexto.conta.id });
+  if (nova.externalId !== gerarExternalIdBtgV2(contexto.integracao.ambiente, "parcela_acordo", contexto.parcela.id, nova.revisao) ||
+      nova.idempotencyKey !== gerarIdempotencyKeyBtgV2(nova.externalId) || nova.amount !== contexto.parcela.amount || nova.dueDate.getTime() !== contexto.parcela.dueDate.getTime() ||
+      nova.agenciaRecebedora !== contexto.conta.agencia || nova.contaRecebedora !== contexto.conta.numero ||
+      nova.documentoBeneficiario !== contexto.conta.documentoBeneficiario || nova.nomeBeneficiario !== contexto.conta.nomeBeneficiario) throw negar();
+  // Cada revisão anterior precisa alcançar ESTA reserva por decisões explícitas.
+  // Outra integração, revisão concorrente, lacuna, ciclo ou tentativa sem decisão bloqueia.
+  if (emissoes.some(row => row.btgIntegracaoId !== contexto.integracao.id || row.condominioId !== contexto.acordo.condominioId ||
+      row.btgContaRecebedoraId !== contexto.conta.id || row.amount !== nova.amount || row.dueDate.getTime() !== nova.dueDate.getTime() || row.btgRemessaId !== nova.btgRemessaId ||
+      !Number.isSafeInteger(row.revisao) || row.revisao < 1 || row.revisao > nova.revisao) ||
+      new Set(emissoes.map(row => row.revisao)).size !== emissoes.length || emissoes.length !== nova.revisao) throw negar();
+  for (const anterior of emissoes.filter(row => row.id !== nova.id)) {
+    if (!["reservada", "incerta", "falha"].includes(anterior.status) || anterior.btgCollectionId || anterior.bankSlipUrl || anterior.pixQrCode ||
+        anterior.pixCopiaECola || anterior.codigoBarras || anterior.linhaDigitavel || anterior.nossoNumero || anterior.emitidaEm) throw negar();
+    const proxima = emissoes.find(row => row.revisao === anterior.revisao + 1);
+    const resolucoes = decisoes.filter(row => corresponde(row) && row.emissaoAnteriorId === anterior.id);
+    if (!proxima || resolucoes.length !== 1 || resolucoes[0].novaEmissaoId !== proxima.id) throw negar();
+    if (proxima.id === nova.id && anterior.id !== autorizacao.emissaoAnteriorId) throw negar();
+  }
+  if (nova.btgCollectionId || nova.emitidaEm || nova.falhaAntesEnvioEm || nova.erroCodigo) throw negar();
+  const anterior = emissoes.find(row => row.id === autorizacao.emissaoAnteriorId);
+  if (!anterior) throw negar();
+  const [diagnostico] = await tx.select().from(btgHttpDiagnosticos)
+    .where(eq(btgHttpDiagnosticos.btgCobrancaEmitidaId, anterior.id)).limit(1).for("share");
+  const provaAtual = classificarProvaReenvioBtg(anterior, diagnostico ?? null, new Date());
+  if (provaAtual.codigo === "incerta" || provaAtual.codigo !== decisao.codigo || provaAtual.hashProva !== decisao.provaHash ||
+      provaAtual.diagnosticoId !== decisao.diagnosticoId) throw negar();
+  return nova;
+}
+
 async function validarContextoRemessaBtgV2(db: Pick<Db, "select">, remessaId: number | undefined, input: {
   integracaoId: number; condominioId: number; contaId: number; parcelaId: number; amount: number;
+  recuperacao?: Readonly<ContextoAutorizacaoReenvioBtg>;
 }) {
   if (remessaId === undefined) return;
   const [remessa] = await db.select().from(btgRemessas).where(eq(btgRemessas.id, remessaId)).limit(1);
@@ -318,7 +376,9 @@ async function validarContextoRemessaBtgV2(db: Pick<Db, "select">, remessaId: nu
     .where(and(eq(btgRemessaItens.btgRemessaId, remessaId), eq(btgRemessaItens.parcelaAcordoId, input.parcelaId))).limit(1);
   if (!remessa || !item || remessa.btgIntegracaoId !== input.integracaoId || remessa.condominioId !== input.condominioId ||
       remessa.btgContaRecebedoraId !== input.contaId || item.valorCentavos !== input.amount ||
-      !["rascunho", "enviando"].includes(remessa.status)) {
+      (input.recuperacao
+        ? !["falha", "processada_parcialmente"].includes(remessa.status) || item.resultado !== "falha" || item.btgCobrancaEmitidaId !== input.recuperacao.emissaoId
+        : !["rascunho", "enviando"].includes(remessa.status))) {
     throw new BtgV2ConfigurationError("A parcela ou conta não corresponde ao contexto atual da remessa BTG.");
   }
 }
@@ -331,8 +391,21 @@ export async function emitirBolePixV2(input: {
   condominioIdEsperado?: number;
   valorCentavosEsperado?: number;
   usuarioId?: number;
+  recuperacao?: AutorizacaoReenvioBtg;
 }): Promise<BtgV2EmissaoResultado> {
-  const { db, parcelaId, btgRemessaId } = input;
+  const { db, parcelaId } = input;
+  let btgRemessaId = input.btgRemessaId;
+  const recuperacao = input.recuperacao === undefined ? null : consumirAutorizacaoReenvioBtg(input.recuperacao);
+  if (input.recuperacao !== undefined && (!recuperacao || recuperacao.parcelaId !== parcelaId || recuperacao.usuarioId !== input.usuarioId)) {
+    throw new BtgV2ConfigurationError("A autorização interna de reenvio BTG é inválida ou já foi utilizada.");
+  }
+  if (recuperacao) {
+    const [nova] = await db.select().from(btgCobrancasEmitidas).where(eq(btgCobrancasEmitidas.id, recuperacao.emissaoId)).limit(1);
+    if (!nova || (btgRemessaId !== undefined && btgRemessaId !== nova.btgRemessaId)) {
+      throw new BtgV2ConfigurationError("A reserva autorizada não corresponde ao contexto de reenvio BTG.");
+    }
+    btgRemessaId = nova.btgRemessaId ?? undefined;
+  }
   const origemTipo: BtgV2OrigemTipo = "parcela_acordo";
   const serverConfig = getBtgV2ServerConfig();
   const [integracao] = await db.select().from(btgIntegracoes)
@@ -401,12 +474,13 @@ export async function emitirBolePixV2(input: {
   if (!accountRow) throw new BtgV2ConfigurationError("A conta recebedora não foi encontrada.");
   validarContaRecebedoraParaAmbiente({ conta: accountRow.conta, integracao, serverConfig });
   const contextoCanonico = { integracaoId: integracao.id, parcelaId, condominioId: origem.condominioId, contaId: accountRow.conta.id };
-  await validarContextoRemessaBtgV2(db, btgRemessaId, { ...contextoCanonico, amount: origem.amount });
+  const contextoRemessa = { ...contextoCanonico, amount: origem.amount, ...(recuperacao ? { recuperacao } : {}) };
+  await validarContextoRemessaBtgV2(db, btgRemessaId, contextoRemessa);
 
   // O próprio canal reservado não é um motivo para rejeitar a consulta canônica.
   // Guards de ator/carteira seguem no router; origem/conta/condomínio são validados aqui.
   const existenteAntesDaReserva = await findExisting(db, integracao.id, origemTipo, parcelaId);
-  if (existenteAntesDaReserva) {
+  if (existenteAntesDaReserva && !recuperacao) {
     validarRegistroCanonicoBtgV2(existenteAntesDaReserva, contextoCanonico);
     return toResult(existenteAntesDaReserva, true);
   }
@@ -415,7 +489,8 @@ export async function emitirBolePixV2(input: {
     throw new BtgV2ConfigurationError("Um usuário autenticado válido é obrigatório para capturar uma nova emissão BolePix.");
   }
   const comEmissao = await consultarParcelasComEmissaoV2Btg(db, [parcelaId]);
-  const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2({ ...parcela, btgEmissaoV2Existente: comEmissao.has(parcelaId) });
+  if (recuperacao && parcela.canalBancario !== "api_btg_v2") throw new BtgV2ConfigurationError("O canal da parcela não corresponde à reserva de reenvio BTG.");
+  const elegibilidade = avaliarElegibilidadeParcelaAcordoBtgV2({ ...parcela, ...(recuperacao ? { canalBancario: null } : {}), btgEmissaoV2Existente: !recuperacao && comEmissao.has(parcelaId) });
   if (!elegibilidade.elegivel) {
     throw new BtgV2ConfigurationError(`Esta parcela não pode ser enviada: ${elegibilidade.motivo?.toLowerCase()}.`);
   }
@@ -425,7 +500,7 @@ export async function emitirBolePixV2(input: {
     throw new BtgV2ConfigurationError("Configure o segredo do webhook BTG para Authorization: Bearer antes de emitir em Produção. Não use Client Secret nem access token OAuth.");
   }
 
-  const externalId = gerarExternalIdBtgV2(integracao.ambiente, origemTipo, parcelaId);
+  const externalId = gerarExternalIdBtgV2(integracao.ambiente, origemTipo, parcelaId, recuperacao?.revisao ?? 1);
   const idempotencyKey = gerarIdempotencyKeyBtgV2(externalId);
   const now = new Date();
 
@@ -455,6 +530,18 @@ export async function emitirBolePixV2(input: {
       const [acordoAtual] = await tx.select().from(acordos).where(eq(acordos.id, acordo.id)).limit(1);
       if (!acordoAtual || acordoAtual.devedorId !== origem.devedorId) {
         throw new BtgV2ConfigurationError("O pagador do acordo foi alterado durante a preparação; revise a emissão.");
+      }
+      if (recuperacao) {
+        validarParcelaPreparadaBtgV2(bloqueada.parcela, parcela);
+        const [pagadorAtual] = await tx.select().from(devedores).where(eq(devedores.id, origem.devedorId)).limit(1).for("update");
+        if (!pagadorAtual || pagadorAtual.condominioId !== origem.condominioId || bloqueada.parcela.canalBancario !== "api_btg_v2") {
+          throw new BtgV2ConfigurationError("O pagador ou canal da recuperação BTG foi alterado; revise o reenvio.");
+        }
+        const estado = avaliarElegibilidadeParcelaAcordoBtgV2({ ...bloqueada.parcela, canalBancario: null, btgEmissaoV2Existente: false });
+        if (!estado.elegivel) throw new BtgV2ConfigurationError(`Esta parcela não pode ser reenviada: ${estado.motivo?.toLowerCase()}.`);
+        const row = await validarRecuperacaoReservadaBtgV2(tx, recuperacao, { parcela: bloqueada.parcela, acordo: acordoAtual, devedor: pagadorAtual, integracao: atual, conta: vinculada.conta });
+        await validarContextoRemessaBtgV2(tx, btgRemessaId, contextoRemessa);
+        return { row, jaExistia: false };
       }
       const existente = await findExisting(tx, atual.id, origemTipo, parcelaId);
       if (existente) {
@@ -495,7 +582,7 @@ export async function emitirBolePixV2(input: {
       return { row, jaExistia: false };
     });
   } catch (error) {
-    if (!isDuplicate(error)) throw error;
+    if (recuperacao || !isDuplicate(error)) throw error;
     const existingAfterRace = await findExisting(db, integracao.id, origemTipo, parcelaId);
     if (existingAfterRace) {
       validarRegistroCanonicoBtgV2(existingAfterRace, contextoCanonico);
@@ -508,6 +595,7 @@ export async function emitirBolePixV2(input: {
   const reserva = reservada.row;
   let captura: BtgHttpCaptura | undefined;
   let clienteInvocado = false;
+  let envioReivindicado = false;
 
   try {
     captura = criarCapturaHttpBtg({ db, emissaoId: reserva.id, usuarioId: input.usuarioId! });
@@ -540,18 +628,20 @@ export async function emitirBolePixV2(input: {
       validarAcordoAtivoBtgV2(bloqueada.acordoStatus);
       validarParcelaPreparadaBtgV2(bloqueada.parcela, parcela);
       if (bloqueada.parcela.canalBancario !== "api_btg_v2") throw new BtgV2ConfigurationError("O canal da parcela foi alterado depois da reserva; revise a emissão reservada.");
-      // Desconsidera SOMENTE a própria reserva canônica, sem ignorar CNAB/legado.
+      // CNAB/legado nunca são ignorados. Revisões anteriores exigem decisão explícita abaixo.
       const estado = avaliarElegibilidadeParcelaAcordoBtgV2({ ...bloqueada.parcela, canalBancario: null, btgEmissaoV2Existente: false });
       if (!estado.elegivel) throw new BtgV2ConfigurationError(`A parcela foi alterada depois da reserva: ${estado.motivo?.toLowerCase()}.`);
       const [acordoAtual] = await tx.select().from(acordos).where(eq(acordos.id, acordo.id)).limit(1);
-      const [pagadorAtual] = await tx.select().from(devedores).where(eq(devedores.id, origem.devedorId)).limit(1);
+      const [pagadorAtual] = await tx.select().from(devedores).where(eq(devedores.id, origem.devedorId)).limit(1).for("update");
       if (!acordoAtual || acordoAtual.devedorId !== origem.devedorId || !pagadorAtual || pagadorAtual.condominioId !== origem.condominioId ||
           ["name", "cpfCnpj", "email", "phone", "address", "addressNumber", "addressComplement", "neighborhood", "city", "state", "zipCode", "unitNumber"].some(
             key => pagadorAtual[key as keyof typeof pagadorAtual] !== devedor[key as keyof typeof devedor])) {
         throw new BtgV2ConfigurationError("O pagador da cobrança foi alterado depois da reserva; revise a emissão reservada.");
       }
-      await validarContextoRemessaBtgV2(tx, btgRemessaId, { ...contextoCanonico, amount: origem.amount });
-      const canonica = await findExisting(tx, integracao.id, origemTipo, parcelaId);
+      await validarContextoRemessaBtgV2(tx, btgRemessaId, contextoRemessa);
+      const canonica = recuperacao
+        ? await validarRecuperacaoReservadaBtgV2(tx, recuperacao, { parcela: bloqueada.parcela, acordo: acordoAtual, devedor: pagadorAtual, integracao: atual, conta: vinculada.conta })
+        : await findExisting(tx, integracao.id, origemTipo, parcelaId);
       if (!canonica || canonica.id !== reserva.id || canonica.status !== "reservada") throw new BtgV2ConfigurationError("O estado da reserva foi alterado; nenhum novo envio foi realizado.");
       validarRegistroCanonicoBtgV2(canonica, contextoCanonico);
       if (canonica.amount !== origem.amount || canonica.dueDate.getTime() !== origem.dueDate.getTime() ||
@@ -561,9 +651,11 @@ export async function emitirBolePixV2(input: {
       }
       const outrasEmissoes = await tx.select({ id: btgCobrancasEmitidas.id }).from(btgCobrancasEmitidas)
         .where(and(eq(btgCobrancasEmitidas.origemTipo, origemTipo), eq(btgCobrancasEmitidas.origemId, parcelaId)));
-      if (outrasEmissoes.some(row => row.id !== reserva.id)) throw new BtgV2ConfigurationError("Outra emissão foi identificada depois da reserva; nenhum novo envio foi realizado.");
-      await tx.update(btgCobrancasEmitidas).set({ status: "enviando", updatedAt: new Date() }).where(eq(btgCobrancasEmitidas.id, reserva.id));
+      if (!recuperacao && outrasEmissoes.some(row => row.id !== reserva.id)) throw new BtgV2ConfigurationError("Outra emissão foi identificada depois da reserva; nenhum novo envio foi realizado.");
+      await tx.update(btgCobrancasEmitidas).set({ status: "enviando", updatedAt: new Date() })
+        .where(and(eq(btgCobrancasEmitidas.id, reserva.id), eq(btgCobrancasEmitidas.status, "reservada")));
     });
+    envioReivindicado = true;
 
     const payload = montarPayloadBolePixV2({
       amountCentavos: origem.amount,
@@ -606,7 +698,7 @@ export async function emitirBolePixV2(input: {
       emitidaEm: emittedAt,
       updatedAt: emittedAt,
     }).where(eq(btgCobrancasEmitidas.id, reserva.id));
-    const emitted = await findExisting(db, integracao.id, origemTipo, parcelaId);
+    const [emitted] = await db.select().from(btgCobrancasEmitidas).where(eq(btgCobrancasEmitidas.id, reserva.id)).limit(1);
     if (!emitted) throw new BtgV2ConfigurationError("A emissão foi concluída sem registro local.");
     return { ...toResult(emitted, false), ...(captura.id ? { capturaId: captura.id } : {}) };
   } catch (error) {
@@ -624,8 +716,9 @@ export async function emitirBolePixV2(input: {
     });
     try {
       await db.update(btgCobrancasEmitidas)
-        .set({ status: envioIniciado ? "incerta" : "reservada", erroCodigo: envioIniciado ? "EMISSAO_SEM_CONFIRMACAO" : "CAPTURA_OU_PREPARO_NAO_CONCLUIDO", updatedAt: new Date() })
-        .where(and(eq(btgCobrancasEmitidas.id, reserva.id), eq(btgCobrancasEmitidas.status, "enviando")));
+        .set({ status: envioIniciado ? "incerta" : "reservada", erroCodigo: envioIniciado ? "EMISSAO_SEM_CONFIRMACAO" : "FALHA_ANTES_POST_COMPROVADA",
+          ...(!envioIniciado ? { falhaAntesEnvioEm: new Date() } : {}), updatedAt: new Date() })
+        .where(and(eq(btgCobrancasEmitidas.id, reserva.id), inArray(btgCobrancasEmitidas.status, envioReivindicado ? ["enviando", "reservada"] : ["reservada"])));
     } catch { /* Falha local não apaga vínculo, não libera o canal e não repete POST. */ }
     throw seguro;
   }

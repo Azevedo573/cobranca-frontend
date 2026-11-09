@@ -5,7 +5,7 @@ import { z } from "zod";
 import {
   acordos, auditLogs, btgContasRecebedoras, btgCobrancasEmitidas,
   btgHttpDiagnosticos, btgIntegracoes, btgRemessaItens, btgRemessas, condominios,
-  devedores, parcelasAcordo, users,
+  btgRecuperacoes, devedores, parcelasAcordo, users,
 } from "../../drizzle/schema";
 import type { TrpcContext } from "../_core/context";
 import { adminProcedure, router } from "../_core/trpc";
@@ -135,7 +135,22 @@ async function validarEmissao(tx: BtgTransaction, atual: ContextoAtual, emissaoI
       btgCobrancaEmitidaId: btgRemessaItens.btgCobrancaEmitidaId }).from(btgRemessaItens)
       .where(and(eq(btgRemessaItens.btgRemessaId, emissao.btgRemessaId),
         eq(btgRemessaItens.parcelaAcordoId, emissao.origemId))).limit(1).for("share");
-    if (!item || (item.btgCobrancaEmitidaId !== null && item.btgCobrancaEmitidaId !== emissao.id)) naoEncontrado();
+    if (!item) naoEncontrado();
+    if (item.btgCobrancaEmitidaId !== null && item.btgCobrancaEmitidaId !== emissao.id) {
+      const cadeia = await tx.select().from(btgRecuperacoes)
+        .where(and(eq(btgRecuperacoes.parcelaAcordoId, emissao.origemId),eq(btgRecuperacoes.btgIntegracaoId,atual.integracaoId)));
+      let cursor = emissao.id;
+      const visitados = new Set<number>();
+      while (cursor !== item.btgCobrancaEmitidaId && !visitados.has(cursor) && visitados.size < 100) {
+        visitados.add(cursor);
+        const passos = cadeia.filter(r=>r.emissaoAnteriorId===cursor && r.estado==='consumida' && r.acao==='reenviar' && r.condominioId===emissao.condominioId && r.btgRemessaId===emissao.btgRemessaId && r.novaEmissaoId!==null);
+        if (passos.length !== 1) naoEncontrado();
+        cursor = passos[0].novaEmissaoId!;
+        const [destino] = await tx.select().from(btgCobrancasEmitidas).where(eq(btgCobrancasEmitidas.id,cursor)).limit(1).for('share');
+        if (!destino || destino.btgIntegracaoId!==atual.integracaoId || destino.btgContaRecebedoraId!==emissao.btgContaRecebedoraId || destino.condominioId!==emissao.condominioId || destino.btgRemessaId!==emissao.btgRemessaId || destino.origemTipo!==emissao.origemTipo || destino.origemId!==emissao.origemId) naoEncontrado();
+      }
+      if (cursor !== item.btgCobrancaEmitidaId) naoEncontrado();
+    }
   }
   return emissao;
 }

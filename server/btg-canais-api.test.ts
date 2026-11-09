@@ -324,7 +324,7 @@ describe("API BTG — origem local, canal e reserva canônica", () => {
 
   it("emissão por acordo aceita consulta idempotente mas recusa contexto de outro acordo", async () => {
     const { db } = setup({ parcelasAcordo: [{ ...parcela, canalBancario: "api_btg_v2" }], btgCobrancasEmitidas: [canonica()] });
-    await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({ resultados: [{ resultado: "ja_existia", emissao: { id: 100, jaExistia: true } }] });
+    await expect(emitirParcelasAcordoBtgV2({ usuarioId: 10, db, acordoId: 5, parcelaIds: [19] })).resolves.toMatchObject({ resultados: [{ resultado: "falha", mensagem: "Emissão existente sem sucesso confirmado; revisar situação, sem reenviar.", emissao: { id: 100, status: "incerta", jaExistia: true } }] });
     await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19, acordoIdEsperado: 6 })).rejects.toThrow("selecionados");
     await expect(emitirBolePixV2({ usuarioId: 10, db, parcelaId: 19, condominioIdEsperado: 3 })).rejects.toThrow("selecionados");
     expect(mocks.bank).not.toHaveBeenCalled();
