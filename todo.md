@@ -3105,5 +3105,8 @@ Entrega técnica concluída no desenvolvimento e posteriormente implantada na VP
 - [x] Reproduzir validação somente maiúscula com fixture CRC válido; corrigir comparação ASCII sem modificar payload/CRC nem criar Pix substituto.
 - [x] Testar capitalização, integridade, GUI alheio/Unicode, projeção/router/PDFinput e consulta parcial/rollback, sem banco ou API reais.
 - [x] PDF sintético uma página/QR decodificado300DPI140bytesCRC62A7 idênticos/Copia e Cola integral/I25 conferido;196específicos4suítes/13regressões novas; completa2581aprovados1externoopt-in ignorado;TypeScript/build/diff/HTTP200 e documentação final preparados para checkpoint.
-- [ ] Confirmar acordo/parcela/arquivo/EMV da VPS; autorizar deploy sem nova migração e homologar PDF real, sem pagar ou reenviar.
+- [x] Usuário autorizou09/11/2026,14:23 o deploy de2ead4388 com backup/build/reinício, sem migração ou reenvio.
+- [x] RoteiroGitHub scripts/deploy-btg-pix-pdf-vps.sh validado em39cenários isolados/918verificações/0falhas; backup/build/troca/reinício/HTTP e proteções simulados, sintaxe/hash conferidos; não executado naVPS.
+- [ ] Executar/confirmar o deploy autorizado naVPS pelo roteiro scripts/deploy-btg-pix-pdf-vps.sh; orientação docs/deploy-btg-pix-pdf-vps.md. Sessão sem acessoSSH àVPS.
+- [ ] Confirmar acordo/parcela/arquivo/EMV da VPS e homologar o PDF real, sem pagar, cancelar, recriar ou reenviar.
 Documento: docs/ocorrencias/OCORRENCIA-btg-pix-ausente-pdf-2026-11-09.md. Incompatibilidade de capitalização comprovada em dados sintéticos e compatível com o sintoma; causa no título real ainda não confirmada. Nenhuma cobrança, payload existente, valor, número, canal, estado financeiro, chave, perfil ou infraestrutura alterada por esta investigação/correção.

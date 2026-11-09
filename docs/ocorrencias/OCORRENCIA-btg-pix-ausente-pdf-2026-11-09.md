@@ -42,7 +42,7 @@ A correção delimitada foi implementada no desenvolvimento: comparação ASCII 
 
 # Regra Atual e Regra Corrigida
 
-Anterior: GUI literal maiúsculo, falha de Pix suprimida no PDF. Corrigida no desenvolvimento: reconhecer GUI ASCII maiúsculo/minúsculo/misto, preservar integralmente o conteúdo recebido e permitir somente Pix estruturalmente válido. Sem geração, reparo do CRC ou fallback estático. A VPS permanece com a versão anterior até autorização e implantação.
+Anterior: GUI literal maiúsculo, falha de Pix suprimida no PDF. Corrigida no desenvolvimento: reconhecer GUI ASCII maiúsculo/minúsculo/misto, preservar integralmente o conteúdo recebido e permitir somente Pix estruturalmente válido. Sem geração, reparo do CRC ou fallback estático. Em09/11/2026,14:23, o usuário autorizou a implantação de2ead4388 na VPS com backup/build/troca reversível, sem migração. A execução e a conferência do PDF real ainda aguardam resultado; não há acesso SSH da sessão à VPS.
 
 # Alterações Técnicas Necessárias
 
@@ -78,7 +78,7 @@ A captura/consulta real define se o problema é validação ou campo ausente. PD
 
 # Pendências para Validação
 
-Número do acordo/parcela, origem e nome do PDF baixado e presença/formato do EMV retornado pelo BTG. A conferência do contrato, a correção delimitada e os testes técnicos estão concluídos. Não houve mudança de banco, emissão/cancelamento real ou novo deploy. Atualização da VPS depende de autorização; não há migração nova.
+Número do acordo/parcela, origem e nome do PDF baixado e presença/formato do EMV retornado pelo BTG. A conferência do contrato, a correção delimitada e os testes técnicos estão concluídos. Não houve mudança de banco ou emissão/cancelamento real pela correção. Atualização da VPS autorizada e aguardando execução/resultado; não há migração nova. Roteiro: scripts/deploy-btg-pix-pdf-vps.sh; operação: docs/deploy-btg-pix-pdf-vps.md.
 
 # Próximos Passos
 
