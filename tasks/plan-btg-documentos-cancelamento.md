@@ -21,10 +21,10 @@ Aprovado09/11/2026,11:25; origem807de655. Estrutura adicional aprovada09/11/2026
 
 ## Limites e homologação externa
 
-- [ ] Autorizar e implantar naVPS com inventário/backup/pullfixado/provisionador0103/buildisolado/trocareversível/reinícioaplicação/HTTP.
+- [x] Autorizar e implantar naVPS com inventário/backup/pullfixado/provisionador0103/buildisolado/trocareversível/reinícioaplicação/HTTP. Usuário confirmou09/11/2026,12:36: versãoativa ca85568c,0103 completa,HTTP200 local/HTTPS ePM2online; backup btg-boleto-cancelamento-2026-11-09-123412-9SNARl.
 - [ ] Validar PDF de emissão real, leitura bancária dos códigos sem pagar, reload nas telas e consulta parcial real.
 - [ ] Homologar cancelamento somente de título expressamente autorizado, incluindo confirmação noBTG/Luminus e concorrênciaInnoDB real.
 
 PDF oficial BTG por URL não verificada não foi habilitado: o caminho entregue é o PDF Luminus com dados bancários, claramente identificado. Dados históricos insuficientes bloqueiam, não são reconstruídos. Concorrência/rollback testados em memória não substituemInnoDB real.
 
-Fora desta autorização: redeBTGreal, credenciais/RBAC, backfillfinanceiro, emissão/cancelamentoreal ou deployVPS. A geração não emite título, não altera canal/valor/número, não faz conciliação e não envia arquivo ao storagepúblico. Cancelamento não elimina dívida/acordo, não baixa parcela e não liberaAPI/CNAB.
+Fora da autorização original de desenvolvimento: redeBTGreal, credenciais/RBAC, backfillfinanceiro, emissão/cancelamentoreal ou deployVPS. O deploy foi autorizado posteriormente e concluído conforme registro acima, sem autorizar novo efeito bancário. A geração não emite título, não altera canal/valor/número, não faz conciliação e não envia arquivo ao storagepúblico. Cancelamento não elimina dívida/acordo, não baixa parcela e não liberaAPI/CNAB.

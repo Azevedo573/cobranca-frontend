@@ -2,7 +2,7 @@
 
 Evolução aprovada em 09/11/2026: completar o fluxo dívida criada → negociação → acordo → parcelas emitidas pela API BTG → boleto em PDF com os dados da mesma emissão. Incluir cancelamento administrativo individual, confirmado pelo banco, sem apagar a dívida ou o acordo.
 
-A implementação está no desenvolvimento. Esta entrega não efetua novo envio, cancelamento ou deploy na VPS.
+A implementação foi validada no desenvolvimento e posteriormente implantada na VPS pelo usuário, com autorização de 09/11/2026,12:08. A saída fornecida às12:36 confirmou o build `ca85568ceeaa68d1a558f74695a1e819ebe0602d`, migração0103 conferida, HTTP200 local/HTTPS e PM2 online. Nenhuma emissão, cancelamento ou reenvio foi realizado pelo roteiro. A homologação funcional do PDF e do cancelamento continua pendente.
 
 # Classificação
 
@@ -69,7 +69,7 @@ Os downloads usam base64 autenticado, Blob local e revogação da URL temporári
 
 # Dados e Banco de Dados
 
-Migração `drizzle/0103_modern_luke_cage.sql`, aprovada explicitamente em 09/11/2026,11:41, aplicada somente no desenvolvimento:
+Migração `drizzle/0103_modern_luke_cage.sql`, aprovada explicitamente no desenvolvimento em 09/11/2026,11:41. Após autorização posterior de implantação, sua aplicação e conferência na VPS foram confirmadas pelo usuário em 09/11/2026,12:36:
 
 - `btgBoletoSnapshots`: um snapshot cifrado por emissão, identidade, revisão, hashes, diagnóstico e estado de completude.
 - `btgCancelamentos`: chave única por emissão, prévia/expiração, ator, motivo e consulta cifrados, estado, HTTP/código e datas.
@@ -132,12 +132,14 @@ Retorno seguro: preservar backup de código/build/banco/.env e novas tabelas adi
 
 # Pendências para Validação
 
-Aprovação e execução da implantação da0103 na VPS, teste do PDF de uma cobrança efetivamente emitida, leitura dos códigos em aplicativo bancário sem efetuar pagamento, reload nas telas e consulta parcial real. Cancelamento real somente de título expressamente selecionado/autorizado, com conferência posterior no BTG e no Luminus.
+Implantação e conferência estrutural da0103 concluídas conforme saída fornecida pelo usuário. Permanecem: teste do PDF de uma cobrança efetivamente emitida, leitura dos códigos em aplicativo bancário sem efetuar pagamento, reload nas telas e consulta parcial real. Cancelamento real somente de título expressamente selecionado/autorizado, com conferência posterior no BTG e no Luminus.
 
 Não cancelar uma cobrança de produção apenas para testar. Nenhum título real foi emitido, cancelado ou alterado pelos testes desta entrega.
 
 # Próximos Passos
 
-Concluir o checkpoint técnico. Depois, mediante autorização de implantação: inventário da VPS → backup de código/banco/.env → pull fixado no commit validado → provisionador0103 seletivo → TypeScript/build isolado → troca reversível de dist → reinício somente da aplicação → HTTP local/HTTPS → homologação do documento e cancelamento individual autorizado.
+Atualizar a página com Ctrl+F5, entrar como administrador e abrir a parcela da cobrança já emitida com sucesso. Usar **Boleto (PDF)**. Se os dados estiverem pendentes, usar **Consultar dados do boleto no BTG**, sem emitir novamente. Conferir valor, vencimento, beneficiário, linha, barras e Pix comparando com o título existente no banco; não efetuar pagamento nesta verificação e não cancelar apenas para testar.
+
+Registro operacional informado: backup `/var/backups/cobranca/btg-boleto-cancelamento-2026-11-09-123412-9SNARl`; build anterior `/var/www/cobranca/.dist-anterior-boleto-cancelamento-CizQgB/dist`. Credenciais preservadas. Esses caminhos foram fornecidos pelo usuário; não houve acesso SSH independente à VPS nesta sessão.
 
 Checagem estrutural futura: `node scripts/provisionar-btg-boletos-cancelamentos.cjs --check`. A aplicação exige a confirmação textual indicada pelo próprio provisionador. Não usar `drizzle-kit migrate` ou executar migrações históricas indiscriminadamente.
