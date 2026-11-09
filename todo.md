@@ -3110,3 +3110,12 @@ Entrega técnica concluída no desenvolvimento e posteriormente implantada na VP
 - [x] Usuário confirmou09/11/2026,14:54 deploy2ead4388:backupbtg-pix-pdf-2026-11-09-144144-PQrilQ/distanterior.dist-anterior-pix-pdf-YtanHw/dist/HTTP200localHTTPS/PM2online; semmigração/banco/credenciaispreservados e nenhumenvio/cancelamento/reenvio pelo roteiro. Sessão semSSHindependente; registro docs/deploy-btg-pix-pdf-vps.md.
 - [ ] Confirmar acordo/parcela/arquivo/EMV da VPS e homologar o PDF real, sem pagar, cancelar, recriar ou reenviar.
 Documento: docs/ocorrencias/OCORRENCIA-btg-pix-ausente-pdf-2026-11-09.md. Incompatibilidade de capitalização comprovada em dados sintéticos e compatível com o sintoma; causa no título real ainda não confirmada. Nenhuma cobrança, payload existente, valor, número, canal, estado financeiro, chave, perfil ou infraestrutura alterada por esta investigação/correção.
+
+## Ajuste — retirar bloco de valor exigível do boleto (09/11/2026)
+- [x] Registrar pedido das 15:26, escopo e preservação de dados, códigos e Pix; atualizar especificações documentais antes de alterar o renderizador.
+- [x] Retirar somente o bloco superior, seus textos, fundo/borda e incremento de altura do renderizador compartilhado API/CNAB e lote.
+- [x] Validar seis regressões novas RED→GREEN do PDF real, API/CNAB e parcela única/entrada/plano longo; 69 testes específicos em cinco arquivos. Valores nos campos existentes/resumo/origem, códigos I25/linha/Pix, input imutável e ausência de altura residual preservados; amostra sintética de R$8,62 em uma página inspecionada.
+- [x] Suíte completa serial: 2.587 aprovados e um externo BTG opt-in ignorado; TypeScript/build/diff aprovados e arquivos completos conferidos para o checkpoint de desenvolvimento.
+- [ ] Implantar na VPS apenas após autorização separada e conferir novo PDF da mesma cobrança, sem pagamento, cancelamento ou reenvio.
+
+Registro: docs/ocorrencias/OCORRENCIA-boleto-remover-destaque-valor-2026-11-09.md. Nenhuma alteração financeira, migration, emissor ou deploy faz parte desta retirada de apresentação. PDFs existentes permanecem no formato original.

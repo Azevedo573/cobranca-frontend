@@ -510,18 +510,6 @@ export async function gerarBoletoPDF(dados: DadosBoleto): Promise<Buffer> {
     const origemDivida = modoApi && !contextoAcordo ? dados.origemDivida : contextoAcordo ? (dados.origemDivida ?? montarOrigemDividaAcordo(
       (dados.itensCobranca ?? []).map((item, index) => ({ cobrancaId: index + 1, titulo: item.titulo, valorOriginal: item.valorOriginal, vencimento: item.vencimento })), [],
     )) : undefined;
-    if (contextoAcordo) {
-      const H_DESTAQUE = 42;
-      doc.roundedRect(ML, y, W, H_DESTAQUE, 4).fillColor("#EAF2FF").fill();
-      doc.roundedRect(ML, y, W, H_DESTAQUE, 4).strokeColor("#7CA8E8").lineWidth(0.8).stroke();
-      doc.font(FONTE_BOLD).fontSize(7).fillColor(AZUL_BTG)
-        .text("VALOR EXIGÍVEL NESTE BOLETO", ML + 9, y + 7, { lineBreak: false });
-      doc.font(FONTE).fontSize(8).fillColor(PRETO)
-        .text(contextoAcordo.referenciaParcelaAtual, ML + 9, y + 20, { width: W - 165, lineBreak: false });
-      doc.font(FONTE_BOLD).fontSize(16).fillColor(AZUL_BTG)
-        .text(`R$ ${formatarValorReais(contextoAcordo.valorDocumento)}`, MR - 145, y + 13, { width: 135, align: "right", lineBreak: false });
-      y += H_DESTAQUE + 9;
-    }
 
     // ── Detalhes da fatura ──
     doc.font(FONTE_BOLD).fontSize(9).fillColor(PRETO)

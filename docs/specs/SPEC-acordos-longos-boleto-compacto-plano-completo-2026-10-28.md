@@ -6,7 +6,7 @@ Evitar que um boleto de parcela de acordo replique todas as etapas do plano e ge
 
 ## Decisão aprovada
 
-- **Boleto individual:** valor exigível, resumo do acordo, composição histórica da dívida e ficha de compensação. Não mostrará a tabela completa de parcelas.
+- **Boleto individual:** valor da parcela em “Detalhes da fatura” e na ficha de compensação, resumo do acordo e composição histórica da dívida. Não mostrará a tabela completa de parcelas. Por pedido de 09/11/2026, o bloco superior “VALOR EXIGÍVEL NESTE BOLETO”, sua referência/valor e sua reserva de altura são retirados; os dados e códigos de pagamento permanecem iguais.
 - **Plano completo do acordo:** documento informativo separado, com todas as parcelas paginadas, acessível no detalhe do acordo.
 - O documento separado não terá código de barras, Pix, nosso número ou efeito de cobrança.
 
