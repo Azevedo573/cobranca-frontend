@@ -2,7 +2,7 @@
 
 ## Solicitação e autorização
 
-Em 10/11/2026 o usuário solicitou cadastrar advogados e funcionários para operar em todos os condomínios, mantendo também a opção de carteira selecionada. Às 11:41 aprovou **Advogado e Colaborador interno**, incluindo a implementação e uma estrutura aditiva somente no desenvolvimento. Cobrador/Síndico não receberam opção global, admin administrativo manteve contrato próprio. Não foi autorizado atualizar VPS ou conceder acessos reais em lote.
+Em 10/11/2026 o usuário solicitou cadastrar advogados e funcionários para operar em todos os condomínios, mantendo também a opção de carteira selecionada. Às 11:41 aprovou **Advogado e Colaborador interno**, incluindo a implementação e uma estrutura aditiva somente no desenvolvimento. Cobrador/Síndico não receberam opção global, admin administrativo manteve contrato próprio. A aprovação inicial não abrangia VPS ou concessões reais em lote; o deploy foi autorizado separadamente às12:51, sem concessão em lote.
 
 ## Diagnóstico
 
@@ -20,7 +20,9 @@ Os consumidores novos explícitos usam preflight por objetos/contexto e filtros 
 
 Migration0104_futuristic_sersi.sql contém apenas `ALTER TABLE users ADD escopoCondominios enum('selecionados','todos')` nullable, sem default não nulo, DML, backfill ou outra tabela. Gerada e revisada antes da aplicação; executada somente pelo SQL do projeto de desenvolvimento em 10/11 às 11:48. Metadados confirmaram enum, IS_NULLABLE YES e default SQL NULL. Não foi criado/editado profissional real.
 
-Provisionador seletivo `scripts/provisionar-usuarios-escopo-condominios.cjs` tem --check, literal para --apply, hash do SQL, validação da base e recusa de tipo/nulabilidade/defaults incompatíveis; idempotente e sem DML. Preparado mas não executado na VPS, nem executa migrations gerais. Migration0098 Jurídica e estruturas BTG anteriores não alteradas.
+Provisionador seletivo `scripts/provisionar-usuarios-escopo-condominios.cjs` tem --check, literal para --apply, hash do SQL, validação da base e recusa de tipo/nulabilidade/defaults incompatíveis; idempotente e sem DML. Inicialmente preparado no desenvolvimento; depois executado na VPS pelo roteiro autorizado. Não executa migrations gerais. Migration0098 Jurídica e estruturas BTG anteriores não alteradas.
+
+Usuário confirmou às13:22 em10/11/2026 a VPS ativa `7a37548b2a392a6b8d6590966da2026eed6ccc3a`, migration0104 conferida, HTTP200 local/HTTPS e PM2online; credenciais/acessos existentes preservados e nenhuma migração Jurídica/cadastro/concessão em lote/emissão/cancelamento/reenvio/baixa pelo roteiro. Backup `/var/backups/cobranca/usuarios-escopo-2026-11-10-131016-KkwkdK`, anterior `/var/www/cobranca/.dist-anterior-usuarios-escopo-MlJKIJ/dist`, registro `/var/www/cobranca/.build-usuarios-escopo-CWR9b5`. Evidência fornecida pelo usuário, sem SSH independente ou nova execução de deploy pelo assistente. Manual docs/deploy-usuarios-escopo-vps.md.
 
 ## Validação local
 
@@ -36,8 +38,8 @@ Inspeção visual do componente real UserForm no navegador com admin/pessoas/con
 
 Não se promete correção retroativa de bypasses legados NULL nem revogação de URLs públicas já compartilhadas; mudanças novas explícitas são isoladas de forma coerente. Preflights não reformulam transações financeiras/locks legados, portanto concorrência entre autorização e efeito nesses fluxos ainda exige piloto específico. Cache de matriz RBAC mantém TTL/invalidações existentes, mas profileId atual é verificado antes de reaproveitar permissões.
 
-Caso necessário, suspender/reverter feature sem apagar coluna, usuários, vínculos ou auditoria. Não restaurar banco financeiro nem limpar enum que contenha concessões reais. Futura implantação precisa provisionamento seletivo e validação da configuração de pessoas/perfis, não migrations gerais. VPS permanece b1da399e confirmado pelo usuário; nenhum deploy/reinício/pagamento/baixa/cancelamento/reenvio foi realizado nesta evolução.
+Caso necessário, suspender/reverter feature sem apagar coluna, usuários, vínculos ou auditoria. Não restaurar banco financeiro nem limpar enum que contenha concessões reais. VPS agora7a37548b com estrutura0104 conferida pelo usuário. Novas concessões/perfis após ativação precisam de revisão antes de qualquer reversão; disponibilidade não valida autorização individual. Não há novo deploy ou operação financeira nesta confirmação documental.
 
 ## Pendências
 
-Salvar checkpoint do estado exato validado. Atualizar VPS e realizar piloto com pessoas reais somente em etapa autorizada separada. PDF real BTG da evolução anterior continua como pendência documental independente.
+Implantação/estrutura/disponibilidade concluídas por saída do usuário. Conferir as duas opções do formulário sem salvar pessoa fictícia, e realizar piloto consciente de pessoas/perfis reais separadamente. Usuários antigos não passam a globais automaticamente. PDF real BTG da evolução anterior continua como pendência documental independente.

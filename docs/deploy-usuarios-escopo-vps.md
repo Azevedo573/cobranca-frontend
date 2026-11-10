@@ -2,9 +2,16 @@
 
 ## Autorização e estado
 
-Usuário autorizou em 10/11/2026 às 12:51 atualizar a VPS. Alvo de aplicação fixo: `7a37548b2a392a6b8d6590966da2026eed6ccc3a`, aprovado no desenvolvimento com 3.011 testes, TypeScript e build. Última produção confirmada: `b1da399e953397703a1669bb9eb17d1397781f34`.
+Usuário autorizou em 10/11/2026 às 12:51 atualizar a VPS. Alvo de aplicação fixo: `7a37548b2a392a6b8d6590966da2026eed6ccc3a`, aprovado no desenvolvimento com 3.011 testes, TypeScript e build. Produção anterior: `b1da399e953397703a1669bb9eb17d1397781f34`.
 
-Esta preparação não é execução remota. O usuário executa como root em `/var/www/cobranca`; não existe acesso SSH independente do assistente. O resultado real ainda está pendente.
+Usuário confirmou em 10/11/2026 às 13:22 a versão alvo ativa, migration0104 conferida, HTTP200 local/HTTPS e PM2 online. Nenhuma migration Jurídica executada; credenciais/acessos existentes preservados e nenhuma operação financeira ou cadastro/concessão em lote pelo roteiro. A evidência é a saída fornecida pelo usuário, não acesso SSH independente.
+
+Registro de recuperação informado:
+- Backup: `/var/backups/cobranca/usuarios-escopo-2026-11-10-131016-KkwkdK`.
+- Build anterior: `/var/www/cobranca/.dist-anterior-usuarios-escopo-MlJKIJ/dist`.
+- Registro local: `/var/www/cobranca/.build-usuarios-escopo-CWR9b5`.
+
+Não repetir deploy ou migration para esta confirmação documental. Disponibilidade não equivale à homologação de cada profissional/perfil.
 
 ## O que o roteiro executa
 
@@ -54,4 +61,4 @@ Harness e evidências internos em `/tmp/deploy-usuarios-validacao/`. Git/build/P
 
 ## Pendências
 
-Roteiro validado e pronto para salvamento no GitHub e recuperação pelo commit/hash fixados. Usuário executar e fornecer saída. Registrar versão ativa e disponibilidade somente após resultado. Homologação manual/perfis/pessoas reais permanece separada; produção não foi marcada como atualizada por esta documentação.
+Roteiro salvo em d8676fe5 e execução/versão/migration0104/HTTP/PM2 confirmados pela saída do usuário. Permanece a conferência das duas opções no formulário, sem salvar cadastro fictício ou alterar pessoas reais apenas para testar. Homologação manual de perfis/pessoas reais continua separada; não se presume concessão global a antigos nem acesso irrestrito a ações.

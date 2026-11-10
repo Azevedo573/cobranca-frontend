@@ -24,7 +24,8 @@ Aprovado em 10/11/2026 às 11:41 apenas para Advogado e Colaborador interno. Spe
 - [x] TypeScript e build integrados aprovados; nenhuma dependência/migration antiga alterada.
 - [x] Inspeção do componente real com dados/callbacks fictícios: Advogado global/restrito e Colaborador global principal null; entrada main restaurada e fixture removida, sem cadastro real.
 - [x] Registrar evidências, pendências e reversão; preparar estado validado para checkpoint restrito de desenvolvimento.
-- [ ] Após autorização própria: provisionamento/deploy seletivo VPS e piloto de cadastro; não incluídos nesta aprovação.
+- [x] Deploy autorizado às12:51 e confirmado pelo usuário às13:22 em10/11: VPS7a37548b, migration0104 conferida, HTTP200 local/HTTPS ePM2 online; nenhuma0098/grant/cadastro/operação financeira pelo roteiro. Recuperação registrada no manual.
+- [ ] Conferir formulário e piloto de cadastro/permissões de pessoas reais, separadamente e sem cadastro fictício/concessão em lote para teste.
 
 ## Reversão e limites
 
