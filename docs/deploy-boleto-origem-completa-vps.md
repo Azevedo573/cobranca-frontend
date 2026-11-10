@@ -4,7 +4,7 @@
 
 Usuário autorizou a atualização em 09/11/2026 às 17:54. Alvo da aplicação: `b1da399e953397703a1669bb9eb17d1397781f34`, salvo e disponível no GitHub. Mantém o pedido anterior de não criar novo backup da aplicação/banco; somente o build anterior é preservado para reversão. Não executar DDL, migrations, instalação de dependências, BTG, emissão, cancelamento, reenvio ou baixa. Nginx, credenciais, timers e Central Jurídica não são alterados.
 
-A sessão não possui acesso SSH independente à VPS. Execução feita pelo usuário como root em `/var/www/cobranca`, usando o repositório `Azevedo573/cobranca-frontend`/branch main. Última versão de produção confirmada: `2ead4388`; implantação de `5cded7aa` não confirmada. Roteiro aceita versões na cadeia entre a correção Pix e o alvo, incluindo o próprio alvo; rejeita código posterior/divergente ou anterior à correção Pix.
+A sessão não possui acesso SSH independente à VPS. Execução feita pelo usuário como root em `/var/www/cobranca`, usando o repositório `Azevedo573/cobranca-frontend`/branch main. Antes desta atualização, a última versão de produção confirmada era `2ead4388`; implantação isolada de `5cded7aa` não foi confirmada. Em 10/11/2026 às 11:16, o usuário confirmou `b1da399e` ativo, incorporando também a retirada do banner. Roteiro aceita versões na cadeia entre a correção Pix e o alvo, incluindo o próprio alvo; rejeita código posterior/divergente ou anterior à correção Pix.
 
 ## Roteiro
 
@@ -38,4 +38,14 @@ Verificar todas as origens na ordem, início na primeira página após o resumo,
 
 ## Estado
 
-Roteiro preparado para execução manual autorizada; deploy real e homologação documental de produção ainda pendentes. Não declarar sucesso sem a saída fornecida pelo usuário.
+**Implantação confirmada pelo usuário em 10/11/2026 às 11:16**, mediante a saída `=== ATUALIZAÇÃO CONCLUÍDA ===`:
+
+- Versão ativa: `b1da399e953397703a1669bb9eb17d1397781f34`.
+- Build anterior preservado: `/var/www/cobranca/.dist-anterior-origem-completa-T5yoN1/dist`.
+- Registro local: `/var/www/cobranca/.build-origem-completa-v6qwpG`.
+- Sem backup novo ou migração; HTTP200 local/HTTPS e PM2 online.
+- Banco e credenciais preservados; nenhuma cobrança emitida, cancelada, reenviada ou baixada por este roteiro.
+
+Confirmação baseada na saída fornecida, sem verificação SSH independente; a data acima é a do relato, não um horário de execução inferido. Não executar novamente o deploy para registrar esta confirmação. Este registro documental não altera a versão ativa e não requer pull/build/restart na VPS.
+
+Permanece pendente a homologação do novo PDF real da mesma cobrança: origem integral, cabeçalhos, dados/avisos, banco/códigos/Pix apenas na última página e banner ausente. HTTP/PM2 comprovam disponibilidade informada, não legibilidade dos códigos, situação bancária ou conferência financeira do título.

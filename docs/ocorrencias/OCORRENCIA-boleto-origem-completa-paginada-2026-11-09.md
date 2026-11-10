@@ -76,8 +76,10 @@ Origem integral pode gerar mais páginas, conforme decisão aprovada. Não dimin
 
 # Pendências para Validação
 
-Regressão de desenvolvimento concluída, checkpoint preparado para salvar. Deploy na VPS e leitura de novo PDF real da mesma cobrança exigem etapas separadas; sem autorização nesta confirmação. Sem migration, infraestrutura, Central Jurídica ou operação bancária nesta entrega.
+Regressão de desenvolvimento concluída e aplicação salva em `b1da399e`. Deploy autorizado em 09/11/2026 às 17:54 e confirmado pelo usuário em 10/11/2026 às 11:16: `b1da399e953397703a1669bb9eb17d1397781f34` ativo, HTTP200 local/HTTPS e PM2 online; sem backup novo/migração, banco/credenciais preservados e nenhuma emissão/cancelamento/reenvio/baixa pelo roteiro. Build anterior `/var/www/cobranca/.dist-anterior-origem-completa-T5yoN1/dist`; registro `/var/www/cobranca/.build-origem-completa-v6qwpG`. Saída fornecida pelo usuário, sem SSH independente; horário de execução não inferido.
+
+Permanece pendente somente a conferência documental do novo PDF real da mesma cobrança e leitura dos códigos sem pagamento. Não confundir disponibilidade HTTP com homologação financeira. Registro atual somente documental, sem outra alteração de infraestrutura/serviço, Central Jurídica ou operação bancária.
 
 # Próximos Passos
 
-Salvar a versão validada de desenvolvimento e apresentar amostras. Depois da revisão do usuário, preparar atualização manual da VPS com versão fixada, sem reemitir ou cancelar títulos.
+No detalhe do devedor/acordo na VPS, baixar um PDF novo da mesma cobrança existente; conferir todas as origens, cabeçalhos, avisos, ausência do banner e ficha/linha/barras/QR/Pix juntos na última página. Arquivo antigo não muda. Não emitir novo título, pagar, cancelar, reencaminhar ou executar novamente o deploy para esta verificação. Este checkpoint documental não precisa de pull/build/restart na VPS.

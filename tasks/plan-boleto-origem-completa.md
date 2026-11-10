@@ -15,7 +15,8 @@ Decisão aprovada em 09/11/2026 às 17:12: manter origem integral e paginar; fic
 - [x] Concluir suíte completa serial com BTG_SANDBOX_CREDENTIAL_CHECK=false: 125 arquivos/2.640 testes aprovados e um externo opt-in ignorado.
 - [x] Renderizar/inspecionar amostras fictícias curtas e longas; QR/Pix 143 bytes CRC C133 e I25 de 44 dígitos decodificados das páginas 300 DPI, sem pagamento.
 - [x] Atualizar documentação/backlog e preparar checkpoint de desenvolvimento com escopo restrito à paginação.
-- [ ] Implantação e homologação na VPS somente após nova autorização e confirmação de saída; não executar migration ou operação bancária por este plano.
+- [x] Implantação autorizada em 09/11/2026 às 17:54 e confirmada pelo usuário em 10/11/2026 às 11:16: b1da399e ativo, HTTP200 local/HTTPS e PM2 online, sem backup novo/migração/operação bancária. Build anterior `.dist-anterior-origem-completa-T5yoN1/dist` e registro `.build-origem-completa-v6qwpG` preservados, banco/credenciais intactos; sem SSH independente.
+- [ ] Homologar PDF real novo da mesma cobrança na VPS, sem reemitir, pagar, cancelar ou baixar título; disponibilidade HTTP não substitui conferência de origem/códigos/Pix.
 
 ## Responsabilidades paralelas
 
@@ -25,4 +26,4 @@ Agente de regressão: apenas três testes documentais existentes (`origem-docume
 
 ## Limites
 
-Sem alteração de banco, schemas, dependências, frontend/tRPC, snapshots, emissor, canal, valor, status ou arquivos antigos. Dados e exemplos estritamente fictícios. Sem BTG real ou VPS. Não incluir Central Jurídica.
+Implementação/testes sem alteração de banco, schemas, dependências, frontend/tRPC, snapshots, emissor, canal, valor, status ou arquivos antigos. Dados e exemplos estritamente fictícios; sem BTG real nos testes. Deploy posteriormente executado pelo usuário com autorização específica, sem migration/operação bancária. Não incluir Central Jurídica. O registro desta confirmação é somente documental e não exige outro deploy.
