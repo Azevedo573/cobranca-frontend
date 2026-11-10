@@ -12,6 +12,7 @@
 
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { useEffect, useRef } from "react";
 
 export type Modulo =
   | "dashboard"
@@ -50,12 +51,21 @@ const PROFILE_ROLES = ["colaborador", "advogado"];
 
 export function usePermissions() {
   const { user } = useAuth();
+  const identityKey = JSON.stringify(user ? [user.id, user.role, user.profileId] : null);
+  const freshness = useRef({ identityKey, after: Date.now() });
+  if (freshness.current.identityKey !== identityKey) freshness.current = { identityKey, after: Date.now() };
 
   // Busca permissões para colaboradores e advogados
-  const { data: myPerms, isLoading } = trpc.profiles.getMyPermissions.useQuery(undefined, {
+  const { data, isLoading, dataUpdatedAt, refetch } = trpc.profiles.getMyPermissions.useQuery(undefined, {
     enabled: !!user && PROFILE_ROLES.includes(user.role),
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
   });
+  const myPerms = dataUpdatedAt >= freshness.current.after && data?.profileId === (Number(user?.profileId) || null) ? data : undefined;
+  useEffect(() => {
+    if (user && PROFILE_ROLES.includes(user.role)) void refetch();
+  }, [identityKey, refetch]);
 
   const isAdmin = user?.role === "admin";
   const isSindico = user?.role === "sindico";
@@ -74,7 +84,7 @@ export function usePermissions() {
     if (BYPASS_ROLES.includes(user.role)) return true;
 
     // Colaborador/Advogado sem perfil atribuído: sem acesso
-    if (!myPerms?.permissoes) return false;
+    if (!PROFILE_ROLES.includes(user.role) || !user.profileId || !myPerms?.permissoes) return false;
 
     const permsDoModulo = myPerms.permissoes[modulo];
     if (!permsDoModulo) return false;

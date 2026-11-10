@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+import { users } from "../drizzle/schema";
 import type { TrpcContext } from "./_core/context";
-const mocks = vi.hoisted(() => ({ storage: vi.fn(), condominio: vi.fn(), update: vi.fn(), trocar: vi.fn(), audit: vi.fn() }));
+const mocks = vi.hoisted(() => ({ storage: vi.fn(), condominio: vi.fn(), update: vi.fn(), trocar: vi.fn(), audit: vi.fn(), select: vi.fn(), users: [] as Record<string, unknown>[] }));
+vi.mock("./db", async original => ({ ...await original<typeof import("./db")>(), getDb: async () => ({ select: mocks.select }) }));
 vi.mock("./storage", () => ({ storagePut: mocks.storage }));
 vi.mock("./db-condominios", async original => ({ ...await original<typeof import("./db-condominios")>(), getCondominioById: mocks.condominio, updateCondominio: mocks.update }));
 vi.mock("./condominio-documentos-persistencia", async original => ({ ...await original<typeof import("./condominio-documentos-persistencia")>(), trocarUrlDocumentoCondominio: mocks.trocar }));
@@ -8,11 +11,36 @@ vi.mock("./audit", async original => ({ ...await original<typeof import("./audit
 import { appRouter } from "./routers";
 const antiga = "https://example.com/anterior.pdf";
 const nova = "https://example.com/nova.pdf";
-const ctx = (role = "admin"): TrpcContext => ({ user: { id: 901, role, isActive: 1 } as TrpcContext["user"], req: { headers: {}, protocol: "https" } as TrpcContext["req"], res: {} as TrpcContext["res"] });
+const usuariosLegados = ["admin", "sindico", "advogado", "colaborador", "user"].map(role => ({
+  id: 901, role, isActive: 1, isDeleted: 0, condominioId: null,
+  profileId: null, isPrimaryAdmin: 0, escopoCondominios: null,
+}));
+const ctx = (role = "admin"): TrpcContext => {
+  const user = usuariosLegados.find(usuario => usuario.role === role);
+  if (!user) throw new Error(`Usuário de teste não definido: ${role}`);
+  mocks.users = [{ ...user }];
+  return { user: { ...user } as TrpcContext["user"], req: { headers: {}, protocol: "https" } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+};
 const remover = { condominioId: 10, tipo: "convencao" as const, urlAtual: antiga, confirmado: true as const };
 const upload = { condominioId: 10, tipo: "convencao" as const, urlAtual: antiga, fileName: "nova.pdf", mimeType: "application/pdf", fileBase64: Buffer.from("%PDF-1.7\n%%EOF").toString("base64") };
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.users = [];
+  mocks.select.mockImplementation((projection?: Record<string, { name: string }>) => ({
+    from: (table: unknown) => {
+      if (table !== users) throw new Error("A fixture aceita somente consultas à tabela users.");
+      return { where: (condition: Parameters<MySqlDialect["sqlToQuery"]>[0]) => {
+        const query = new MySqlDialect().sqlToQuery(condition);
+        if (query.sql !== "`users`.`id` = ?" || query.params.length !== 1) {
+          throw new Error(`Filtro de usuário não suportado pela fixture: ${query.sql}`);
+        }
+        const rows = mocks.users.filter(user => user.id === query.params[0]).map(user => projection
+          ? Object.fromEntries(Object.entries(projection).map(([alias, column]) => [alias, user[column.name]]))
+          : { ...user });
+        return { limit: async (count: number) => rows.slice(0, count) };
+      } };
+    },
+  }));
   mocks.condominio.mockResolvedValue({ id: 10, juridicoConvencaoUrl: antiga, juridicoRegimentoUrl: antiga });
   mocks.storage.mockResolvedValue({ url: nova });
   mocks.trocar.mockResolvedValue({ urlAnterior: antiga, url: null });

@@ -1,12 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
-import { acordos, cobrancas, condominios, devedores, userCondominios } from "../drizzle/schema";
+import { acordos, cobrancas, condominios, devedores, userCondominios, users } from "../drizzle/schema";
 import { getDb } from "./db";
 
 export type TenantActor = {
   id: number;
   role: string;
   condominioId: number | null;
+  escopoCondominios?: "selecionados" | "todos" | null;
 };
 
 export type VinculoCondominio = {
@@ -57,13 +58,42 @@ export function resolveCondominioEfetivoComVinculos(
   return Number(efetivo);
 }
 
-/** Lista condomínios ativos aos quais a pessoa usuária está vinculada. */
-export async function getCondominiosAtivosDoUsuario(actor: TenantActor): Promise<number[]> {
-  if (actor.role === "admin") return [];
+export type CarteiraCondominial = {
+  actor: TenantActor;
+  escopo: "selecionados" | "todos" | null;
+  ids: number[];
+};
 
+/**
+ * Fonte fresca do alcance. Projeções antigas/contexto do cliente não concedem acesso.
+ * NULL preserva o contrato legado; global profissional nunca cria um ator admin.
+ */
+export async function getCarteiraCondominialAtual(actor: TenantActor): Promise<CarteiraCondominial> {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados indisponível." });
 
+  const [atual] = await db.select({
+    id: users.id, role: users.role, condominioId: users.condominioId,
+    isActive: users.isActive, isDeleted: users.isDeleted, escopoCondominios: users.escopoCondominios,
+  }).from(users).where(eq(users.id, actor.id)).limit(1);
+  if (!atual || atual.id !== actor.id || atual.isActive !== 1 || atual.isDeleted !== 0 || atual.role !== actor.role) {
+    throw acessoNegado("Identidade ou perfil atualizado indisponível. Entre novamente.");
+  }
+  const escopo = atual.escopoCondominios ?? null;
+  const elegivel = atual.role === "advogado" || atual.role === "colaborador";
+  if (escopo !== null && !elegivel) throw acessoNegado("Escopo incompatível com o perfil.");
+  if (escopo !== null && escopo !== "todos" && escopo !== "selecionados") {
+    throw acessoNegado("Escopo de condomínios inválido.");
+  }
+  const identidade: TenantActor = {
+    id: atual.id, role: atual.role, condominioId: atual.condominioId, escopoCondominios: escopo,
+  };
+  if (atual.role === "admin") return { actor: identidade, escopo: null, ids: [] };
+  if (escopo === "todos") {
+    const ativos = await db.select({ id: condominios.id }).from(condominios)
+      .where(eq(condominios.statusCadastro, "ativo"));
+    return { actor: identidade, escopo, ids: Array.from(new Set(ativos.map(item => Number(item.id)))).sort((a, b) => a - b) };
+  }
   const vinculos = await db
     .select({ condominioId: userCondominios.condominioId })
     .from(userCondominios)
@@ -74,7 +104,12 @@ export async function getCondominiosAtivosDoUsuario(actor: TenantActor): Promise
       eq(condominios.statusCadastro, "ativo"),
     ));
 
-  return Array.from(new Set(vinculos.map((vinculo) => Number(vinculo.condominioId))));
+  return { actor: identidade, escopo, ids: Array.from(new Set(vinculos.map(vinculo => Number(vinculo.condominioId)))) };
+}
+
+/** Lista a carteira autorizada, não uma sentinela de privilégios globais. */
+export async function getCondominiosAtivosDoUsuario(actor: TenantActor): Promise<number[]> {
+  return (await getCarteiraCondominialAtual(actor)).ids;
 }
 
 /** Resolve o condomínio confiável que será usado pelo handler. */
@@ -82,8 +117,11 @@ export async function resolveCondominioEfetivo(
   actor: TenantActor,
   condominioSolicitado?: number | null,
 ): Promise<number | undefined> {
-  const vinculados = await getCondominiosAtivosDoUsuario(actor);
-  return resolveCondominioEfetivoComVinculos(actor, vinculados, condominioSolicitado);
+  const carteira = await getCarteiraCondominialAtual(actor);
+  const identidade = carteira.escopo !== null && !carteira.ids.includes(Number(carteira.actor.condominioId))
+    ? { ...carteira.actor, condominioId: null }
+    : carteira.actor;
+  return resolveCondominioEfetivoComVinculos(identidade, carteira.ids, condominioSolicitado);
 }
 
 /** Verifica que o ator pode operar no condomínio informado. */

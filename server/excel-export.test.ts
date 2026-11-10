@@ -1,8 +1,88 @@
-import { describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+
+// Entrada: SPEC-usuarios-escopo-condominios-2026-11-10.md. As identidades
+// fictícias preservam papel/principal legados; nenhum acesso a banco real.
+const fixtures = vi.hoisted(() => ({ users: new Map<number, AuthenticatedUser>() }));
+
+vi.mock("./db", async (original) => {
+  const { getTableName } = await import("drizzle-orm");
+  const { MySqlDialect } = await import("drizzle-orm/mysql-core");
+  const dialect = new MySqlDialect();
+  type Row = Record<string, unknown>;
+  type JoinedRow = Record<string, Row>;
+  const rowsFor = (table: string): Row[] => {
+    switch (table) {
+      case "users": return Array.from(fixtures.users.values());
+      case "condominios": return [{ id: 1, name: "Condomínio Teste", statusCadastro: "ativo" }];
+      case "userCondominios": return Array.from(fixtures.users.values())
+        .filter(user => user.condominioId !== null)
+        .map(user => ({ userId: user.id, condominioId: user.condominioId, isActive: 1 }));
+      case "devedores": case "cobrancas": case "acordos":
+      case "tentativasCobranca": case "parcelasAcordo": return [];
+      default: throw new Error(`Tabela sem fixture Excel: ${table}`);
+    }
+  };
+  const matches = (condition: any, row: JoinedRow): boolean => {
+    if (!condition) return true;
+    const { sql, params } = dialect.sqlToQuery(condition);
+    let paramIndex = 0;
+    return sql.replace(/[()]/g, "").split(/\s+and\s+/i).map(clause => {
+      const match = clause.trim().match(/^`([^`]+)`\.`([^`]+)`\s*(=|<>|>=|<=)\s*(\?|`([^`]+)`\.`([^`]+)`)$/);
+      if (!match) throw new Error(`Filtro sem suporte na fixture Excel: ${clause}`);
+      const [, table, column, operator, rhs, otherTable, otherColumn] = match;
+      const left = row[table]?.[column];
+      const right = rhs === "?" ? params[paramIndex++] : row[otherTable]?.[otherColumn];
+      if (operator === "=") return left === right;
+      if (operator === "<>") return left !== right;
+      if (operator === ">=") return (left as number) >= (right as number);
+      return (left as number) <= (right as number);
+    }).every(Boolean);
+  };
+  return {
+    ...await original<typeof import("./db")>(),
+    getDb: async () => ({ select: (projection?: Record<string, any>) => {
+      let source = "";
+      let rows: JoinedRow[] = [];
+      const results = () => rows.map(row => projection
+        ? Object.fromEntries(Object.entries(projection).map(([alias, column]) =>
+          [alias, row[getTableName(column.table)]?.[column.name]]))
+        : { ...row[source] });
+      const query: any = {
+        from: (table: any) => {
+          source = getTableName(table);
+          rows = rowsFor(source).map(row => ({ [source]: row }));
+          return query;
+        },
+        innerJoin: (table: any, condition: any) => {
+          const name = getTableName(table);
+          rows = rows.flatMap(row => rowsFor(name).map(joined => ({ ...row, [name]: joined })))
+            .filter(row => matches(condition, row));
+          return query;
+        },
+        leftJoin: (table: any, condition: any) => {
+          const name = getTableName(table);
+          rows = rows.flatMap(row => {
+            const joined = rowsFor(name).map(item => ({ ...row, [name]: item }))
+              .filter(item => matches(condition, item));
+            return joined.length ? joined : [{ ...row, [name]: {} }];
+          });
+          return query;
+        },
+        where: (condition: any) => { rows = rows.filter(row => matches(condition, row)); return query; },
+        orderBy: () => query,
+        limit: (count: number) => { rows = rows.slice(0, count); return query; },
+        then: (resolve: any, reject: any) => Promise.resolve(results()).then(resolve, reject),
+      };
+      return query;
+    } }),
+  };
+});
+
+beforeEach(() => fixtures.users.clear());
 
 function createAuthContext(role: "admin" | "sindico" | "cobrador" = "admin", condominioId?: number): TrpcContext {
   const user: AuthenticatedUser = {
@@ -13,10 +93,18 @@ function createAuthContext(role: "admin" | "sindico" | "cobrador" = "admin", con
     loginMethod: "custom",
     role,
     condominioId: condominioId || null,
+    escopoCondominios: null,
+    passwordHash: null,
+    isPrimaryAdmin: 0,
+    isActive: 1,
+    isDeleted: 0,
+    profileId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     lastSignedIn: new Date(),
   };
+
+  fixtures.users.set(user.id, { ...user });
 
   const ctx: TrpcContext = {
     user,

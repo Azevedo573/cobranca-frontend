@@ -1,6 +1,7 @@
-import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lte, sql, desc, inArray } from "drizzle-orm";
 import { tentativasCobranca, users, devedores, condominios } from "../drizzle/schema";
 import { getDb } from "./db";
+import type { FiltroCarteiraExplicita } from "./escopo-explicito";
 
 export interface ProdutividadeColaborador {
   colaboradorId: number;
@@ -284,14 +285,16 @@ export async function getRelatorioCobranca(params: {
   }
 }
 
-export async function getUnidadesByCondominio(condominioId?: number): Promise<string[]> {
+export async function getUnidadesByCondominio(condominioId?: number, carteira?: FiltroCarteiraExplicita): Promise<string[]> {
   const db = await getDb();
   if (!db) return [];
   try {
     const rows = await db
       .selectDistinct({ unitNumber: devedores.unitNumber })
       .from(devedores)
-      .where(condominioId ? eq(devedores.condominioId, condominioId) : undefined)
+      .where(carteira
+        ? and(inArray(devedores.condominioId, carteira.condominioIds), condominioId ? eq(devedores.condominioId, condominioId) : undefined)
+        : condominioId ? eq(devedores.condominioId, condominioId) : undefined)
       .orderBy(devedores.unitNumber);
     return rows.map((r) => r.unitNumber).filter(Boolean);
   } catch {

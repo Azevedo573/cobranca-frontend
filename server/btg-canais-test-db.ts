@@ -2,6 +2,12 @@ import { getTableColumns, getTableName } from 'drizzle-orm';
 import { MySqlDialect } from 'drizzle-orm/mysql-core';
 import { vi } from 'vitest';
 
+/** Identidade persistida dos cenários legados; nenhum privilégio é inferido do contexto. */
+export function usuarioCanaisFixture(role = 'admin', condominioId: number | null = null) {
+  return { id: 10, name: 'Teste', role, condominioId, isActive: 1, isDeleted: 0,
+    isPrimaryAdmin: 0, profileId: null, escopoCondominios: null };
+}
+
 /** Fixture isolada: eq/IN/AND, joins, ordenação e rollback. Não simula um servidor MySQL completo. */
 export function criarDbCanaisEmMemoria(initial: Record<string, any[]>) {
   const dialect = new MySqlDialect();

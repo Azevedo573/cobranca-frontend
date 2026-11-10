@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { TrpcContext } from "./_core/context";
-import { criarDbCanaisEmMemoria } from "./btg-canais-test-db";
+import { criarDbCanaisEmMemoria, usuarioCanaisFixture } from "./btg-canais-test-db";
 
 const mocks = vi.hoisted(() => ({ getDb: vi.fn(), boleto: vi.fn(), arquivo: vi.fn(), storage: vi.fn(), oauthConfig: vi.fn(), oauthStatus: vi.fn(), apiBank: vi.fn() }));
 vi.mock("./db", () => ({ getDb: mocks.getDb }));
@@ -22,7 +22,7 @@ const config = { id: 1, banco: "208", agencia: "0050", digitoAgencia: "0", conta
 const parcela = (id = 19, acordoId = 5) => ({ id, acordoId, amount: 12599, dueDate: new Date("2026-12-01T12:00:00Z"), installmentNumber: 1, status: "pendente", nossoNumero: "1000000018", nossoNumeroOrigem: "reserva_local", canalBancario: null, statusRemessa: "nao_enviado", remessaId: null, snapshotPrincipal: 10000, snapshotJuros: 2599 });
 let fixture: ReturnType<typeof criarDbCanaisEmMemoria>;
 function setup(extra: Record<string, any[]> = {}) {
-  fixture = criarDbCanaisEmMemoria({ parcelasAcordo: [parcela()], acordos: [{ id: 5, condominioId: 1, devedorId: 6, status: "ativo" }], condominios: [{ id: 1, name: "Condomínio", statusCadastro: "ativo" }], devedores: [{ id: 6, condominioId: 1, name: "Sacado", cpfCnpj: "52998224725", address: "Rua Teste", addressNumber: "1", neighborhood: "Centro", city: "São Paulo", state: "SP", zipCode: "01001000" }], cnabConfigGlobal: [config], remessasCNAB: [], btgCobrancasEmitidas: [], auditLogs: [], userCondominios: [], ...extra });
+  fixture = criarDbCanaisEmMemoria({ users: [usuarioCanaisFixture()], parcelasAcordo: [parcela()], acordos: [{ id: 5, condominioId: 1, devedorId: 6, status: "ativo" }], condominios: [{ id: 1, name: "Condomínio", statusCadastro: "ativo" }], devedores: [{ id: 6, condominioId: 1, name: "Sacado", cpfCnpj: "52998224725", address: "Rua Teste", addressNumber: "1", neighborhood: "Centro", city: "São Paulo", state: "SP", zipCode: "01001000" }], cnabConfigGlobal: [config], remessasCNAB: [], btgCobrancasEmitidas: [], auditLogs: [], userCondominios: [], ...extra });
   mocks.getDb.mockResolvedValue(fixture.db);
   return fixture;
 }
@@ -192,9 +192,10 @@ describe("CNAB de parcelas — reserva transacional", () => {
     const result = await Promise.allSettled([gerar(), gerar()]); expect(result.filter(r => r.status === "fulfilled")).toHaveLength(1); expect(fixture.state.tables.remessasCNAB).toHaveLength(1);
   });
   it("carteira multi-condomínio tem autoridade sobre condomínio principal/role", async () => {
+    fixture.state.tables.users = [usuarioCanaisFixture("advogado", 99)];
     fixture.state.tables.userCondominios.push({ userId: 10, condominioId: 1, isActive: 1 });
     await gerar([19], 1, ctx("advogado", 99));
-    setup(); mocks.arquivo.mockClear(); mocks.storage.mockClear();
+    setup({ users: [usuarioCanaisFixture("advogado", 1)] }); mocks.arquivo.mockClear(); mocks.storage.mockClear();
     await expect(gerar([19], 1, ctx("advogado", 1))).rejects.toThrow("vínculo"); semEfeitos();
   });
 });
@@ -216,6 +217,7 @@ describe("filas e legado usam a mesma política", () => {
   it("fila global só libera admin; locais consultam vínculos ativos", async () => {
     fixture.state.tables.userCondominios.push({ userId: 10, condominioId: 1, isActive: 1 }, { userId: 10, condominioId: 2, isActive: 0 });
     expect(await condominiosPermitidosFilaCnab(ctx().user!)).toBeUndefined();
+    fixture.state.tables.users = [usuarioCanaisFixture("advogado", 99)];
     expect(await condominiosPermitidosFilaCnab(ctx("advogado", 99).user!)).toEqual([1]);
   });
   it("emissor legado reserva antes de efeito e bloqueia API/CNAB", async () => {

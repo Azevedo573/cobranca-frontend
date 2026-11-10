@@ -292,10 +292,10 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    if (user.isActive !== 1 || user.isDeleted !== 0) {
+      throw ForbiddenError("User inactive or deleted");
+    }
+    await db.refreshUserLastSignedIn(user.id, signedInAt);
 
     return user;
   }

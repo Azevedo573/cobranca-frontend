@@ -374,11 +374,11 @@ export const appRouter = router({
   condominios: router({
     list: protectedProcedure.query(async ({ ctx }) => {
       const { getAllCondominios } = await import("./db-condominios");
+      const { getCondominiosAtivosDoUsuario } = await import("./tenant-guard");
+      const permitidos = await getCondominiosAtivosDoUsuario(ctx.user);
       const todos = await getAllCondominios();
       // Admin vê todos. Demais roles só recebem condomínios ativos com vínculo.
       if (ctx.user.role === "admin") return todos;
-      const { getCondominiosAtivosDoUsuario } = await import("./tenant-guard");
-      const permitidos = await getCondominiosAtivosDoUsuario(ctx.user);
       return (todos as any[]).filter((c: any) =>
         c.statusCadastro === "ativo" && permitidos.includes(Number(c.id)),
       );
@@ -790,6 +790,7 @@ export const appRouter = router({
       state: z.string().optional(),
       zipCode: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightCondominioFinanceiro(ctx.user, input.condominioId);
       const { createDevedor } = await import("./db-devedores");
       const { statusUnidade, ...devedorData } = input;
       const result = await createDevedor(devedorData);
@@ -955,15 +956,18 @@ export const appRouter = router({
   cobrancas: router({
     list: requirePermission("cobrancas", "visualizar").input(z.object({ condominioId: z.number() })).query(async ({ input, ctx }) => {
       const rolesComSeletorCondominio = ["admin", "advogado"];
-      const condominioId = rolesComSeletorCondominio.includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+      const filtroCarteira = await (await import("./escopo-explicito")).prepararFiltroCarteira(ctx.user, input.condominioId);
+      const condominioId = filtroCarteira ? input.condominioId : rolesComSeletorCondominio.includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
       const { getCobrancasByCondominio } = await import("./db-cobrancas");
       return await getCobrancasByCondominio(condominioId);
     }),
-    getByDevedor: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getByDevedor: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId);
       const { getCobrancasByDevedor } = await import("./db-cobrancas");
       return await getCobrancasByDevedor(input.devedorId);
     }),
-    getComCalculos: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getComCalculos: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId);
       const { getCobrancasComCalculos } = await import("./db-cobrancas");
       return await getCobrancasComCalculos(input.devedorId);
     }),
@@ -971,7 +975,8 @@ export const appRouter = router({
      * Retorna cobranças normais (excluindo em_acordo) + parcelas de acordos ativos.
      * É a query principal usada na tela de Cobranças do devedor.
      */
-    getComAcordos: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getComAcordos: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId);
       const { getCobrancasComCalculos, getParcelasAcordoAtivasByDevedor } = await import("./db-cobrancas");
       const [cobrancasComCalc, parcelasAcordoAtivas] = await Promise.all([
         getCobrancasComCalculos(input.devedorId),
@@ -986,11 +991,13 @@ export const appRouter = router({
     /**
      * Retorna cobranças em acordo (para histórico/auditoria)
      */
-    getEmAcordo: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getEmAcordo: requirePermission("cobrancas", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId);
       const { getCobrancasEmAcordoByDevedor } = await import("./db-cobrancas");
       return await getCobrancasEmAcordoByDevedor(input.devedorId);
     }),
-    getById: requirePermission("cobrancas", "visualizar").input(z.object({ id: z.number() })).query(async ({ input }) => {
+    getById: requirePermission("cobrancas", "visualizar").input(z.object({ id: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightCobrancaFinanceiro(ctx.user, input.id);
       const { getCobrancaById } = await import("./db-cobrancas");
       return await getCobrancaById(input.id);
     }),
@@ -1004,6 +1011,7 @@ export const appRouter = router({
       dueDate: z.date().optional(),
       monthReference: z.string().optional(),
     })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId, input.condominioId);
       const { createCobranca } = await import("./db-cobrancas");
       const result = await createCobranca(input);
       await logAudit(ctx, { action: "create", entity: "cobranca", condominioId: input.condominioId, afterData: { devedorId: input.devedorId, amount: input.amount, tipoCobranca: input.tipoCobranca }, severity: "info" });
@@ -1017,12 +1025,14 @@ export const appRouter = router({
       status: z.enum(["pendente", "em_cobranca", "pago", "acordo"]).optional(),
     })).mutation(async ({ input, ctx }) => {
       const { id, ...data } = input;
+      await (await import("./escopo-financeiro")).preflightCobrancaFinanceiro(ctx.user, id);
       const { updateCobranca } = await import("./db-cobrancas");
       const result = await updateCobranca(id, data);
       await logAudit(ctx, { action: "update", entity: "cobranca", entityId: String(id), afterData: data as Record<string, unknown>, severity: "info" });
       return result;
     }),
     delete: requirePermission("cobrancas", "excluir").input(z.object({ id: z.number() })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightCobrancaFinanceiro(ctx.user, input.id);
       const { deleteCobranca } = await import("./db-cobrancas");
       await deleteCobranca(input.id);
       await logAudit(ctx, { action: "delete", entity: "cobranca", entityId: String(input.id), severity: "warning" });
@@ -1032,7 +1042,8 @@ export const appRouter = router({
       devedorId: z.number(),
       condominioId: z.number(),
       fileBase64: z.string(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId, input.condominioId);
       const { importarCobrancasPlanilha } = await import("./db-cobrancas");
       return await importarCobrancasPlanilha(input.devedorId, input.condominioId, input.fileBase64);
     }),
@@ -1278,7 +1289,8 @@ export const appRouter = router({
       const { getAcordoById } = await import("./db-acordos");
       return await getAcordoById(input.id);
     }),
-    getByCobranca: requirePermission("acordos", "visualizar").input(z.object({ cobrancaId: z.number() })).query(async ({ input }) => {
+    getByCobranca: requirePermission("acordos", "visualizar").input(z.object({ cobrancaId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightAcordosDaCobrancaFinanceiro(ctx.user, input.cobrancaId);
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) return null;
@@ -1309,17 +1321,20 @@ export const appRouter = router({
       return result[0] || null;
     }),
     // Buscar acordos ativos com parcelas restantes para consolidação
-    getAtivosComParcelas: requirePermission("acordos", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    getAtivosComParcelas: requirePermission("acordos", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId);
       const { getAcordosAtivosComParcelas } = await import("./db-acordos");
       return await getAcordosAtivosComParcelas(input.devedorId);
     }),
     // Buscar histórico de consolidações de um acordo
-    getHistorico: requirePermission("acordos", "visualizar").input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
+    getHistorico: requirePermission("acordos", "visualizar").input(z.object({ acordoId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightHistoricoAcordoFinanceiro(ctx.user, input.acordoId);
       const { getHistoricoConsolidacoes } = await import("./db-acordos");
       return await getHistoricoConsolidacoes(input.acordoId);
     }),
     // Buscar todos os acordos de um devedor
-    listByDevedor: requirePermission("acordos", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input }) => {
+    listByDevedor: requirePermission("acordos", "visualizar").input(z.object({ devedorId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightDevedorFinanceiro(ctx.user, input.devedorId);
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) return [];
@@ -1352,6 +1367,7 @@ export const appRouter = router({
         snapshotDescricao: z.string().optional(),
       })),
     })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightCriacaoAcordoFinanceiro(ctx.user, input);
       const { createAcordo, createParcelas, createAcordoCobrancas, getAcordosAtivosComParcelas, updateAcordo } = await import("./db-acordos");
       
       // Verificar se há acordos ativos e cancelar (se for consolidação)
@@ -1448,7 +1464,8 @@ export const appRouter = router({
       await logAudit(ctx, { action: "create", entity: "acordo", entityId: String(acordoId), condominioId: input.condominioId, afterData: { devedorId: input.devedorId, totalAmount: input.totalAmount, agreedAmount: input.agreedAmount, installments: input.installments }, severity: "info" });
       return { success: true, acordoId };
     }),
-    getParcelas: requirePermission("acordos", "visualizar").input(z.object({ acordoId: z.number() })).query(async ({ input }) => {
+    getParcelas: requirePermission("acordos", "visualizar").input(z.object({ acordoId: z.number() })).query(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightAcordoFinanceiro(ctx.user, input.acordoId);
       const { getParcelasByAcordo } = await import("./db-acordos");
       return await getParcelasByAcordo(input.acordoId);
     }),
@@ -1552,7 +1569,8 @@ export const appRouter = router({
       id: z.number(),
       paymentDate: z.date().optional(),
       status: z.enum(["pendente", "pago", "atrasado"]).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightParcelaFinanceiro(ctx.user, input.id);
       const { updateParcela } = await import("./db-acordos");
       return await updateParcela(input.id, input);
     }),
@@ -1560,6 +1578,7 @@ export const appRouter = router({
       parcelaId: z.number(),
       dataPagamento: z.date().optional(),
     })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightParcelaFinanceiro(ctx.user, input.parcelaId, true);
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database connection failed");
@@ -1644,6 +1663,7 @@ export const appRouter = router({
     gerarBoletoPDFParcela: protectedProcedure
       .input(z.object({ parcelaId: z.number() }))
       .mutation(async ({ input, ctx }) => {
+        await (await import("./escopo-financeiro")).preflightParcelaFinanceiro(ctx.user, input.parcelaId);
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
@@ -1955,7 +1975,8 @@ export const appRouter = router({
     quebrarAcordo: requirePermission("acordos", "aprovar").input(z.object({
       acordoId: z.number(),
       motivo: z.string().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ input, ctx }) => {
+      await (await import("./escopo-financeiro")).preflightAcordoFinanceiro(ctx.user, input.acordoId, true);
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
@@ -2057,12 +2078,13 @@ export const appRouter = router({
       condominioId: z.number().optional(),
       dias: z.number().default(7), // próximos 7, 15 ou 30 dias
     })).query(async ({ input, ctx }) => {
+      const filtroCarteira = await (await import("./escopo-explicito")).prepararFiltroCarteira(ctx.user, input.condominioId);
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) return [];
       
       const { parcelasAcordo, acordos, devedores } = await import("../drizzle/schema");
-      const { eq, and, gte, lte, sql } = await import("drizzle-orm");
+      const { eq, and, gte, lte, sql, inArray } = await import("drizzle-orm");
       
       // Calcular data limite (hoje + X dias)
       const hoje = new Date();
@@ -2081,7 +2103,9 @@ export const appRouter = router({
         lte(parcelasAcordo.dueDate, dataLimite),
       ];
       
-      if (condominioId) {
+      if (filtroCarteira) {
+        conditions.push(inArray(acordos.condominioId, filtroCarteira.condominioIds));
+      } else if (condominioId) {
         conditions.push(eq(acordos.condominioId, condominioId));
       }
       
@@ -2108,12 +2132,13 @@ export const appRouter = router({
     getParcelasVencidas: condominioAccessProcedure.input(z.object({
       condominioId: z.number().optional(),
     })).query(async ({ input, ctx }) => {
+      const filtroCarteira = await (await import("./escopo-explicito")).prepararFiltroCarteira(ctx.user, input.condominioId);
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) return [];
       
       const { parcelasAcordo, acordos, devedores } = await import("../drizzle/schema");
-      const { eq, and, lt } = await import("drizzle-orm");
+      const { eq, and, lt, inArray } = await import("drizzle-orm");
       
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
@@ -2127,7 +2152,9 @@ export const appRouter = router({
         lt(parcelasAcordo.dueDate, hoje),
       ];
       
-      if (condominioId) {
+      if (filtroCarteira) {
+        conditions.push(inArray(acordos.condominioId, filtroCarteira.condominioIds));
+      } else if (condominioId) {
         conditions.push(eq(acordos.condominioId, condominioId));
       }
       
@@ -2155,7 +2182,8 @@ export const appRouter = router({
     // Gerar relatório PDF do acordo para envio à administradora
     gerarRelatorioAdministradora: protectedProcedure
       .input(z.object({ acordoId: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await (await import("./escopo-financeiro")).preflightAcordoFinanceiro(ctx.user, input.acordoId);
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database connection failed" });
@@ -2306,7 +2334,7 @@ export const appRouter = router({
       if (!db) return [];
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      return await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(input?.includeDeleted ? undefined : eq(users.isDeleted, 0));
+      return await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, escopoCondominios: users.escopoCondominios, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(input?.includeDeleted ? undefined : eq(users.isDeleted, 0));
     }),
     getById: adminProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
       const { getDb } = await import("./db");
@@ -2314,7 +2342,7 @@ export const appRouter = router({
       if (!db) return null;
       const { users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      const result = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(eq(users.id, input.id)).limit(1);
+      const result = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, escopoCondominios: users.escopoCondominios, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(eq(users.id, input.id)).limit(1);
       return result[0] || null;
     }),
     getVinculosCondominios: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(async ({ input }) => {
@@ -2328,11 +2356,8 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
-        const { users } = await import("../drizzle/schema");
-        const { eq, and } = await import("drizzle-orm");
-        return await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, condominioId: users.condominioId, isPrimaryAdmin: users.isPrimaryAdmin, isActive: users.isActive, isDeleted: users.isDeleted, profileId: users.profileId, createdAt: users.createdAt, updatedAt: users.updatedAt, lastSignedIn: users.lastSignedIn }).from(users).where(input.includeDeleted
-          ? eq(users.condominioId, input.condominioId)
-          : and(eq(users.condominioId, input.condominioId), eq(users.isDeleted, 0)));
+        const { listarUsuariosPorCondominio } = await import("./user-escopo-management");
+        return listarUsuariosPorCondominio(db, input.condominioId, input.includeDeleted);
       }),
 
     // Definir administrador principal do condomínio
@@ -2342,23 +2367,8 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-        const { users } = await import("../drizzle/schema");
-        const { eq, and } = await import("drizzle-orm");
-
-        // Verificar se o usuário pertence ao condomínio
-        const target = await db.select().from(users)
-          .where(and(eq(users.id, input.userId), eq(users.condominioId, input.condominioId)))
-          .limit(1);
-        if (!target.length || target[0].isActive !== 1 || target[0].isDeleted === 1) {
-          throw new TRPCError({ code: "NOT_FOUND", message: "Usuário ativo não encontrado neste condomínio" });
-        }
-
-        // Remover isPrimaryAdmin de todos os usuários do condomínio
-        await db.update(users).set({ isPrimaryAdmin: 0 }).where(eq(users.condominioId, input.condominioId));
-        // Definir o novo admin principal
-        await db.update(users).set({ isPrimaryAdmin: 1 }).where(eq(users.id, input.userId));
-        await logAudit(ctx, { action: "update", entity: "user", entityId: String(input.userId), entityLabel: target[0].name ?? undefined, condominioId: input.condominioId, afterData: { isPrimaryAdmin: 1, motivo: "Administrador principal definido" }, severity: "warning" });
-        return { success: true };
+        const { definirAdminPrincipalComEscopo } = await import("./user-escopo-management");
+        return definirAdminPrincipalComEscopo(db, ctx.user.id, input.userId, input.condominioId);
       }),
 
     create: adminProcedure.input(z.object({
@@ -2366,57 +2376,16 @@ export const appRouter = router({
       email: z.string().trim().email().max(320),
       password: z.string().min(10).max(128),
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]),
-      condominioId: z.number().optional(),
+      escopoCondominios: z.enum(["selecionados", "todos"]).optional(),
+      condominioId: z.number().int().positive().nullable().optional(),
       condominioIds: z.array(z.number().int().positive()).optional(),
-      isActive: z.number().optional(),
+      isActive: z.number().int().min(0).max(1).optional(),
     })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-
-      const { validarSenhaDeUsuario } = await import("./user-management-security");
-      const erroSenha = validarSenhaDeUsuario(input.password);
-      if (erroSenha) throw new TRPCError({ code: "BAD_REQUEST", message: erroSenha });
-      const emailNormalizado = input.email.toLowerCase();
-
-      // Verificar duplicidade de email
-      const { users } = await import("../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, emailNormalizado)).limit(1);
-      if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
-
-      // Gerar hash da senha
-      const bcrypt = await import("bcryptjs");
-      const hashedPassword = await bcrypt.default.hash(input.password, 10);
-      const openId = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-      const { validarCondominiosAtivos, substituirVinculosDeCondominio } = await import("./tenant-guard");
-      const condominioIdsSolicitados = input.condominioIds ?? (input.condominioId ? [input.condominioId] : []);
-      const condominioIds = await validarCondominiosAtivos(condominioIdsSolicitados);
-      const condominioPrincipalId = input.condominioId ?? condominioIds[0] ?? null;
-      if (input.role !== "admin" && condominioIds.length === 0) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Informe ao menos um condomínio para este usuário." });
-      }
-
-      const insertResult = await db.insert(users).values({
-        openId,
-        name: input.name,
-        email: emailNormalizado,
-        passwordHash: hashedPassword,
-        loginMethod: "custom",
-        role: input.role,
-        condominioId: condominioPrincipalId,
-        isPrimaryAdmin: 0,
-        isActive: input.isActive ?? 1,
-      });
-      const userId = Number((insertResult as { insertId?: number }).insertId);
-      try {
-        await substituirVinculosDeCondominio(userId, condominioIds, condominioPrincipalId);
-      } catch (error) {
-        await db.delete(users).where(eq(users.id, userId));
-        throw error;
-      }
-      await logAudit(ctx, { action: "create", entity: "user", entityId: String(userId), entityLabel: input.name, condominioId: condominioPrincipalId ?? undefined, afterData: { name: input.name, email: emailNormalizado, role: input.role, isActive: input.isActive ?? 1, condominioIds }, severity: "info" });
-      return insertResult;
+      const { criarUsuarioComEscopo } = await import("./user-escopo-management");
+      return criarUsuarioComEscopo(db, ctx.user.id, input);
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
@@ -2424,97 +2393,30 @@ export const appRouter = router({
       email: z.string().trim().email().max(320).optional(),
       password: z.string().min(10).max(128).optional(),
       role: z.enum(["admin", "sindico", "cobrador", "colaborador", "advogado"]).optional(),
-      condominioId: z.number().optional(),
+      escopoCondominios: z.enum(["selecionados", "todos"]).optional(),
+      condominioId: z.number().int().positive().nullable().optional(),
       condominioIds: z.array(z.number().int().positive()).optional(),
-      isActive: z.number().optional(),
+      isActive: z.number().int().min(0).max(1).optional(),
     })).mutation(async ({ input, ctx }) => {
-      const { id, password, condominioId, condominioIds: condominioIdsInput, ...data } = input;
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      const { users } = await import("../drizzle/schema");
-      const { eq, and, count } = await import("drizzle-orm");
-      const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
-      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
-      if (target.isDeleted === 1) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Restaure o usuário antes de editá-lo" });
-
-      const { validarSenhaDeUsuario, motivoBloqueioDesativacao } = await import("./user-management-security");
-      if (password) {
-        const erroSenha = validarSenhaDeUsuario(password);
-        if (erroSenha) throw new TRPCError({ code: "BAD_REQUEST", message: erroSenha });
-      }
-      const removendoAdminOuDesativando = (target.role === "admin" && input.role && input.role !== "admin") || input.isActive === 0;
-      if (removendoAdminOuDesativando) {
-        const [admins] = await db.select({ total: count() }).from(users).where(and(eq(users.role, "admin"), eq(users.isActive, 1), eq(users.isDeleted, 0)));
-        const bloqueio = motivoBloqueioDesativacao({ actorId: ctx.user.id, targetId: target.id, targetIsPrimary: target.isPrimaryAdmin === 1, targetRole: target.role, targetIsActive: target.isActive === 1, totalAdminsAtivos: admins.total ?? 0 });
-        if (bloqueio) throw new TRPCError({ code: "PRECONDITION_FAILED", message: bloqueio });
-      }
-
-      const updateData: any = { ...data };
-      const papelEfetivo = input.role ?? target.role;
-      const { validarCondominiosAtivos, substituirVinculosDeCondominio } = await import("./tenant-guard");
-      const deveAtualizarVinculos = condominioIdsInput !== undefined || condominioId !== undefined;
-      let condominioIdsEfetivos: number[] | undefined;
-      let condominioPrincipalEfetivo: number | null = target.condominioId ?? null;
-      if (deveAtualizarVinculos) {
-        const candidatos = condominioIdsInput ?? (condominioId ? [condominioId] : []);
-        condominioIdsEfetivos = await validarCondominiosAtivos(candidatos);
-        condominioPrincipalEfetivo = condominioId ?? condominioIdsEfetivos[0] ?? null;
-        if (papelEfetivo !== "admin" && condominioIdsEfetivos.length === 0) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "Informe ao menos um condomínio para este usuário." });
-        }
-        if (condominioPrincipalEfetivo !== null && !condominioIdsEfetivos.includes(condominioPrincipalEfetivo)) {
-          throw new TRPCError({ code: "BAD_REQUEST", message: "O condomínio principal deve constar entre os vínculos autorizados." });
-        }
-        updateData.condominioId = condominioPrincipalEfetivo;
-      }
-      if (input.email && input.email.toLowerCase() !== (target.email ?? "").toLowerCase()) {
-        const duplicado = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email.toLowerCase())).limit(1);
-        if (duplicado.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe um usuário com este e-mail" });
-        updateData.email = input.email.toLowerCase();
-      }
-      if (password) {
-        const bcrypt = await import("bcryptjs");
-        updateData.passwordHash = await bcrypt.default.hash(password, 10);
-      }
-
-      await db.update(users).set(updateData).where(eq(users.id, id));
-      if (condominioIdsEfetivos !== undefined) {
-        await substituirVinculosDeCondominio(id, condominioIdsEfetivos, condominioPrincipalEfetivo);
-      }
-      await logAudit(ctx, { action: "update", entity: "user", entityId: String(id), entityLabel: target.name ?? undefined, condominioId: condominioPrincipalEfetivo ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isPrimaryAdmin: target.isPrimaryAdmin }, afterData: { name: updateData.name ?? target.name, email: updateData.email ?? target.email, role: updateData.role ?? target.role, isActive: updateData.isActive ?? target.isActive, isPrimaryAdmin: target.isPrimaryAdmin, condominioIds: condominioIdsEfetivos }, severity: "info" });
-      return { success: true };
+      const { atualizarUsuarioComEscopo } = await import("./user-escopo-management");
+      return atualizarUsuarioComEscopo(db, ctx.user.id, input);
     }),
     delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      const { users } = await import("../drizzle/schema");
-      const { eq, and, count } = await import("drizzle-orm");
-      const [target] = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
-      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
-      if (target.isDeleted === 1) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Este usuário já está excluído logicamente" });
-      const [admins] = await db.select({ total: count() }).from(users).where(and(eq(users.role, "admin"), eq(users.isActive, 1), eq(users.isDeleted, 0)));
-      const { motivoBloqueioDesativacao } = await import("./user-management-security");
-      const bloqueio = motivoBloqueioDesativacao({ actorId: ctx.user.id, targetId: target.id, targetIsPrimary: target.isPrimaryAdmin === 1, targetRole: target.role, targetIsActive: target.isActive === 1, totalAdminsAtivos: admins.total ?? 0 });
-      if (bloqueio) throw new TRPCError({ code: "PRECONDITION_FAILED", message: bloqueio });
-
-      await db.update(users).set({ isActive: 0, isDeleted: 1, isPrimaryAdmin: 0 }).where(eq(users.id, input.id));
-      await logAudit(ctx, { action: "delete", entity: "user", entityId: String(input.id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { name: target.name, email: target.email, role: target.role, isActive: target.isActive, isDeleted: target.isDeleted }, afterData: { isActive: 0, isDeleted: 1, motivo: "Exclusão lógica administrativa" }, severity: "warning" });
-      return { success: true, softDeleted: true };
+      const { excluirUsuarioComEscopo } = await import("./user-escopo-management");
+      return excluirUsuarioComEscopo(db, ctx.user.id, input.id);
     }),
     restore: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database not available");
-      const { users } = await import("../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const [target] = await db.select().from(users).where(eq(users.id, input.id)).limit(1);
-      if (!target) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado" });
-      if (target.isDeleted !== 1) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Este usuário não está excluído" });
-      await db.update(users).set({ isDeleted: 0, isActive: 0, isPrimaryAdmin: 0 }).where(eq(users.id, input.id));
-      await logAudit(ctx, { action: "update", entity: "user", entityId: String(input.id), entityLabel: target.name ?? undefined, condominioId: target.condominioId ?? undefined, beforeData: { isDeleted: 1, isActive: target.isActive }, afterData: { isDeleted: 0, isActive: 0, motivo: "Usuário restaurado como inativo" }, severity: "warning" });
-      return { success: true, restored: true, isActive: 0 };
+      const { restaurarUsuarioComEscopo } = await import("./user-escopo-management");
+      return restaurarUsuarioComEscopo(db, ctx.user.id, input.id);
     }),
   }),
 
@@ -2547,9 +2449,10 @@ export const appRouter = router({
       resultadoContato: z.array(z.enum(["sem_resposta", "promessa_pagamento", "deseja_acordo", "recusa", "outro"])).optional(),
       tipoContato: z.array(z.enum(["telefone", "email", "pessoal", "whatsapp", "sistema"])).optional(),
       responsavelId: z.number().int().positive().optional(),
-    })).query(async ({ input }) => {
-      const { getRelatorioCobranca } = await import("./db-relatorios-extra");
-      return await getRelatorioCobranca(input);
+    })).query(async ({ input, ctx }) => {
+      const { getRelatorioCobranca, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
+      return carteira ? getRelatorioCobranca(input, carteira) : getRelatorioCobranca(input);
     }),
     inadimplencia: protectedProcedure.input(z.object({
       dataInicio: z.string().optional(),
@@ -2562,42 +2465,47 @@ export const appRouter = router({
       honorariosPerc: z.number().min(0).max(100).optional(), // % adicional de honorários
       custasJudiciais: z.number().min(0).optional(), // R$ em centavos
       outrasDespesas: z.number().min(0).optional(), // R$ em centavos
-    })).query(async ({ input }) => {
-      const { getRelatorioInadimplenciaCompleto } = await import("./db-relatorios-extra");
-      return await getRelatorioInadimplenciaCompleto(input);
+    })).query(async ({ input, ctx }) => {
+      const { getRelatorioInadimplenciaCompleto, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
+      return carteira ? getRelatorioInadimplenciaCompleto(input, carteira) : getRelatorioInadimplenciaCompleto(input);
     }),
     acordosPeriodo: protectedProcedure.input(z.object({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
-    })).query(async ({ input }) => {
-      const { getRelatorioAcordos } = await import("./db-relatorios-extra");
-      return await getRelatorioAcordos(input);
+    })).query(async ({ input, ctx }) => {
+      const { getRelatorioAcordos, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
+      return carteira ? getRelatorioAcordos(input, undefined, carteira) : getRelatorioAcordos(input);
     }),
     extrato: protectedProcedure.input(z.object({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
       devedorId: z.number().int().positive().optional(),
-    })).query(async ({ input }) => {
-      const { getRelatorioExtrato } = await import("./db-relatorios-extra");
-      return await getRelatorioExtrato(input);
+    })).query(async ({ input, ctx }) => {
+      const { getRelatorioExtrato, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
+      return carteira ? getRelatorioExtrato(input, undefined, carteira) : getRelatorioExtrato(input);
     }),
     recuperacao: protectedProcedure.input(z.object({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
-    })).query(async ({ input }) => {
-      const { getRelatorioRecuperacao } = await import("./db-relatorios-extra");
-      return await getRelatorioRecuperacao(input);
+    })).query(async ({ input, ctx }) => {
+      const { getRelatorioRecuperacao, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
+      return carteira ? getRelatorioRecuperacao(input, undefined, carteira) : getRelatorioRecuperacao(input);
     }),
     acordosDetalhado: protectedProcedure.input(z.object({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
-    })).query(async ({ input }) => {
-      const { getRelatorioAcordosDetalhado } = await import("./db-relatorios-extra");
-      return await getRelatorioAcordosDetalhado(input);
+    })).query(async ({ input, ctx }) => {
+      const { getRelatorioAcordosDetalhado, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
+      return carteira ? getRelatorioAcordosDetalhado(input, carteira) : getRelatorioAcordosDetalhado(input);
     }),
 
     gerarPDFAcordos: protectedProcedure.input(z.object({
@@ -2605,17 +2513,18 @@ export const appRouter = router({
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
     })).mutation(async ({ input, ctx }) => {
-      const { getRelatorioAcordosDetalhado } = await import("./db-relatorios-extra");
+      const { getRelatorioAcordosDetalhado, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
       const { gerarRelatorioAcordosPDF } = await import("./relatorio-acordos-pdf");
       const { storagePut } = await import("./storage");
       const { getDb } = await import("./db");
       const { condominios } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
 
-      const data = await getRelatorioAcordosDetalhado(input);
+      const data = carteira ? await getRelatorioAcordosDetalhado(input, carteira) : await getRelatorioAcordosDetalhado(input);
 
       // Montar label do condomínio
-      let nomeCondominio = "Todos os condomínios";
+      let nomeCondominio = carteira ? "Condomínios ativos autorizados" : "Todos os condomínios";
       if (input.condominioId) {
         const db = await getDb();
         if (db) {
@@ -2645,17 +2554,18 @@ export const appRouter = router({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
-    })).mutation(async ({ input }) => {
-      const { getRelatorioExtrato } = await import("./db-relatorios-extra");
+    })).mutation(async ({ input, ctx }) => {
+      const { getRelatorioExtrato, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
       const { gerarRelatorioExtratoPDF } = await import("./relatorio-extrato-pdf");
       const { storagePut } = await import("./storage");
       const { getDb } = await import("./db");
       const { condominios } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
 
-      const data = await getRelatorioExtrato(input);
+      const data = carteira ? await getRelatorioExtrato(input, undefined, carteira) : await getRelatorioExtrato(input);
 
-      let nomeCondominio = "Todos os condomínios";
+      let nomeCondominio = carteira ? "Condomínios ativos autorizados" : "Todos os condomínios";
       if (input.condominioId) {
         const db = await getDb();
         if (db) {
@@ -2686,17 +2596,18 @@ export const appRouter = router({
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
       condominioId: z.number().int().positive().optional(),
-    })).mutation(async ({ input }) => {
-      const { getRelatorioRecuperacao } = await import("./db-relatorios-extra");
+    })).mutation(async ({ input, ctx }) => {
+      const { getRelatorioRecuperacao, prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
       const { gerarRelatorioRecuperacaoPDF } = await import("./relatorio-recuperacao-pdf");
       const { storagePut } = await import("./storage");
       const { getDb } = await import("./db");
       const { condominios } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
 
-      const data = await getRelatorioRecuperacao(input);
+      const data = carteira ? await getRelatorioRecuperacao(input, undefined, carteira) : await getRelatorioRecuperacao(input);
 
-      let nomeCondominio = "Todos os condomínios";
+      let nomeCondominio = carteira ? "Condomínios ativos autorizados" : "Todos os condomínios";
       if (input.condominioId) {
         const db = await getDb();
         if (db) {
@@ -2726,9 +2637,11 @@ export const appRouter = router({
     // ─── Relatório de Cobrança (Produtividade detalhada) ─────────────────────
     listarUnidades: protectedProcedure.input(z.object({
       condominioId: z.number().int().positive().optional(),
-    })).query(async ({ input }) => {
+    })).query(async ({ input, ctx }) => {
       const { getUnidadesByCondominio } = await import("./db-relatorios");
-      return await getUnidadesByCondominio(input.condominioId);
+      const { prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
+      return carteira ? getUnidadesByCondominio(input.condominioId, carteira) : getUnidadesByCondominio(input.condominioId);
     }),
 
     relatorioCobranca: adminProcedure.input(z.object({
@@ -3028,12 +2941,13 @@ export const appRouter = router({
     })).mutation(async ({ ctx, input }) => {
       const { exportDevedores } = await import("./excel-export");
       const { getDevedoresByCondominio } = await import("./db-devedores");
+      const { prepararCondominioExportacao } = await import("./db-relatorios-extra");
+      const condominioId = await prepararCondominioExportacao(ctx.user, input.condominioId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
       const { condominios } = await import("../drizzle/schema");
       
-      const condominioId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId;
       if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
       
       const devedores = await getDevedoresByCondominio(condominioId);
@@ -3053,12 +2967,13 @@ export const appRouter = router({
       const { exportCobrancas } = await import("./excel-export");
       const { getCobrancasByCondominio } = await import("./db-cobrancas");
       const { getDevedoresByCondominio } = await import("./db-devedores");
+      const { prepararCondominioExportacao } = await import("./db-relatorios-extra");
+      const condominioId = await prepararCondominioExportacao(ctx.user, input.condominioId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
       const { condominios } = await import("../drizzle/schema");
       
-      const condominioId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId;
       if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
       
       const cobrancas = await getCobrancasByCondominio(condominioId);
@@ -3079,12 +2994,13 @@ export const appRouter = router({
       const { exportAcordos } = await import("./excel-export");
       const { getAcordosByCondominio } = await import("./db-acordos");
       const { getDevedoresByCondominio } = await import("./db-devedores");
+      const { prepararCondominioExportacao } = await import("./db-relatorios-extra");
+      const condominioId = await prepararCondominioExportacao(ctx.user, input.condominioId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
       const { condominios } = await import("../drizzle/schema");
       
-      const condominioId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId;
       if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
       
       const acordos = await getAcordosByCondominio(condominioId);
@@ -3105,12 +3021,13 @@ export const appRouter = router({
       const { exportTentativas } = await import("./excel-export");
       const { getTentativasByCondominio } = await import("./db-tentativas");
       const { getDevedorById } = await import("./db-devedores");
+      const { prepararCondominioExportacao } = await import("./db-relatorios-extra");
+      const condominioId = await prepararCondominioExportacao(ctx.user, input.condominioId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
       const { users } = await import("../drizzle/schema");
       
-      const condominioId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId;
       if (!condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
       
       const tentativas = await getTentativasByCondominio(condominioId);
@@ -3139,11 +3056,13 @@ export const appRouter = router({
       condominioId: z.number().optional(),
     })).mutation(async ({ ctx, input }) => {
       const { exportVencimentos } = await import("./excel-export");
+      const { prepararFiltroRelatorio } = await import("./db-relatorios-extra");
+      const carteira = await prepararFiltroRelatorio(ctx.user, input);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       
       const { parcelasAcordo, acordos, devedores, condominios } = await import("../drizzle/schema");
-      const { eq, and, gte, lte } = await import("drizzle-orm");
+      const { eq, and, gte, lte, inArray } = await import("drizzle-orm");
       
       const hoje = new Date();
       const dataLimite = new Date();
@@ -3157,7 +3076,10 @@ export const appRouter = router({
         lte(parcelasAcordo.dueDate, dataLimite),
       ];
       
-      if (condominioId) {
+      if (carteira) {
+        conditions.push(inArray(devedores.condominioId, carteira.condominioIds));
+        conditions.push(inArray(acordos.condominioId, carteira.condominioIds));
+      } else if (condominioId) {
         conditions.push(eq(devedores.condominioId, condominioId));
       }
       
@@ -3431,15 +3353,15 @@ export const appRouter = router({
       }),
 
     // ---- Configuração de Boleto por condomínio (beneficiário: nome, CNPJ, endereço, PIX) ----
-    getConfiguracaoBoleto: condominioAccessProcedure
+    getConfiguracaoBoleto: protectedProcedure
       .input(z.object({ condominioId: z.number() }))
       .query(async ({ input, ctx }) => {
-        const condId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+        const condId = await (await import("./escopo-documentos-consumidores")).resolverCondominioDocumento(ctx.user, input.condominioId, true);
         const { getConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         return await getConfiguracaoBoleto(condId);
       }),
 
-    salvarConfiguracaoBoleto: condominioAccessProcedure
+    salvarConfiguracaoBoleto: protectedProcedure
       .input(z.object({
         condominioId: z.number(),
         // Portador
@@ -3483,7 +3405,7 @@ export const appRouter = router({
         despesaPercentual: z.string().default("0.00"),
       }))
       .mutation(async ({ input, ctx }) => {
-        const condId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+        const condId = await (await import("./escopo-documentos-consumidores")).resolverCondominioDocumento(ctx.user, input.condominioId, true);
         const { upsertConfiguracaoBoleto } = await import("./db-configuracao-boleto");
         const { condominioId: _cid, ...data } = input;
         return await upsertConfiguracaoBoleto(condId, data);
@@ -3495,7 +3417,8 @@ export const appRouter = router({
         cobrancaIds: z.array(z.number()).min(1),
         remessaId: z.number().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await (await import("./escopo-documentos-consumidores")).validarEnvioDocumentos(ctx.user, input.cobrancaIds, input.remessaId);
         const db = await import("./db").then(m => m.getDb());
         if (!db) throw new Error("Database not available");
         const { inArray } = await import("drizzle-orm");
@@ -3520,6 +3443,7 @@ export const appRouter = router({
         mimeType: z.string().default("application/pdf"),
       }))
       .mutation(async ({ input, ctx }) => {
+        await (await import("./escopo-documentos-consumidores")).validarCobrancaDocumento(ctx.user, input.cobrancaId, input.condominioId);
         const { storagePut } = await import("./storage");
         const { boletosUpload } = await import("../drizzle/schema");
         const db = await import("./db").then(m => m.getDb());
@@ -3546,23 +3470,25 @@ export const appRouter = router({
     // Listar boletos de uma cobrança
     listarBoletos: protectedProcedure
       .input(z.object({ cobrancaId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const cobrancaAutorizada = await (await import("./escopo-documentos-consumidores")).validarCobrancaDocumento(ctx.user, input.cobrancaId);
         const db = await import("./db").then(m => m.getDb());
         if (!db) return [];
-        const { eq, desc } = await import("drizzle-orm");
+        const { eq, desc, and } = await import("drizzle-orm");
         const { boletosUpload } = await import("../drizzle/schema");
         return db.select().from(boletosUpload)
-          .where(eq(boletosUpload.cobrancaId, input.cobrancaId))
+          .where(and(eq(boletosUpload.cobrancaId, input.cobrancaId), cobrancaAutorizada ? eq(boletosUpload.condominioId, cobrancaAutorizada.condominioId) : undefined))
           .orderBy(desc(boletosUpload.createdAt));
       }),
 
     // Listar todos os boletos de um devedor (join com cobranças)
     listarBoletosPorDevedor: protectedProcedure
       .input(z.object({ devedorId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        const devedorAutorizado = await (await import("./escopo-documentos-consumidores")).validarDevedorDocumento(ctx.user, input.devedorId);
         const db = await import("./db").then(m => m.getDb());
         if (!db) return [];
-        const { eq, desc } = await import("drizzle-orm");
+        const { eq, desc, and } = await import("drizzle-orm");
         const { boletosUpload, cobrancas } = await import("../drizzle/schema");
         // Buscar cobranças do devedor
         const cobsDoDevedor = await db.select({
@@ -3574,13 +3500,13 @@ export const appRouter = router({
           monthReference: cobrancas.monthReference,
           tipoCobranca: cobrancas.tipoCobranca,
         }).from(cobrancas)
-          .where(eq(cobrancas.devedorId, input.devedorId));
+          .where(and(eq(cobrancas.devedorId, input.devedorId), devedorAutorizado ? eq(cobrancas.condominioId, devedorAutorizado.condominioId) : undefined));
         if (cobsDoDevedor.length === 0) return [];
         const cobrancaIds = cobsDoDevedor.map(c => c.id);
         // Buscar boletos dessas cobranças
         const { inArray } = await import("drizzle-orm");
         const boletos = await db.select().from(boletosUpload)
-          .where(inArray(boletosUpload.cobrancaId, cobrancaIds))
+          .where(and(inArray(boletosUpload.cobrancaId, cobrancaIds), devedorAutorizado ? eq(boletosUpload.condominioId, devedorAutorizado.condominioId) : undefined))
           .orderBy(desc(boletosUpload.createdAt));
         // Enriquecer com dados da cobrança
         const cobsMap = new Map(cobsDoDevedor.map(c => [c.id, c]));
@@ -3593,7 +3519,8 @@ export const appRouter = router({
     // Deletar boleto
     deletarBoleto: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await (await import("./escopo-documentos-consumidores")).validarBoletoDocumento(ctx.user, input.id);
         const db = await import("./db").then(m => m.getDb());
         if (!db) throw new Error("Database not available");
         const { eq } = await import("drizzle-orm");
@@ -3606,7 +3533,7 @@ export const appRouter = router({
       .input(z.object({ condominioId: z.number() }))
       .query(async ({ input, ctx }) => {
         const { listarRemessasCNAB } = await import("./db-cnab");
-        const condId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+        const condId = await (await import("./escopo-documentos-consumidores")).resolverCondominioDocumento(ctx.user, input.condominioId);
         return listarRemessasCNAB(condId);
       }),
 
@@ -3614,11 +3541,11 @@ export const appRouter = router({
       .input(z.object({ condominioId: z.number() }))
       .query(async ({ input, ctx }) => {
         const { listarRetornosCNAB } = await import("./db-cnab");
-        const condId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+        const condId = await (await import("./escopo-documentos-consumidores")).resolverCondominioDocumento(ctx.user, input.condominioId);
         return listarRetornosCNAB(condId);
       }),
 
-    gerarRemessa: condominioAccessProcedure
+    gerarRemessa: protectedProcedure
       .input(z.object({
         condominioId: z.number(),
         cobrancaIds: z.array(z.number()).min(1).max(1000),
@@ -3639,7 +3566,8 @@ export const appRouter = router({
         if (!db) throw new Error("Database not available");
         const { eq, and, inArray } = await import("drizzle-orm");
         const { cobrancas, devedores, condominios } = await import("../drizzle/schema");
-        const condId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+        const condId = await (await import("./escopo-documentos-consumidores")).resolverCondominioDocumento(ctx.user, input.condominioId, true);
+        await (await import("./escopo-documentos-consumidores")).validarEnvioDocumentos(ctx.user, input.cobrancaIds, undefined, condId);
 
         // Buscar configuracao global CNAB (dados bancarios do portador)
         const { getCnabConfigGlobal, cnabGlobalParaDadosBanco, gerarNomeArquivoRemessaGlobal, incrementarSequencialGlobal } = await import("./db-cnab-config-global");
@@ -3788,17 +3716,15 @@ export const appRouter = router({
         };
       }),
 
-    processarRetorno: condominioAccessProcedure
+    processarRetorno: protectedProcedure
       .input(z.object({
         condominioId: z.number().optional(), // opcional — 0 ou omitido = global
         nomeArquivo: z.string(),
         conteudo: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // condId = 0 significa global (todos os condomínios)
-        const condId = ctx.user.role === "admin"
-          ? (input.condominioId ?? 0)
-          : (ctx.user.condominioId ?? 0);
+        // Apenas o contrato legado admite sentinela 0; escopo explícito exige tenant ativo.
+        const condId = await (await import("./escopo-documentos-consumidores")).resolverCondominioRetornoDocumento(ctx.user, input.condominioId);
         const { parseRetornoCNAB240, determinarNovoStatus, isLiquidacaoParcialCNAB } = await import("./db-cnab-retorno");
         const { criarRetornoCNAB } = await import("./db-cnab");
         const { gerarPixCopiaCola } = await import("./pix-emv");
@@ -4078,14 +4004,14 @@ export const appRouter = router({
         };
       }),
 
-    listarItensRetorno: condominioAccessProcedure
+    listarItensRetorno: protectedProcedure
       .input(z.object({ retornoId: z.number(), condominioId: z.number() }))
       .query(async ({ input, ctx }) => {
         const db = await (await import("./db")).getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB indisponível" });
         const { retornoItens, retornosCNAB } = await import("../drizzle/schema");
         const { eq, and } = await import("drizzle-orm");
-        const condId = ["admin","advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId!;
+        const condId = await (await import("./escopo-documentos-consumidores")).resolverCondominioDocumento(ctx.user, input.condominioId, true);
 
         // Verificar que o retorno pertence ao condomínio
         const [retorno] = await db.select().from(retornosCNAB)
@@ -4106,12 +4032,14 @@ export const appRouter = router({
         const { retornoItens, retornosCNAB, cobrancas, devedores, retornoExcecaoRevisoes } = await import("../drizzle/schema");
         const { and, desc, eq, inArray } = await import("drizzle-orm");
         const { classificarExcecaoRetorno } = await import("./db-cnab");
+        const filtroCarteira = await (await import("./escopo-explicito")).prepararFiltroCarteira(ctx.user, input.condominioId);
         const adminPodeVerTodos = ["admin", "advogado"].includes(ctx.user.role) && !input.condominioId;
         const condominioId = adminPodeVerTodos ? undefined : (["admin", "advogado"].includes(ctx.user.role) ? input.condominioId : ctx.user.condominioId);
-        if (!adminPodeVerTodos && !condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
+        if (!filtroCarteira && !adminPodeVerTodos && !condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Condomínio não especificado" });
 
         const condicoes = [inArray(retornoItens.statusProcessamento, ["nao_encontrado", "erro"] as const)];
-        if (condominioId) condicoes.push(eq(retornosCNAB.condominioId, condominioId));
+        if (filtroCarteira) condicoes.push(inArray(retornosCNAB.condominioId, filtroCarteira.condominioIds));
+        else if (condominioId) condicoes.push(eq(retornosCNAB.condominioId, condominioId));
 
         const itens = await db.select({
           id: retornoItens.id,
@@ -4182,7 +4110,8 @@ export const appRouter = router({
           .where(eq(retornoItens.id, input.retornoItemId))
           .limit(1);
         if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Exceção não encontrada" });
-        if (!["admin", "advogado"].includes(ctx.user.role) && ctx.user.condominioId !== item.condominioId) {
+        const escopoValidado = await (await import("./escopo-documentos-consumidores")).validarTenantDocumentoExplicito(ctx.user, item.condominioId);
+        if (!escopoValidado && !["admin", "advogado"].includes(ctx.user.role) && ctx.user.condominioId !== item.condominioId) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para revisar esta exceção" });
         }
 
@@ -5454,18 +5383,17 @@ export const appRouter = router({
       .input(z.object({ condominioId: z.number().nullable().optional() }))
       .query(async ({ ctx, input }) => {
         const { listModelosByCondominio } = await import("./db-modelos");
+        const carteiraRows = await (await import("./escopo-documentos-consumidores")).listarModelosDocumentoExplicitos(ctx.user, input.condominioId);
         const condId = input?.condominioId ?? (ctx.user?.condominioId ?? null);
-        const rows = await listModelosByCondominio(condId);
+        const rows = carteiraRows ?? await listModelosByCondominio(condId);
         // Garantir que id seja number (não bigint) para serialização JSON correta
         return rows.map(r => ({ ...r, id: Number(r.id) }));
       }),
 
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        const { getModeloById } = await import("./db-modelos");
-        const modelo = await getModeloById(input.id);
-        if (!modelo) throw new TRPCError({ code: "NOT_FOUND", message: "Modelo não encontrado" });
+      .query(async ({ input, ctx }) => {
+        const modelo = await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.id);
         return modelo;
       }),
 
@@ -5490,9 +5418,10 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { createModelo } = await import("./db-modelos");
+        const condominioId = await (await import("./escopo-documentos-consumidores")).resolverCondominioCriacaoModelo(ctx.user, input.condominioId);
         const rawId = await createModelo({
           ...input,
-          condominioId: input.condominioId ?? ctx.user?.condominioId ?? null,
+          condominioId,
           createdBy: ctx.user?.id,
         });
         // Garantir que id seja number primitivo (não bigint) para serialização JSON
@@ -5519,7 +5448,8 @@ export const appRouter = router({
         margemDireita: z.number().optional(),
         canvasElements: z.string().nullable().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user)) await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.id);
         const { updateModelo } = await import("./db-modelos");
         const { id, ...data } = input;
         await updateModelo(id, data);
@@ -5528,7 +5458,8 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user)) await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.id);
         const { deleteModelo } = await import("./db-modelos");
         await deleteModelo(input.id);
         return { success: true };
@@ -5571,13 +5502,10 @@ export const appRouter = router({
           status: z.string().optional(),
         })).optional(),
       }))
-      .mutation(async ({ input }) => {
-        const { getModeloById } = await import("./db-modelos");
+      .mutation(async ({ input, ctx }) => {
+        const modelo = await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.modeloId);
         const { gerarPDFModelo, gerarHtmlTabelaParcelas } = await import("./modelo-pdf");
         const { storagePut } = await import("./storage");
-
-        const modelo = await getModeloById(input.modeloId);
-        if (!modelo) throw new TRPCError({ code: "NOT_FOUND", message: "Modelo não encontrado" });
 
         // Adicionar data atual nas variáveis se não fornecida
         const agora = new Date();
@@ -5632,7 +5560,8 @@ export const appRouter = router({
     // ─── Gerenciamento de Anexos ────────────────────────────────────────────
     listAnexos: protectedProcedure
       .input(z.object({ modeloId: z.number() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        if (await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user)) await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.modeloId);
         const { listAnexosByModelo } = await import("./db-modelos");
         const rows = await listAnexosByModelo(input.modeloId);
         return rows.map(r => ({ ...r, id: Number(r.id), modeloId: Number(r.modeloId) }));
@@ -5650,6 +5579,7 @@ export const appRouter = router({
         ordem: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        if (await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user)) await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.modeloId);
         const { storagePut } = await import("./storage");
         const { createAnexo, listAnexosByModelo } = await import("./db-modelos");
         const buffer = Buffer.from(input.base64, "base64");
@@ -5682,7 +5612,8 @@ export const appRouter = router({
         alinhamento: z.enum(["esquerda","centro","direita"]).optional(),
         ordem: z.number().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await (await import("./escopo-documentos-consumidores")).validarAnexoDocumento(ctx.user, input.id);
         const { updateAnexo } = await import("./db-modelos");
         const { id, ...data } = input;
         await updateAnexo(id, data);
@@ -5691,7 +5622,8 @@ export const appRouter = router({
 
     deleteAnexo: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        await (await import("./escopo-documentos-consumidores")).validarAnexoDocumento(ctx.user, input.id);
         const { deleteAnexo } = await import("./db-modelos");
         await deleteAnexo(input.id);
         return { success: true };
@@ -5702,7 +5634,8 @@ export const appRouter = router({
         modeloId: z.number(),
         ids: z.array(z.number()), // IDs na nova ordem
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        if (await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user)) await (await import("./escopo-documentos-consumidores")).validarOrdemAnexosDocumento(ctx.user, input.modeloId, input.ids);
         const { reordenarAnexos } = await import("./db-modelos");
         await reordenarAnexos(input.modeloId, input.ids);
         return { success: true };
@@ -5716,6 +5649,13 @@ export const appRouter = router({
       .input(z.object({ condominioId: z.number().optional() }))
       .query(async ({ input, ctx }) => {
         const { getAllTickets, getTicketsByCondominio } = await import("./db-juridico");
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          if (input.condominioId != null) await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, input.condominioId);
+          const ids = input.condominioId != null ? [input.condominioId] : carteira.ids;
+          const tickets = (await Promise.all(ids.map(id => getTicketsByCondominio(id)))).flat();
+          return tickets.map((t) => ({ ...t, id: Number(t.id) }));
+        }
         if (ctx.user.role === "admin") {
           const tickets = await getAllTickets();
           return tickets.map((t) => ({ ...t, id: Number(t.id) }));
@@ -5733,7 +5673,10 @@ export const appRouter = router({
         const ticket = await getTicketById(input.id);
         if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
         // Sindico só pode ver tickets do seu condomínio
-        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, ticket.condominioId);
+        } else if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         return { ...ticket, id: Number(ticket.id) };
@@ -5741,13 +5684,18 @@ export const appRouter = router({
 
     createTicket: requirePermission("juridico_demandas", "criar")
       .input(z.object({
+        condominioId: z.number().int().positive().optional(),
         titulo: z.string().min(3).max(255),
         descricao: z.string().min(10),
         categoria: z.enum(["consultoria", "notificacao", "acao_judicial", "cobranca_judicial", "assembleia", "contrato", "outro"]),
         prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
       }))
       .mutation(async ({ input, ctx }) => {
-        const condominioId = ctx.user.condominioId;
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        const condominioId = carteira
+          ? await (await import("./tenant-guard")).resolveCondominioEfetivo(carteira.actor, input.condominioId)
+          : ctx.user.condominioId;
+        if (carteira && !condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe um condomínio ativo autorizado." });
         if (!condominioId && ctx.user.role !== "admin") {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Usuário não vinculado a um condomínio" });
         }
@@ -5808,7 +5756,10 @@ export const appRouter = router({
         const { getTicketById, updateTicket, createMensagem } = await import("./db-juridico");
         const ticket = await getTicketById(input.id);
         if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
-        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, ticket.condominioId);
+        } else if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         const { id, ...data } = input;
@@ -5860,7 +5811,10 @@ export const appRouter = router({
         const { getTicketById, getMensagensByTicket } = await import("./db-juridico");
         const ticket = await getTicketById(input.ticketId);
         if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
-        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, ticket.condominioId);
+        } else if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         return getMensagensByTicket(input.ticketId);
@@ -5880,7 +5834,10 @@ export const appRouter = router({
         const { getTicketById, createMensagem } = await import("./db-juridico");
         const ticket = await getTicketById(input.ticketId);
         if (!ticket) throw new TRPCError({ code: "NOT_FOUND" });
-        if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, ticket.condominioId);
+        } else if (ctx.user.role !== "admin" && ticket.condominioId !== ctx.user.condominioId) {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         const tipoAutor: "cliente" | "escritorio" = ctx.user.role === "admin" ? "escritorio" : "cliente";
@@ -7575,15 +7532,28 @@ export const appRouter = router({
         condominioId: z.number().int().positive().optional(),
         status: z.string().optional(),
       }).optional())
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const { getAssembleias } = await import("./db-demandas");
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          if (input?.condominioId) await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, input.condominioId);
+          const ids = input?.condominioId ? [input.condominioId] : carteira.ids;
+          const rows = (await Promise.all(ids.map(condominioId => getAssembleias({ ...input, condominioId })))).flat();
+          return rows.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+        }
         return getAssembleias(input);
       }),
     getAssembleiaById: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const { getAssembleiaById } = await import("./db-demandas");
-        return getAssembleiaById(input.id);
+        const assembleia = await getAssembleiaById(input.id);
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          if (!assembleia?.condominioId) throw new TRPCError({ code: "NOT_FOUND", message: "Assembleia não encontrada" });
+          await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, assembleia.condominioId);
+        }
+        return assembleia;
       }),
     createAssembleia: protectedProcedure
       .input(z.object({
@@ -7598,8 +7568,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const { createAssembleia } = await import("./db-demandas");
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        const condominioId = carteira
+          ? await (await import("./tenant-guard")).resolveCondominioEfetivo(carteira.actor, input.condominioId ?? undefined)
+          : input.condominioId;
+        if (carteira && !condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe um condomínio ativo autorizado." });
         await createAssembleia({
           ...input,
+          condominioId,
           data: new Date(input.data),
           criadoPorId: ctx.user.id,
         });
@@ -7621,8 +7597,17 @@ export const appRouter = router({
         observacoes: z.string().optional(),
         condominioId: z.number().int().positive().optional().nullable(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { updateAssembleia } = await import("./db-demandas");
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          const assembleia = await (await import("./db-demandas")).getAssembleiaById(input.id);
+          if (!assembleia?.condominioId) throw new TRPCError({ code: "NOT_FOUND", message: "Assembleia não encontrada" });
+          const { assertCondominioAccess } = await import("./tenant-guard");
+          await assertCondominioAccess(carteira.actor, assembleia.condominioId);
+          if (input.condominioId === null) throw new TRPCError({ code: "FORBIDDEN", message: "Assembleia deve possuir condomínio autorizado." });
+          if (input.condominioId !== undefined) await assertCondominioAccess(carteira.actor, input.condominioId);
+        }
         const { id, data, ...rest } = input;
         await updateAssembleia(id, {
           ...rest,
@@ -7632,8 +7617,14 @@ export const appRouter = router({
       }),
     deleteAssembleia: protectedProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { deleteAssembleia } = await import("./db-demandas");
+        const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(ctx.user);
+        if (carteira) {
+          const assembleia = await (await import("./db-demandas")).getAssembleiaById(input.id);
+          if (!assembleia?.condominioId) throw new TRPCError({ code: "NOT_FOUND", message: "Assembleia não encontrada" });
+          await (await import("./tenant-guard")).assertCondominioAccess(carteira.actor, assembleia.condominioId);
+        }
         await deleteAssembleia(input.id);
         return { success: true };
       }),

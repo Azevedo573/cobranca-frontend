@@ -18,6 +18,13 @@ export async function getDb() {
   return _db;
 }
 
+/** Refresh de sessão existente: nunca provisiona usuário nem reatribui role por openId. */
+export async function refreshUserLastSignedIn(userId: number, signedInAt = new Date()): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable for session refresh");
+  await db.update(users).set({ lastSignedIn: signedInAt }).where(eq(users.id, userId));
+}
+
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) {
     throw new Error("User openId is required for upsert");

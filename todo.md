@@ -3135,3 +3135,16 @@ Registro: docs/ocorrencias/OCORRENCIA-boleto-remover-destaque-valor-2026-11-09.m
 Registro: docs/ocorrencias/OCORRENCIA-boleto-origem-completa-paginada-2026-11-09.md. Sem banco/BTG real, alterações de dependências/schemas/telas/RBAC, Central Jurídica ou deploy nesta etapa. PDFs antigos preservados; plano de parcelas completo permanece no demonstrativo.
 
 Manual de execução e reversão: docs/deploy-boleto-origem-completa-vps.md. Roteiro recuperável pelo GitHub: scripts/deploy-boleto-origem-vps.sh; não avança para ponta móvel da main e não instala dependências.
+
+## Evolução — alcance dos profissionais por condomínios (10/11/2026)
+- [x] Aprovação às 11:41 apenas Advogado/Colaborador interno: todos ativos atuais/futuros ou selecionados; Cobrador/Síndico mantidos, admin separado, antigos NULL preservados e sem concessão real em lote.
+- [x] Registrar spec/plano antes do código; guard RED 12 falhas/7 aprovações em 19 cenários iniciais, seguido de implementação fresca por ID/role/estado/escopo e sentinela administrativa só do admin válido.
+- [x] Gerar/revisar/aplicar somente migration0104 no desenvolvimento: campo enum nullable users.escopoCondominios, sem backfill/default não nulo. Provisionador seletivo/idempotente e 13 testes sintéticos, não executado na VPS.
+- [x] Cadastro/edição/escopo/vínculos/auditoria em transação única, admin atual/último admin/rollback/softdelete/restore mantidos; 44 testes novos. Tela diferenciada com duas escolhas/confirmações/legado/dirty/hidratação/caches e 52 testes novos.
+- [x] Revisar e integrar cinco famílias de consumidores com guards/filtros explícitos antes de SELECT/LIMIT/efeitos: 64 financeiros, 34 Jurídico, 56 relatórios, 53 documentos e 31 identidade. Tarefas pessoais/RBAC/admin financeiro não ampliados pelo alcance; NULL mantém contratos históricos.
+- [x] Inspecionar UserForm real com pessoas/condomínios fictícios e link tRPC local; Advogado global/restrito e callback Colaborador todos com principal null/IDs vazios. Entrada main restaurada byte a byte e fixture removida, sem request de cadastro real.
+- [x] TypeScript/build integrados aprovados; dependências e migrations antigas intactas; sem credenciais/VPS/BTG real alterados.
+- [x] Concluir suíte final serial: 134 arquivos/3.011 testes aprovados, um BTG externo opt-in ignorado e nenhum erro não tratado; 371 novos testes. Oito arquivos de fixtures e fixture compartilhada adaptados sem remover guards/expectativas. Documentação/evidências/reversão prontas para checkpoint.
+- [ ] Atualizar VPS por implantação/provisionamento seletivos autorizados separadamente e homologar pessoas/perfis reais; não inclui migração0098 Jurídica, alterações financeiras ou grants em lote.
+
+Registros: docs/specs/SPEC-usuarios-escopo-condominios-2026-11-10.md, docs/ocorrencias/OCORRENCIA-usuarios-escopo-condominios-2026-11-10.md e tasks/plan-usuarios-escopo-condominios.md. URLs públicas antigas podem não ser revogáveis; não se promete correção retroativa de bypasses NULL. VPS permanece b1da399e confirmado.

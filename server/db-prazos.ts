@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { eq, and, desc, asc, lte } from "drizzle-orm";
+import { eq, and, desc, asc, lte, inArray } from "drizzle-orm";
 import {
   prazosJuridicos,
   PrazoJuridico,
@@ -29,6 +29,8 @@ export function calcularUrgencia(dataLimite: Date): UrgenciaPrazo {
 
 export interface FiltrosPrazo {
   condominioId?: number;
+  /** Somente servidor: [] não concede acesso global. */
+  condominioIds?: number[];
   processoId?: number;
   demandaId?: number;
   responsavelId?: number;
@@ -37,11 +39,15 @@ export interface FiltrosPrazo {
 }
 
 export async function getPrazos(filtros: FiltrosPrazo = {}): Promise<PrazoJuridico[]> {
+  if (filtros.condominioIds?.length === 0) return [];
   const db = await getDb();
   if (!db) return [];
 
   const conditions = [];
 
+  if (filtros.condominioIds) {
+    conditions.push(inArray(prazosJuridicos.condominioId, filtros.condominioIds));
+  }
   if (filtros.condominioId) {
     conditions.push(eq(prazosJuridicos.condominioId, filtros.condominioId));
   }
@@ -112,11 +118,9 @@ export async function deletePrazo(id: number): Promise<boolean> {
 
 // ─── Resumo e dashboard ───────────────────────────────────────────────────────
 
-export async function getResumoPrazos(condominioId?: number) {
+export async function getResumoPrazos(condominioId?: number, carteira?: { condominioIds: number[] }) {
   const pendentes = await getPrazos(
-    condominioId
-      ? { condominioId, status: "pendente" }
-      : { status: "pendente" }
+    { ...(condominioId ? { condominioId } : {}), ...carteira, status: "pendente" }
   );
 
   let atrasados = 0;

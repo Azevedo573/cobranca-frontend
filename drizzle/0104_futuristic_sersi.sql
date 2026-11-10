@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `escopoCondominios` enum('selecionados','todos');

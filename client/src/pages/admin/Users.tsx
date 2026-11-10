@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
+import { isScopeEligible, userScopeLabel } from "@/lib/user-form-escopo";
 import {
   Users as UsersIcon,
   Plus,
@@ -298,7 +299,7 @@ export default function Users() {
                       <TableHead>Nome</TableHead>
                       <TableHead>E-mail / Login</TableHead>
                       <TableHead>Perfil</TableHead>
-                      <TableHead>Condomínio</TableHead>
+                      <TableHead>Acesso aos condomínios / principal</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -322,7 +323,17 @@ export default function Users() {
                         </TableCell>
                         <TableCell className="font-mono text-sm">{u.email || "-"}</TableCell>
                         <TableCell>{getRoleBadge(u.role)}</TableCell>
-                        <TableCell>{getCondominioName(u.condominioId)}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <Badge variant="outline" className={isScopeEligible(u.role) && u.escopoCondominios === "todos" ? "border-primary/30 bg-primary/5 text-primary" : ""}>
+                              {userScopeLabel(u.role, u.escopoCondominios)}
+                            </Badge>
+                            {u.condominioId ? <div className="text-xs text-muted-foreground">Principal: {getCondominioName(u.condominioId)}</div>
+                              : u.role === "admin" || (isScopeEligible(u.role) && u.escopoCondominios === "todos")
+                                ? <p className="text-xs text-muted-foreground">Principal opcional — sem preferência</p>
+                                : <div className="text-xs">{getCondominioName(u.condominioId)}</div>}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge variant={u.isDeleted === 1 ? "destructive" : u.isActive ? "default" : "outline"} className={u.isActive && u.isDeleted !== 1 ? "bg-green-100 text-green-700 border-green-200" : ""}>
                             {u.isDeleted === 1 ? "Excluído logicamente" : u.isActive ? "Ativo" : "Inativo"}

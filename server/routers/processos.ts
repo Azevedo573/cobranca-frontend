@@ -123,6 +123,11 @@ export const processosRouter = router({
       buscaParte: z.string().optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
+      const carteira = await (await import("../escopo-explicito")).getCarteiraExplicita(ctx.user);
+      if (carteira) {
+        if (input?.condominioId) await (await import("../tenant-guard")).assertCondominioAccess(carteira.actor, input.condominioId);
+        return getProcessos({ ...(input ?? {}), condominioIds: input?.condominioId ? [input.condominioId] : carteira.ids });
+      }
       const { resolveCondominioEfetivo } = await import("../tenant-guard");
       const condominioId = await resolveCondominioEfetivo(ctx.user, input?.condominioId);
       return getProcessos({ ...(input ?? {}), condominioId });
@@ -146,6 +151,11 @@ export const processosRouter = router({
   resumo: protectedProcedure
     .input(z.object({ condominioId: z.number().int().positive().optional() }).optional())
     .query(async ({ input, ctx }) => {
+      const carteira = await (await import("../escopo-explicito")).getCarteiraExplicita(ctx.user);
+      if (carteira) {
+        if (input?.condominioId) await (await import("../tenant-guard")).assertCondominioAccess(carteira.actor, input.condominioId);
+        return getResumoProcessos(undefined, { condominioIds: input?.condominioId ? [input.condominioId] : carteira.ids });
+      }
       const { resolveCondominioEfetivo } = await import("../tenant-guard");
       const condominioId = await resolveCondominioEfetivo(ctx.user, input?.condominioId);
       return getResumoProcessos(condominioId);
@@ -196,13 +206,18 @@ export const processosRouter = router({
       observacoes: z.string().max(5000).optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const candidatos = await getProcessos({ busca: input.numeroCNJ });
+      const carteira = await (await import("../escopo-explicito")).getCarteiraExplicita(ctx.user);
+      if (carteira && !carteira.ids.length) throw new TRPCError({ code: "FORBIDDEN", message: "Nenhum condomínio ativo autorizado." });
+      const candidatos = await getProcessos({ busca: input.numeroCNJ, ...(carteira ? { condominioIds: carteira.ids } : {}) });
       const existente = encontrarProcessoPorCNJ(candidatos, input.numeroCNJ);
 
       if (existente) return { processo: existente, criado: false };
 
+      const condominioId = carteira ? await (await import("../tenant-guard")).resolveCondominioEfetivo(carteira.actor) : undefined;
+      if (carteira && !condominioId) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o condomínio do processo." });
       const processo = await createProcesso({
         ...input,
+        ...(carteira ? { condominioId } : {}),
         tipo: "civel",
         faseProcessual: "distribuicao",
         status: "ativo",
@@ -683,9 +698,12 @@ export const prazosRouter = router({
       urgencia: z.enum(["atrasado", "hoje", "7dias", "15dias", "30dias", "futuro"]).optional(),
     }).optional())
     .query(async ({ input, ctx }) => {
+      const carteira = await (await import("../escopo-explicito")).getCarteiraExplicita(ctx.user);
+      if (carteira && input?.condominioId) await (await import("../tenant-guard")).assertCondominioAccess(carteira.actor, input.condominioId);
       const { resolveCondominioEfetivo } = await import("../tenant-guard");
-      const condominioId = await resolveCondominioEfetivo(ctx.user, input?.condominioId);
-      const prazos = await getPrazos({ ...(input ?? {}), condominioId });
+      const filtro = carteira ? { condominioIds: input?.condominioId ? [input.condominioId] : carteira.ids }
+        : { condominioId: await resolveCondominioEfetivo(ctx.user, input?.condominioId) };
+      const prazos = await getPrazos({ ...(input ?? {}), ...filtro });
       return prazos.map((p) => ({
         ...p,
         urgencia: p.status === "pendente" ? calcularUrgencia(p.dataLimite) : null,
@@ -696,6 +714,11 @@ export const prazosRouter = router({
   resumo: protectedProcedure
     .input(z.object({ condominioId: z.number().int().positive().optional() }).optional())
     .query(async ({ input, ctx }) => {
+      const carteira = await (await import("../escopo-explicito")).getCarteiraExplicita(ctx.user);
+      if (carteira) {
+        if (input?.condominioId) await (await import("../tenant-guard")).assertCondominioAccess(carteira.actor, input.condominioId);
+        return getResumoPrazos(undefined, { condominioIds: input?.condominioId ? [input.condominioId] : carteira.ids });
+      }
       const condominioId = await (await import("../tenant-guard")).resolveCondominioEfetivo(ctx.user, input?.condominioId);
       return getResumoPrazos(condominioId);
     }),

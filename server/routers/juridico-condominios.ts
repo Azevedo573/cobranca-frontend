@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
-import { condominioAccessProcedure } from "../middleware";
 import {
   getResumoJuridicoCondominio,
   listarCondominiosComJuridico,
@@ -10,6 +9,13 @@ import { getMovimentacoesRecentes } from "../db-processos";
 export const juridicoCondominiosRouter = router({
   // Lista todos para admin e somente vínculos ativos para roles locais.
   listar: protectedProcedure.query(async ({ ctx }) => {
+    const carteira = await (await import("../escopo-explicito")).getCarteiraExplicita(ctx.user);
+    if (carteira) {
+      if (!carteira.ids.length) return [];
+      const { getJuridicoScope, demandaScopeCondition } = await import("../juridico-access");
+      const scope = await getJuridicoScope(carteira.actor);
+      return listarCondominiosComJuridico({ condominioIds: carteira.ids }, demandaScopeCondition(scope, true));
+    }
     const todos = await listarCondominiosComJuridico();
     if (ctx.user.role === "admin") return todos;
     const { getCondominiosAtivosDoUsuario } = await import("../tenant-guard");
@@ -17,14 +23,26 @@ export const juridicoCondominiosRouter = router({
     return todos.filter((condominio) => permitidos.includes(condominio.id));
   }),
 
-  resumo: condominioAccessProcedure
+  resumo: protectedProcedure
     .input(z.object({ condominioId: z.number().int().positive() }))
-    .query(async ({ ctx }) => getResumoJuridicoCondominio(ctx.user.condominioId!)),
+    .query(async ({ input, ctx }) => {
+      const carteira = await (await import("../escopo-explicito")).getCarteiraExplicita(ctx.user);
+      const condominioId = await (await import("../tenant-guard")).resolveCondominioEfetivo(ctx.user, input.condominioId);
+      if (carteira) {
+        const { getJuridicoScope, demandaScopeCondition } = await import("../juridico-access");
+        const scope = await getJuridicoScope(carteira.actor);
+        return getResumoJuridicoCondominio(condominioId!, demandaScopeCondition(scope, true));
+      }
+      return getResumoJuridicoCondominio(condominioId ?? ctx.user.condominioId!);
+    }),
 
-  movimentacoesRecentes: condominioAccessProcedure
+  movimentacoesRecentes: protectedProcedure
     .input(z.object({
       condominioId: z.number().int().positive(),
       limite: z.number().int().min(5).max(50).default(20),
     }))
-    .query(async ({ input, ctx }) => getMovimentacoesRecentes(ctx.user.condominioId!, input.limite)),
+    .query(async ({ input, ctx }) => {
+      const condominioId = await (await import("../tenant-guard")).resolveCondominioEfetivo(ctx.user, input.condominioId);
+      return getMovimentacoesRecentes(condominioId ?? ctx.user.condominioId!, input.limite);
+    }),
 });

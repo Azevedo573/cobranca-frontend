@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { MySqlDialect } from "drizzle-orm/mysql-core";
 import type { TrpcContext } from "./_core/context";
-import { criarDbCanaisEmMemoria } from "./btg-canais-test-db";
+import { criarDbCanaisEmMemoria, usuarioCanaisFixture } from "./btg-canais-test-db";
 const mocks = vi.hoisted(() => ({ getDb: vi.fn(), bank: vi.fn(), extra: vi.fn(), gerar: vi.fn(), fila: vi.fn(), permitidos: vi.fn() }));
 vi.mock("./db", () => ({ getDb: mocks.getDb }));
 vi.mock("./btg-service", async original => ({ ...await original<typeof import("./btg-service")>(), criarCobrancaBtg: mocks.bank, getBtgExtraConfig: mocks.extra }));
@@ -16,7 +16,7 @@ let fixture: ReturnType<typeof criarDbCanaisEmMemoria>;
 const parcela = () => fixture.state.tables.parcelasAcordo[0];
 beforeEach(() => {
   vi.clearAllMocks();
-  fixture = criarDbCanaisEmMemoria({ parcelasAcordo: [{ id: 19, acordoId: 5, amount: 12599, dueDate: new Date("2026-12-01T12:00:00Z"), installmentNumber: 1, status: "pendente", nossoNumero: "1000000018", nossoNumeroOrigem: "reserva_local", canalBancario: null, statusRemessa: "nao_enviado", remessaId: null }], acordos: [{ id: 5, condominioId: 1, devedorId: 6, status: "ativo" }], devedores: [{ id: 6, condominioId: 1, name: "Sacado", cpfCnpj: "52998224725", unitNumber: "1" }], condominios: [{ id: 1, name: "Condomínio", statusCadastro: "ativo" }], btgCobrancasEmitidas: [], auditLogs: [], userCondominios: [] });
+  fixture = criarDbCanaisEmMemoria({ users: [{ ...usuarioCanaisFixture(), name: "Testes" }], parcelasAcordo: [{ id: 19, acordoId: 5, amount: 12599, dueDate: new Date("2026-12-01T12:00:00Z"), installmentNumber: 1, status: "pendente", nossoNumero: "1000000018", nossoNumeroOrigem: "reserva_local", canalBancario: null, statusRemessa: "nao_enviado", remessaId: null }], acordos: [{ id: 5, condominioId: 1, devedorId: 6, status: "ativo" }], devedores: [{ id: 6, condominioId: 1, name: "Sacado", cpfCnpj: "52998224725", unitNumber: "1" }], condominios: [{ id: 1, name: "Condomínio", statusCadastro: "ativo" }], btgCobrancasEmitidas: [], auditLogs: [], userCondominios: [] });
   mocks.getDb.mockResolvedValue(fixture.db); mocks.extra.mockResolvedValue({ diasLimitePagamento: 60 });
   mocks.gerar.mockResolvedValue({ nomeArquivo: "fixture.rem", conteudo: "fixture", totalParcelas: 1, remessaId: 100 });
   mocks.fila.mockImplementation(async (_db, rows) => rows.map((r: any) => ({ ...r, elegivelCnab: false, motivoBloqueioCnab: "API", codigoBloqueioCnab: "api_vinculada" })));
@@ -41,9 +41,11 @@ describe("routers CNAB e legado — contratos existentes", () => {
     expect(mocks.gerar).not.toHaveBeenCalled();
   });
   it("condomínio local resolve carteira e não aceita role advogado como acesso global", async () => {
+    fixture.state.tables.users = [usuarioCanaisFixture("sindico", 99)];
     fixture.state.tables.userCondominios.push({ userId: 10, condominioId: 1, isActive: 1 });
     await appRouter.createCaller(ctx("sindico", 99)).cnab.gerarRemessaAcordos({ condominioId: 1, parcelaIds: [19] });
     expect(mocks.gerar.mock.calls[0][2]).toBe(1);
+    fixture.state.tables.users = [usuarioCanaisFixture("advogado", 1)];
     await expect(appRouter.createCaller(ctx("advogado", 1)).cnab.gerarRemessaAcordos({ condominioId: 2, parcelaIds: [19] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(mocks.gerar).toHaveBeenCalledTimes(1);
   });
@@ -59,10 +61,12 @@ describe("routers CNAB e legado — contratos existentes", () => {
       return chain;
     });
     mocks.permitidos.mockResolvedValue([1, 3]);
+    fixture.state.tables.users = [usuarioCanaisFixture("advogado", 99)];
     const rows = await appRouter.createCaller(ctx("advogado", 99)).cnab.listarParcelasParaRemessaGlobal({});
     expect(rows[0]).toMatchObject({ parcelaId: 19, elegivelCnab: false, codigoBloqueioCnab: "api_vinculada" });
     expect(conditions[0]).toContain("`acordos`.`condominioId` in (?, ?)");
     expect(conditions[0]).toContain(" or "); expect(conditions[0]).not.toContain("`statusRemessa`");
+    fixture.state.tables.users = [usuarioCanaisFixture("sindico", 99)];
     fixture.state.tables.userCondominios.push({ userId: 10, condominioId: 1, isActive: 1 });
     await appRouter.createCaller(ctx("sindico", 99)).cnab.listarParcelasParaRemessa({ condominioId: 1, diasAVencer: 365 });
     expect(mocks.fila).toHaveBeenCalledTimes(2);
@@ -70,6 +74,7 @@ describe("routers CNAB e legado — contratos existentes", () => {
     expect(conditions[1]).toContain(" or "); expect(fixture.state.writes).toEqual([]);
   });
   it("fila global de ator sem carteira não lê parcelas", async () => {
+    fixture.state.tables.users = [usuarioCanaisFixture("advogado", 1)];
     mocks.permitidos.mockResolvedValue([]);
     expect(await appRouter.createCaller(ctx("advogado", 1)).cnab.listarParcelasParaRemessaGlobal({})).toEqual([]);
     expect(fixture.db.select).not.toHaveBeenCalled(); expect(mocks.fila).not.toHaveBeenCalled();
@@ -104,7 +109,9 @@ describe("routers CNAB e legado — contratos existentes", () => {
     expect(result.filter(r => r.status === "fulfilled")).toHaveLength(1); expect(mocks.bank).toHaveBeenCalledTimes(1);
   });
   it("legado respeita carteira inclusive advogado e não emite parcela alheia", async () => {
+    fixture.state.tables.users = [usuarioCanaisFixture("advogado", 1)];
     await expect(btgRouter.createCaller(ctx("advogado", 1)).emitirBoletoParcela({ parcelaId: 19 })).rejects.toMatchObject({ code: "NOT_FOUND" }); expect(mocks.bank).not.toHaveBeenCalled();
+    fixture.state.tables.users = [usuarioCanaisFixture("advogado", 99)];
     fixture.state.tables.userCondominios.push({ userId: 10, condominioId: 1, isActive: 1 });
     await btgRouter.createCaller(ctx("advogado", 99)).emitirBoletoParcela({ parcelaId: 19 }); expect(mocks.bank).toHaveBeenCalledTimes(1);
   });

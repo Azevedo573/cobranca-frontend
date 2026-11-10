@@ -1,5 +1,8 @@
 import { getDb } from "./db";
 import { and, eq, gte, lte, inArray, desc, like } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { prepararFiltroCarteira, getCarteiraExplicita, type FiltroCarteiraExplicita } from "./escopo-explicito";
+import { assertDevedorAcessivel, resolveCondominioEfetivo, type TenantActor } from "./tenant-guard";
 import {
   cobrancas, devedores, condominios, acordos, users, tentativasCobranca,
   acordoCobrancas, parcelasAcordo,
@@ -11,6 +14,26 @@ type FiltroBase = {
   condominioId?: number;
   devedorId?: number;
 };
+
+/** Preflight anterior a dados nominais, renderização e armazenamento; NULL conserva a consulta antiga. */
+export async function prepararFiltroRelatorio(actor: TenantActor, filtro: FiltroBase) {
+  const carteira = await prepararFiltroCarteira(actor, filtro.condominioId);
+  if (carteira && filtro.devedorId != null) {
+    const devedor = await assertDevedorAcessivel(actor, filtro.devedorId);
+    if (!carteira.condominioIds.includes(devedor.condominioId)) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Devedor não encontrado" });
+    }
+  }
+  return carteira;
+}
+
+/** Exportações de um condomínio mantêm a preferência histórica somente no ramo NULL/admin. */
+export async function prepararCondominioExportacao(actor: TenantActor, solicitado?: number) {
+  const carteira = await getCarteiraExplicita(actor);
+  return carteira
+    ? resolveCondominioEfetivo(carteira.actor, solicitado)
+    : ["admin", "advogado"].includes(actor.role) ? solicitado : actor.condominioId;
+}
 
 // ─── 1. Inadimplência ────────────────────────────────────────────────────────
 export async function getRelatorioInadimplencia(filtro: FiltroBase, condominioIdUsuario?: number) {
@@ -61,12 +84,13 @@ export async function getRelatorioInadimplencia(filtro: FiltroBase, condominioId
 }
 
 // ─── 2. Acordos ──────────────────────────────────────────────────────────────
-export async function getRelatorioAcordos(filtro: FiltroBase, condominioIdUsuario?: number) {
+export async function getRelatorioAcordos(filtro: FiltroBase, condominioIdUsuario?: number, carteira?: FiltroCarteiraExplicita) {
   const db = await getDb();
   if (!db) return { rows: [], totais: { totalAcordos: 0, valorTotal: 0, valorRecuperado: 0 } };
 
   const cond: ReturnType<typeof eq>[] = [];
   const condId = filtro.condominioId ?? condominioIdUsuario;
+  if (carteira) cond.push(inArray(devedores.condominioId, carteira.condominioIds));
   if (condId) cond.push(eq(devedores.condominioId, condId));
   if (filtro.dataInicio) cond.push(gte(acordos.createdAt, new Date(filtro.dataInicio)));
   if (filtro.dataFim) cond.push(lte(acordos.createdAt, new Date(filtro.dataFim)));
@@ -105,12 +129,13 @@ export async function getRelatorioAcordos(filtro: FiltroBase, condominioIdUsuari
 }
 
 // ─── 3. Extrato ──────────────────────────────────────────────────────────────
-export async function getRelatorioExtrato(filtro: FiltroBase, condominioIdUsuario?: number) {
+export async function getRelatorioExtrato(filtro: FiltroBase, condominioIdUsuario?: number, carteira?: FiltroCarteiraExplicita) {
   const db = await getDb();
   if (!db) return { rows: [], totais: { totalCobrado: 0, totalPago: 0, totalPendente: 0 } };
 
   const cond: ReturnType<typeof eq>[] = [];
   const condId = filtro.condominioId ?? condominioIdUsuario;
+  if (carteira) cond.push(inArray(devedores.condominioId, carteira.condominioIds));
   if (condId) cond.push(eq(devedores.condominioId, condId));
   if (filtro.devedorId) cond.push(eq(cobrancas.devedorId, filtro.devedorId));
   if (filtro.dataInicio) cond.push(gte(cobrancas.dueDate, new Date(filtro.dataInicio)));
@@ -152,12 +177,13 @@ export async function getRelatorioExtrato(filtro: FiltroBase, condominioIdUsuari
 }
 
 // ─── 4. Recuperação ──────────────────────────────────────────────────────────
-export async function getRelatorioRecuperacao(filtro: FiltroBase, condominioIdUsuario?: number) {
+export async function getRelatorioRecuperacao(filtro: FiltroBase, condominioIdUsuario?: number, carteira?: FiltroCarteiraExplicita) {
   const db = await getDb();
   if (!db) return { rows: [], totais: { totalRecuperado: 0, totalEmAberto: 0, taxaRecuperacao: 0 } };
 
   const cond: ReturnType<typeof eq>[] = [];
   const condId = filtro.condominioId ?? condominioIdUsuario;
+  if (carteira) cond.push(inArray(devedores.condominioId, carteira.condominioIds));
   if (condId) cond.push(eq(devedores.condominioId, condId));
   if (filtro.dataInicio) cond.push(gte(cobrancas.dueDate, new Date(filtro.dataInicio)));
   if (filtro.dataFim) cond.push(lte(cobrancas.dueDate, new Date(filtro.dataFim)));
@@ -211,13 +237,14 @@ type FiltroInadimplenciaCompleto = {
   outrasDespesas?: number;      // R$ em centavos (acréscimo global)
 };
 
-export async function getRelatorioInadimplenciaCompleto(filtro: FiltroInadimplenciaCompleto) {
+export async function getRelatorioInadimplenciaCompleto(filtro: FiltroInadimplenciaCompleto, carteira?: FiltroCarteiraExplicita) {
   const db = await getDb();
   if (!db) return { rows: [], totais: { totalDevedores: 0, totalValorOriginal: 0, totalJuros: 0, totalMulta: 0, totalCorrecao: 0, totalHonorarios: 0, totalCustas: 0, totalOutras: 0, totalAtualizado: 0, totalCobrado: 0 } };
 
   const { calcularValorDevido } = await import("../shared/calculos");
 
   const cond: any[] = [];
+  if (carteira) cond.push(inArray(devedores.condominioId, carteira.condominioIds));
 
   if (filtro.condominioId) cond.push(eq(devedores.condominioId, filtro.condominioId));
   if (filtro.devedorId) cond.push(eq(cobrancas.devedorId, filtro.devedorId));
@@ -354,7 +381,7 @@ type FiltroRelatorioCobranca = {
   responsavelId?: number;
 };
 
-export async function getRelatorioCobranca(filtro: FiltroRelatorioCobranca) {
+export async function getRelatorioCobranca(filtro: FiltroRelatorioCobranca, carteira?: FiltroCarteiraExplicita) {
   const db = await getDb();
   if (!db) return {
     rows: [],
@@ -364,6 +391,7 @@ export async function getRelatorioCobranca(filtro: FiltroRelatorioCobranca) {
   };
 
   const cond: any[] = [];
+  if (carteira) cond.push(inArray(devedores.condominioId, carteira.condominioIds));
 
   if (filtro.condominioId) cond.push(eq(devedores.condominioId, filtro.condominioId));
   if (filtro.devedorId) cond.push(eq(tentativasCobranca.devedorId, filtro.devedorId));
@@ -474,7 +502,7 @@ export async function getRelatorioCobranca(filtro: FiltroRelatorioCobranca) {
 }
 
 // ─── Relatório de Acordos Detalhado ──────────────────────────────────────────
-export async function getRelatorioAcordosDetalhado(filtro: FiltroBase) {
+export async function getRelatorioAcordosDetalhado(filtro: FiltroBase, carteira?: FiltroCarteiraExplicita) {
   const db = await getDb();
   if (!db) return { acordos: [], totais: { totalAcordos: 0, valorTotal: 0, valorPago: 0 } };
 
@@ -482,6 +510,10 @@ export async function getRelatorioAcordosDetalhado(filtro: FiltroBase) {
   const acordosTable = acordos;
 
   const cond: any[] = [];
+  if (carteira) {
+    cond.push(inArray(acordosTable.condominioId, carteira.condominioIds));
+    cond.push(inArray(devedores.condominioId, carteira.condominioIds));
+  }
   if (filtro.condominioId) cond.push(eq(acordosTable.condominioId, filtro.condominioId));
   if (filtro.dataInicio) cond.push(gte(acordosTable.createdAt, new Date(filtro.dataInicio)));
   if (filtro.dataFim) {

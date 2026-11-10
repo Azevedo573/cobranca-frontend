@@ -4,14 +4,101 @@
  * 2. Exportação Excel nas páginas de Cobranças e Tentativas (endpoints backend)
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Column, Param, SQL, StringChunk } from "drizzle-orm";
+import { cobrancas, condominios, devedores, tentativasCobranca, userCondominios, users } from "../drizzle/schema";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+
+// SPEC-usuarios-escopo-condominios-2026-11-10: identidade fresca, sem DB real.
+// O mesmo principal/role do contexto é persistido; NULL conserva o ramo legado.
+const fixtureRows = new Map<unknown, Record<string, unknown>[]>();
+type FixtureRow = Map<unknown, Record<string, unknown>>;
+type FixtureQuery = PromiseLike<Record<string, unknown>[]> & {
+  from(table: unknown): FixtureQuery;
+  where(condition: unknown): FixtureQuery;
+  innerJoin(table: unknown, condition: unknown): FixtureQuery;
+  leftJoin(table: unknown, condition: unknown): FixtureQuery;
+  orderBy(): FixtureQuery;
+  limit(count: number): FixtureQuery;
+};
+
+function fixtureValue(value: unknown, row: FixtureRow): unknown {
+  if (value instanceof Column) return row.get(value.table)?.[value.name];
+  if (value instanceof Param) return value.value;
+  if (!(value instanceof SQL)) return value;
+  const operands = value.queryChunks.filter(chunk => !(chunk instanceof StringChunk));
+  const operator = value.queryChunks
+    .filter((chunk): chunk is StringChunk => chunk instanceof StringChunk)
+    .map(chunk => chunk.value.join(""))
+    .join("").replace(/[()]/g, "").trim();
+  if (!operator && operands.length === 1) return fixtureValue(operands[0], row);
+  if (/^and(?:\s+and)*$/.test(operator)) return operands.every(chunk => fixtureValue(chunk, row));
+  if (operator === "=") return fixtureValue(operands[0], row) === fixtureValue(operands[1], row);
+  if (operator === "<>") return fixtureValue(operands[0], row) !== fixtureValue(operands[1], row);
+  throw new Error(`Predicado não suportado pela fixture: ${operator}`);
+}
+
+const fixtureDb = {
+  select(projection?: Record<string, unknown>) {
+    let source: unknown;
+    let rows: FixtureRow[] = [];
+    let predicate: unknown;
+    let maxRows = Infinity;
+    const execute = () => rows
+      .filter(row => predicate === undefined || fixtureValue(predicate, row))
+      .slice(0, maxRows)
+      .map(row => projection
+        ? Object.fromEntries(Object.entries(projection).map(([alias, column]) => [alias, fixtureValue(column, row)]))
+        : { ...row.get(source) });
+    const join = (table: unknown, condition: unknown, left: boolean) => {
+      rows = rows.flatMap(row => {
+        const matched = (fixtureRows.get(table) ?? []).map(record => new Map([...row, [table, record]]))
+          .filter(candidate => fixtureValue(condition, candidate));
+        return matched.length || !left ? matched : [row];
+      });
+      return query;
+    };
+    const query: FixtureQuery = {
+      from(table: unknown) {
+        if (!fixtureRows.has(table)) throw new Error("Tabela sem fixture de exportação");
+        source = table;
+        rows = fixtureRows.get(table)!.map(record => new Map([[table, record]]));
+        return query;
+      },
+      where(condition: unknown) { predicate = condition; return query; },
+      innerJoin(table: unknown, condition: unknown) { return join(table, condition, false); },
+      leftJoin(table: unknown, condition: unknown) { return join(table, condition, true); },
+      orderBy() { return query; },
+      limit(count: number) { maxRows = count; return query; },
+      then<TResult1 = Record<string, unknown>[], TResult2 = never>(
+        onfulfilled?: ((value: Record<string, unknown>[]) => TResult1 | PromiseLike<TResult1>) | null,
+        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+      ) { return Promise.resolve(execute()).then(onfulfilled, onrejected); },
+    };
+    return query;
+  },
+};
+
+vi.mock("./db", async importOriginal => {
+  const original = await importOriginal<typeof import("./db")>();
+  return { ...original, getDb: vi.fn(async () => fixtureDb) };
+});
+
+beforeEach(() => {
+  fixtureRows.clear();
+  fixtureRows.set(users, []);
+  fixtureRows.set(condominios, [{ id: 1, name: "Condomínio Teste", statusCadastro: "ativo" }]);
+  fixtureRows.set(userCondominios, []);
+  fixtureRows.set(cobrancas, []);
+  fixtureRows.set(devedores, []);
+  fixtureRows.set(tentativasCobranca, []);
+});
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function createAuthContext(role: "admin" | "sindico" | "cobrador", condominioId?: number): TrpcContext {
-  return {
+  const ctx = {
     user: {
       id: 1,
       openId: "test-user",
@@ -20,6 +107,12 @@ function createAuthContext(role: "admin" | "sindico" | "cobrador", condominioId?
       loginMethod: "manus",
       role,
       condominioId: condominioId ?? (role !== "admin" ? 1 : undefined),
+      passwordHash: null,
+      isPrimaryAdmin: 0,
+      isActive: 1,
+      isDeleted: 0,
+      profileId: null,
+      escopoCondominios: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -27,6 +120,11 @@ function createAuthContext(role: "admin" | "sindico" | "cobrador", condominioId?
     req: { protocol: "https", headers: {} } as TrpcContext["req"],
     res: { clearCookie: () => {} } as unknown as TrpcContext["res"],
   };
+  fixtureRows.set(users, [{ ...ctx.user, condominioId: ctx.user.condominioId ?? null }]);
+  fixtureRows.set(userCondominios, ctx.user.condominioId == null ? [] : [{
+    id: 1, userId: ctx.user.id, condominioId: ctx.user.condominioId, isActive: 1,
+  }]);
+  return ctx;
 }
 
 // ─── Busca por CPF/CNPJ (lógica de filtragem no frontend) ────────────────────

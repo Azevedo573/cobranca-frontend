@@ -19,6 +19,8 @@ import {
 
 export interface FiltrosProcesso {
   condominioId?: number;
+  /** Somente servidor: [] é carteira vazia, nunca consulta global. */
+  condominioIds?: number[];
   status?: string;
   tipo?: string;
   faseProcessual?: string;
@@ -29,11 +31,15 @@ export interface FiltrosProcesso {
 }
 
 export async function getProcessos(filtros: FiltrosProcesso = {}): Promise<ProcessoJudicial[]> {
+  if (filtros.condominioIds?.length === 0) return [];
   const db = await getDb();
   if (!db) return [];
 
   const conditions = [];
 
+  if (filtros.condominioIds) {
+    conditions.push(inArray(processosJudiciais.condominioId, filtros.condominioIds));
+  }
   if (filtros.condominioId) {
     conditions.push(eq(processosJudiciais.condominioId, filtros.condominioId));
   }
@@ -129,8 +135,8 @@ export async function deleteProcesso(id: number): Promise<boolean> {
   return true;
 }
 
-export async function getResumoProcessos(condominioId?: number) {
-  const todos = await getProcessos(condominioId ? { condominioId } : {});
+export async function getResumoProcessos(condominioId?: number, carteira?: { condominioIds: number[] }) {
+  const todos = await getProcessos({ ...(condominioId ? { condominioId } : {}), ...carteira });
 
   const ativos = todos.filter((p: ProcessoJudicial) => p.status === "ativo").length;
   const suspensos = todos.filter((p: ProcessoJudicial) => p.status === "suspenso").length;

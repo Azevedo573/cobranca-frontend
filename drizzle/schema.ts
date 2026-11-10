@@ -14,6 +14,8 @@ export const users = mysqlTable("users", {
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["admin", "sindico", "cobrador", "colaborador", "advogado"]).default("cobrador").notNull(),
   condominioId: int("condominioId"),
+  // NULL preserva o contrato legado; todos só é permitido para advogado/colaborador.
+  escopoCondominios: mysqlEnum("escopoCondominios", ["selecionados", "todos"]),
   isPrimaryAdmin: int("isPrimaryAdmin").default(0).notNull(), // 1 = administrador principal do condomínio
   isActive: int("isActive").default(1).notNull(),
   isDeleted: int("isDeleted").default(0).notNull(),
@@ -23,7 +25,10 @@ export const users = mysqlTable("users", {
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 });
 
-export type User = typeof users.$inferSelect;
+// Projeções históricas podem omitir o campo; a autorização consulta o banco fresco.
+export type User = Omit<typeof users.$inferSelect, "escopoCondominios"> & {
+  escopoCondominios?: "selecionados" | "todos" | null;
+};
 export type InsertUser = typeof users.$inferInsert;
 
 /**

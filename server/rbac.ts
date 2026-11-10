@@ -21,18 +21,13 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure } from "./_core/trpc";
 import type { ModuloId, AcaoId } from "./db-profiles";
 
-// ─── Cache em memória por request ────────────────────────────────────────────
+// ─── Cache em memória ────────────────────────────────────────────────────────
 // Mapa: userId → Map<"modulo:acao", boolean>
-// Limpo a cada 5 minutos para evitar dados stale.
-const permCache = new Map<number, { perms: Map<string, boolean>; ts: number }>();
+// Perfil atual é relido antes de qualquer cache; matriz expira em 5 minutos.
+const permCache = new Map<number, { profileId: number; perms: Map<string, boolean>; ts: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
 
 async function getUserPermissions(userId: number): Promise<Map<string, boolean>> {
-  const cached = permCache.get(userId);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return cached.perms;
-  }
-
   const { getDb } = await import("./db");
   const { users, profilePermissions } = await import("../drizzle/schema");
   const { eq } = await import("drizzle-orm");
@@ -47,8 +42,15 @@ async function getUserPermissions(userId: number): Promise<Map<string, boolean>>
     .where(eq(users.id, userId))
     .limit(1);
 
-  const profileId = userRows[0]?.profileId;
-  if (!profileId) return new Map(); // sem perfil → sem permissões
+  const profileId = Number(userRows[0]?.profileId) || null;
+  if (!profileId) {
+    permCache.delete(userId);
+    return new Map(); // sem perfil → sem permissões
+  }
+  const cached = permCache.get(userId);
+  if (cached?.profileId === profileId && Date.now() - cached.ts < CACHE_TTL_MS) {
+    return cached.perms;
+  }
 
   // Buscar permissões do perfil
   const permRows = await db
@@ -61,7 +63,7 @@ async function getUserPermissions(userId: number): Promise<Map<string, boolean>>
     perms.set(`${row.modulo}:${row.acao}`, row.permitido === 1);
   }
 
-  permCache.set(userId, { perms, ts: Date.now() });
+  permCache.set(userId, { profileId, perms, ts: Date.now() });
   return perms;
 }
 
@@ -123,13 +125,16 @@ export async function hasPermission(
  */
 export function requirePermission(modulo: ModuloId, acao: AcaoId) {
   return protectedProcedure.use(async ({ ctx, next }) => {
-    const { user } = ctx;
+    const { getCurrentAuthorizationUser } = await import("./_core/auth-helper");
+    const user = await getCurrentAuthorizationUser(ctx.user);
+    if (!user) throw new TRPCError({ code: "FORBIDDEN", message: "Identidade ou perfil revogado. Entre novamente." });
+    const currentCtx = { ...ctx, user };
 
     // Admin: bypass total
-    if (user.role === "admin") return next({ ctx });
+    if (user.role === "admin") return next({ ctx: currentCtx });
 
     // Síndico e cobrador: controle por role e tenancy já aplicado nas procedures.
-    if (user.role !== "colaborador" && user.role !== "advogado") return next({ ctx });
+    if (user.role !== "colaborador" && user.role !== "advogado") return next({ ctx: currentCtx });
 
     // Colaborador e advogado: verificar permissão no perfil
     const allowed = await hasPermission(user.id, user.role, modulo, acao);
@@ -140,6 +145,6 @@ export function requirePermission(modulo: ModuloId, acao: AcaoId) {
       });
     }
 
-    return next({ ctx });
+    return next({ ctx: currentCtx });
   });
 }

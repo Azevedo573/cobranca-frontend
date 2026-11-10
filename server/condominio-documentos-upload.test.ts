@@ -1,13 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SQL } from "drizzle-orm";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+import { users } from "../drizzle/schema";
 import type { TrpcContext } from "./_core/context";
 import { DOCUMENTO_CONDOMINIO_MAX_BYTES, DOCUMENTO_CONDOMINIO_MAX_BASE64, validarArquivoDocumentoCondominio } from "../shared/documentos-condominio";
 import { decodificarDocumentoCondominio } from "./condominio-documentos-upload";
 
-const mocks = vi.hoisted(() => ({ storage: vi.fn(), update: vi.fn(), condominio: vi.fn(), audit: vi.fn() }));
+const mocks = vi.hoisted(() => ({ storage: vi.fn(), update: vi.fn(), condominio: vi.fn(), audit: vi.fn(),
+  getDb: vi.fn(), users: [] as Record<string, unknown>[] }));
+vi.mock("./db", async original => ({ ...await original<typeof import("./db")>(), getDb: mocks.getDb }));
 vi.mock("./storage", () => ({ storagePut: mocks.storage }));
 vi.mock("./db-condominios", async original => ({ ...await original<typeof import("./db-condominios")>(), getCondominioById: mocks.condominio, updateCondominio: mocks.update }));
 vi.mock("./audit", async original => ({ ...await original<typeof import("./audit")>(), logAudit: mocks.audit }));
 import { appRouter } from "./routers";
+
+// A identidade persistida é independente do recurso condomínio e preserva o legado NULL.
+const usuarioFixture = (role = "admin") => ({ id: 901, role, isActive: 1, isDeleted: 0,
+  condominioId: null, profileId: null, isPrimaryAdmin: 0, escopoCondominios: null });
+const dialect = new MySqlDialect();
+const dbFixture = {
+  select: (projection?: Record<string, { name: string }>) => ({
+    from: (table: unknown) => {
+      if (table !== users) throw new Error("Fixture de upload atende somente a tabela users.");
+      return {
+        where: (condition: SQL) => {
+          const query = dialect.sqlToQuery(condition);
+          if (query.sql !== "`users`.`id` = ?" || query.params.length !== 1) {
+            throw new Error("Consulta de identidade deve filtrar users.id explicitamente.");
+          }
+          const rows = mocks.users.filter(user => user.id === query.params[0]);
+          return {
+            limit: async (count: number) => rows.slice(0, count).map(user => projection
+              ? Object.fromEntries(Object.entries(projection).map(([alias, column]) => [alias, user[column.name]]))
+              : { ...user }),
+          };
+        },
+      };
+    },
+  }),
+};
 
 function pdf(tamanho: number) {
   const buffer = Buffer.alloc(tamanho, 32);
@@ -17,11 +48,17 @@ function pdf(tamanho: number) {
 }
 const input = (buffer = pdf(100)) => ({ condominioId: 10, tipo: "convencao" as const,
   fileName: "convenção.PDF", mimeType: "application/pdf", fileBase64: buffer.toString("base64") });
-const ctx = (role = "admin"): TrpcContext => ({ user: { id: 901, role, isActive: 1 } as TrpcContext["user"],
-  req: { headers: {}, protocol: "https" } as TrpcContext["req"], res: {} as TrpcContext["res"] });
+const ctx = (role = "admin"): TrpcContext => {
+  const user = usuarioFixture(role);
+  mocks.users = [{ ...user }];
+  return { user: user as TrpcContext["user"],
+    req: { headers: {}, protocol: "https" } as TrpcContext["req"], res: {} as TrpcContext["res"] };
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.users = [usuarioFixture()];
+  mocks.getDb.mockResolvedValue(dbFixture);
   mocks.condominio.mockResolvedValue({ id: 10 });
   mocks.storage.mockResolvedValue({ url: "https://example.com/teste.pdf" });
   mocks.update.mockResolvedValue(undefined);

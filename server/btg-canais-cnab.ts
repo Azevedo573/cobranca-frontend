@@ -90,6 +90,11 @@ export async function enriquecerFilaCnab<T extends { parcelaId: number }>(db: Db
 
 export async function condominiosPermitidosFilaCnab(actor: TenantActor): Promise<number[] | undefined> {
   // Somente admin conserva visão global. Perfis locais utilizam toda sua carteira ativa.
+  const carteira = await (await import("./escopo-explicito")).getCarteiraExplicita(actor);
+  if (carteira) {
+    if (!carteira.ids.length) throw new TRPCError({ code: "FORBIDDEN", message: "Nenhum condomínio ativo autorizado." });
+    return carteira.ids;
+  }
   return actor.role === "admin" ? undefined : getCondominiosAtivosDoUsuario(actor);
 }
 

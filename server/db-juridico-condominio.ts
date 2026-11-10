@@ -5,10 +5,10 @@ import {
   demandas,
   condominios,
 } from "../drizzle/schema";
-import { eq, and, count, sum, sql, gte, lte, or } from "drizzle-orm";
+import { eq, and, count, sum, sql, gte, lte, or, inArray, type SQL } from "drizzle-orm";
 
 // ─── Resumo jurídico de um condomínio específico ─────────────────────────────
-export async function getResumoJuridicoCondominio(condominioId: number) {
+export async function getResumoJuridicoCondominio(condominioId: number, demandaCondition?: SQL) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
 
@@ -90,7 +90,7 @@ export async function getResumoJuridicoCondominio(condominioId: number) {
   const [totalDemandas] = await db
     .select({ total: count() })
     .from(demandas)
-    .where(eq(demandas.condominioId, condominioId));
+    .where(and(eq(demandas.condominioId, condominioId), demandaCondition));
 
   // ── Processos recentes (últimos 5) ──
   const processosRecentes = await db
@@ -172,7 +172,8 @@ export async function getResumoJuridicoCondominio(condominioId: number) {
 
 // ─── Lista de condomínios com indicadores jurídicos ──────────────────────────
 // Versão corrigida: usa GROUP BY em vez de N+1 queries por condomínio
-export async function listarCondominiosComJuridico() {
+export async function listarCondominiosComJuridico(carteira?: { condominioIds: number[] }, demandaCondition?: SQL) {
+  if (carteira?.condominioIds.length === 0) return [];
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
 
@@ -188,6 +189,7 @@ export async function listarCondominiosComJuridico() {
       state: condominios.state,
     })
     .from(condominios)
+    .where(carteira ? inArray(condominios.id, carteira.condominioIds) : undefined)
     .orderBy(condominios.name);
 
   // ── 1 query: processos ativos agrupados por condomínio ──
@@ -198,7 +200,7 @@ export async function listarCondominiosComJuridico() {
       valorEmDisputa: sum(processosJudiciais.valorCausa),
     })
     .from(processosJudiciais)
-    .where(eq(processosJudiciais.status, "ativo"))
+    .where(and(eq(processosJudiciais.status, "ativo"), carteira ? inArray(processosJudiciais.condominioId, carteira.condominioIds) : undefined))
     .groupBy(processosJudiciais.condominioId);
 
   // ── 1 query: prazos urgentes (próximos 7 dias) agrupados por condomínio ──
@@ -212,7 +214,8 @@ export async function listarCondominiosComJuridico() {
       and(
         eq(prazosJuridicos.status, "pendente"),
         gte(prazosJuridicos.dataLimite, agora),
-        lte(prazosJuridicos.dataLimite, em7Dias)
+        lte(prazosJuridicos.dataLimite, em7Dias),
+        carteira ? inArray(prazosJuridicos.condominioId, carteira.condominioIds) : undefined
       )
     )
     .groupBy(prazosJuridicos.condominioId);
@@ -227,7 +230,8 @@ export async function listarCondominiosComJuridico() {
     .where(
       and(
         eq(prazosJuridicos.status, "pendente"),
-        lte(prazosJuridicos.dataLimite, agora)
+        lte(prazosJuridicos.dataLimite, agora),
+        carteira ? inArray(prazosJuridicos.condominioId, carteira.condominioIds) : undefined
       )
     )
     .groupBy(prazosJuridicos.condominioId);
@@ -239,6 +243,7 @@ export async function listarCondominiosComJuridico() {
       total: count(),
     })
     .from(demandas)
+    .where(and(carteira ? inArray(demandas.condominioId, carteira.condominioIds) : undefined, demandaCondition))
     .groupBy(demandas.condominioId);
 
   // Montar mapas para lookup O(1)

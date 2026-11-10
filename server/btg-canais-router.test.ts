@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { criarDbCanaisEmMemoria } from './btg-canais-test-db';
+import { criarDbCanaisEmMemoria, usuarioCanaisFixture } from './btg-canais-test-db';
 import { btgCanaisRouter } from './routers/btg-canais';
 import { bloquearParcelasParaCanal, exigirParcelaLivreParaCanal } from './btg-canais';
 import { parcelasAcordo } from '../drizzle/schema';
@@ -19,6 +19,7 @@ function caller(role = 'admin') {
 }
 beforeEach(() => {
   fixture = criarDbCanaisEmMemoria({
+    users: [{ ...usuarioCanaisFixture(), name: 'Administrador de teste', email: 'test@example.test' }],
     acordos: [{ id: 5, condominioId: 1, devedorId: 9, status: 'ativo' }],
     parcelasAcordo: [{ id: 19, acordoId: 5, installmentNumber: 1, status: 'pendente', amount: 1400, dueDate: new Date('2026-12-01'),
       nossoNumero: '1000000018', nossoNumeroOrigem: null, canalBancario: null, statusRemessa: 'nao_enviado', remessaId: null }],
@@ -44,6 +45,7 @@ describe('confirmação auditada de reserva local', () => {
     expect(fixture.state.tables.btgCobrancasEmitidas).toHaveLength(0);
   });
   it.each(['advogado', 'colaborador', 'sindico', 'cobrador'])('recusa perfil %s antes de escrita', async role => {
+    fixture.state.tables.users[0].role = role;
     await expect(caller(role).confirmarReservaLocal(entrada)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(fixture.state.writes).toHaveLength(0);
   });
