@@ -3145,6 +3145,9 @@ Manual de execução e reversão: docs/deploy-boleto-origem-completa-vps.md. Rot
 - [x] Inspecionar UserForm real com pessoas/condomínios fictícios e link tRPC local; Advogado global/restrito e callback Colaborador todos com principal null/IDs vazios. Entrada main restaurada byte a byte e fixture removida, sem request de cadastro real.
 - [x] TypeScript/build integrados aprovados; dependências e migrations antigas intactas; sem credenciais/VPS/BTG real alterados.
 - [x] Concluir suíte final serial: 134 arquivos/3.011 testes aprovados, um BTG externo opt-in ignorado e nenhum erro não tratado; 371 novos testes. Oito arquivos de fixtures e fixture compartilhada adaptados sem remover guards/expectativas. Documentação/evidências/reversão prontas para checkpoint.
-- [ ] Atualizar VPS por implantação/provisionamento seletivos autorizados separadamente e homologar pessoas/perfis reais; não inclui migração0098 Jurídica, alterações financeiras ou grants em lote.
+- [x] Usuário autorizou deploy VPS às 12:51 em 10/11/2026: alvo fixo7a37548b, somente migration0104; roteiro com backup privado, build isolado/troca reversível e PM2/HTTP, sem grants reais em lote ou0098.
+- [x] Roteiro/manual preparados para checkpoint: bash-n/hash, QA independente53cenários/957verificações/0falhas; Git/build/dump/MySQL/PM2simulados, tar/hash/mv/flock/permissões reais apenas em fixtures. SemVPS/DB/BTGreais durante testes.
+- [ ] Confirmar implantação real por saída do usuário: somente0104/versão7a37548b/HTTP200/PM2/config preservada; nenhuma ação bancária ou concessão automática.
+- [ ] Homologar pessoas/perfis reais em piloto administrativo consciente; não inclui migração0098 Jurídica, alterações financeiras ou grants em lote.
 
 Registros: docs/specs/SPEC-usuarios-escopo-condominios-2026-11-10.md, docs/ocorrencias/OCORRENCIA-usuarios-escopo-condominios-2026-11-10.md e tasks/plan-usuarios-escopo-condominios.md. URLs públicas antigas podem não ser revogáveis; não se promete correção retroativa de bypasses NULL. VPS permanece b1da399e confirmado.
