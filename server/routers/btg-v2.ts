@@ -995,7 +995,7 @@ export const btgV2Router = router({
       try {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco não disponível" });
-        const resultado = await conciliarEmissaoBolePixV2(db, input.emissaoId);
+        const resultado = await conciliarEmissaoBolePixV2(db, input.emissaoId, { userId: ctx.user.id, userRole: ctx.user.role });
         await logAudit(ctx, {
           action: "config_change",
           entity: "boleto",
@@ -1030,7 +1030,7 @@ export const btgV2Router = router({
         const erros: string[] = [];
         for (const item of pendentes) {
           try {
-            const resultado = await conciliarEmissaoBolePixV2(db, item.id);
+            const resultado = await conciliarEmissaoBolePixV2(db, item.id, { userId: ctx.user.id, userRole: ctx.user.role });
             if (resultado.pagamentoAplicado) pagas += 1;
           } catch (error) {
             erros.push(`Emissão #${item.id}: ${error instanceof Error ? error.message : "falha desconhecida"}`);

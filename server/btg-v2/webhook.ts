@@ -15,6 +15,8 @@ import {
 } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { getBtgV2ServerConfig } from "./config";
+import { bloquearContextoRecebimentoAcordo, aplicarRecebimentoAcordo } from "../recebimento-acordo";
+import { reaisBtgParaCentavos, valorPagoBtgEmCentavos, dataPagamentoBtg, metodoPagamentoBtg } from "./valores";
 
 type Db = NonNullable<Awaited<ReturnType<typeof getDb>>>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -26,6 +28,7 @@ type OrigemBloqueada = {
   acordo?: typeof acordos.$inferSelect;
   parcela?: typeof parcelasAcordo.$inferSelect;
   parcelas: (typeof parcelasAcordo.$inferSelect)[];
+  contextoRecebimento?: Awaited<ReturnType<typeof bloquearContextoRecebimentoAcordo>>;
 };
 type Resultado = { ok: true; duplicate?: true; ignored?: true };
 
@@ -37,8 +40,8 @@ const payloadSchema = z.object({
     collectionId: z.string().trim().min(1).max(150).optional(),
     status: z.string().max(40).optional(),
     amount: z.number().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
-    paidAmount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
-    amountPaid: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+    paidAmount: z.number().refine(value => reaisBtgParaCentavos(value) !== null).optional(),
+    amountPaid: z.number().refine(value => reaisBtgParaCentavos(value) !== null).optional(),
     paidAt: z.string().max(64).refine(value => dataPagamento(value, new Date()) !== null).optional(),
   }).passthrough(),
 });
@@ -48,6 +51,8 @@ const eventos = new Set([
   "collections.created", "collections.paid", "collections.expired",
   ...Array.from(eventosCancelamento),
 ]);
+const camposDiagnosticaveis = new Set(["id", "webhookId", "event", "data", "data.collectionId",
+  "data.status", "data.amount", "data.paidAmount", "data.amountPaid", "data.paidAt"]);
 
 /** BTG envia seu webhook secret via Authorization: Bearer, não uma assinatura HMAC. */
 export function validarAutenticacaoWebhookBtgV2(authorization: unknown, secret: string): boolean {
@@ -71,22 +76,11 @@ export function mapearStatusWebhookBtgV2(evento: string, statusAtual: BtgV2Statu
 }
 
 export function valorPagoWebhookBtgEmCentavos(data: { amountPaid?: unknown; paidAmount?: unknown }): number | null {
-  const presentes = [data.amountPaid, data.paidAmount].filter(v => v !== undefined);
-  if (!presentes.length || presentes.some(v => typeof v !== "number" || !Number.isSafeInteger(v) || v < 0)) return null;
-  if (presentes.length === 2 && presentes[0] !== presentes[1]) return null;
-  // amount é o valor nominal: não comprova o valor efetivamente pago.
-  return presentes[0] as number;
+  return valorPagoBtgEmCentavos(data);
 }
 
 function dataPagamento(value: string | undefined, now: Date): Date | null {
-  if (value === undefined) return now;
-  if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))?$/.test(value)) return null;
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return null;
-  // Date normaliza dias inexistentes (31/02); recusar em vez de inventar data.
-  const calendar = value.slice(0, 10);
-  const midnight = new Date(`${calendar}T00:00:00.000Z`);
-  return Number.isFinite(midnight.getTime()) && midnight.toISOString().slice(0, 10) === calendar ? date : null;
+  return dataPagamentoBtg(value, now);
 }
 
 function identificadorEntrega(req: Request, payload: Payload): string | null {
@@ -115,17 +109,12 @@ async function bloquearOrigem(tx: Tx, emissao: Emissao): Promise<OrigemBloqueada
       .where(eq(cobrancas.id, emissao.origemId)).limit(1).for("update");
     return { cobranca, parcelas: [] };
   }
-  const [referencia] = await tx.select({ acordoId: parcelasAcordo.acordoId }).from(parcelasAcordo)
-    .where(eq(parcelasAcordo.id, emissao.origemId)).limit(1);
-  if (!referencia) return { parcelas: [] };
-  const [acordo] = await tx.select().from(acordos)
-    .where(eq(acordos.id, referencia.acordoId)).limit(1).for("update");
-  const parcelas = await tx.select().from(parcelasAcordo)
-    .where(eq(parcelasAcordo.acordoId, referencia.acordoId)).for("update");
-  return { acordo, parcelas, parcela: parcelas.find(p => p.id === emissao.origemId) };
+  const contextoRecebimento = await bloquearContextoRecebimentoAcordo(tx, emissao.origemId);
+  return { ...contextoRecebimento, contextoRecebimento };
 }
 
-async function aplicarPagamento(tx: Tx, emissao: Emissao, paidAt: Date, origem: OrigemBloqueada): Promise<string | null> {
+async function aplicarPagamento(tx: Tx, emissao: Emissao, paidAt: Date, origem: OrigemBloqueada,
+  entregaId: number, metodoPagamento?: string, fonteDataPagamento: "banco" | "processamento" = "banco", liquidadoEm?: Date): Promise<string | null> {
   if (emissao.origemTipo === "cobranca") {
     const cobranca = origem.cobranca;
     if (!cobranca || cobranca.condominioId !== emissao.condominioId) return "ORIGIN_SCOPE_MISMATCH";
@@ -137,23 +126,14 @@ async function aplicarPagamento(tx: Tx, emissao: Emissao, paidAt: Date, origem: 
     return null;
   }
 
-  // Mesmas condições financeiras anteriores; apenas os locks foram antecipados.
-  // Não recalcular nominal, snapshots, juros ou valor pago.
-  const { acordo, parcela, parcelas } = origem;
-  if (!parcela && !parcelas.length) return "ORIGIN_NOT_FOUND";
-  if (!acordo || acordo.condominioId !== emissao.condominioId) return "ORIGIN_SCOPE_MISMATCH";
-  if (acordo.status === "cancelado") return "ORIGIN_NOT_ELIGIBLE";
-  if (!parcela || parcela.acordoId !== acordo.id) return "ORIGIN_SCOPE_MISMATCH";
-  if (parcela.status === "cancelado") return "ORIGIN_NOT_ELIGIBLE";
-  if (parcela.amount !== emissao.amount) return "ORIGIN_AMOUNT_MISMATCH";
-  if (parcela.status !== "pago") {
-    await tx.update(parcelasAcordo).set({ status: "pago", paymentDate: paidAt })
-      .where(and(eq(parcelasAcordo.id, parcela.id), eq(parcelasAcordo.acordoId, acordo.id)));
-  }
-  if (acordo.status !== "pago" && parcelas.length && parcelas.every(p => p.id === parcela.id || p.status === "pago")) {
-    await tx.update(acordos).set({ status: "pago", updatedAt: new Date() }).where(eq(acordos.id, acordo.id));
-  }
-  return null;
+  if (!origem.contextoRecebimento) return "ORIGIN_NOT_FOUND";
+  const resultado = await aplicarRecebimentoAcordo(tx, origem.contextoRecebimento, {
+    valorPagoCentavos: emissao.amount, dataPagamento: paidAt, condominioId: emissao.condominioId,
+    canal: "btg_webhook", ator: { userId: null, userRole: "system" },
+    emissaoId: emissao.id, entregaId, metodoPagamento,
+    fonteDataPagamento, liquidadoEm,
+  });
+  return resultado.codigo;
 }
 
 function origemNoEscopo(emissao: Emissao, origem: OrigemBloqueada): boolean {
@@ -188,7 +168,8 @@ function identidadeCancelamentoPayload(payload: Payload, emissao: Emissao): bool
     type: "BANKSLIP_QRCODE",
     amount: emissao.amount,
   };
-  return Object.entries(esperados).every(([campo, esperado]) => payload.data[campo] === undefined || payload.data[campo] === esperado);
+  return Object.entries(esperados).every(([campo, esperado]) => payload.data[campo] === undefined ||
+    (campo === "amount" ? reaisBtgParaCentavos(payload.data[campo]) === esperado : payload.data[campo] === esperado));
 }
 
 async function atualizarOperacoes(tx: Tx, operacoes: Operacao[], emissao: Emissao,
@@ -283,6 +264,10 @@ async function processarEntrega(db: Db, integracaoId: number, payloadHash: strin
     if (payload.event === "collections.paid") {
       // Parcial/ambíguo bloqueia a operação para UI, mantendo a regra anterior
       // de valor integral/elegibilidade. O livro da entrega conserva o indício.
+      if (payload.data.status !== undefined && payload.data.status.toUpperCase() !== "PAID") {
+        await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, true);
+        return finalizarEntrega(tx, entrega.id, "PAYMENT_STATUS_MISMATCH");
+      }
       const pago = valorPagoWebhookBtgEmCentavos(payload.data);
       if (pago === null || pago !== emissao.amount) {
         await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, true);
@@ -290,7 +275,9 @@ async function processarEntrega(db: Db, integracaoId: number, payloadHash: strin
       }
       const paidAt = dataPagamento(payload.data.paidAt, new Date());
       if (!paidAt) return finalizarEntrega(tx, entrega.id, "PAYMENT_DATE_INVALID");
-      const codigo = await aplicarPagamento(tx, emissao, paidAt, origem);
+      const codigo = await aplicarPagamento(tx, emissao, paidAt, origem, entrega.id, metodoPagamentoBtg(payload.data.paymentMethod),
+        payload.data.paidAt === undefined ? "processamento" : "banco",
+        payload.data.settledAt === undefined ? undefined : dataPagamentoBtg(payload.data.settledAt) ?? undefined);
       await atualizarOperacoes(tx, operacoes, emissao, integracao.ambiente, entrega.id, true);
       if (codigo) return finalizarEntrega(tx, entrega.id, codigo);
     }
@@ -353,7 +340,9 @@ export async function webhookBtgV2Handler(req: Request, res: Response): Promise<
     return;
   }
   if (!parsed.success || (eventos.has(parsed.data.event) && !parsed.data.data.collectionId)) {
-    res.status(400).json({ ok: false, error: "INVALID_PAYLOAD" });
+    const camposInvalidos = parsed.success ? ["data.collectionId"] :
+      Array.from(new Set(parsed.error.issues.map(issue => issue.path.join(".")).filter(path => camposDiagnosticaveis.has(path)))).slice(0, 10);
+    res.status(400).json({ ok: false, error: "INVALID_PAYLOAD", camposInvalidos });
     return;
   }
   const payload = parsed.data;

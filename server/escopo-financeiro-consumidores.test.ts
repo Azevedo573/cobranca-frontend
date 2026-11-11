@@ -8,6 +8,7 @@ const f = vi.hoisted(() => ({
   db: vi.fn(), storage: vi.fn(), audit: vi.fn(), list: vi.fn(), byDevedor: vi.fn(), calculos: vi.fn(), comParcelas: vi.fn(), emAcordo: vi.fn(), byId: vi.fn(),
   createDevedor: vi.fn(), createCobranca: vi.fn(), updateCobranca: vi.fn(), deleteCobranca: vi.fn(), importar: vi.fn(),
   createAcordo: vi.fn(), createParcelas: vi.fn(), createLinks: vi.fn(), ativos: vi.fn(), updateAcordo: vi.fn(), parcelas: vi.fn(), updateParcela: vi.fn(), historico: vi.fn(), sequencial: vi.fn(), custas: vi.fn(),
+  bloquearRecebimento: vi.fn(), receber: vi.fn(), transaction: vi.fn(),
 }));
 vi.mock("./db", async original => ({ ...await original<typeof import("./db")>(), getDb: f.db }));
 vi.mock("./db-cobrancas", async original => ({ ...await original<typeof import("./db-cobrancas")>(), getCobrancasByCondominio: f.list, getCobrancasByDevedor: f.byDevedor, getCobrancasComCalculos: f.calculos, getParcelasAcordoAtivasByDevedor: f.comParcelas, getCobrancasEmAcordoByDevedor: f.emAcordo, getCobrancaById: f.byId, createCobranca: f.createCobranca, updateCobranca: f.updateCobranca, deleteCobranca: f.deleteCobranca, importarCobrancasPlanilha: f.importar }));
@@ -17,6 +18,9 @@ vi.mock("./db-configuracao-boleto", async original => ({ ...await original<typeo
 vi.mock("./db-custas", async original => ({ ...await original<typeof import("./db-custas")>(), vincularCustasAoAcordo: f.custas, liberarCustasDoAcordo: f.custas }));
 vi.mock("./storage", () => ({ storagePut: f.storage }));
 vi.mock("./audit", async original => ({ ...await original<typeof import("./audit")>(), logAudit: f.audit }));
+// Este arquivo testa consumidores/permissões; aplicação/rollback real do serviço
+// são cobertos por recebimento-acordo e pelos testes integrados do webhook.
+vi.mock("./recebimento-acordo", () => ({ bloquearContextoRecebimentoAcordo: f.bloquearRecebimento, aplicarRecebimentoAcordo: f.receber }));
 import { appRouter } from "./routers";
 import { invalidatePermCache } from "./rbac";
 
@@ -84,6 +88,17 @@ beforeEach(() => {
   tables[getTableName(schema.profilePermissions)] = permissions;
   f.db.mockResolvedValue(memoryDb());
   for (const mock of [f.list, f.byDevedor, f.calculos, f.comParcelas, f.emAcordo, f.ativos, f.parcelas, f.historico]) mock.mockResolvedValue([]);
+  const orm = memoryDb();
+  f.transaction.mockImplementation(async run => run(orm));
+  f.db.mockResolvedValue({ ...orm, transaction: f.transaction });
+  f.bloquearRecebimento.mockImplementation(async (_tx, parcelaId) => {
+    const parcela = tables.parcelasAcordo.find(p => p.id === parcelaId);
+    const acordo = tables.acordos.find(a => a.id === parcela?.acordoId);
+    return { parcela, acordo, parcelas: tables.parcelasAcordo.filter(p => p.acordoId === acordo?.id),
+      devedor: tables.devedores.find(d => d.id === acordo?.devedorId),
+      origens: tables.acordoCobrancas.filter(v => v.acordoId === acordo?.id).map(vinculo => ({ vinculo, cobranca: tables.cobrancas.find(c => c.id === vinculo.cobrancaId) })) };
+  });
+  f.receber.mockResolvedValue({ codigo: null, aplicado: true, valorPagoTotal: 10000, statusAcordo: "pago", cobrancasQuitadas: true, cobrancasIds: [100] });
   f.createDevedor.mockResolvedValue({ insertId: 99 }); f.createCobranca.mockResolvedValue({ insertId: 99 }); f.createAcordo.mockResolvedValue({ insertId: 99 });
 });
 const createInput = () => ({ condominioId: 1, devedorId: 10, cobrancaIds: [100], acordoOrigemId: 1000, totalAmount: 10000, agreedAmount: 10000, installments: 1, firstPaymentDate: now, parcelas: [{ installmentNumber: 1, amount: 10000, dueDate: now, snapshotPrincipal: 10000, snapshotDescricao: "Dívida fictícia" }] });
@@ -111,8 +126,17 @@ describe("escopo financeiro — consumidores reais com ORM mockado", () => {
   it.each(["updateParcela", "darBaixaParcela", "gerarBoletoPDFParcela"] as const)("%s valida parent antes de writes/storage", async action => { await expect(appRouter.createCaller(context()).acordos[action]({ id: 3, parcelaId: 3 } as any)).rejects.toMatchObject({ code: "NOT_FOUND" }); noWrites(); });
   it.each(["darBaixaParcela", "quebrarAcordo"] as const)("%s valida TODAS cobranças relacionadas antes do primeiro write", async action => { tables.acordoCobrancas.push({ acordoId: 1000, cobrancaId: 200 }); await expect(appRouter.createCaller(context("colaborador", "todos")).acordos[action]({ parcelaId: 1, acordoId: 1000 } as any)).rejects.toMatchObject({ code: "NOT_FOUND" }); noWrites(); });
   it("quebrarAcordo valida custas a liberar antes de qualquer write", async () => { tables.custasJudiciais.push({ acordoId: 1000, condominioId: 2, devedorId: 20 }); await expect(appRouter.createCaller(context("advogado", "todos")).acordos.quebrarAcordo({ acordoId: 1000 })).rejects.toMatchObject({ code: "NOT_FOUND" }); noWrites(); });
-  it("updateParcela permitido não altera payload financeiro", async () => { await appRouter.createCaller(context()).acordos.updateParcela({ id: 2, status: "pago", paymentDate: now }); expect(f.updateParcela).toHaveBeenCalledWith(2, { id: 2, status: "pago", paymentDate: now }); });
-  it("NULL updateParcela conserva ausência histórica de preflight", async () => { await appRouter.createCaller(context("colaborador", null)).acordos.updateParcela({ id: 3, status: "pago" }); expect(f.updateParcela).toHaveBeenCalledWith(3, { id: 3, status: "pago" }); });
+  it("updateParcela permitido mantém nominal/data e usa recebimento comum sem promover ator", async () => {
+    await appRouter.createCaller(context()).acordos.updateParcela({ id: 2, status: "pago", paymentDate: now });
+    expect(f.transaction).toHaveBeenCalledTimes(1);
+    expect(f.receber).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ parcela: tables.parcelasAcordo[1] }), expect.objectContaining({ valorPagoCentavos: 10000, dataPagamento: now, condominioId: 2, canal: "manual", ator: { userId: 901, userRole: "colaborador" } }));
+    expect(f.updateParcela).not.toHaveBeenCalled();
+  });
+  it("NULL não permite bypass do recebimento para condomínio sem acesso", async () => {
+    await expect(appRouter.createCaller(context("colaborador", null)).acordos.updateParcela({ id: 3, status: "pago" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(f.receber).not.toHaveBeenCalled();
+    noWrites();
+  });
   it.each(["getVencimentosProximos", "getParcelasVencidas"] as const)("%s sem filtro usa IN da carteira, não principal", async action => { tables.parcelasAcordo.forEach(p => p.dueDate = new Date("2020-01-01")); await appRouter.createCaller(context()).acordos[action]({}); const query = selects.find(q => q.table === "parcelasAcordo")!; expect(query.sql).toContain("`acordos`.`condominioId` in"); expect(query.params.slice(-2)).toEqual([1, 2]); });
   it("agregado NULL mantém contexto antigo eq principal", async () => { await appRouter.createCaller(context("colaborador", null)).acordos.getParcelasVencidas({}); const query = selects.find(q => q.table === "parcelasAcordo")!; expect(query.sql).toContain("`acordos`.`condominioId` ="); expect(query.params.at(-1)).toBe(1); });
   it("escopo global não concede ação RBAC negada", async () => { tables[getTableName(schema.profilePermissions)].find(p => p.modulo === "acordos" && p.acao === "aprovar").permitido = 0; await expect(appRouter.createCaller(context("advogado", "todos")).acordos.darBaixaParcela({ parcelaId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" }); noWrites(); expect(selects.some(q => q.table === "parcelasAcordo")).toBe(false); });
@@ -140,11 +164,10 @@ describe("escopo financeiro — consumidores reais com ORM mockado", () => {
   it("baixa autorizada mantém valores/status e quitação das cobranças", async () => {
     const result = await appRouter.createCaller(context()).acordos.darBaixaParcela({ parcelaId: 1, dataPagamento: now });
     expect(result).toEqual({ success: true, valorPagoTotal: 10000, statusAcordo: "pago", cobrancasQuitadas: true });
-    expect(mutations.map(m => [m.table, m.data])).toEqual([
-      ["parcelasAcordo", { status: "pago", paymentDate: now }],
-      ["acordos", { valorPago: 10000, status: "pago" }],
-    ]);
-    expect(f.updateCobranca).toHaveBeenCalledWith(100, { status: "pago", description: "Quitado via Acordo #1000" });
+    expect(f.transaction).toHaveBeenCalledTimes(1);
+    expect(f.receber).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ acordo: tables.acordos[0], origens: [{ vinculo: tables.acordoCobrancas[0], cobranca: tables.cobrancas[0] }] }), expect.objectContaining({ valorPagoCentavos: 10000, dataPagamento: now, condominioId: 1, canal: "manual", ator: { userId: 901, userRole: "colaborador" } }));
+    expect(f.updateCobranca).not.toHaveBeenCalled();
+    expect(f.audit).not.toHaveBeenCalled();
   });
   it("quebra autorizada sem pagamento mantém reativação e cancelamento", async () => {
     const result = await appRouter.createCaller(context()).acordos.quebrarAcordo({ acordoId: 1000 });

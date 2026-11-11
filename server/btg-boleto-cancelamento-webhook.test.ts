@@ -3,11 +3,14 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, getTableName } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  acordoCobrancas,
   acordos,
   btgCancelamentos,
   btgContaRecebedoraCondominios,
   btgCobrancasEmitidas,
   btgIntegracoes,
+  cobrancas,
+  devedores,
   parcelasAcordo,
   users,
 } from "../drizzle/schema";
@@ -64,7 +67,11 @@ function setup(overrides: Record<string, any[]> = {}) {
     acordos: [agreement], btgCancelamentos: [operation], auditLogs: [],
     btgRemessas: [{ id: 61, status: "concluida", codigo: "ORIGINAL_SUCCESS" }],
     btgBoletoSnapshots: [{ id: 71, dadosCifrados: "untouched-fixture" }],
-    btgRecuperacoes: [], cobrancas: [],
+    btgRecuperacoes: [],
+    condominios: [{ id: 2, name: "Condomínio fictício cancelamento", taxaJurosMensal: "0.00", taxaMulta: "0.00", taxaHonorarios: "0.00", correcaoMonetaria: "0.00", indiceCorrecao: "NENHUM", aplicarCorrecaoAuto: 0 }],
+    devedores: [{ id: 21, condominioId: 2, name: "Devedor fictício cancelamento", unitNumber: "TESTE", status: "acordo", totalDue: agreement.agreedAmount, createdAt: NOW, updatedAt: NOW }],
+    cobrancas: [{ id: 41, condominioId: 2, devedorId: 21, status: "em_acordo", amount: agreement.totalAmount, description: "Origem fictícia preservada", dueDate: DUE, custasJudiciais: 0, paidAt: null, paidAmount: null, createdAt: NOW, updatedAt: NOW }],
+    acordoCobrancas: [{ id: 1, acordoId: 11, cobrancaId: 41, valorOriginal: agreement.totalAmount, createdAt: NOW }],
     ...overrides,
   });
   mocks.getDb.mockResolvedValue(fixture.db);
@@ -74,7 +81,7 @@ function event(name = "collections.cancelled", data: Record<string, unknown> = {
   return { webhookId: "shared-subscription-fixture", event: name, data: { collectionId: emission.btgCollectionId, ...data } };
 }
 function paid(data: Record<string, unknown> = {}) {
-  return event("collections.paid", { amountPaid: AMOUNT, paidAt: PAID, ...data });
+  return event("collections.paid", { amountPaid: AMOUNT / 100, paidAt: PAID, ...data });
 }
 async function call(payload = event(), token = SECRET) {
   const req = {
@@ -88,13 +95,20 @@ async function call(payload = event(), token = SECRET) {
   return { status: res.status.mock.calls.at(-1)![0], body: res.json.mock.calls[0][0], statuses: res.status.mock.calls.map(([s]) => s) };
 }
 function financial() {
-  return structuredClone(Object.fromEntries(["btgCobrancasEmitidas", "parcelasAcordo", "acordos", "cobrancas"].map(k => [k, fixture.state.tables[k]])));
+  return structuredClone(Object.fromEntries(["btgCobrancasEmitidas", "parcelasAcordo", "acordos", "cobrancas", "acordoCobrancas", "devedores"].map(k => [k, fixture.state.tables[k]])));
 }
 function protectedHistory() {
   return structuredClone(Object.fromEntries(["btgRemessas", "btgBoletoSnapshots", "btgRecuperacoes"].map(k => [k, fixture.state.tables[k]])));
 }
 function auditMetadata() {
   return fixture.state.tables.auditLogs.map(r => JSON.parse(r.metadata));
+}
+function expectPaymentAudits(paymentCount: number, cancellationCount: number) {
+  const rows = fixture.state.tables.auditLogs;
+  expect(rows.filter(r => r.action === "pay_parcela")).toHaveLength(paymentCount);
+  expect(rows.filter(r => r.action === "config_change")).toHaveLength(cancellationCount);
+  expect(rows).toHaveLength(paymentCount + cancellationCount);
+  expect(fixture.state.writes.filter(w => w.table === "auditLogs").every(w => w.inTransaction && w.affected === 1)).toBe(true);
 }
 function failAuditOnce(mode: "throw" | "zero" = "throw") {
   const insert = fixture.db.insert.getMockImplementation()!;
@@ -115,10 +129,13 @@ function assertOrderedLocks(operations = fixture.state.operations) {
   expect(first("btgContaRecebedoraCondominios")).toBeGreaterThan(first("btgIntegracoes"));
   expect(first("acordos")).toBeGreaterThan(first("btgContaRecebedoraCondominios"));
   expect(first("parcelasAcordo")).toBeGreaterThan(first("acordos"));
-  expect(first("btgCobrancasEmitidas")).toBeGreaterThan(first("parcelasAcordo"));
+  expect(first("acordoCobrancas")).toBeGreaterThan(first("parcelasAcordo"));
+  expect(first("cobrancas")).toBeGreaterThan(first("acordoCobrancas"));
+  expect(first("devedores")).toBeGreaterThan(first("cobrancas"));
+  expect(first("btgCobrancasEmitidas")).toBeGreaterThan(first("devedores"));
   expect(first("btgCancelamentos")).toBeGreaterThan(first("btgCobrancasEmitidas"));
   const afterEmission = locks.slice(first("btgCobrancasEmitidas"));
-  expect(afterEmission.some(o => ["acordos", "parcelasAcordo", "btgIntegracoes", "btgContaRecebedoraCondominios"].includes(o.table ?? ""))).toBe(false);
+  expect(afterEmission.some(o => ["acordos", "parcelasAcordo", "acordoCobrancas", "cobrancas", "devedores", "btgIntegracoes", "btgContaRecebedoraCondominios"].includes(o.table ?? ""))).toBe(false);
   expect(locks.every(o => o.inTransaction)).toBe(true);
 }
 
@@ -172,7 +189,8 @@ describe("BTG — webhook de cancelamento com operação autenticada", () => {
     expect((await call(event())).status).toBe(200);
     expect(financial()).toEqual(before);
     expect(fixture.state.tables.btgCancelamentos).toEqual(ops);
-    expect(fixture.state.tables.auditLogs).toHaveLength(1);
+    expectPaymentAudits(1, 1);
+    expect(auditMetadata()).toContainEqual(expect.objectContaining({ evento: "webhook_conflito_pagamento", estado: "conflito_pagamento", codigo: "CONFLITO_PAGAMENTO", emissaoId: 51, parcelaId: 31 }));
   });
   it("cancel confirmado → paid integral mantém prioridade paga e converte operação em conflito", async () => {
     await call();
@@ -185,10 +203,13 @@ describe("BTG — webhook de cancelamento com operação autenticada", () => {
     await call(event("collections.canceled"));
     expect(financial()).toEqual(before);
     expect(fixture.state.tables.btgCancelamentos[0].estado).toBe("conflito_pagamento");
+    expectPaymentAudits(1, 2);
+    expect(auditMetadata()).toContainEqual(expect.objectContaining({ evento: "webhook_cancelamento_confirmado", estado: "cancelada" }));
+    expect(auditMetadata()).toContainEqual(expect.objectContaining({ evento: "webhook_conflito_pagamento", estado: "conflito_pagamento" }));
   });
   it.each([0, AMOUNT - 1, AMOUNT + 1])("partial/divergente %i + cancel tardio continua revisão sem baixa", async amountPaid => {
     const before = financial();
-    expect(await call(paid({ amountPaid }))).toMatchObject({ status: 200, body: { ok: true, ignored: true } });
+    expect(await call(paid({ amountPaid: amountPaid / 100 }))).toMatchObject({ status: 200, body: { ok: true, ignored: true } });
     expect(financial()).toEqual(before);
     expect(fixture.state.tables.btgCancelamentos[0]).toMatchObject({ estado: "conflito_pagamento", codigo: "CONFLITO_PAGAMENTO" });
     expect(await call()).toMatchObject({ status: 200, body: { ok: true, ignored: true } });
@@ -198,7 +219,7 @@ describe("BTG — webhook de cancelamento com operação autenticada", () => {
   });
   it("paid conflitante/sem valor não usa amount nominal nem cancela após entrega tardia", async () => {
     const before = financial();
-    await call(paid({ paidAmount: AMOUNT - 1 }));
+    await call(paid({ paidAmount: (AMOUNT - 1) / 100 }));
     await call();
     expect(financial()).toEqual(before);
     expect(fixture.state.tables.btgCancelamentos[0].estado).toBe("conflito_pagamento");
@@ -269,7 +290,7 @@ describe("BTG — webhook de cancelamento com operação autenticada", () => {
   });
   it.each([
     { externalId: "other-fixture" }, { correlationId: "other-fixture" },
-    { documentNumber: "PA32R1" }, { type: "OTHER" }, { amount: AMOUNT + 1 },
+    { documentNumber: "PA32R1" }, { type: "OTHER" }, { amount: (AMOUNT + 1) / 100 },
   ])("identidade opcional contraditória %j não confirma a operação", async data => {
     const before = financial(), ops = structuredClone(fixture.state.tables.btgCancelamentos);
     expect(await call(event("collections.cancelled", data))).toMatchObject({ status: 200, body: { ok: true, ignored: true } });
@@ -279,7 +300,7 @@ describe("BTG — webhook de cancelamento com operação autenticada", () => {
   });
   it("identidade opcional concordante confirma sem persistir seus campos", async () => {
     expect((await call(event("collections.cancelled", {
-      externalId: emission.externalId, correlationId: "btgv2-51", documentNumber: "PA31R1", type: "BANKSLIP_QRCODE", amount: AMOUNT,
+      externalId: emission.externalId, correlationId: "btgv2-51", documentNumber: "PA31R1", type: "BANKSLIP_QRCODE", amount: AMOUNT / 100,
     }))).status).toBe(200);
     expect(fixture.state.tables.btgCancelamentos[0].estado).toBe("cancelada");
     expect(auditMetadata()[0]).not.toHaveProperty("externalId");
@@ -326,7 +347,7 @@ describe("BTG — escopo operacional, rollback, selfduplicates e locks", () => {
     await call(paid());
     expect(fixture.state.tables.btgCancelamentos).toEqual(ops);
     expect(fixture.state.tables.btgContaRecebedoraCondominios).toEqual(links);
-    expect(fixture.state.tables.auditLogs).toEqual([]);
+    expectPaymentAudits(1, 0);
     expect(fixture.state.tables.btgCobrancasEmitidas[0].status).toBe("paga");
   });
   it("evento de revisão antiga não confirma operação nem atinge a emissão atual", async () => {
@@ -355,7 +376,7 @@ describe("BTG — escopo operacional, rollback, selfduplicates e locks", () => {
     expect(fixture.state.rollbacks).toBe(1);
     expect(fixture.state.tables.btgWebhookEntregas[0]).toMatchObject({ statusProcessamento: "falha", erroCodigo: "PROCESSING_FAILED", processadoEm: null });
     expect((await call(payload)).status).toBe(200);
-    expect(fixture.state.tables.auditLogs).toHaveLength(1);
+    expectPaymentAudits(payload.event === "collections.paid" ? 1 : 0, 1);
     expect(fixture.state.tables.btgWebhookEntregas).toHaveLength(1);
   });
   it("auditoria sem affectedRows=1 também aborta e preserva operação", async () => {
@@ -365,6 +386,46 @@ describe("BTG — escopo operacional, rollback, selfduplicates e locks", () => {
     expect(financial()).toEqual(before);
     expect(fixture.state.tables.btgCancelamentos).toEqual(ops);
   });
+  it.each(["throw", "zero"] as const)(
+    "auditoria operacional %s após pay_parcela desfaz ambas e a baixa integral",
+    async mode => {
+      const insert = fixture.db.insert.getMockImplementation()!;
+      fixture.db.insert.mockImplementation((table: any) => {
+        if (getTableName(table) !== "auditLogs") return insert(table);
+        return {
+          values: (values: any) =>
+            values.action === "config_change"
+              ? mode === "throw"
+                ? Promise.reject(new Error("injected cancellation audit"))
+                : Promise.resolve([{ affectedRows: 0 }])
+              : insert(table).values(values),
+        };
+      });
+      const before = financial(),
+        ops = structuredClone(fixture.state.tables.btgCancelamentos);
+      expect(await call(paid())).toEqual({
+        status: 500,
+        body: { ok: false, error: "PROCESSING_FAILED" },
+        statuses: [500],
+      });
+      expect(financial()).toEqual(before);
+      expect(fixture.state.tables.btgCancelamentos).toEqual(ops);
+      expect(fixture.state.tables.auditLogs).toEqual([]);
+      expect(fixture.state.rollbacks).toBe(1);
+      const receiptAttempt = fixture.state.operations.find(
+        o => o.table === "auditLogs" && o.values?.action === "pay_parcela"
+      );
+      expect(receiptAttempt).toMatchObject({
+        kind: "insert",
+        inTransaction: true,
+        affected: 1,
+      });
+      expect(fixture.state.tables.btgWebhookEntregas[0]).toMatchObject({
+        statusProcessamento: "falha",
+        erroCodigo: "PROCESSING_FAILED",
+      });
+    }
+  );
   it("update operacional sem linha afetada não confirma nem audita", async () => {
     const update = fixture.db.update.getMockImplementation()!;
     fixture.db.update.mockImplementation((table: any) => getTableName(table) === "btgCancelamentos"
@@ -447,6 +508,9 @@ describe("BTG — escopo operacional, rollback, selfduplicates e locks", () => {
       await tx.select().from(btgContaRecebedoraCondominios).where(eq(btgContaRecebedoraCondominios.condominioId, 2)).limit(1).for("share");
       await tx.select().from(acordos).where(eq(acordos.id, 11)).limit(1).for("update");
       await tx.select().from(parcelasAcordo).where(eq(parcelasAcordo.id, 31)).limit(1).for("update");
+      await tx.select().from(acordoCobrancas).where(eq(acordoCobrancas.acordoId, 11)).for("update");
+      await tx.select().from(cobrancas).where(eq(cobrancas.id, 41)).for("update");
+      await tx.select().from(devedores).where(eq(devedores.id, 21)).limit(1).for("update");
       await tx.select().from(btgCobrancasEmitidas).where(and(eq(btgCobrancasEmitidas.origemTipo, "parcela_acordo"), eq(btgCobrancasEmitidas.origemId, 31))).orderBy(desc(btgCobrancasEmitidas.revisao)).for("update");
       await tx.select().from(btgCancelamentos).where(eq(btgCancelamentos.btgCobrancaEmitidaId, 51)).for("update");
       await tx.update(btgCancelamentos).set({ estado: "em_confirmacao", codigo: "RESULTADO_INCERTO" }).where(eq(btgCancelamentos.id, 81));

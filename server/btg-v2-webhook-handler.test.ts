@@ -100,6 +100,9 @@ const financialTables = [
   "parcelasAcordo",
   "acordos",
   "cobrancas",
+  "acordoCobrancas",
+  "devedores",
+  "auditLogs",
 ];
 let fixture: ReturnType<typeof criarDbWebhookBtgEmMemoria>;
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -114,7 +117,14 @@ function setup(overrides: Record<string, any[]> = {}) {
       { ...installment, id: 32, installmentNumber: 2 },
     ],
     acordos: [agreement],
-    cobrancas: [charge],
+    // Origem negociada distinta da cobrança avulsa 41. Overrides inválidos
+    // continuam prioritários: não reparar fixtures fora do escopo.
+    cobrancas: [charge, { ...charge, id: 42, status: "em_acordo", amount: agreement.totalAmount, custasJudiciais: 0, description: "Origem fictícia negociada preservada", dueDate: emission.dueDate }],
+    condominios: [{ id: 2, name: "Condomínio fictício handler", taxaJurosMensal: "0.00", taxaMulta: "0.00", taxaHonorarios: "0.00", correcaoMonetaria: "0.00", indiceCorrecao: "NENHUM", aplicarCorrecaoAuto: 0 }],
+    devedores: [{ id: 21, condominioId: 2, name: "Devedor fictício handler", unitNumber: "TESTE", status: "ativo", totalDue: agreement.agreedAmount + AMOUNT + charge.custasJudiciais, createdAt: INITIAL_AT, updatedAt: INITIAL_AT }],
+    acordoCobrancas: [{ id: 1, acordoId: 11, cobrancaId: 42, valorOriginal: agreement.totalAmount, createdAt: INITIAL_AT }],
+    auditLogs: [],
+    btgContaRecebedoraCondominios: [{ id: 1, btgIntegracaoId: 7, btgContaRecebedoraId: 15, condominioId: 2, ativo: 1 }],
     ...overrides,
   });
   mocks.getDb.mockResolvedValue(fixture.db);
@@ -126,7 +136,7 @@ function payment(overrides: Record<string, unknown> = {}) {
     event: "collections.paid",
     data: {
       collectionId: emission.btgCollectionId,
-      amountPaid: AMOUNT,
+      amountPaid: AMOUNT / 100,
       paidAt: PAID_AT,
       ...overrides,
     },
@@ -262,6 +272,10 @@ function expectValidPayment() {
     statusProcessamento: "processado",
     payloadHash: hash(payment()),
   });
+  expect(fixture.state.tables.auditLogs.filter(row => row.action === "pay_parcela")).toHaveLength(1);
+  expect(fixture.state.writes.filter(write => write.table === "auditLogs" && write.values?.action === "pay_parcela")).toEqual([
+    expect.objectContaining({ kind: "insert", inTransaction: true, affected: 1 }),
+  ]);
 }
 
 beforeEach(() => {
@@ -509,7 +523,7 @@ describe("BTG v2 — envelope e validação antes do banco", () => {
     ["status numérico", payment({ status: 1 })],
     ["amountPaid string", payment({ amountPaid: "12599" })],
     ["amountPaid negativo", payment({ amountPaid: -1 })],
-    ["amountPaid fracionário", payment({ amountPaid: 12599.5 })],
+    ["amountPaid precisão inválida de três casas", payment({ amountPaid: 12599.501 })],
     [
       "amountPaid fora de inteiro seguro",
       payment({ amountPaid: Number.MAX_SAFE_INTEGER + 1 }),
@@ -522,7 +536,29 @@ describe("BTG v2 — envelope e validação antes do banco", () => {
   ])("rejeita tipos/limites inválidos: %s", async (_name, payload) => {
     const result = await call(payload);
     expect(result.status).toBe(400);
-    expect(result.body).toMatchObject({ ok: false });
+    const expectedFields: Record<string, string[]> = {
+      null: [], array: [], string: [], número: [], booleano: [],
+      "sem campos": ["event", "data"],
+      "event numérico": ["event"], "event vazio": ["event"], "event longo": ["event"],
+      "data null": ["data"], "data array": ["data"], "data string": ["data"],
+      "collectionId numérico": ["data.collectionId"], "collectionId ausente em evento conhecido": ["data.collectionId"],
+      "collectionId vazio": ["data.collectionId"], "collectionId longo": ["data.collectionId"],
+      "id numérico": ["id"], "id longo": ["id"], "webhookId objeto": ["webhookId"],
+      "status numérico": ["data.status"], "amountPaid string": ["data.amountPaid"],
+      "amountPaid negativo": ["data.amountPaid"], "amountPaid precisão inválida de três casas": ["data.amountPaid"],
+      "amountPaid fora de inteiro seguro": ["data.amountPaid"], "paidAmount objeto": ["data.paidAmount"],
+      "amount nominal string": ["data.amount"], "paidAt numérico": ["data.paidAt"],
+      "paidAt inválido": ["data.paidAt"], "paidAt dia inexistente": ["data.paidAt"],
+    };
+    expect(result.body).toEqual({ ok: false, error: "INVALID_PAYLOAD", camposInvalidos: expectedFields[_name] });
+    expect(mocks.getDb).not.toHaveBeenCalled();
+    expect(fixture.state.writes).toEqual([]);
+  });
+  it("diagnóstico 400 usa somente catálogo estático, sem valores ou PII", async () => {
+    const sentinel = "fixture-private-invalid-body-never-expose";
+    const result = await call(payment({ amountPaid: sentinel, paidAt: sentinel, cpf: sentinel, payload: sentinel }));
+    expect(result).toEqual({ status: 400, body: { ok: false, error: "INVALID_PAYLOAD", camposInvalidos: ["data.amountPaid", "data.paidAt"] } });
+    expect(JSON.stringify({ result, tables: fixture.state.tables, logs: [vi.mocked(console.error).mock.calls, vi.mocked(console.warn).mock.calls, vi.mocked(console.log).mock.calls] })).not.toContain(sentinel);
     expect(mocks.getDb).not.toHaveBeenCalled();
     expect(fixture.state.writes).toEqual([]);
   });
@@ -659,7 +695,7 @@ describe("BTG v2 — pagamento integral, snapshots e estados terminais", () => {
     async field => {
       const data = {
         collectionId: emission.btgCollectionId,
-        [field]: AMOUNT,
+        [field]: AMOUNT / 100,
         paidAt: PAID_AT,
       };
       expect(
@@ -690,7 +726,7 @@ describe("BTG v2 — pagamento integral, snapshots e estados terminais", () => {
       ...event("collections.paid"),
       data: {
         collectionId: emission.btgCollectionId,
-        amount: AMOUNT,
+        amount: AMOUNT / 100,
         paidAt: PAID_AT,
       },
     });
@@ -701,17 +737,25 @@ describe("BTG v2 — pagamento integral, snapshots e estados terminais", () => {
   it.each([0, 12598, 12600])(
     "valor pago parcial/divergente %i é ignorado sem baixa",
     async amountPaid => {
-      await expectIgnored(payment({ amountPaid }));
+      await expectIgnored(payment({ amountPaid: amountPaid / 100 }));
     }
   );
+  it("12599.5 reais tem precisão válida mas é divergente, não retorna 400", async () => {
+    await expectIgnored(payment({ amountPaid: 12599.5 }));
+    expect(fixture.state.tables.btgWebhookEntregas[0].erroCodigo).toBe("PAYMENT_AMOUNT_MISMATCH");
+  });
+  it("12599 inteiro externo expressa reais, não centavos internos", async () => {
+    await expectIgnored(payment({ amountPaid: AMOUNT }));
+    expect(fixture.state.tables.btgWebhookEntregas[0].erroCodigo).toBe("PAYMENT_AMOUNT_MISMATCH");
+  });
   it("amountPaid e paidAmount conflitantes não podem esconder uma divergência", async () => {
     await expectIgnored(
-      payment({ amountPaid: AMOUNT, paidAmount: AMOUNT - 1 })
+      payment({ amountPaid: AMOUNT / 100, paidAmount: (AMOUNT - 1) / 100 })
     );
   });
   it("amountPaid e paidAmount concordantes são aceitos sem duplicar a baixa", async () => {
     expect(
-      await call(payment({ amountPaid: AMOUNT, paidAmount: AMOUNT }))
+      await call(payment({ amountPaid: AMOUNT / 100, paidAmount: AMOUNT / 100 }))
     ).toEqual({ status: 200, body: { ok: true } });
     expect(fixture.state.tables.parcelasAcordo[0]).toMatchObject({
       status: "pago",
@@ -994,7 +1038,7 @@ describe("BTG v2 — idempotência, transação e reentrega", () => {
     expect(Object.keys(upsert?.values ?? {})).toEqual(["payloadHash"]);
   });
   it("entrega ignorada é terminal e sua repetição é duplicate 200", async () => {
-    const payload = payment({ amountPaid: AMOUNT - 1 });
+    const payload = payment({ amountPaid: (AMOUNT - 1) / 100 });
     await expectIgnored(payload);
     expect(await call(payload)).toEqual({
       status: 200,
@@ -1062,7 +1106,7 @@ describe("BTG v2 — idempotência, transação e reentrega", () => {
     expect(fixture.state.tables.btgWebhookEntregas[0].erroCodigo).toBeNull();
   });
   it("falha ao concluir a entrega também desfaz emissão, parcela e conclusão do acordo", async () => {
-    setup({ parcelasAcordo: [installment] });
+    setup({ parcelasAcordo: [installment], acordos: [{ ...agreement, installments: 1, agreedAmount: AMOUNT }] });
     fixture.state.failInjected = { table: "btgWebhookEntregas", times: 1 };
     const before = snapshotFinance();
     expect(await call()).toEqual({
@@ -1081,6 +1125,8 @@ describe("BTG v2 — idempotência, transação e reentrega", () => {
     expect(attempts.map(operation => operation.table)).toEqual([
       "parcelasAcordo",
       "acordos",
+      "cobrancas",
+      "devedores",
       "btgCobrancasEmitidas",
       "btgWebhookEntregas",
     ]);

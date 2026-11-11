@@ -119,8 +119,16 @@ export function criarDbWebhookBtgEmMemoria(initial: Record<string, Row[]>) {
       if (!["=", "!=", "<>", ">", "<", ">=", "<="].includes(operator))
         throw new Error(`Unsupported operator in test SQL: ${sql}`);
       return row => {
-        const a = left(row),
-          b = right(row);
+        let a = left(row), b = right(row);
+        // MySQL/Drizzle serializa timestamp como string UTC sem timezone.
+        // JS Date >= "YYYY-MM-DD hh:mm:ss" seria NaN, diferente do SQL real.
+        if (a instanceof Date || b instanceof Date) {
+          const millis = (v: unknown): number => v instanceof Date ? v.getTime() :
+            typeof v === "string" ? new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/.test(v)
+              ? `${v.replace(" ", "T")}Z` : v).getTime() : NaN;
+          a = millis(a); b = millis(b);
+          if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+        }
         if (operator === "=") return a === b;
         if (operator === "!=" || operator === "<>") return a !== b;
         if (operator === ">") return a > b;

@@ -7,6 +7,7 @@ import {
 import { BtgV2ConfigurationError, getBtgV2ServerConfig } from "./config";
 import { criarErroHttpBtgV2, criarErroHttpBtgV2DoCorpo, parseJsonBytesBtgV2, vincularCapturaHttpErroBtg } from "./errors";
 import type { BtgHttpCaptura } from "./diagnosticos";
+import { valorPagoBtgEmCentavos, metodoPagamentoBtg } from "./valores";
 
 const LIMITE_CAPTURA_BYTES = 64 * 1024;
 const PRAZO_RESPOSTA_MS = 5000;
@@ -149,6 +150,8 @@ export interface BtgV2ConsultaCobranca {
   status: string;
   paidAt: string | null;
   paidAmount: number | null;
+  settledAt?: string | null;
+  paymentMethod?: string | null;
   bankSlipUrl: string | null;
   pixQrCode: string | null;
   pixCopiaECola: string | null;
@@ -178,12 +181,10 @@ export async function consultarCobrancaBtgV2(
   if (!found) return null;
   const normalized = normalizarRespostaBolePixV2(found);
   const paidAt = typeof found.paidAt === "string" ? found.paidAt : null;
-  const paidAmount = typeof found.paidAmount === "number"
-    ? found.paidAmount
-    : typeof found.amountPaid === "number"
-      ? found.amountPaid
-      : null;
-  return { ...normalized, paidAt, paidAmount };
+  const paidAmount = valorPagoBtgEmCentavos(found);
+  const settledAt = typeof found.settledAt === "string" ? found.settledAt : null;
+  const paymentMethod = metodoPagamentoBtg(found.paymentMethod) ?? null;
+  return { ...normalized, paidAt, paidAmount, settledAt, paymentMethod };
 }
 
 /** Cancela uma cobrança v2 pelo collectionId; o BTG responde HTTP 204 em caso de sucesso. */

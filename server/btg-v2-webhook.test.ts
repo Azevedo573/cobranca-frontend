@@ -43,16 +43,41 @@ describe("BTG v2 — webhook Bearer", () => {
     expect(mapearStatusWebhookBtgV2("evento.desconhecido", "emitida")).toBe("emitida");
   });
 
-  it("exige valor efetivamente pago em centavos sem substituir pelo nominal", () => {
-    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 9200 })).toBe(9200);
-    expect(valorPagoWebhookBtgEmCentavos({ paidAmount: 9200 })).toBe(9200);
-    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 9200, paidAmount: 9200 })).toBe(9200);
+  it("converte prova paga externa em reais para centavos, sem substituir pelo nominal", () => {
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 92 })).toBe(9200);
+    expect(valorPagoWebhookBtgEmCentavos({ paidAmount: 92 })).toBe(9200);
+    expect(
+      valorPagoWebhookBtgEmCentavos({ amountPaid: 92, paidAmount: 92 })
+    ).toBe(9200);
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 5.84 })).toBe(584);
+    expect(valorPagoWebhookBtgEmCentavos({ paidAmount: 5.84 })).toBe(584);
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 5 })).toBe(500);
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 9200 })).toBe(920000);
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 0 })).toBe(0);
     expect(valorPagoWebhookBtgEmCentavos({})).toBeNull();
     expect(valorPagoWebhookBtgEmCentavos({ amountPaid: "9200" })).toBeNull();
-    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 92.01 })).toBeNull();
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 92.01 })).toBe(9201);
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 92.001 })).toBeNull();
     expect(valorPagoWebhookBtgEmCentavos({ amountPaid: -1 })).toBeNull();
-    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: Number.NaN })).toBeNull();
-    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: Number.MAX_SAFE_INTEGER + 1 })).toBeNull();
-    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: 9200, paidAmount: 9100 })).toBeNull();
+    expect(
+      valorPagoWebhookBtgEmCentavos({ amountPaid: Number.NaN })
+    ).toBeNull();
+    expect(
+      valorPagoWebhookBtgEmCentavos({ amountPaid: Number.MAX_SAFE_INTEGER + 1 })
+    ).toBeNull();
+    expect(
+      valorPagoWebhookBtgEmCentavos({ amountPaid: 92, paidAmount: 91 })
+    ).toBeNull();
+    expect(
+      valorPagoWebhookBtgEmCentavos({ amountPaid: 92, paidAmount: null })
+    ).toBeNull();
+    expect(valorPagoWebhookBtgEmCentavos({ amountPaid: true })).toBeNull();
+    expect(
+      valorPagoWebhookBtgEmCentavos({ amountPaid: Number.POSITIVE_INFINITY })
+    ).toBeNull();
+    // Mesmo um inteiro externo seguro deve caber após conversão para centavos.
+    expect(
+      valorPagoWebhookBtgEmCentavos({ amountPaid: Number.MAX_SAFE_INTEGER })
+    ).toBeNull();
   });
 });

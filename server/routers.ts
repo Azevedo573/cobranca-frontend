@@ -1570,9 +1570,60 @@ export const appRouter = router({
       paymentDate: z.date().optional(),
       status: z.enum(["pendente", "pago", "atrasado"]).optional(),
     })).mutation(async ({ input, ctx }) => {
-      await (await import("./escopo-financeiro")).preflightParcelaFinanceiro(ctx.user, input.id);
-      const { updateParcela } = await import("./db-acordos");
-      return await updateParcela(input.id, input);
+      const { hasPermission } = await import("./rbac");
+      const { getCurrentAuthorizationUser } = await import("./_core/auth-helper");
+      const { assertCondominioAccess } = await import("./tenant-guard");
+      const acao = input.status === "pago" ? "aprovar" : "editar";
+      if (!await hasPermission(ctx.user.id, ctx.user.role, "acordos", acao)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Sem permissão para aprovar recebimento em acordos." });
+      }
+      await (await import("./escopo-financeiro")).preflightParcelaFinanceiro(ctx.user, input.id, input.status === "pago");
+      const { bloquearContextoRecebimentoAcordo, aplicarRecebimentoAcordo } = await import("./recebimento-acordo");
+      const db = await getDb();
+      if (!db) throw new Error("Database connection failed");
+      await db.transaction(async tx => {
+        const contexto = await bloquearContextoRecebimentoAcordo(tx, input.id);
+        const { parcela, acordo, devedor, origens } = contexto;
+        if (!parcela) throw new Error("Parcela não encontrada");
+        const actor = await getCurrentAuthorizationUser(ctx.user);
+        if (!actor || !await hasPermission(actor.id, actor.role, "acordos", acao)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Permissão de acordo revogada." });
+        }
+        if (!acordo || parcela.acordoId !== acordo.id || !devedor || devedor.id !== acordo.devedorId || devedor.condominioId !== acordo.condominioId ||
+          origens.some(({ vinculo, cobranca }) => vinculo.acordoId !== acordo.id || vinculo.cobrancaId !== cobranca.id || cobranca.devedorId !== acordo.devedorId || cobranca.condominioId !== acordo.condominioId)) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Relação financeira inválida." });
+        }
+        await assertCondominioAccess(actor, acordo.condominioId);
+        // Mesmo status=pago não autoriza sobrescrever data histórica nem regredir.
+        if (parcela.status === "pago") throw new Error("Parcela já foi paga anteriormente");
+        if (input.status === "pago") {
+          const resultado = await aplicarRecebimentoAcordo(tx, contexto, {
+            valorPagoCentavos: parcela.amount,
+            dataPagamento: input.paymentDate ?? new Date(),
+            condominioId: acordo.condominioId,
+            canal: "manual",
+            ator: { userId: actor.id, userRole: actor.role },
+          });
+          if (!resultado.aplicado || resultado.codigo) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Recebimento de parcela recusado para o contexto atual." });
+          }
+          return;
+        }
+        if (input.paymentDate !== undefined) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Data de pagamento exige recebimento manual auditado." });
+        }
+        if (!["pendente", "atrasado"].includes(parcela.status) || !["ativo", "inadimplente"].includes(acordo.status)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Parcela ou acordo não elegível para atualização." });
+        }
+        if (input.status === undefined || input.status === parcela.status) return;
+        const { parcelasAcordo } = await import("../drizzle/schema");
+        const { and, eq } = await import("drizzle-orm");
+        const result = await tx.update(parcelasAcordo).set({ status: input.status }).where(and(
+          eq(parcelasAcordo.id, parcela.id), eq(parcelasAcordo.acordoId, acordo.id), eq(parcelasAcordo.status, parcela.status),
+        ));
+        if (result[0]?.affectedRows !== 1) throw new Error("PARCELA_UPDATE_FAILED");
+      });
+      // Preserva o retorno void do update genérico existente.
     }),
     darBaixaParcela: requirePermission("acordos", "aprovar").input(z.object({
       parcelaId: z.number(),
@@ -1582,77 +1633,42 @@ export const appRouter = router({
       const { getDb } = await import("./db");
       const db = await getDb();
       if (!db) throw new Error("Database connection failed");
-      
-      const { parcelasAcordo, acordos } = await import("../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      
-      // Buscar parcela
-      const parcela = await db.select().from(parcelasAcordo).where(eq(parcelasAcordo.id, input.parcelaId)).limit(1);
-      if (!parcela || parcela.length === 0) {
-        throw new Error("Parcela não encontrada");
-      }
-      
-      // Validar que não foi paga
-      if (parcela[0].status === "pago") {
-        throw new Error("Parcela já foi paga anteriormente");
-      }
-      
-      // Atualizar parcela como paga
-      const dataPagamento = input.dataPagamento || new Date();
-      await db.update(parcelasAcordo)
-        .set({ 
-          status: "pago", 
-          paymentDate: dataPagamento 
-        })
-        .where(eq(parcelasAcordo.id, input.parcelaId));
-      
-      // Buscar todas as parcelas do acordo
-      const todasParcelas = await db.select().from(parcelasAcordo)
-        .where(eq(parcelasAcordo.acordoId, parcela[0].acordoId));
-      
-      // Calcular valor pago total
-      const valorPagoTotal = todasParcelas
-        .filter(p => p.status === "pago" || p.id === input.parcelaId)
-        .reduce((sum, p) => sum + Number(p.amount), 0);
-      
-      // Verificar se todas as parcelas foram pagas
-      const todasPagas = todasParcelas.every(p => 
-        p.status === "pago" || p.id === input.parcelaId
-      );
-      
-      // Atualizar acordo
-      await db.update(acordos)
-        .set({ 
-          valorPago: valorPagoTotal,
-          status: todasPagas ? "pago" : "ativo"
-        })
-        .where(eq(acordos.id, parcela[0].acordoId));
-
-      // Etapa 6: Se todas as parcelas foram pagas, quitar as cobranças originais vinculadas ao acordo
-      if (todasPagas) {
-        const { acordoCobrancas, cobrancas } = await import("../drizzle/schema");
-        const { updateCobranca } = await import("./db-cobrancas");
-        // Buscar todas as cobranças vinculadas a este acordo
-        const cobrancasDoAcordo = await db
-          .select({ cobrancaId: acordoCobrancas.cobrancaId })
-          .from(acordoCobrancas)
-          .where(eq(acordoCobrancas.acordoId, parcela[0].acordoId));
-        // Atualizar cada cobrança para 'pago' com observação de quitação via acordo
-        for (const { cobrancaId } of cobrancasDoAcordo) {
-          await updateCobranca(cobrancaId, {
-            status: "pago",
-            description: `Quitado via Acordo #${parcela[0].acordoId}`,
-          });
+      const { bloquearContextoRecebimentoAcordo, aplicarRecebimentoAcordo } = await import("./recebimento-acordo");
+      const { getCurrentAuthorizationUser } = await import("./_core/auth-helper");
+      const { hasPermission } = await import("./rbac");
+      const { assertCondominioAccess } = await import("./tenant-guard");
+      return await db.transaction(async tx => {
+        const contexto = await bloquearContextoRecebimentoAcordo(tx, input.parcelaId);
+        const { parcela, acordo, devedor, origens } = contexto;
+        if (!parcela) throw new Error("Parcela não encontrada");
+        const actor = await getCurrentAuthorizationUser(ctx.user);
+        if (!actor || !await hasPermission(actor.id, actor.role, "acordos", "aprovar")) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Permissão de recebimento revogada." });
         }
-      }
-      
-      await logAudit(ctx, { action: "pay_parcela", entity: "parcela", entityId: String(input.parcelaId), afterData: { acordoId: parcela[0].acordoId, valorPago: valorPagoTotal, statusAcordo: todasPagas ? "pago" : "ativo", cobrancasQuitadas: todasPagas }, severity: "info" });
-      return { 
-        success: true, 
-        valorPagoTotal,
-        statusAcordo: todasPagas ? "pago" : "ativo",
-        cobrancasQuitadas: todasPagas,
-      };
+        if (!acordo || parcela.acordoId !== acordo.id || !devedor || devedor.id !== acordo.devedorId || devedor.condominioId !== acordo.condominioId ||
+          origens.some(({ vinculo, cobranca }) => vinculo.acordoId !== acordo.id || vinculo.cobrancaId !== cobranca.id || cobranca.devedorId !== acordo.devedorId || cobranca.condominioId !== acordo.condominioId)) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Relação financeira inválida." });
+        }
+        await assertCondominioAccess(actor, acordo.condominioId);
+        // Contrato manual: duplicata é recusa, não success idempotente bancário.
+        if (parcela.status === "pago") throw new Error("Parcela já foi paga anteriormente");
+        const resultado = await aplicarRecebimentoAcordo(tx, contexto, {
+          valorPagoCentavos: parcela.amount,
+          dataPagamento: input.dataPagamento ?? new Date(),
+          condominioId: acordo.condominioId,
+          canal: "manual",
+          ator: { userId: actor.id, userRole: actor.role },
+        });
+        if (!resultado.aplicado || resultado.codigo) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Recebimento de parcela recusado para o contexto atual." });
+        }
+        return {
+          success: true,
+          valorPagoTotal: resultado.valorPagoTotal,
+          statusAcordo: resultado.statusAcordo,
+          cobrancasQuitadas: resultado.cobrancasQuitadas,
+        };
+      });
     }),
     verificarAtrasos: adminProcedure.mutation(async () => {
       const { verificarParcelasAtrasadas } = await import("./verificar-atrasos");

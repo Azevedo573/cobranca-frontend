@@ -53,7 +53,7 @@ describe("BTG v2 — cliente Collections", () => {
   it("consulta por id com paginação obrigatória e headers Sandbox sem retry", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: [{
-        collectionId: "collection-1", status: "PAID", paidAt: "2026-11-16T10:00:00.000Z", paidAmount: 12345,
+        collectionId: "collection-1", status: "PAID", paidAt: "2026-11-16T10:00:00.000Z", paidAmount: 123.45,
         detail: { emv: "000201", digitableLine: "123", ourNumber: "456" },
       }],
     }), { status: 200 }));
@@ -72,11 +72,48 @@ describe("BTG v2 — cliente Collections", () => {
     await expect(consultarCobrancaBtgV2("collection-1", empty)).resolves.toBeNull();
     expect(empty).toHaveBeenCalledOnce();
     const found = vi.fn().mockResolvedValue(new Response(JSON.stringify([
-      { collectionId: "collection-1", status: "PAID", amountPaid: 250 },
+      { collectionId: "collection-1", status: "PAID", amountPaid: 2.50 },
     ]), { status: 200 }));
     await expect(consultarCobrancaBtgV2("collection-1", found)).resolves.toMatchObject({ paidAt: null, paidAmount: 250 });
     expect(found).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    [{ amountPaid: 5.84 }, 584],
+    [{ paidAmount: 5.84 }, 584],
+    [{ amountPaid: 5 }, 500],
+    [{ paidAmount: 584 }, 58400],
+    [{ amountPaid: 5.84, paidAmount: 5.84 }, 584],
+    [{ amountPaid: 0 }, 0],
+    [{ amount: 5.84 }, null],
+    [{}, null],
+    [{ amountPaid: 5.84, paidAmount: 5.83 }, null],
+    [{ amountPaid: 5.841 }, null],
+    [{ amountPaid: -5.84 }, null],
+    [{ amountPaid: "5.84" }, null],
+    [{ amountPaid: null }, null],
+    [{ amountPaid: 5.84, paidAmount: null }, null],
+    [{ amountPaid: Number.MAX_SAFE_INTEGER }, null],
+  ])(
+    "normaliza valores externos %j em centavos sem nominal/heurística",
+    async (data, expected) => {
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ collectionId: "collection-1", status: "PAID", ...data }],
+          }),
+          { status: 200 }
+        )
+      );
+      const result = await consultarCobrancaBtgV2("collection-1", fetchMock);
+      expect(result).not.toBeNull();
+      expect(result!.paidAmount).toBe(expected);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const [, options] = fetchMock.mock.calls[0];
+      expect(options.method).toBe("GET");
+      assertHeaders(options.headers);
+    }
+  );
 
   it("cria BolePix preservando payload e normalização da resposta de sucesso", async () => {
     const response = {

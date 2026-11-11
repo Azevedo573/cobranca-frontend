@@ -1,7 +1,7 @@
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { devedores, InsertDevedor, cobrancas, condominios, demandas, processosJudiciais, tentativasCobranca, acordos, whatsappConversas, atendimentos } from "../drizzle/schema";
 import { getDb } from "./db";
-import { calcularValorDevido } from "../shared/calculos";
+import { lerSaldoDevedor } from "./saldo-devedor";
 
 export type EventoAtendimentoDevedor = {
   id: string;
@@ -56,61 +56,12 @@ export function consolidarEventosAtendimento(input: {
 export async function getDevedoresByCondominio(condominioId: number) {
   const db = await getDb();
   if (!db) return [];
-  
-  // Buscar devedores
   const devedoresList = await db.select().from(devedores).where(eq(devedores.condominioId, condominioId));
-  
-  // Buscar taxas do condomínio
-  const condominioData = await db.select().from(condominios).where(eq(condominios.id, condominioId)).limit(1);
-  const taxas = condominioData[0] ? {
-    taxaJurosMensal: Number(condominioData[0].taxaJurosMensal || 0),
-    taxaMulta: Number(condominioData[0].taxaMulta || 0),
-    taxaHonorarios: Number(condominioData[0].taxaHonorarios || 0),
-    correcaoMonetaria: Number(condominioData[0].correcaoMonetaria || 0),
-  } : null;
-  
-  // Para cada devedor, calcular valor total devido
-  const devedoresComValor = await Promise.all(
-    devedoresList.map(async (devedor) => {
-      // Buscar cobranças ativas (pendentes ou em acordo)
-      const cobrancasAtivas = await db.select().from(cobrancas).where(
-        and(
-          eq(cobrancas.devedorId, devedor.id),
-          eq(cobrancas.status, "pendente")
-        )
-      );
-      
-      const cobrancasEmAcordo = await db.select().from(cobrancas).where(
-        and(
-          eq(cobrancas.devedorId, devedor.id),
-          eq(cobrancas.status, "em_acordo")
-        )
-      );
-      
-      const todasCobrancasAtivas = [...cobrancasAtivas, ...cobrancasEmAcordo];
-      
-      // Calcular valor total com encargos
-      let valorTotalDevido = 0;
-      if (todasCobrancasAtivas.length > 0 && taxas) {
-        valorTotalDevido = todasCobrancasAtivas.reduce((sum, cob) => {
-          const breakdown = calcularValorDevido(
-            cob.amount / 100,  // Converter centavos para reais
-            cob.dueDate ? new Date(cob.dueDate) : new Date(),
-            taxas
-          );
-          return sum + breakdown.valorTotal;
-        }, 0);
-      }
-      
-      // Retornar devedor com valor atualizado (em centavos)
-      return {
-        ...devedor,
-        totalDue: Math.round(valorTotalDevido * 100),
-      };
-    })
-  );
-  
-  return devedoresComValor;
+  const now = new Date();
+  return await Promise.all(devedoresList.map(async devedor => ({
+    ...devedor,
+    ...await lerSaldoDevedor(db, devedor.id, condominioId, now),
+  })));
 }
 
 export async function getDevedorById(id: number) {
@@ -165,7 +116,8 @@ export async function getDevedorById(id: number) {
     }
   }
 
-  return { ...devedor, condominioNome, statusUnidade, processoJudicial };
+  const saldo = await lerSaldoDevedor(db, devedor.id, devedor.condominioId, new Date());
+  return { ...devedor, ...saldo, condominioNome, statusUnidade, processoJudicial };
 }
 
 /** Visão consolidada, somente-leitura, para apoiar a gestão do caso do devedor. */
