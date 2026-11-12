@@ -2,7 +2,7 @@
 
 O usuário relatou que o BTG enviou `collections.paid` para o acordo #12, mas recebeu HTTP 400. Os dados mínimos apresentados informavam pagamento de R$ 5,84 por QR Code, enquanto a emissão e a parcela armazenam 584 centavos. A correção completa foi aprovada em 11/11/2026, às 17:30, exclusivamente no desenvolvimento.
 
-A alteração inclui conversão monetária, recebimento da parcela, total pago do acordo, quitação das origens ao concluir o plano e saldo do devedor. Não autoriza implantação, reentrega ou baixa real do acordo #12.
+A alteração inclui conversão monetária, recebimento da parcela, total pago do acordo, quitação das origens ao concluir o plano e saldo do devedor. A implantação foi autorizada separadamente em 12/11/2026, às 09:39, e confirmada pela saída do usuário às 10:25. A reentrega ou baixa real do acordo #12 não foi forçada pelo roteiro e continua exigindo conferência própria.
 
 # Classificação e Prioridade
 
@@ -16,7 +16,7 @@ BTG v2/Collections, parcelas e acordos, dívidas de origem, saldo do devedor, co
 
 Antes da correção, o schema recusava o valor pago decimal. Webhook e conciliação não compartilhavam a cascata financeira completa; a baixa manual tinha etapas fora de uma transação comum e substituía a descrição das origens.
 
-A correção está implementada no desenvolvimento. A VPS permanece na versão `7a37548b`, conforme o último relato do usuário, sem esta alteração. Nenhum pagamento real foi aplicado durante o desenvolvimento.
+A VPS está na versão `77893949b1ced99e97a75dc69a9a912af2c3513f`, conforme a saída apresentada pelo usuário em 12/11, às 10:25: HTTP 200 local/HTTPS e PM2 online, sem migração, credenciais e histórico preservados. Backup `btg-recebimento-2026-11-12-102046-5NaoTF`; build anterior `YzfItz` e registro local `9FJtK5`, com caminhos completos no manual de deploy. Não houve acesso SSH independente, nova implantação ou efeito financeiro ao registrar esta confirmação. O estado pago/pendente do acordo #12 ainda não está comprovado.
 
 # Comportamento Esperado
 
@@ -72,7 +72,7 @@ O recálculo de saldo consulta vínculos e parcelas em lote. Um teste com 80 ori
 
 Nenhuma nesta etapa. Duplicata de parcela paga é no-op: não recompõe total, cascata ou datas antigas. A conciliação de pagamento divergente conserva indício e conflito de cancelamento, sem quitar a parcela.
 
-A reentrega ou baixa do acordo #12 exige atualização autorizada e revisão separada. Não se cria um novo título nem um pagamento fictício para corrigir o caso.
+A atualização está confirmada, mas eventual reentrega ou baixa do acordo #12 ainda exige revisão e autorização separadas. Primeiro conferir seu estado atual por leitura. Não se cria um novo título nem um pagamento fictício para corrigir o caso.
 
 # Histórico e Auditoria
 
@@ -90,7 +90,7 @@ A suíte completa definitiva passou em **3.263 testes de 140 arquivos**, com ape
 
 # Plano de Reversão
 
-Não houve operação real a reverter. O futuro deploy deve ter backup privado e versão fixa. Rollback de código não deve apagar pagamentos/auditoria nem restaurar banco sobre operações posteriores. Não remover migrações antigas ou aplicar baixas em lote como reversão. O responsável deve autorizar qualquer reversão em produção após revisar operações posteriores ao deploy.
+O deploy autorizado preservou backup privado e build anterior, conforme os caminhos em `docs/deploy-btg-recebimento-vps.md`. Não foi solicitada reversão. Rollback de código não deve apagar pagamentos/auditoria nem restaurar banco sobre operações posteriores. Não remover migrações antigas ou aplicar baixas em lote como reversão. O responsável deve autorizar qualquer reversão em produção após revisar operações posteriores ao deploy.
 
 # Critérios de Aceite
 
@@ -104,8 +104,8 @@ CNAB/legado, caixa e rateio histórico não entram automaticamente neste serviç
 
 # Pendências para Validação
 
-Salvar a versão validada. Confirmar URL, envelope e resposta do evento real. Autorizar implantação e revisão de reentrega individual, com conferência de emissão, parcela, acordo, origens, total pago e saldo. HTTP 200, isoladamente, não comprova baixa.
+Versão técnica salva e implantação confirmada. Permanecem: conferir emissão, parcela, acordo #12, origens, total pago e saldo; se ainda pendente, confirmar URL, envelope e resposta do evento real e revisar eventual reentrega individual antes de autorizá-la. HTTP 200 de disponibilidade, isoladamente, não comprova baixa. Piloto InnoDB também permanece separado.
 
 # Próximos Passos
 
-Entregar a versão técnica validada. Depois, atualizar a VPS com autorização própria e tratar o evento do acordo #12 de maneira controlada. Nesta etapa não se executam migração, deploy, nova cobrança, pagamento, cancelamento, reenvio, recuperação financeira ou baixa real.
+Conferir primeiro se a parcela do acordo #12 aparece paga ou pendente no Luminus e, se necessário, consultar somente os registros mínimos do retorno. Não reentregar, conciliar ou emitir outro boleto antes dessa revisão. Este registro documental não executa migração, novo deploy, pagamento, cancelamento, reenvio, recuperação financeira ou baixa real.

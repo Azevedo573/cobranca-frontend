@@ -4,7 +4,7 @@
 
 Usuário aprovou em11/11/2026 às17:30 a opção «correção completa no desenvolvimento»: conversão monetária BTG e baixa consistente de parcela, total pago do acordo, origens após quitação integral e saldo do devedor, com histórico, outras dívidas, idempotência e rollback preservados. É uma capacidade financeira de recebimento de ponta a ponta; conversão e liquidação são seus componentes, não produtos independentes.
 
-Não autoriza deploy, SQL/migração, reentrega/baixa real do acordo12, chamadas bancárias, título novo, mudanças de credenciais, schema ou dependências. Base local bfaf5cac; aplicação VPS7a37548b conforme último relato. Registros reais apenas analisados; fixtures mínimas devem ser fictícias e nunca conter payload pessoal/EMV/barras.
+A aprovação inicial não autorizava deploy, SQL/migração, reentrega/baixa real do acordo12, chamadas bancárias, título novo, mudanças de credenciais, schema ou dependências. Base de desenvolvimento bfaf5cac; VPS inicial7a37548b. O deploy foi autorizado separadamente12/11 às09:39 e executado no terminal do usuário; às10:25 ele confirmou aplicação ativa77893949, HTTP200local/HTTPS ePM2online, semmigração. Backup/caminhos reais em docs/deploy-btg-recebimento-vps.md. Isso não autoriza nem comprova reentrega/baixa do acordo12. Fixtures permanecem fictícias, sem payload pessoal/EMV/barras.
 
 ## Problema comprovado
 
@@ -73,4 +73,4 @@ Registros: docs/ocorrencias/OCORRENCIA-recebimento-btg-acordos-2026-11-11.md e t
 
 ## Pendências externas
 
-URL e envelope/resposta do400 ainda devem ser conferidos antes de homologação real. Piloto InnoDB/concor­rência real, deploy e reentrega do acordo12 separados. Fixtures comprovam regra local, não entrega/estado bancário real.
+Implantação77893949 confirmada pela saída do usuário12/11 às10:25, semSSH independente ou nova operação ao registrar. Quitação do acordo12, URL e envelope/resposta do400 ainda devem ser conferidos antes de homologação real. Piloto InnoDB/concorrência real e eventual reentrega permanecem separados. Fixtures comprovam regra local, não entrega/estado bancário real.

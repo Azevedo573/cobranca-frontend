@@ -13,7 +13,7 @@ Aprovação11/11/2026 às17:30, desenvolvimento apenas. Spec: docs/specs/SPEC-re
 - [x] Registrar resultado, limites de homologação/reversão e preparar documentação/evidências para checkpoint validado.
 - [x] Deploy autorizado12/11 às09:39, execução pelo terminal do usuário escolhida às09:42; sem acesso SSH configurado para execução independente. Alvo77893949/base7a37548b, sem migração.
 - [x] Roteiro/manual preparados para checkpoint: backup privado, build isolado/troca reversível/PM2/HTTP; chave canônica e .env regular reconfirmados. QA final93cenários/3543verificações/zero falhas, bash-n/hash/diff. Bloco curto recuperará o commit operacional e hash exatos após salvamento, sem executar a VPS pelo Manus.
-- [ ] Registrar resultado real da VPS após execução, mantendo pagamentos recebidos normalmente e histórico preservados.
+- [x] Usuário confirmou12/11 às10:25 a VPS77893949, backupbtg-recebimento-2026-11-12-102046-5NaoTF, distanteriorYzfItz e registrolocal9FJtK5; HTTP200local/HTTPS/PM2online, semmigração/credenciaispreservadas/açãofinanceiraforçada. Caminhos completos registrados no manual, semSSH independente ou novo deploy ao salvar documentação.
 - [ ] Conferir envelope/URL/resposta real e planejar reentrega/baixa controlada em etapa separada, sem nova cobrança.
 
 Responsáveis por arquivos distintos: núcleo recebimento/serviço; saldo e adaptador manual; regressões/fixtures BTG; parent integra moeda/webhook/consulta/conciliação e validação final. Nenhum agente pode operar pessoas/valores reais, alterar estrutura ou arquivos de outro responsável.

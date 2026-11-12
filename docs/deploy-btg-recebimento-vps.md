@@ -10,7 +10,20 @@ Em 12/11/2026, às 09:39, o usuário autorizou o deploy da correção. A sessão
 
 **Roteiro:** `scripts/deploy-btg-recebimento-vps.sh`.
 
-A preparação do roteiro não altera a versão alvo e não implanta a ponta móvel da `main`. A confirmação de produção só será registrada após receber o resultado da execução real.
+A preparação do roteiro não altera a versão alvo e não implanta a ponta móvel da `main`. O roteiro foi entregue no commit operacional `7ddfb4b3eaa5e3c0abbe323448255760760c7200`.
+
+## Implantação confirmada pelo usuário
+
+Em **12/11/2026, às 10:25**, o usuário apresentou a saída de conclusão da execução manual na VPS:
+
+- Versão ativa: `77893949b1ced99e97a75dc69a9a912af2c3513f`.
+- Backup: `/var/backups/cobranca/btg-recebimento-2026-11-12-102046-5NaoTF`.
+- Build anterior: `/var/www/cobranca/.dist-anterior-btg-recebimento-YzfItz/dist`.
+- Registro local: `/var/www/cobranca/.build-btg-recebimento-9FJtK5`.
+- Sem migração; HTTP 200 local/HTTPS e PM2 online. Credenciais e histórico preservados.
+- Nenhuma emissão, cancelamento, recuperação, baixa manual ou reentrega de evento foi forçada pelo roteiro. Recebimentos normais de novos eventos passam a usar a correção.
+
+Este registro se baseia na saída fornecida pelo usuário, sem acesso SSH independente. **Não comprova quitação do acordo #12** nem ausência de eventos bancários legítimos posteriores. Nenhum novo deploy, comando na VPS ou efeito financeiro é executado ao salvar esta confirmação.
 
 ## Escopo
 
@@ -68,8 +81,8 @@ Primeira validação independente: 93 cenários, 90 aprovados e três falhas dec
 
 Validação integral do roteiro corrigido: **93 cenários e 3.543 verificações aprovadas, zero falhas**. `bash -n`, integridade do source e todos os checks globais aprovados. SHA-256: `21d366abf8922378f2a22fe40d166ae523aea82fc3d393758fc8529e96fa8ca8`.
 
-Git mutante, build, dump, identidade, PM2 e HTTP são simulados. Parsers Node, tar/hash/mv/flock e permissões operam somente sobre fixtures sintéticas e privadas. Não foram executados SSH, MySQL/BTG/rede reais, migração, instalação ou operação financeira. A simulação não comprova serviço, dump recuperável ou estado bancário da VPS. Evidências em `/tmp/deploy-btg-recebimento-validacao/results.json`; primeira rodada preservada em `before-hardening`. Preparação validada; implantação real ainda pendente.
+Git mutante, build, dump, identidade, PM2 e HTTP são simulados. Parsers Node, tar/hash/mv/flock e permissões operam somente sobre fixtures sintéticas e privadas. Durante a simulação não foram executados SSH, MySQL/BTG/rede reais, migração, instalação ou operação financeira. A simulação não comprova serviço, dump recuperável ou estado bancário da VPS. Evidências em `/tmp/deploy-btg-recebimento-validacao/results.json`; primeira rodada preservada em `before-hardening`. A implantação foi confirmada posteriormente pela saída do usuário, conforme o registro acima.
 
 ## Conferência posterior
 
-Após confirmar a ativação, revisar URL, envelope e resposta do evento real. Conferir apenas o estado de emissão, parcela, acordo, origens, valor pago e saldo, sem nova cobrança. Qualquer reentrega ou conciliação financeira é uma etapa separada e deve ser revisada e autorizada. HTTP 200 de disponibilidade não prova quitação do acordo #12.
+A ativação está confirmada. Próximo passo: conferir o estado atual do acordo #12, inicialmente por leitura, e revisar URL, envelope e resposta do evento real se a baixa ainda estiver pendente. Conferir emissão, parcela, acordo, origens, valor pago e saldo, sem nova cobrança. Qualquer reentrega ou conciliação financeira é uma etapa separada e deve ser revisada e autorizada. HTTP 200 de disponibilidade não prova quitação do acordo #12.
