@@ -3167,3 +3167,13 @@ Registros: docs/specs/SPEC-usuarios-escopo-condominios-2026-11-10.md, docs/ocorr
 - [ ] Conferir URL/envelope/respostaHTTP e executar piloto InnoDB/controlar reentrega individual após revisão e autorização próprias; sem título novo/cancelamento/backfill/baixa em lote.
 
 Registros: docs/specs/SPEC-recebimento-btg-acordos-2026-11-11.md, docs/ocorrencias/OCORRENCIA-recebimento-btg-acordos-2026-11-11.md, tasks/plan-recebimento-btg-acordos.md e docs/deploy-btg-recebimento-vps.md. Sem schema/migration/dependências/credenciais/telas/operações BTG durante o desenvolvimento/preparação. VPS77893949 confirmada, acordo12 e fluxo financeiro real ainda não homologados. Não se promete prova bancária retrospectiva, envelope real corrigido ou concorrência InnoDB pela fixture.
+
+## Manutenção — estrutura ausente userCondominios na VPS (16/11/2026)
+
+- [x] Diagnóstico local do UPDATE de vínculos e lacuna de pré-requisito no provisionador0104; consulta somente leitura entregue/testada em7cenários. Usuário confirmou09:26 ausência tabela/colunas/índices, usersInnoDB, ER_NO_SUCH_TABLE1146/42S02 e ID11ausente.
+- [x] Aprovação09:27 para backupDB e criação somente tabela6campos/PK/unique/doisíndicesInnoDB. Spec registrada antes de código, sembackfill0094/concessões/cadastroautomático/financeiro/restart/deploy.
+- [x] Helper/wrapper/manual preparados para checkpoint e bloco fixado por commit/hash: 93testesmetadata/protocolo, tipos/sintaxe/diff; backupfinal14cenários/113verificações/zerofalhas, fixturesprivadassemDB/VPS. Reforçadosdefaults-file/loginisolado/protocoloTCP/baseprivada/CNFfinally/footerestruturas e recheckHEADapóslock. Sem alterarapp/schema/deps. Usuário09:34 pediu somentebloco; não solicitar testesdecadastro paraexecutar reparo.
+- [ ] Receber resultado real da VPS e registrar backup/estrutura; sem inferir aplicação pela preparação local.
+- [ ] Homologar cadastro pretendido e alcance/perfil com usuário; carteiras antigas eventualmente vazias exigem revisão administrativa separada, sem copiar principal/reativar vínculos em lote.
+
+Arquivos: docs/specs/SPEC-reparo-user-condominios-2026-11-16.md, docs/reparo-user-condominios-vps.md, scripts/reparar-user-condominios-vps.cjs/.sh, server/reparo-user-condominios.test.ts. AppVPS77893949 permanece sem troca de código; migração0094 original contémDML e não deve ser executada integralmente. Nenhuma tabela real criada nesta preparação.
