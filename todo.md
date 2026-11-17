@@ -3177,3 +3177,14 @@ Registros: docs/specs/SPEC-recebimento-btg-acordos-2026-11-11.md, docs/ocorrenci
 - [ ] Homologar cadastro pretendido e alcance/perfil com usuário; carteiras antigas eventualmente vazias exigem revisão administrativa separada, sem copiar principal/reativar vínculos em lote.
 
 Arquivos: docs/specs/SPEC-reparo-user-condominios-2026-11-16.md, docs/reparo-user-condominios-vps.md, scripts/reparar-user-condominios-vps.cjs/.sh, server/reparo-user-condominios.test.ts. AppVPS77893949 permanece sem troca de código; migração0094 original contémDML e não deve ser executada integralmente. Nenhuma tabela real criada nesta preparação.
+
+## Evolução — dados do condomínio no preenchimento de documentos (17/11/2026)
+
+- [x] Analisar tela/catálogos/cadastro/consumidores: preenchimento parcial e diferença entre condominio/nomeCondominio; endereço composto não preenchido. Não consultar modelo1/VPS/PII reais.
+- [x] Usuário aprovou proposta às13:47: nome/CNPJ/endereço/contatos/jurídico presentes no modelo, edição manual protegida, troca confirmada/sem misturar fontes, gestor sem presunção legal, nenhum schema/documento histórico/deploy.
+- [x] Salvar especificação e preparar plano/tarefas com queries mínimas autorizadas, catálogo, estado de formulário, UI e geração contextual compatível com consumidores antigos. Somente documentação nesta etapa.
+- [ ] Validar plano/tarefas com usuário antes de iniciar implementação.
+- [ ] Implementar e validar no desenvolvimento com dados fictícios; tipos/build/regressão e checkpoint, sem gerar ou enviar documento real.
+- [ ] Implantar e homologar na VPS somente em etapa autorizada separadamente; não misturar BTG, reparo de userCondominios ou Central Jurídica.
+
+Referências: docs/specs/SPEC-documentos-dados-condominio-2026-11-17.md e tasks/plan-documentos-dados-condominio.md. Sem código/schema/cadastro/permissões/credenciais alterados ao especificar.
