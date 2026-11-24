@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { VARIAVEIS_CONDOMINIO } from "@shared/modelo-condominio";
 import { useRoute, useLocation } from "wouter";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -52,11 +53,7 @@ const CATEGORIAS_VARIAVEIS: Record<string, { chave: string; descricao: string }[
     { chave: "blocoDevedor", descricao: "Bloco" },
     { chave: "enderecoDevedor", descricao: "Endereço completo" },
   ],
-  Condomínio: [
-    { chave: "nomeCondominio", descricao: "Nome do condomínio" },
-    { chave: "cnpjCondominio", descricao: "CNPJ" },
-    { chave: "enderecoCondominio", descricao: "Endereço" },
-  ],
+  Condomínio: VARIAVEIS_CONDOMINIO.filter(v => v.categoria === "Condomínio").map(v => ({ chave: v.chave, descricao: v.label })),
   Acordo: [
     { chave: "valorOriginal", descricao: "Valor original da dívida" },
     { chave: "valorAcordo", descricao: "Valor total do acordo" },
@@ -94,7 +91,7 @@ const CATEGORIAS_VARIAVEIS: Record<string, { chave: string; descricao: string }[
     { chave: "nomeResponsavel", descricao: "Nome do responsável" },
   ],
   Jurídico: [
-    { chave: "condominio", descricao: "Nome do condomínio" },
+    ...VARIAVEIS_CONDOMINIO.filter(v => v.categoria === "Jurídico").map(v => ({ chave: v.chave, descricao: v.label })),
     { chave: "representanteLegal", descricao: "Representante legal do condomínio" },
     { chave: "tipoAcao", descricao: "Tipo de ação judicial" },
     { chave: "numeroProcesso", descricao: "Número do processo judicial" },
@@ -102,10 +99,6 @@ const CATEGORIAS_VARIAVEIS: Record<string, { chave: string; descricao: string }[
     { chave: "assinatura", descricao: "Campo de assinatura" },
     { chave: "nomePreposto", descricao: "Nome do preposto" },
     { chave: "dataHoraAudiencia", descricao: "Data e hora da audiência" },
-    { chave: "advogadoResponsavel", descricao: "Advogado responsável" },
-    { chave: "oabAdvogado", descricao: "OAB do advogado" },
-    { chave: "varaCompetente", descricao: "Vara competente" },
-    { chave: "foroComarca", descricao: "Foro / Comarca" },
   ],
 };
 

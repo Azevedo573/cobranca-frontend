@@ -5406,6 +5406,27 @@ export const appRouter = router({
         return rows.map(r => ({ ...r, id: Number(r.id) }));
       }),
 
+    listarCondominiosPreenchimento: protectedProcedure
+      .input(z.object({ modeloId: z.number().int().positive() }))
+      .query(async ({ input, ctx }) => {
+        const { listarCondominiosPreenchimento } = await import("./modelo-condominio-dados");
+        return listarCondominiosPreenchimento(ctx.user, input.modeloId);
+      }),
+
+    obterDadosPreenchimento: protectedProcedure
+      .input(z.object({ modeloId: z.number().int().positive(), condominioId: z.number().int().positive() }))
+      .query(async ({ input, ctx }) => {
+        const { obterDadosPreenchimento } = await import("./modelo-condominio-dados");
+        return obterDadosPreenchimento(ctx.user, input.modeloId, input.condominioId);
+      }),
+
+    validarPreenchimento: protectedProcedure
+      .input(z.object({ modeloId: z.number().int().positive(), condominioId: z.number().int().positive().nullable() }).strict())
+      .query(async ({ input, ctx }) => {
+        await (await import("./modelo-condominio-dados")).validarContextoPreenchimento(ctx.user, input.modeloId, input.condominioId);
+        return { autorizado: true as const };
+      }),
+
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input, ctx }) => {
@@ -5504,6 +5525,9 @@ export const appRouter = router({
       .input(z.object({
         modeloId: z.number(),
         variaveis: z.record(z.string(), z.string()).optional(),
+        contextoPreenchimento: z.object({
+          condominioId: z.number().int().positive().nullable(),
+        }).strict().optional(),
         parcelas: z.array(z.object({
           numero: z.number().optional(),
           descricao: z.string().optional(),
@@ -5519,7 +5543,9 @@ export const appRouter = router({
         })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const modelo = await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.modeloId);
+        const modelo = input.contextoPreenchimento
+          ? await (await import("./modelo-condominio-dados")).validarContextoPreenchimento(ctx.user, input.modeloId, input.contextoPreenchimento.condominioId)
+          : await (await import("./escopo-documentos-consumidores")).obterModeloDocumentoAutorizado(ctx.user, input.modeloId);
         const { gerarPDFModelo, gerarHtmlTabelaParcelas } = await import("./modelo-pdf");
         const { storagePut } = await import("./storage");
 
@@ -5558,9 +5584,13 @@ export const appRouter = router({
           margemEsquerda: modelo.margemEsquerda ?? 50,
           margemDireita: modelo.margemDireita ?? 50,
           variaveis,
+          ...(input.contextoPreenchimento ? { modoVariaveis: "texto" as const } : {}),
           anexos: anexos.map(a => ({ url: a.url, largura: a.largura ?? 400, alinhamento: (a.alinhamento as any) ?? "centro", legenda: a.legenda ?? undefined })),
         });
 
+        if (input.contextoPreenchimento) {
+          await (await import("./modelo-condominio-dados")).validarContextoPreenchimento(ctx.user, input.modeloId, input.contextoPreenchimento.condominioId);
+        }
         const randomSuffix = Math.random().toString(36).substring(2, 10);
         const fileKey = `modelos/pdfs/doc-${input.modeloId}-${randomSuffix}.pdf`;
         const { url } = await storagePut(fileKey, pdfBuffer, "application/pdf");

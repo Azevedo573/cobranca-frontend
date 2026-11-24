@@ -2,7 +2,7 @@
 
 Preencher as variáveis do condomínio no fluxo `/modelos-documento/:id/preencher` com dados do cadastro selecionado, incluindo a página relatada `/modelos-documento/1/preencher`. História de usuário: como profissional autorizado, quero selecionar o condomínio, revisar seus dados já preenchidos e gerar o documento sem redigitar informações cadastrais.
 
-Especificação aprovada pelo usuário em 17/11/2026 às 13:47. Implementação ainda não iniciada; plano técnico em revisão. Premissas propostas: aplicar a melhoria aos modelos atendidos por essa tela, manter os valores editáveis e não modificar cadastros nem documentos históricos. Não foi consultado o conteúdo do modelo #1 na VPS.
+Especificação aprovada pelo usuário em 17/11/2026 às 13:47; plano/tarefas e início da implementação no desenvolvimento autorizados às 13:54. Desenvolvimento retomado em 23/11 e 24/11 após interrupções; implementação e validação concluídas em 24/11. Premissas aprovadas: aplicar a melhoria aos modelos atendidos por essa tela, manter os valores editáveis e não modificar cadastros nem documentos históricos. Não foi consultado o conteúdo do modelo #1 na VPS.
 
 # Classificação
 
@@ -97,7 +97,7 @@ Preservar PDFs existentes. Edição de variável muda apenas a instância em pre
 
 # Tarefas Técnicas
 
-Especificação proposta, não plano de implementação já aprovado.
+Plano e tarefas aprovados: `tasks/plan-documentos-dados-condominio.md`. Os estados de conclusão são registrados somente após as verificações correspondentes.
 
 Front-end: ampliar catálogo e rótulos; desacoplar seletor das aliases; controlar fonte, campos editados, carga e confirmação de troca. Back-end: definir DTO mínimo de variáveis, validar modelo/carteira e manter contrato legado da geração para consumidores que não participam do novo fluxo. Banco: nenhuma alteração. Testes: helpers de mapeamento/endereço, transições de seleção/edição, aliases, campos ausentes, respostas tardias, autorização e regressões de preview/PDF.
 
@@ -124,8 +124,10 @@ Reversão futura: remover a nova versão de preenchimento ou restaurar o build a
 
 # Pendências para Validação
 
-Proposta e premissas de edição/troca aprovadas; pendente revisão do plano técnico. Se for desejado que `representanteLegal` receba automaticamente o gestor, é necessária decisão explícita de regra jurídica; a recomendação inicial é manter manual. Nenhuma inspeção da VPS, teste novo, código, checkpoint ou deploy desta funcionalidade foi realizado.
+Validação de desenvolvimento concluída: seis novos arquivos/222 testes desta melhoria; 305 focados/9 arquivos aprovados em23/11, e suíte completa em24/11 com3.578 testes/147 arquivos aprovados, um teste/arquivo BTG externo opt-in ignorado. TypeScript, build e diff aprovados; somente aviso de tamanho de bundles no build. Banco e BTG externos desligados na suíte. Inspeção da página real com transporte tRPC fictício confirmou edição/refetch, troca cancelada/confirmada, ausência de dados sem herança, revisão humana, impressão/PDF por callbacks fictícios, revogação e mudança de identidade; layout desktop/móvel390px. Prévia e impressão usam HTML idêntico, com iframe sandbox e CSP. PDF sintético local de uma página renderizado/extraído e inspecionado, sem storage público. Fixtures temporárias removidas.
+
+Permanecem pendentes implantação autorizada e homologação de modelos/cadastros reais na VPS. Testes de banco usam fixtures, não uma prova InnoDB real. O parser HTML simplificado do PDF, fontes Helvetica/WinAnsi e altura fixa de células mantêm limitações de layout anteriores; consistência dos valores não promete paginação idêntica à impressão do navegador nem suporte irrestrito a Unicode. Chamadas antigas sem contexto conservam o ramo HTML/Markdown e suas limitações. Se for desejado que `representanteLegal` receba automaticamente o gestor, é necessária decisão explícita de regra jurídica; continua manual no escopo aprovado. Nenhuma inspeção da VPS ou deploy desta funcionalidade foi realizado.
 
 # Próximos Passos
 
-Especificação salva no projeto após aprovação. Revisar o plano/tarefas de implementação com arquivos e testes exatos antes de iniciar código. Implementar no desenvolvimento após os gates correspondentes. Publicação na VPS e qualquer geração real exigem etapa separada; não misturar com reparo de usuários, BTG ou Central Jurídica.
+Entregar a versão validada por checkpoint e o guia de uso. A publicação na VPS e qualquer geração real exigem etapa autorizada separada; não misturar com reparo de usuários, BTG ou Central Jurídica. Reversão de aplicação sem rollback do banco; nenhum cadastro ou PDF histórico foi alterado por esta melhoria.

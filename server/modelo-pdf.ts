@@ -3,6 +3,7 @@ import https from "https";
 import http from "http";
 import { Readable } from "stream";
 import sharp from "sharp";
+import { normalizarChaveModelo, VARIAVEIS_CONDOMINIO } from "../shared/modelo-condominio";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ export interface OpcoesPDFModelo {
   margemEsquerda?: number;
   margemDireita?: number;
   variaveis?: VariaveisDocumento;
+  /** Valores literais; omitido mantém HTML/Markdown de variáveis legadas. */
+  modoVariaveis?: "texto";
   anexos?: AnexoPDF[];
 }
 
@@ -68,6 +71,67 @@ function substituirVariaveis(html: string, variaveis: VariaveisDocumento): strin
     }
   }
   return resultado;
+}
+
+/**
+ * Uma passagem sobre o modelo, nunca sobre os valores. Os marcadores não têm
+ * HTML, entidades ou Markdown e só são abertos imediatamente antes de doc.text.
+ * Escapar HTML não basta: limpar() decodifica entidades em sequência e o
+ * renderizador interpreta asteriscos/sublinhados depois (inclusive entidades duplas e escapes).
+ */
+function protegerVariaveisTexto(html: string, variaveis: VariaveisDocumento) {
+  const valores = new Map(Object.entries(variaveis)
+    .filter((entrada): entrada is [string, string] => entrada[1] !== undefined)
+    .map(([chave, valor]) => [normalizarChaveModelo(chave), valor]));
+  let prefixo = "LUMINUSVAR";
+  // Sem colisão com o modelo nem com dados: restauração também não é recursiva.
+  while (html.includes(prefixo) || Array.from(valores.values()).some(v => v.includes(prefixo))) {
+    prefixo += "X";
+  }
+  const literais: string[] = [];
+  const protegido = html.replace(/\{\{\s*([a-zA-Z_]\w*)\s*\}\}/g, (token: string, original: string) => {
+    const valor = valores.get(normalizarChaveModelo(original));
+    if (valor === undefined) return token;
+    const marcador = `${prefixo}${literais.length}FIM`;
+    literais.push(valor);
+    return marcador;
+  });
+  const regexMarcador = new RegExp(`${prefixo}(\\d+)FIM`, "g");
+  return {
+    html: protegido,
+    restaurar: (texto: string) => texto.replace(regexMarcador, (_, indice: string) => literais[Number(indice)]),
+  };
+}
+
+/** Formata somente o modelo; os dados não voltam a passar pelo parser inline. */
+function renderizarParagrafoTexto(
+  doc: PDFKit.PDFDocument,
+  texto: string,
+  restaurar: (texto: string) => string,
+  largura: number,
+  align: "left" | "center" | "right" | "justify",
+) {
+  const fragmentos: Array<{ texto: string; negrito: boolean; italico: boolean }> = [];
+  const separar = (trecho: string, negrito = false, italico = false) => {
+    const partes = trecho.split(/(\*\*[^*]+\*\*|_[^_]+_)/g).filter(p => p !== "");
+    for (const parte of partes) {
+      if (parte.startsWith("**") && parte.endsWith("**")) {
+        separar(parte.slice(2, -2), true, italico);
+      } else if (parte.startsWith("_") && parte.endsWith("_")) {
+        separar(parte.slice(1, -1), negrito, true);
+      } else {
+        fragmentos.push({ texto: restaurar(parte), negrito, italico });
+      }
+    }
+  };
+  separar(texto);
+  const visiveis = fragmentos.filter(fragmento => fragmento.texto !== "");
+  visiveis.forEach((fragmento, indice) => {
+    const fonte = fragmento.negrito
+      ? (fragmento.italico ? "Helvetica-BoldOblique" : "Helvetica-Bold")
+      : (fragmento.italico ? "Helvetica-Oblique" : "Helvetica");
+    doc.font(fonte).text(fragmento.texto, { width: largura, align, continued: indice < visiveis.length - 1 });
+  });
 }
 
 async function baixarImagem(url: string): Promise<Buffer> {
@@ -309,8 +373,9 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
     anexos = [],
   } = opcoes;
 
-  // Substituir variáveis no HTML
-  const htmlFinal = substituirVariaveis(conteudoHtml, variaveis);
+  // O caminho legado continua permitindo HTML de parcelas e Markdown nos dados.
+  const textoLiteral = opcoes.modoVariaveis === "texto" ? protegerVariaveisTexto(conteudoHtml, variaveis) : undefined;
+  const htmlFinal = textoLiteral ? textoLiteral.html : substituirVariaveis(conteudoHtml, variaveis);
 
   // Criar documento PDF
   const doc = new PDFDocument({
@@ -409,16 +474,17 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
 
     // Normaliza o alinhamento para PDFKit (aceita 'left'|'center'|'right'|'justify')
     const pdfAlign = (linha.align ?? "left") as "left" | "center" | "right" | "justify";
+    const textoDireto = textoLiteral ? textoLiteral.restaurar(linha.texto) : linha.texto;
 
     switch (linha.tipo) {
       case "h1":
         doc.font("Helvetica-Bold").fontSize(18).fillColor("#1a1a2e");
-        doc.text(linha.texto, { width: larguraUtil, align: pdfAlign !== "left" ? pdfAlign : "center" });
+        doc.text(textoDireto, { width: larguraUtil, align: pdfAlign !== "left" ? pdfAlign : "center" });
         doc.moveDown(0.5);
         break;
       case "h2":
         doc.font("Helvetica-Bold").fontSize(15).fillColor("#1a1a2e");
-        doc.text(linha.texto, { width: larguraUtil, align: pdfAlign });
+        doc.text(textoDireto, { width: larguraUtil, align: pdfAlign });
         doc.moveDown(0.3);
         break;
       case "h3":
@@ -426,17 +492,17 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
       case "h5":
       case "h6":
         doc.font("Helvetica-Bold").fontSize(12).fillColor("#333333");
-        doc.text(linha.texto, { width: larguraUtil, align: pdfAlign });
+        doc.text(textoDireto, { width: larguraUtil, align: pdfAlign });
         doc.moveDown(0.3);
         break;
       case "li":
         doc.font("Helvetica").fontSize(11).fillColor("#333333");
-        doc.text(linha.texto, { width: larguraUtil - 16, indent: 16 });
+        doc.text(textoDireto, { width: larguraUtil - 16, indent: 16 });
         doc.moveDown(0.2);
         break;
       case "tabela":
         doc.font("Courier").fontSize(9).fillColor("#333333");
-        doc.text(linha.texto, { width: larguraUtil });
+        doc.text(textoDireto, { width: larguraUtil });
         doc.moveDown(0.1);
         break;
 
@@ -498,7 +564,7 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
           }
           doc.rect(startX, rowY, larguraUtil, rowH).strokeColor("#cccccc").lineWidth(0.5).stroke();
           for (let ci = 0; ci < numCols; ci++) {
-            const cellText = row.cells[ci] ?? "";
+            const cellText = textoLiteral ? textoLiteral.restaurar(row.cells[ci] ?? "") : row.cells[ci] ?? "";
             const cellX = startX + ci * colW;
             if (ci > 0) {
               doc.moveTo(cellX, rowY).lineTo(cellX, rowY + rowH).strokeColor("#cccccc").lineWidth(0.5).stroke();
@@ -550,7 +616,9 @@ export async function gerarPDFModelo(opcoes: OpcoesPDFModelo): Promise<Buffer> {
       default: // "p"
         doc.font("Helvetica").fontSize(11).fillColor("#333333");
         // Suporte a negrito/itálico inline **texto** e _texto_
-        if (linha.texto.includes("**") || linha.texto.includes("_")) {
+        if (textoLiteral) {
+          renderizarParagrafoTexto(doc, linha.texto, textoLiteral.restaurar, larguraUtil, pdfAlign);
+        } else if (linha.texto.includes("**") || linha.texto.includes("_")) {
           // Dividir em fragmentos: **negrito**, _itálico_ e texto normal
           const partes = linha.texto.split(/(\*\*[^*]+\*\*|_[^_]+_)/g).filter(p => p !== "");
           const opts = { continued: true, width: larguraUtil, align: pdfAlign };
@@ -651,9 +719,7 @@ export const VARIAVEIS_DISPONIVEIS: Array<{ chave: string; descricao: string; ca
   { chave: "blocoDevedor", descricao: "Bloco do devedor", categoria: "Devedor" },
   { chave: "enderecoDevedor", descricao: "Endereço completo do devedor", categoria: "Devedor" },
   // Condomínio
-  { chave: "nomeCondominio", descricao: "Nome do condomínio", categoria: "Condomínio" },
-  { chave: "cnpjCondominio", descricao: "CNPJ do condomínio", categoria: "Condomínio" },
-  { chave: "enderecoCondominio", descricao: "Endereço do condomínio", categoria: "Condomínio" },
+  ...VARIAVEIS_CONDOMINIO.map(({ chave, label, categoria }) => ({ chave, descricao: label, categoria })),
   // Acordo / Dívida
   { chave: "valorOriginal", descricao: "Valor original da dívida", categoria: "Acordo" },
   { chave: "valorAcordo", descricao: "Valor total do acordo", categoria: "Acordo" },
